@@ -4,96 +4,95 @@
 
 @layer base {
   :root {
-    --background: 300 3% 97%;
-    /* #f7f6f7 */
-    --foreground: 219 53% 20%;
-    /* #182b4e */
+    --background: 72 17% 86%;
+    /* #daddcc (Stone) */
+    --foreground: 180 23% 20%;
+    /* Darkened #3b5e5e for text */
 
-    --card: 0 0% 100%;
-    --card-foreground: 219 53% 20%;
+    --card: 72 17% 90%;
+    /* Slightly lighter stone */
+    --card-foreground: 180 23% 20%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 219 53% 20%;
+    --popover: 72 17% 90%;
+    --popover-foreground: 180 23% 20%;
 
-    --primary: 219 53% 20%;
-    /* #182b4e */
-    --primary-foreground: 300 3% 97%;
+    --primary: 180 23% 30%;
+    /* #3b5e5e (Dark Teal) */
+    --primary-foreground: 72 17% 95%;
 
-    --secondary: 201 71% 33%;
-    /* #196792 */
-    --secondary-foreground: 300 3% 97%;
+    --secondary: 147 10% 53%;
+    /* #7a9385 (Muted Sage) */
+    --secondary-foreground: 72 17% 95%;
 
-    --muted: 300 3% 94%;
-    /* Slightly darker #f7f6f7 for depth */
-    --muted-foreground: 201 71% 33%;
+    --muted: 72 10% 80%;
+    /* Muted stone */
+    --muted-foreground: 180 23% 30%;
 
-    --accent: 201 71% 33%;
-    /* #196792 */
-    --accent-foreground: 300 3% 97%;
+    --accent: 147 10% 53%;
+    /* Sage */
+    --accent-foreground: 72 17% 95%;
 
     --destructive: 356 56% 51%;
-    /* #c93942 */
-    --destructive-foreground: 300 3% 97%;
+    --destructive-foreground: 72 17% 95%;
 
-    --border: 219 53% 20% / 0.1;
-    /* Navy with opacity for borders */
-    --input: 219 53% 20% / 0.1;
-    --ring: 219 53% 20%;
+    --border: 180 23% 30% / 0.15;
+    --input: 180 23% 30% / 0.15;
+    --ring: 180 23% 30%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
 
-    --sidebar-background: 300 3% 97%;
-    --sidebar-foreground: 219 53% 20%;
-    --sidebar-primary: 219 53% 20%;
-    --sidebar-primary-foreground: 300 3% 97%;
-    --sidebar-accent: 201 71% 33%;
-    --sidebar-accent-foreground: 300 3% 97%;
-    --sidebar-border: 219 53% 20% / 0.1;
-    --sidebar-ring: 219 53% 20%;
+    --sidebar-background: 72 17% 86%;
+    --sidebar-foreground: 180 23% 30%;
+    --sidebar-primary: 180 23% 30%;
+    --sidebar-primary-foreground: 72 17% 95%;
+    --sidebar-accent: 147 10% 53%;
+    --sidebar-accent-foreground: 72 17% 95%;
+    --sidebar-border: 180 23% 30% / 0.1;
+    --sidebar-ring: 180 23% 30%;
   }
 
   .dark {
-    /* Since we only have 4 colors, we'll keep the same palette but maybe flip some roles if needed */
-    --background: 219 53% 20%;
-    /* Navy for dark mode background */
-    --foreground: 300 3% 97%;
-    /* White for text */
+    --background: 180 23% 15%;
+    /* Very dark version of #3b5e5e */
+    --foreground: 72 17% 86%;
+    /* Stone for text */
 
-    --card: 219 53% 25%;
-    --card-foreground: 300 3% 97%;
+    --card: 180 23% 20%;
+    --card-foreground: 72 17% 86%;
 
-    --popover: 219 53% 25%;
-    --popover-foreground: 300 3% 97%;
+    --popover: 180 23% 20%;
+    --popover-foreground: 72 17% 86%;
 
-    --primary: 300 3% 97%;
-    /* White as primary on dark */
-    --primary-foreground: 219 53% 20%;
+    --primary: 72 17% 86%;
+    /* Stone as primary on dark */
+    --primary-foreground: 180 23% 15%;
 
-    --secondary: 201 71% 33%;
-    /* Blue */
-    --secondary-foreground: 300 3% 97%;
+    --secondary: 147 10% 53%;
+    /* Sage */
+    --secondary-foreground: 72 17% 86%;
 
-    --muted: 219 53% 30%;
-    --muted-foreground: 300 3% 90%;
+    --muted: 180 23% 25%;
+    --muted-foreground: 72 10% 70%;
 
-    --accent: 201 71% 33%;
-    --accent-foreground: 300 3% 97%;
+    --accent: 147 10% 30%;
+    /* Darker sage */
+    --accent-foreground: 72 17% 86%;
 
     --destructive: 356 56% 51%;
-    --destructive-foreground: 300 3% 97%;
+    --destructive-foreground: 72 17% 86%;
 
-    --border: 300 3% 97% / 0.1;
-    --input: 300 3% 97% / 0.1;
-    --ring: 300 3% 97%;
+    --border: 72 17% 86% / 0.1;
+    --input: 72 17% 86% / 0.1;
+    --ring: 72 17% 86%;
 
-    --sidebar-background: 219 53% 15%;
-    --sidebar-foreground: 300 3% 97%;
-    --sidebar-primary: 300 3% 97%;
-    --sidebar-primary-foreground: 219 53% 20%;
-    --sidebar-accent: 201 71% 33%;
-    --sidebar-accent-foreground: 300 3% 97%;
-    --sidebar-border: 300 3% 97% / 0.1;
-    --sidebar-ring: 300 3% 97%;
+    --sidebar-background: 180 23% 10%;
+    --sidebar-foreground: 72 17% 86%;
+    --sidebar-primary: 72 17% 86%;
+    --sidebar-primary-foreground: 180 23% 15%;
+    --sidebar-accent: 147 10% 30%;
+    --sidebar-accent-foreground: 72 17% 86%;
+    --sidebar-border: 72 17% 86% / 0.1;
+    --sidebar-ring: 72 17% 86%;
   }
 }
 

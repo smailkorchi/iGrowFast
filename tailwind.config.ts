@@ -59,10 +59,10 @@ export default {
         },
         // Brand Colors
         brand: {
-          white: "#f7f6f7",
-          navy: "#182b4e",
+          white: "#daddcc",
+          navy: "#3b5e5e",
           red: "#c93942",
-          blue: "#196792",
+          blue: "#7a9385",
         }
       },
       borderRadius: {
