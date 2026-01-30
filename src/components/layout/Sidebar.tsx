@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import {
     Home,
     Users,
@@ -30,6 +30,10 @@ import {
     ChevronRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+import { LogOut, User as UserIcon, Loader2 } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import { useQuery } from '@tanstack/react-query';
 
 type NavItem = {
     icon: any;
@@ -93,6 +97,30 @@ const navigation: NavSection[] = [
 ];
 
 const Sidebar = () => {
+    const navigate = useNavigate();
+
+    const { data: profile, isLoading } = useQuery({
+        queryKey: ['current-profile'],
+        queryFn: async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return null;
+
+            const { data, error } = await supabase
+                .from('users')
+                .select('*')
+                .eq('id', user.id)
+                .single();
+
+            if (error) return null;
+            return data;
+        }
+    });
+
+    const handleLogout = async () => {
+        await supabase.auth.signOut();
+        navigate('/auth');
+    };
+
     return (
         <div className="fixed left-0 top-0 bottom-0 z-50 flex items-center">
             <div
@@ -150,25 +178,46 @@ const Sidebar = () => {
                 </div>
 
                 {/* Profile Section */}
-                <div className="px-3 pb-4">
+                <div className="px-3 pb-2 border-t border-brand-white/10 pt-4">
                     <NavLink
                         to="/profile"
                         className={({ isActive }) => cn(
-                            "flex items-center h-14 rounded-2xl transition-all duration-200 group/item",
+                            "flex items-center h-14 rounded-2xl transition-all duration-200 group/item relative",
                             "hover:bg-brand-white/10",
                             isActive ? "bg-brand-white/20 text-brand-white" : "text-brand-white/60 hover:text-brand-white"
                         )}
                     >
                         <div className="w-[52px] h-14 flex items-center justify-center shrink-0">
                             <div className="w-9 h-9 rounded-full overflow-hidden border border-brand-white/20 bg-brand-blue flex items-center justify-center">
-                                <Users className="w-5 h-5 text-brand-white" />
+                                {isLoading ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : profile?.avatar_url ? (
+                                    <img src={profile.avatar_url} className="w-full h-full object-cover" alt="" />
+                                ) : (
+                                    <UserIcon className="w-5 h-5 text-brand-white" />
+                                )}
                             </div>
                         </div>
                         <div className="flex flex-col opacity-0 group-hover:opacity-100 transition-opacity duration-300 overflow-hidden">
-                            <span className="font-semibold text-sm whitespace-nowrap">Sarah Chen</span>
-                            <span className="text-[10px] text-brand-white/50 whitespace-nowrap">Super Admin</span>
+                            <span className="font-semibold text-sm whitespace-nowrap capitalize">{profile?.name || 'Loading...'}</span>
+                            <span className="text-[10px] text-brand-white/50 whitespace-nowrap uppercase">{profile?.role || 'User'}</span>
                         </div>
                     </NavLink>
+                </div>
+
+                {/* Sign Out CTA */}
+                <div className="px-3 pb-4">
+                    <button
+                        onClick={handleLogout}
+                        className="flex items-center w-full h-11 rounded-2xl text-brand-red/60 hover:text-brand-red hover:bg-brand-red/10 transition-all duration-200"
+                    >
+                        <div className="w-[52px] h-11 flex items-center justify-center shrink-0">
+                            <LogOut className="w-5 h-5" />
+                        </div>
+                        <span className="font-medium text-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap">
+                            Sign Out
+                        </span>
+                    </button>
                 </div>
             </div>
         </div>
