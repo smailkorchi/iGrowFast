@@ -25,6 +25,7 @@ import ExpensesTypes from "./pages/ExpensesTypes";
 import Cities from "./pages/Cities";
 import Zones from "./pages/Zones";
 import Profile from "./pages/Profile";
+import AppLayout from "./components/layout/AppLayout";
 
 const queryClient = new QueryClient();
 
@@ -35,29 +36,34 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Dashboard />} />
           <Route path="/auth" element={<Auth />} />
-          <Route path="/orders" element={<Orders />} />
-          <Route path="/import-orders" element={<ImportOrders />} />
-          <Route path="/import-status" element={<ImportStatus />} />
-          <Route path="/delivery-note" element={<DeliveryNote />} />
-          <Route path="/return-note" element={<ReturnNote />} />
-          <Route path="/delivery-services" element={<DeliveryServices />} />
-          <Route path="/payments" element={<Payments />} />
-          <Route path="/transactions" element={<Transactions />} />
-          <Route path="/products" element={<Products />} />
-          <Route path="/status" element={<Status />} />
-          <Route path="/analytics" element={<Analytics />} />
-          <Route path="/sales-channels" element={<SalesChannels />} />
-          <Route path="/customers" element={<Customers />} />
-          <Route path="/users" element={<Users />} />
-          <Route path="/expenses-details" element={<ExpensesDetails />} />
-          <Route path="/expenses-types" element={<ExpensesTypes />} />
-          <Route path="/cities" element={<Cities />} />
-          <Route path="/zones" element={<Zones />} />
-          <Route path="/profile" element={<Profile />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
+          <Route path="*" element={
+            <AppLayout>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/orders" element={<Orders />} />
+                <Route path="/import-orders" element={<ImportOrders />} />
+                <Route path="/import-status" element={<ImportStatus />} />
+                <Route path="/delivery-note" element={<DeliveryNote />} />
+                <Route path="/return-note" element={<ReturnNote />} />
+                <Route path="/delivery-services" element={<DeliveryServices />} />
+                <Route path="/payments" element={<Payments />} />
+                <Route path="/transactions" element={<Transactions />} />
+                <Route path="/products" element={<Products />} />
+                <Route path="/status" element={<Status />} />
+                <Route path="/analytics" element={<Analytics />} />
+                <Route path="/sales-channels" element={<SalesChannels />} />
+                <Route path="/customers" element={<Customers />} />
+                <Route path="/users" element={<Users />} />
+                <Route path="/expenses-details" element={<ExpensesDetails />} />
+                <Route path="/expenses-types" element={<ExpensesTypes />} />
+                <Route path="/cities" element={<Cities />} />
+                <Route path="/zones" element={<Zones />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </AppLayout>
+          } />
         </Routes>
       </BrowserRouter>
     </TooltipProvider>

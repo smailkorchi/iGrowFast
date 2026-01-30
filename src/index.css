@@ -4,8 +4,10 @@
 
 @layer base {
   :root {
-    --background: 300 3% 97%; /* #f7f6f7 */
-    --foreground: 219 53% 20%; /* #182b4e */
+    --background: 300 3% 97%;
+    /* #f7f6f7 */
+    --foreground: 219 53% 20%;
+    /* #182b4e */
 
     --card: 0 0% 100%;
     --card-foreground: 219 53% 20%;
@@ -13,22 +15,28 @@
     --popover: 0 0% 100%;
     --popover-foreground: 219 53% 20%;
 
-    --primary: 219 53% 20%; /* #182b4e */
+    --primary: 219 53% 20%;
+    /* #182b4e */
     --primary-foreground: 300 3% 97%;
 
-    --secondary: 201 71% 33%; /* #196792 */
+    --secondary: 201 71% 33%;
+    /* #196792 */
     --secondary-foreground: 300 3% 97%;
 
-    --muted: 300 3% 94%; /* Slightly darker #f7f6f7 for depth */
+    --muted: 300 3% 94%;
+    /* Slightly darker #f7f6f7 for depth */
     --muted-foreground: 201 71% 33%;
 
-    --accent: 201 71% 33%; /* #196792 */
+    --accent: 201 71% 33%;
+    /* #196792 */
     --accent-foreground: 300 3% 97%;
 
-    --destructive: 356 56% 51%; /* #c93942 */
+    --destructive: 356 56% 51%;
+    /* #c93942 */
     --destructive-foreground: 300 3% 97%;
 
-    --border: 219 53% 20% / 0.1; /* Navy with opacity for borders */
+    --border: 219 53% 20% / 0.1;
+    /* Navy with opacity for borders */
     --input: 219 53% 20% / 0.1;
     --ring: 219 53% 20%;
 
@@ -46,8 +54,10 @@
 
   .dark {
     /* Since we only have 4 colors, we'll keep the same palette but maybe flip some roles if needed */
-    --background: 219 53% 20%; /* Navy for dark mode background */
-    --foreground: 300 3% 97%; /* White for text */
+    --background: 219 53% 20%;
+    /* Navy for dark mode background */
+    --foreground: 300 3% 97%;
+    /* White for text */
 
     --card: 219 53% 25%;
     --card-foreground: 300 3% 97%;
@@ -55,10 +65,12 @@
     --popover: 219 53% 25%;
     --popover-foreground: 300 3% 97%;
 
-    --primary: 300 3% 97%; /* White as primary on dark */
+    --primary: 300 3% 97%;
+    /* White as primary on dark */
     --primary-foreground: 219 53% 20%;
 
-    --secondary: 201 71% 33%; /* Blue */
+    --secondary: 201 71% 33%;
+    /* Blue */
     --secondary-foreground: 300 3% 97%;
 
     --muted: 219 53% 30%;
@@ -92,5 +104,14 @@
 
   body {
     @apply bg-background text-foreground antialiased;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 }
