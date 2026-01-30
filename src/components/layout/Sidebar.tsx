@@ -9,18 +9,87 @@ import {
     Lightbulb,
     Megaphone,
     Settings,
-    Circle
+    Circle,
+    ShoppingBag,
+    Truck,
+    FileText,
+    Repeat,
+    Globe,
+    CreditCard,
+    Package,
+    ArrowRightLeft,
+    Box,
+    UserPlus,
+    Wallet,
+    List,
+    Tag,
+    MapPin,
+    Map,
+    Download,
+    CheckCircle,
+    ChevronRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-const navItems = [
-    { icon: Home, label: 'Dashboard', path: '/' },
-    { icon: Users, label: 'Customers', path: '/customers' },
-    { icon: DollarSign, label: 'Revenue', path: '/payments' },
-    { icon: BarChart2, label: 'Performance', path: '/analytics' },
-    { icon: RefreshCcw, label: 'Retention', path: '/status' },
-    { icon: Lightbulb, label: 'Insights', path: '/import-status' },
-    { icon: Megaphone, label: 'Marketing', path: '/sales-channels' },
+type NavItem = {
+    icon: any;
+    label: string;
+    path: string;
+};
+
+type NavSection = {
+    label?: string;
+    items: NavItem[];
+};
+
+const navigation: NavSection[] = [
+    {
+        items: [
+            { icon: Home, label: 'Dashboard', path: '/' },
+            { icon: ShoppingBag, label: 'Orders', path: '/orders' },
+        ]
+    },
+    {
+        label: 'Shipping',
+        items: [
+            { icon: FileText, label: 'Delivery Note', path: '/delivery-note' },
+            { icon: Repeat, label: 'Return Note', path: '/return-note' },
+            { icon: Globe, label: 'Delivery Services', path: '/delivery-services' },
+            { icon: CreditCard, label: 'Payment', path: '/payments' },
+        ]
+    },
+    {
+        label: 'Inventory',
+        items: [
+            { icon: ArrowRightLeft, label: 'Transactions', path: '/transactions' },
+            { icon: Box, label: 'Products', path: '/products' },
+        ]
+    },
+    {
+        items: [
+            { icon: RefreshCcw, label: 'Status', path: '/status' },
+            { icon: BarChart2, label: 'Analytics', path: '/analytics' },
+            { icon: Megaphone, label: 'Sales Channels', path: '/sales-channels' },
+            { icon: Users, label: 'Customers', path: '/customers' },
+            { icon: UserPlus, label: 'Users', path: '/users' },
+        ]
+    },
+    {
+        label: 'Expenses',
+        items: [
+            { icon: List, label: 'Expenses Details', path: '/expenses-details' },
+            { icon: Tag, label: 'Expenses Types', path: '/expenses-types' },
+        ]
+    },
+    {
+        label: 'Settings',
+        items: [
+            { icon: MapPin, label: 'Cities', path: '/cities' },
+            { icon: Map, label: 'Zones', path: '/zones' },
+            { icon: Download, label: 'Import Orders', path: '/import-orders' },
+            { icon: CheckCircle, label: 'Import Status', path: '/import-status' },
+        ]
+    }
 ];
 
 const Sidebar = () => {
@@ -47,61 +116,52 @@ const Sidebar = () => {
                 </div>
 
                 {/* Separator */}
-                <div className="mx-6 border-t border-brand-white/10 mb-4" />
+                <div className="mx-6 border-t border-brand-white/10 mb-2" />
 
-                {/* Navigation Items */}
-                <div className="flex-1 px-3 space-y-2 overflow-y-auto no-scrollbar">
-                    {navItems.map((item) => (
-                        <NavLink
-                            key={item.path}
-                            to={item.path}
-                            className={({ isActive }) => cn(
-                                "flex items-center h-12 rounded-2xl transition-all duration-200 group/item relative",
-                                "hover:bg-brand-white/10",
-                                isActive ? "bg-brand-white/20 text-brand-white" : "text-brand-white/60 hover:text-brand-white"
+                {/* Navigation Sections */}
+                <div className="flex-1 px-3 space-y-1 overflow-y-auto no-scrollbar pb-4">
+                    {navigation.map((section, idx) => (
+                        <div key={idx} className="space-y-1">
+                            {section.label && (
+                                <div className="px-4 pt-4 pb-1 text-[10px] uppercase tracking-wider text-brand-white/30 font-bold opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                    {section.label}
+                                </div>
                             )}
-                        >
-                            <div className="w-[52px] h-12 flex items-center justify-center shrink-0">
-                                <item.icon className="w-5 h-5" />
-                            </div>
-                            <span className="font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap">
-                                {item.label}
-                            </span>
-
-                            {/* Tooltip for collapsed state (optional, but let's keep it clean as per screenshot) */}
-                        </NavLink>
+                            {section.items.map((item) => (
+                                <NavLink
+                                    key={item.path}
+                                    to={item.path}
+                                    className={({ isActive }) => cn(
+                                        "flex items-center h-11 rounded-2xl transition-all duration-200 group/item relative",
+                                        "hover:bg-brand-white/10",
+                                        isActive ? "bg-brand-white/20 text-brand-white" : "text-brand-white/60 hover:text-brand-white"
+                                    )}
+                                >
+                                    <div className="w-[52px] h-11 flex items-center justify-center shrink-0">
+                                        <item.icon className="w-5 h-5" />
+                                    </div>
+                                    <span className="font-medium text-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap">
+                                        {item.label}
+                                    </span>
+                                </NavLink>
+                            ))}
+                        </div>
                     ))}
                 </div>
 
-                {/* Bottom Section */}
-                <div className="p-3 space-y-2 mb-4">
-                    <NavLink
-                        to="/users"
-                        className={({ isActive }) => cn(
-                            "flex items-center h-12 rounded-2xl transition-all duration-200 group/item",
-                            "hover:bg-brand-white/10",
-                            isActive ? "bg-brand-white/20 text-brand-white" : "text-brand-white/60 hover:text-brand-white"
-                        )}
-                    >
-                        <div className="w-[52px] h-12 flex items-center justify-center shrink-0">
-                            <Settings className="w-5 h-5" />
-                        </div>
-                        <span className="font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap">
-                            Settings
-                        </span>
-                    </NavLink>
-
+                {/* Profile Section */}
+                <div className="px-3 pb-4">
                     <NavLink
                         to="/profile"
                         className={({ isActive }) => cn(
-                            "flex items-center h-12 rounded-2xl transition-all duration-200 group/item",
+                            "flex items-center h-14 rounded-2xl transition-all duration-200 group/item",
                             "hover:bg-brand-white/10",
                             isActive ? "bg-brand-white/20 text-brand-white" : "text-brand-white/60 hover:text-brand-white"
                         )}
                     >
-                        <div className="w-[52px] h-12 flex items-center justify-center shrink-0">
-                            <div className="w-8 h-8 rounded-full overflow-hidden border border-brand-white/20 bg-brand-blue flex items-center justify-center">
-                                <Users className="w-4 h-4 text-brand-white" />
+                        <div className="w-[52px] h-14 flex items-center justify-center shrink-0">
+                            <div className="w-9 h-9 rounded-full overflow-hidden border border-brand-white/20 bg-brand-blue flex items-center justify-center">
+                                <Users className="w-5 h-5 text-brand-white" />
                             </div>
                         </div>
                         <div className="flex flex-col opacity-0 group-hover:opacity-100 transition-opacity duration-300 overflow-hidden">
