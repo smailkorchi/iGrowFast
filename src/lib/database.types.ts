@@ -38,6 +38,81 @@ export type Database = {
                     },
                 ]
             }
+            order_statuses: {
+                Row: {
+                    active: boolean | null
+                    code: string
+                    color: string | null
+                    created_at: string | null
+                    id: string
+                    label: string
+                    ranking: number | null
+                    recheck: boolean | null
+                    updated_at: string | null
+                }
+                Insert: {
+                    active?: boolean | null
+                    code: string
+                    color?: string | null
+                    created_at?: string | null
+                    id?: string
+                    label: string
+                    ranking?: number | null
+                    recheck?: boolean | null
+                    updated_at?: string | null
+                }
+                Update: {
+                    active?: boolean | null
+                    code?: string
+                    color?: string | null
+                    created_at?: string | null
+                    id?: string
+                    label?: string
+                    ranking?: number | null
+                    recheck?: boolean | null
+                    updated_at?: string | null
+                }
+                Relationships: []
+            }
+            package_statuses: {
+                Row: {
+                    active: boolean | null
+                    code: string
+                    color: string | null
+                    created_at: string | null
+                    delivery_service_statuses: Json | null
+                    id: string
+                    label: string
+                    ranking: number | null
+                    recheck: boolean | null
+                    updated_at: string | null
+                }
+                Insert: {
+                    active?: boolean | null
+                    code: string
+                    color?: string | null
+                    created_at?: string | null
+                    delivery_service_statuses?: Json | null
+                    id?: string
+                    label: string
+                    ranking?: number | null
+                    recheck?: boolean | null
+                    updated_at?: string | null
+                }
+                Update: {
+                    active?: boolean | null
+                    code?: string
+                    color?: string | null
+                    created_at?: string | null
+                    delivery_service_statuses?: Json | null
+                    id?: string
+                    label?: string
+                    ranking?: number | null
+                    recheck?: boolean | null
+                    updated_at?: string | null
+                }
+                Relationships: []
+            }
             products: {
                 Row: {
                     active: boolean | null
