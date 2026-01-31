@@ -193,7 +193,7 @@ export type Database = {
                     delivery_type: string | null
                     free_shipping: boolean | null
                     id: string
-                    livreur_id: string | null
+                    courier_id: string | null
                     name: string | null
                     note: string | null
                     old_client_id: string | null
@@ -236,7 +236,7 @@ export type Database = {
                     delivery_type?: string | null
                     free_shipping?: boolean | null
                     id?: string
-                    livreur_id?: string | null
+                    courier_id?: string | null
                     name?: string | null
                     note?: string | null
                     old_client_id?: string | null
@@ -279,7 +279,7 @@ export type Database = {
                     delivery_type?: string | null
                     free_shipping?: boolean | null
                     id?: string
-                    livreur_id?: string | null
+                    courier_id?: string | null
                     name?: string | null
                     note?: string | null
                     old_client_id?: string | null

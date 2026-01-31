@@ -28,7 +28,8 @@ import {
     ExternalLink,
     RefreshCcw,
     User,
-    Filter
+    Filter,
+    Building2
 } from 'lucide-react';
 import {
     Card,
@@ -113,6 +114,8 @@ const orderSchema = z.object({
     delivery_type: z.string().optional(),
     order_status_id: z.string().uuid("Please select a status"),
     items: z.array(orderItemSchema).min(1, "At least one product is required"),
+    courier_id: z.string().uuid().optional().nullable(),
+    company_id: z.string().uuid().optional().nullable(),
 });
 
 type OrderFormValues = z.infer<typeof orderSchema>;
@@ -146,6 +149,7 @@ const Orders = () => {
     const [filterStatus, setFilterStatus] = useState<string>("all");
     const [filterCity, setFilterCity] = useState<string>("all");
     const [filterSource, setFilterSource] = useState<string>("all");
+    const [filterProvider, setFilterProvider] = useState<string>("all");
 
     // Add custom scrollbar styles to head
     React.useEffect(() => {
@@ -173,12 +177,14 @@ const Orders = () => {
     const { data: orders, isLoading } = useQuery({
         queryKey: ['orders'],
         queryFn: async () => {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from('orders')
                 .select(`
                     *,
                     status:order_statuses(*),
                     city:cities(id, name),
+                    courier:users!orders_courier_id_fkey(id, name),
+                    company:providers(id, name),
                     items:order_items(*, product:products(name, code, image_url))
                 `)
                 .order('created_at', { ascending: false });
@@ -191,19 +197,73 @@ const Orders = () => {
     const { data: cities } = useQuery({
         queryKey: ['cities-dropdown'],
         queryFn: async () => {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from('cities')
-                .select('id, name')
+                .select('id, name, zone_id')
                 .order('name');
             if (error) throw error;
             return data;
         },
     });
 
+    const { data: couriers } = useQuery({
+        queryKey: ['couriers-dropdown'],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any).from('users').select('id, name').eq('role', 'delivery person').eq('active', true);
+            if (error) throw error;
+            return data;
+        }
+    });
+
+    const { data: companies } = useQuery({
+        queryKey: ['companies-dropdown'],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any).from('providers').select('id, name').eq('active', true);
+            if (error) throw error;
+            return data;
+        }
+    });
+
+    const { data: courierZones } = useQuery({
+        queryKey: ['courier-zones-all'],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any).from('courier_zones').select('*');
+            if (error) throw error;
+            return data;
+        }
+    });
+
+    const { data: companyZones } = useQuery({
+        queryKey: ['company-zones-all'],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any).from('company_zones').select('*');
+            if (error) throw error;
+            return data;
+        }
+    });
+
+    const { data: courierFees } = useQuery({
+        queryKey: ['courier-fees-all'],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any).from('courier_fees').select('*');
+            if (error) throw error;
+            return data;
+        }
+    });
+
+    const { data: companyFees } = useQuery({
+        queryKey: ['company-fees-all'],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any).from('company_fees').select('*');
+            if (error) throw error;
+            return data;
+        }
+    });
+
     const { data: orderStatuses } = useQuery({
         queryKey: ['order-statuses-dropdown'],
         queryFn: async () => {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from('order_statuses')
                 .select('id, label, ranking, color')
                 .eq('active', true)
@@ -216,7 +276,7 @@ const Orders = () => {
     const { data: products } = useQuery({
         queryKey: ['products-dropdown'],
         queryFn: async () => {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from('products')
                 .select('id, name, code, selling_price')
                 .eq('active', true)
@@ -241,9 +301,80 @@ const Orders = () => {
             delivery_note: '',
             delivery_type: 'Home Delivery',
             order_status_id: '',
-            items: [{ product_id: '', quantity: 1, unit_price: 0 }]
+            items: [{ product_id: '', quantity: 1, unit_price: 0 }],
+            courier_id: null,
+            company_id: null
         }
     });
+
+    const selectedCityId = form.watch('city_id');
+    const selectedCourierId = form.watch('courier_id');
+    const selectedCompanyId = form.watch('company_id');
+
+    const availableProviders = useMemo(() => {
+        if (!selectedCityId || !cities) return [];
+        const city = cities.find((c: any) => c.id === selectedCityId);
+        if (!city?.zone_id) return [];
+
+        const zoneId = city.zone_id;
+        const eligibleCouriers = couriers?.filter((c: any) =>
+            courierZones?.some((cz: any) => cz.courier_id === c.id && cz.zone_id === zoneId)
+        ).map((c: any) => ({ ...c, type: 'courier' })) || [];
+
+        const eligibleCompanies = companies?.filter((c: any) =>
+            companyZones?.some((cz: any) => cz.company_id === c.id && cz.zone_id === zoneId)
+        ).map((c: any) => ({ ...c, type: 'company' })) || [];
+
+        return [...eligibleCouriers, ...eligibleCompanies];
+    }, [selectedCityId, cities, couriers, companies, courierZones, companyZones]);
+
+    const allProviders = useMemo(() => {
+        const c = couriers?.map((p: any) => ({ ...p, type: 'courier' })) || [];
+        const comp = companies?.map((p: any) => ({ ...p, type: 'company' })) || [];
+        return [...c, ...comp];
+    }, [couriers, companies]);
+
+    // Simple one-way sync: If city changes and we don't have a provider, find the best one
+    React.useEffect(() => {
+        if (!selectedCityId || !availableProviders.length || (form.getValues('courier_id') || form.getValues('company_id'))) return;
+
+        // Map providers to their fee for this city
+        const providersWithFees = availableProviders.map(p => {
+            let fee = Infinity;
+            if (p.type === 'courier') {
+                fee = courierFees?.find((f: any) => f.courier_id === p.id && f.city_id === selectedCityId)?.fee || Infinity;
+            } else {
+                fee = companyFees?.find((f: any) => f.company_id === p.id && f.city_id === selectedCityId)?.fee || Infinity;
+            }
+            return { ...p, fee: Number(fee) };
+        });
+
+        // Sort by fee ascending
+        const best = providersWithFees.sort((a, b) => a.fee - b.fee)[0];
+
+        if (best) {
+            if (best.type === 'courier') {
+                form.setValue('courier_id', best.id);
+                form.setValue('company_id', null);
+            } else {
+                form.setValue('company_id', best.id);
+                form.setValue('courier_id', null);
+            }
+            form.setValue('shipping_cost', best.fee === Infinity ? 0 : best.fee);
+        }
+    }, [selectedCityId, availableProviders, courierFees, companyFees, form]);
+
+    const calculateShippingFee = async () => {
+        if (!selectedCityId) return;
+
+        if (selectedCourierId) {
+            const { data } = await (supabase as any).from('courier_fees').select('fee').eq('courier_id', selectedCourierId).eq('city_id', selectedCityId).single();
+            if (data) form.setValue('shipping_cost', Number((data as any).fee));
+        } else if (selectedCompanyId) {
+            const { data } = await (supabase as any).from('company_fees').select('fee').eq('company_id', selectedCompanyId).eq('city_id', selectedCityId).single();
+            if (data) form.setValue('shipping_cost', Number((data as any).fee));
+        }
+    };
 
     const { fields, append, remove } = useFieldArray({
         control: form.control,
@@ -256,7 +387,7 @@ const Orders = () => {
             // 1. Insert order
             const totalPrice = values.items.reduce((acc, item) => acc + (item.quantity * item.unit_price), 0);
 
-            const { data: order, error: orderError } = await supabase
+            const { data: order, error: orderError } = await (supabase as any)
                 .from('orders')
                 .insert({
                     name: values.name,
@@ -270,6 +401,8 @@ const Orders = () => {
                     delivery_note: values.delivery_note,
                     delivery_type: values.delivery_type,
                     order_status_id: values.order_status_id,
+                    courier_id: values.courier_id,
+                    company_id: values.company_id,
                     price: totalPrice + values.shipping_cost,
                     raw_price: totalPrice,
                     date: new Date().toISOString()
@@ -287,7 +420,7 @@ const Orders = () => {
                 unit_price: item.unit_price
             }));
 
-            const { error: itemsError } = await supabase
+            const { error: itemsError } = await (supabase as any)
                 .from('order_items')
                 .insert(itemRecords);
 
@@ -313,7 +446,7 @@ const Orders = () => {
             const totalPrice = values.items.reduce((acc, item) => acc + (item.quantity * item.unit_price), 0);
 
             // 1. Update order
-            const { error: orderError } = await supabase
+            const { error: orderError } = await (supabase as any)
                 .from('orders')
                 .update({
                     name: values.name,
@@ -327,6 +460,8 @@ const Orders = () => {
                     delivery_note: values.delivery_note,
                     delivery_type: values.delivery_type,
                     order_status_id: values.order_status_id,
+                    courier_id: values.courier_id,
+                    company_id: values.company_id,
                     price: totalPrice + values.shipping_cost,
                     raw_price: totalPrice,
                     updated_at: new Date().toISOString()
@@ -336,7 +471,7 @@ const Orders = () => {
             if (orderError) throw orderError;
 
             // 2. Refresh items (Delete & Insert for simplicity, or complex diff)
-            const { error: deleteError } = await supabase
+            const { error: deleteError } = await (supabase as any)
                 .from('order_items')
                 .delete()
                 .eq('order_id', selectedOrder.id);
@@ -350,7 +485,7 @@ const Orders = () => {
                 unit_price: item.unit_price
             }));
 
-            const { error: itemsError } = await supabase
+            const { error: itemsError } = await (supabase as any)
                 .from('order_items')
                 .insert(itemRecords);
 
@@ -369,7 +504,7 @@ const Orders = () => {
 
     const deleteOrderMutation = useMutation({
         mutationFn: async (id: string) => {
-            const { error } = await supabase.from('orders').delete().eq('id', id);
+            const { error } = await (supabase as any).from('orders').delete().eq('id', id);
             if (error) throw error;
         },
         onSuccess: () => {
@@ -393,10 +528,11 @@ const Orders = () => {
             const matchesStatus = filterStatus === "all" || o.order_status_id === filterStatus;
             const matchesCity = filterCity === "all" || o.city_id === filterCity;
             const matchesSource = filterSource === "all" || o.source_name === filterSource;
+            const matchesProvider = filterProvider === "all" || o.courier_id === filterProvider || o.company_id === filterProvider;
 
-            return matchesSearch && matchesStatus && matchesCity && matchesSource;
+            return matchesSearch && matchesStatus && matchesCity && matchesSource && matchesProvider;
         });
-    }, [orders, searchQuery, filterStatus, filterCity, filterSource]);
+    }, [orders, searchQuery, filterStatus, filterCity, filterSource, filterProvider]);
 
     const handleEdit = (order: any) => {
         setSelectedOrder(order);
@@ -406,16 +542,18 @@ const Orders = () => {
             city_id: order.city_id,
             address: order.address,
             source_name: order.source_name,
-            shipping_cost: order.shipping_cost,
+            shipping_cost: Number(order.shipping_cost),
             replace: order.replace,
             note: order.note || '',
             delivery_note: order.delivery_note || '',
             delivery_type: order.delivery_type || 'Home Delivery',
             order_status_id: order.order_status_id,
-            items: order.items.map((i: any) => ({
-                product_id: i.product_id,
-                quantity: i.quantity,
-                unit_price: i.unit_price
+            courier_id: order.courier_id,
+            company_id: order.company_id,
+            items: order.items.map((item: any) => ({
+                product_id: item.product_id,
+                quantity: Number(item.quantity),
+                unit_price: Number(item.unit_price)
             }))
         });
         setIsEditModalOpen(true);
@@ -539,9 +677,28 @@ const Orders = () => {
                                 ))}
                             </SelectContent>
                         </Select>
+
+                        <div className="w-[1px] h-4 bg-brand-navy/10" />
+
+                        <Select value={filterProvider} onValueChange={setFilterProvider}>
+                            <SelectTrigger className="h-8 w-[150px] border-none bg-transparent hover:bg-brand-navy/5 focus:ring-0 rounded-lg text-xs font-bold text-brand-navy">
+                                <SelectValue placeholder="All Providers" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl border-none shadow-xl max-h-[300px]">
+                                <SelectItem value="all" className="font-bold text-xs">All Providers</SelectItem>
+                                {allProviders.map((p: any) => (
+                                    <SelectItem key={p.id} value={p.id} className="font-bold text-xs">
+                                        <div className="flex items-center gap-2">
+                                            {p.type === 'courier' ? <Truck className="w-3 h-3 text-orange-500" /> : <Building2 className="w-3 h-3 text-blue-500" />}
+                                            {p.name}
+                                        </div>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
 
-                    {(filterStatus !== 'all' || filterCity !== 'all' || filterSource !== 'all') && (
+                    {(filterStatus !== 'all' || filterCity !== 'all' || filterSource !== 'all' || filterProvider !== 'all') && (
                         <Button
                             variant="ghost"
                             size="sm"
@@ -549,6 +706,7 @@ const Orders = () => {
                                 setFilterStatus('all');
                                 setFilterCity('all');
                                 setFilterSource('all');
+                                setFilterProvider('all');
                             }}
                             className="h-10 px-4 rounded-xl text-red-500 hover:bg-red-50 hover:text-red-600 font-bold text-xs gap-2 animate-in fade-in"
                         >
@@ -787,6 +945,9 @@ const Orders = () => {
                                                                                 value={city.name}
                                                                                 onSelect={() => {
                                                                                     form.setValue("city_id", city.id);
+                                                                                    form.setValue('courier_id', null);
+                                                                                    form.setValue('company_id', null);
+                                                                                    form.setValue('shipping_cost', 0);
                                                                                     setCitySearchOpen(false);
                                                                                 }}
                                                                                 className="py-3 px-4 font-bold text-brand-navy cursor-pointer hover:bg-brand-navy hover:text-brand-white"
@@ -851,6 +1012,51 @@ const Orders = () => {
                                             )}
                                         />
                                         <div className="grid grid-cols-2 gap-4">
+                                            {availableProviders.length > 0 && (
+                                                <FormField
+                                                    control={form.control}
+                                                    name="courier_id"
+                                                    render={({ field }) => (
+                                                        <FormItem className="space-y-1 animate-in fade-in slide-in-from-top-1 duration-300">
+                                                            <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Shipping Provider</FormLabel>
+                                                            <Select
+                                                                onValueChange={(val) => {
+                                                                    const provider = availableProviders.find(p => p.id === val);
+                                                                    if (provider?.type === 'courier') {
+                                                                        form.setValue('courier_id', val);
+                                                                        form.setValue('company_id', null);
+                                                                        const fee = courierFees?.find((f: any) => f.courier_id === val && f.city_id === selectedCityId)?.fee;
+                                                                        form.setValue('shipping_cost', fee ? Number(fee) : 0);
+                                                                    } else {
+                                                                        form.setValue('company_id', val);
+                                                                        form.setValue('courier_id', null);
+                                                                        const fee = companyFees?.find((f: any) => f.company_id === val && f.city_id === selectedCityId)?.fee;
+                                                                        form.setValue('shipping_cost', fee ? Number(fee) : 0);
+                                                                    }
+                                                                }}
+                                                                value={field.value || selectedCompanyId || ''}
+                                                            >
+                                                                <FormControl>
+                                                                    <SelectTrigger className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner">
+                                                                        <SelectValue placeholder="Choose provider..." />
+                                                                    </SelectTrigger>
+                                                                </FormControl>
+                                                                <SelectContent className="rounded-2xl border-none shadow-2xl">
+                                                                    {availableProviders.map((p: any) => (
+                                                                        <SelectItem key={p.id} value={p.id} className="rounded-xl font-bold">
+                                                                            <div className="flex items-center gap-2">
+                                                                                {p.type === 'courier' ? <Truck className="w-3 h-3 text-orange-500" /> : <Building2 className="w-3 h-3 text-blue-500" />}
+                                                                                {p.name}
+                                                                            </div>
+                                                                        </SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                            )}
+
                                             <FormField
                                                 control={form.control}
                                                 name="shipping_cost"
@@ -865,8 +1071,10 @@ const Orders = () => {
                                                                         type="button"
                                                                         variant="ghost"
                                                                         size="icon"
+                                                                        onClick={calculateShippingFee}
                                                                         className="h-6 w-6 text-brand-navy/30 hover:text-brand-navy"
                                                                         title="Calculate Fees"
+                                                                        disabled={!selectedCityId || (!selectedCourierId && !selectedCompanyId)}
                                                                     >
                                                                         <RefreshCcw className="w-3 h-3" />
                                                                     </Button>
@@ -1225,6 +1433,22 @@ const Orders = () => {
                                                     <p className="text-sm font-bold text-emerald-600 uppercase tracking-widest">{selectedOrder.shipping_cost === 0 ? 'Free Shipping' : `Paid: ${selectedOrder.shipping_cost} DH`}</p>
                                                 </div>
                                             </div>
+                                            {(selectedOrder.courier || selectedOrder.company) && (
+                                                <div className="flex items-start gap-4">
+                                                    <div className="w-10 h-10 rounded-2xl bg-brand-navy/5 flex items-center justify-center text-brand-navy/40 shrink-0 shadow-sm">
+                                                        {selectedOrder.courier ? <Truck className="w-5 h-5 text-orange-500" /> : <Building2 className="w-5 h-5 text-blue-500" />}
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <p className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest leading-none">Assigned Provider</p>
+                                                        <p className="text-lg font-bold text-brand-navy leading-tight">
+                                                            {selectedOrder.courier?.name || selectedOrder.company?.name}
+                                                        </p>
+                                                        <Badge variant="outline" className="h-5 px-2 text-[8px] font-black uppercase tracking-tighter bg-brand-navy/[0.03] text-brand-navy/40 border-none">
+                                                            {selectedOrder.courier ? 'Independent Courier' : 'Delivery Company'}
+                                                        </Badge>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
 
