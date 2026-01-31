@@ -93,7 +93,6 @@ const navigation: NavSection[] = [
             { icon: MapPin, label: 'Cities', path: '/cities' },
             { icon: Map, label: 'Zones', path: '/zones' },
             { icon: Download, label: 'Import Orders', path: '/import-orders' },
-            { icon: CheckCircle, label: 'Import Status', path: '/import-status' },
         ]
     }
 ];

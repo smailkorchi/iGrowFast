@@ -8,7 +8,6 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Orders from "./pages/Orders";
 import ImportOrders from "./pages/ImportOrders";
-import ImportStatus from "./pages/ImportStatus";
 import DeliveryNote from "./pages/DeliveryNote";
 import ReturnNote from "./pages/ReturnNote";
 import DeliveryServices from "./pages/DeliveryServices";
@@ -46,7 +45,6 @@ const App = () => (
                   <Route path="/" element={<Dashboard />} />
                   <Route path="/orders" element={<Orders />} />
                   <Route path="/import-orders" element={<ImportOrders />} />
-                  <Route path="/import-status" element={<ImportStatus />} />
                   <Route path="/delivery-note" element={<DeliveryNote />} />
                   <Route path="/return-note" element={<ReturnNote />} />
                   <Route path="/delivery-services" element={<DeliveryServices />} />
