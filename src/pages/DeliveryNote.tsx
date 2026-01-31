@@ -121,7 +121,7 @@ const DeliveryNote = () => {
         }
     };
 
-    const handlePrintLabels = async () => {
+    const handlePrintLabels = async (format: string = 'A6') => {
         if (!selectedNote || !noteDetails?.provider) return;
 
         toast({
@@ -145,7 +145,7 @@ const DeliveryNote = () => {
                         note_id: selectedNote.id,
                         external_id: selectedNote.external_id,
                         print_type: 'labels',
-                        label_format: 'A6'
+                        label_format: format
                     }
                 })
             });
@@ -160,20 +160,96 @@ const DeliveryNote = () => {
                 const printContent = result.data.print_html;
 
                 if (printContent.startsWith('data:application/pdf;base64,')) {
-                    const link = document.createElement('a');
-                    link.href = printContent;
-                    link.download = `labels-${selectedNote.reference}.pdf`;
-                    link.click();
+                    // Convert base64 to Blob to open in new tab instead of downloading
+                    const base64Data = printContent.split(',')[1];
+                    const byteCharacters = atob(base64Data);
+                    const byteNumbers = new Array(byteCharacters.length);
+                    for (let i = 0; i < byteCharacters.length; i++) {
+                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                    }
+                    const byteArray = new Uint8Array(byteNumbers);
+                    const blob = new Blob([byteArray], { type: 'application/pdf' });
+                    const fileURL = URL.createObjectURL(blob);
+
+                    window.open(fileURL, '_blank');
                 } else if (printContent.startsWith('http')) {
-                    // It's a URL
                     window.open(printContent, '_blank');
                 } else {
-                    // It's HTML
                     const printWindow = window.open('', '_blank');
                     if (printWindow) {
-                        printWindow.document.write(printContent);
+                        // Determine page size and orientation
+                        let pageSize = 'auto';
+                        let isCentering = true;
+
+                        if (format === 'Label_100_100' || format === '10x10' || format === 'A6') {
+                            pageSize = '100mm 100mm';
+                        } else if (format === 'Label_70_100') {
+                            pageSize = '70mm 100mm';
+                        } else if (format?.includes('A4') || format === 'Note') {
+                            pageSize = 'A4';
+                            isCentering = false;
+                        }
+
+                        const styledContent = `
+                            <html>
+                                <head>
+                                    <title>Print Labels - ${selectedNote.reference}</title>
+                                    <style>
+                                        @page { 
+                                            size: ${pageSize}; 
+                                            margin: 0 !important; 
+                                        }
+                                        html, body { 
+                                            margin: 0 !important; 
+                                            padding: 0 !important; 
+                                            width: 100%;
+                                            height: 100%;
+                                            background: white;
+                                        }
+                                        .print-container {
+                                            width: 100%;
+                                            height: 100%;
+                                            display: ${isCentering ? 'flex' : 'block'};
+                                            ${isCentering ? 'align-items: center; justify-content: center;' : ''}
+                                            overflow: hidden;
+                                        }
+                                        /* Force hide browser headers/footers */
+                                        @media print {
+                                            @page { margin: 0; }
+                                            body { margin: 1.6cm; } /* Browser usually needs a tiny buffer for some printers, but we try 0 first */
+                                            body { margin: 0 !important; }
+                                        }
+                                        /* Scale content to fit if needed */
+                                        svg, img, table { 
+                                            max-width: 100% !important; 
+                                            height: auto !important; 
+                                        }
+                                    </style>
+                                </head>
+                                <body>
+                                    <div class="print-container">
+                                        ${printContent}
+                                    </div>
+                                    <script>
+                                        function doPrint() {
+                                            // Ensure styles and images are fully processed
+                                            setTimeout(() => {
+                                                window.print();
+                                                // Optional: close after print dialog is closed
+                                                // setTimeout(() => window.close(), 1000);
+                                            }, 1000);
+                                        }
+                                        if (document.readyState === 'complete') {
+                                            doPrint();
+                                        } else {
+                                            window.onload = doPrint;
+                                        }
+                                    </script>
+                                </body>
+                            </html>
+                        `;
+                        printWindow.document.write(styledContent);
                         printWindow.document.close();
-                        printWindow.print();
                     }
                 }
             } else {
@@ -622,13 +698,59 @@ const DeliveryNote = () => {
                         </div>
 
                         <div className="flex justify-end gap-3 pt-4">
-                            <Button
-                                className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-12 px-8 font-bold shadow-lg shadow-brand-navy/10 transition-all flex items-center gap-2"
-                                onClick={handlePrintLabels}
-                            >
-                                <Download className="w-4 h-4" />
-                                Imprimer Étiquettes
-                            </Button>
+                            {noteDetails?.provider?.provider_type === 'ameex' ? (
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-12 px-8 font-bold shadow-lg shadow-brand-navy/10 transition-all flex items-center gap-2">
+                                            <Download className="w-4 h-4" />
+                                            Imprimer Étiquettes
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent className="rounded-2xl p-2 border-none shadow-2xl bg-white min-w-[200px]">
+                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer" onClick={() => handlePrintLabels('Label_100_100')}>
+                                            Étiquette 100/100
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer" onClick={() => handlePrintLabels('Label_A4')}>
+                                            Étiquette A4-4
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer" onClick={() => handlePrintLabels('Label_A4_8')}>
+                                            Étiquette A4-8
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer" onClick={() => handlePrintLabels('Label_70_100')}>
+                                            Étiquette 70/100
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer text-blue-600" onClick={() => handlePrintLabels('Note')}>
+                                            Bon Livraison
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            ) : noteDetails?.provider?.provider_type === 'coliaty' ? (
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-12 px-8 font-bold shadow-lg shadow-brand-navy/10 transition-all flex items-center gap-2">
+                                            <Download className="w-4 h-4" />
+                                            Imprimer Étiquettes
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent className="rounded-2xl p-2 border-none shadow-2xl bg-white min-w-[200px]">
+                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer" onClick={() => handlePrintLabels('10x10')}>
+                                            10cm / 10cm
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer" onClick={() => handlePrintLabels('A4')}>
+                                            A4 (4 tickets)
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            ) : (
+                                <Button
+                                    className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-12 px-8 font-bold shadow-lg shadow-brand-navy/10 transition-all flex items-center gap-2"
+                                    onClick={() => handlePrintLabels()}
+                                >
+                                    <Download className="w-4 h-4" />
+                                    Imprimer Étiquettes
+                                </Button>
+                            )}
                         </div>
                     </div>
                 </DialogContent>
@@ -657,8 +779,8 @@ const DeliveryNote = () => {
                             </div>
                         ) : trackingHistory ? (
                             <div className="space-y-8 relative before:absolute before:left-[17px] before:top-2 before:bottom-2 before:w-0.5 before:bg-brand-navy/5">
-                                {(Array.isArray(trackingHistory?.data) ? trackingHistory.data : (Array.isArray(trackingHistory?.api?.data) ? trackingHistory.api.data : (Array.isArray(trackingHistory) ? trackingHistory : []))).map((event: any, idx: number) => {
-                                    // Status mapping for Coliaty/Ameex
+                                {(Array.isArray(trackingHistory) ? trackingHistory : []).map((event: any, idx: number) => {
+                                    // Status mapping for Coliaty/Ameex labels
                                     const statusMap: any = {
                                         'NEW_PARCEL': 'Nouveau',
                                         'WAITING_PICKUP': 'En attente de ramassage',
@@ -676,11 +798,12 @@ const DeliveryNote = () => {
                                         'READY_FOR_PICKUP': 'Prêt pour ramassage'
                                     };
 
-                                    const rawStatus = event.status || event.state || event.label || "Nouveau";
+                                    // Our Edge Function now returns normalized fields: status, date, comment, user
+                                    const rawStatus = event.status || "Nouveau";
                                     const status = statusMap[rawStatus] || rawStatus;
-                                    const date = event.date || event.created_at || event.time;
-                                    const comment = event.comment || event.HISTORY_COMMENT || "";
-                                    const user = event.user?.name || event.author || "";
+                                    const date = event.date;
+                                    const comment = event.comment || "";
+                                    const user = (typeof event.user === 'object' ? event.user?.name : event.user) || "";
 
                                     return (
                                         <div key={idx} className="relative pl-12 group">

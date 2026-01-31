@@ -99,7 +99,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                 .from('orders')
                 .select(`
                     *,
-                    city:cities!inner(id, name, zone_id),
+                    city:cities!inner(id, name, zone_id, ameex_code),
                     company:providers(id, name, provider_type),
                     items:order_items(
                         *,
@@ -153,6 +153,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                         cod_amount: Number(order.price),
                         city_id: order.city?.id,
                         city_name: order.city?.name,
+                        ameex_city_code: (order.city as any)?.ameex_code,
                         notes: `Orders - Products: ${order.items?.map((i: any) => i.product?.code || 'P').join(', ')}`,
                         replaceable: order.replace || false,
                     };
