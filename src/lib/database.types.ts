@@ -87,6 +87,209 @@ export type Database = {
                     },
                 ]
             }
+            company_delivery_notes: {
+                Row: {
+                    id: string
+                    reference: string
+                    provider_id: string
+                    status: string
+                    parcel_count: number
+                    notes: string | null
+                    provider_response: Json | null
+                    created_at: string | null
+                    updated_at: string | null
+                }
+                Insert: {
+                    id?: string
+                    reference: string
+                    provider_id: string
+                    status?: string
+                    parcel_count?: number
+                    notes?: string | null
+                    provider_response?: Json | null
+                    created_at?: string | null
+                    updated_at?: string | null
+                }
+                Update: {
+                    id?: string
+                    reference?: string
+                    provider_id?: string
+                    status?: string
+                    parcel_count?: number
+                    notes?: string | null
+                    provider_response?: Json | null
+                    created_at?: string | null
+                    updated_at?: string | null
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "company_delivery_notes_provider_id_fkey"
+                        columns: ["provider_id"]
+                        isOneToOne: false
+                        referencedRelation: "providers"
+                        referencedColumns: ["id"]
+                    },
+                ]
+            }
+            company_parcels: {
+                Row: {
+                    id: string
+                    reference: string
+                    tracking_code: string | null
+                    external_id: string | null
+                    order_id: string
+                    provider_id: string
+                    company_delivery_note_id: string | null
+                    status_id: string | null
+                    cod_amount: number
+                    provider_response: Json | null
+                    created_at: string | null
+                    updated_at: string | null
+                }
+                Insert: {
+                    id?: string
+                    reference: string
+                    tracking_code?: string | null
+                    external_id?: string | null
+                    order_id: string
+                    provider_id: string
+                    company_delivery_note_id?: string | null
+                    status_id?: string | null
+                    cod_amount?: number
+                    provider_response?: Json | null
+                    created_at?: string | null
+                    updated_at?: string | null
+                }
+                Update: {
+                    id?: string
+                    reference?: string
+                    tracking_code?: string | null
+                    external_id?: string | null
+                    order_id?: string
+                    provider_id?: string
+                    company_delivery_note_id?: string | null
+                    status_id?: string | null
+                    cod_amount?: number
+                    provider_response?: Json | null
+                    created_at?: string | null
+                    updated_at?: string | null
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "company_parcels_order_id_fkey"
+                        columns: ["order_id"]
+                        isOneToOne: false
+                        referencedRelation: "orders"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "company_parcels_provider_id_fkey"
+                        columns: ["provider_id"]
+                        isOneToOne: false
+                        referencedRelation: "providers"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "company_parcels_company_delivery_note_id_fkey"
+                        columns: ["company_delivery_note_id"]
+                        isOneToOne: false
+                        referencedRelation: "company_delivery_notes"
+                        referencedColumns: ["id"]
+                    },
+                ]
+            }
+            courier_delivery_notes: {
+                Row: {
+                    id: string
+                    reference: string
+                    courier_id: string
+                    status: string
+                    parcel_count: number
+                    notes: string | null
+                    created_at: string | null
+                    updated_at: string | null
+                }
+                Insert: {
+                    id?: string
+                    reference: string
+                    courier_id: string
+                    status?: string
+                    parcel_count?: number
+                    notes?: string | null
+                    created_at?: string | null
+                    updated_at?: string | null
+                }
+                Update: {
+                    id?: string
+                    reference?: string
+                    courier_id?: string
+                    status?: string
+                    parcel_count?: number
+                    notes?: string | null
+                    created_at?: string | null
+                    updated_at?: string | null
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "courier_delivery_notes_courier_id_fkey"
+                        columns: ["courier_id"]
+                        isOneToOne: false
+                        referencedRelation: "users"
+                        referencedColumns: ["id"]
+                    },
+                ]
+            }
+            courier_parcels: {
+                Row: {
+                    id: string
+                    reference: string
+                    order_id: string
+                    courier_id: string
+                    courier_delivery_note_id: string | null
+                    status_id: string | null
+                    cod_amount: number
+                    created_at: string | null
+                    updated_at: string | null
+                }
+                Insert: {
+                    id?: string
+                    reference: string
+                    order_id: string
+                    courier_id: string
+                    courier_delivery_note_id?: string | null
+                    status_id?: string | null
+                    cod_amount?: number
+                    created_at?: string | null
+                    updated_at?: string | null
+                }
+                Update: {
+                    id?: string
+                    reference?: string
+                    order_id?: string
+                    courier_id?: string
+                    courier_delivery_note_id?: string | null
+                    status_id?: string | null
+                    cod_amount?: number
+                    created_at?: string | null
+                    updated_at?: string | null
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "courier_parcels_order_id_fkey"
+                        columns: ["order_id"]
+                        isOneToOne: false
+                        referencedRelation: "orders"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "courier_parcels_courier_id_fkey"
+                        columns: ["courier_id"]
+                        isOneToOne: false
+                        referencedRelation: "users"
+                        referencedColumns: ["id"]
+                    },
+                ]
+            }
             order_items: {
                 Row: {
                     created_at: string | null

@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
 import {
     FileText,
     Plus,
@@ -18,7 +20,8 @@ import {
     Filter,
     ArrowRightCircle,
     ChevronRight,
-    SearchX
+    SearchX,
+    Loader2
 } from 'lucide-react';
 import {
     Card,
@@ -49,25 +52,44 @@ import {
 } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import { DeliveryNoteWizard } from '@/components/delivery/DeliveryNoteWizard';
+import { format } from 'date-fns';
 
 const DeliveryNote = () => {
-    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [selectedNote, setSelectedNote] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState("");
 
-    // Mock Data
-    const companyNotes = [
-        { id: 1, reference: 'DN-2024-001', provider: 'AMEEX', date: '2024-01-31', status: 'delivered', parcels: 12 },
-        { id: 2, reference: 'DN-2024-002', provider: 'Coliaty', date: '2024-01-30', status: 'pending', parcels: 8 },
-    ];
+    // Fetch company delivery notes
+    const { data: companyNotes, isLoading: loadingCompany } = useQuery({
+        queryKey: ['company-delivery-notes'],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('company_delivery_notes')
+                .select('*')
+                .order('created_at', { ascending: false });
 
-    const courierNotes = [
-        { id: 3, reference: 'CDN-2024-001', courier: 'Ahmed Delivery', date: '2024-01-31', status: 'picked_up', parcels: 5 },
-        { id: 4, reference: 'CDN-2024-002', courier: 'Smail Korchi', date: '2024-01-29', status: 'delivered', parcels: 15 },
-    ];
+            if (error) throw error;
+            return data || [];
+        }
+    });
+
+    // Fetch courier delivery notes
+    const { data: courierNotes, isLoading: loadingCourier } = useQuery({
+        queryKey: ['courier-delivery-notes'],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('courier_delivery_notes')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            return data || [];
+        }
+    });
 
     const getStatusBadge = (status: string) => {
         switch (status) {
@@ -97,12 +119,14 @@ const DeliveryNote = () => {
                                 <h3 className="text-xl font-black text-brand-navy tracking-tight">{note.reference}</h3>
                                 <div className="flex items-center gap-1.5 text-muted-foreground">
                                     <Calendar className="w-3 h-3" />
-                                    <span className="text-[10px] font-bold tracking-wider">{note.date}</span>
+                                    <span className="text-[10px] font-bold tracking-wider">
+                                        {note.created_at ? format(new Date(note.created_at), 'dd MMM yyyy, HH:mm') : 'N/A'}
+                                    </span>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    {getStatusBadge(note.status)}
+                    {getStatusBadge(note.status || 'pending')}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -112,7 +136,7 @@ const DeliveryNote = () => {
                         </div>
                         <div className="flex flex-col">
                             <span className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest leading-none">{type === 'company' ? 'Provider' : 'Courier'}</span>
-                            <span className="text-xs font-bold text-brand-navy truncate">{note.provider || note.courier}</span>
+                            <span className="text-xs font-bold text-brand-navy truncate">{type === 'company' ? note.provider_id?.slice(0, 8) : note.courier_id?.slice(0, 8)}</span>
                         </div>
                     </div>
                     <div className="flex items-center gap-3">
@@ -121,7 +145,7 @@ const DeliveryNote = () => {
                         </div>
                         <div className="flex flex-col">
                             <span className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest leading-none">Parcels</span>
-                            <span className="text-xs font-bold text-brand-navy">{note.parcels} units</span>
+                            <span className="text-xs font-bold text-brand-navy">{note.parcel_count || 0} units</span>
                         </div>
                     </div>
                 </div>
@@ -142,17 +166,6 @@ const DeliveryNote = () => {
                     </Button>
 
                     <div className="flex items-center gap-1">
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                                setSelectedNote(note);
-                                setIsEditModalOpen(true);
-                            }}
-                            className="w-10 h-10 rounded-xl text-slate-400 hover:text-brand-navy hover:bg-brand-navy/5"
-                        >
-                            <Edit2 className="w-4 h-4" />
-                        </Button>
                         <Button
                             variant="ghost"
                             size="icon"
@@ -202,7 +215,7 @@ const DeliveryNote = () => {
                         />
                     </div>
                     <Button
-                        onClick={() => setIsAddModalOpen(true)}
+                        onClick={() => setIsWizardOpen(true)}
                         className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-12 px-6 font-bold shadow-lg shadow-brand-navy/10 transition-all active:scale-95 flex items-center gap-2 w-full sm:w-auto"
                     >
                         <Plus className="w-5 h-5" />
@@ -239,56 +252,44 @@ const DeliveryNote = () => {
 
                 <TabsContent value="company" className="mt-0">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {companyNotes.map(note => renderNoteCard(note, 'company'))}
+                        {loadingCompany ? (
+                            <div className="col-span-full flex items-center justify-center py-12">
+                                <Loader2 className="w-8 h-8 animate-spin text-brand-navy" />
+                            </div>
+                        ) : companyNotes?.length === 0 ? (
+                            <div className="col-span-full text-center py-12 text-muted-foreground">
+                                No company delivery notes yet. Click "Generate Note" to create one.
+                            </div>
+                        ) : (
+                            companyNotes?.map(note => renderNoteCard(note, 'company'))
+                        )}
                     </div>
                 </TabsContent>
 
                 <TabsContent value="courier" className="mt-0">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {courierNotes.map(note => renderNoteCard(note, 'courier'))}
+                        {loadingCourier ? (
+                            <div className="col-span-full flex items-center justify-center py-12">
+                                <Loader2 className="w-8 h-8 animate-spin text-brand-navy" />
+                            </div>
+                        ) : courierNotes?.length === 0 ? (
+                            <div className="col-span-full text-center py-12 text-muted-foreground">
+                                No courier delivery notes yet.
+                            </div>
+                        ) : (
+                            courierNotes?.map(note => renderNoteCard(note, 'courier'))
+                        )}
                     </div>
                 </TabsContent>
             </Tabs>
 
-            {/* Modal Mockups */}
-            <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
-                <DialogContent className="sm:max-w-[600px] rounded-[32px] border-none p-0 overflow-hidden">
-                    <div className="bg-brand-navy p-8 text-white relative">
-                        <DialogTitle className="text-2xl font-black">Generate Delivery Note</DialogTitle>
-                        <DialogDescription className="text-white/60 font-medium">Create a new delivery record for shipments.</DialogDescription>
-                        <div className="absolute top-8 right-8 w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center">
-                            <Plus className="w-8 h-8" />
-                        </div>
-                    </div>
-                    <div className="p-8 space-y-6 bg-white">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <label className="text-xs font-black text-brand-navy/40 uppercase tracking-widest">Type</label>
-                                <select className="w-full h-12 bg-slate-50 border-none rounded-2xl px-4 text-sm font-bold text-brand-navy focus:ring-1 focus:ring-brand-navy/20">
-                                    <option>Company Provider</option>
-                                    <option>Internal Courier</option>
-                                </select>
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-xs font-black text-brand-navy/40 uppercase tracking-widest">Select Provider/Courier</label>
-                                <select className="w-full h-12 bg-slate-50 border-none rounded-2xl px-4 text-sm font-bold text-brand-navy focus:ring-1 focus:ring-brand-navy/20">
-                                    <option>AMEEX</option>
-                                    <option>Coliaty</option>
-                                    <option>Smail Korchi</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-xs font-black text-brand-navy/40 uppercase tracking-widest">Note/Remarks</label>
-                            <textarea placeholder="Any delivery instructions..." className="w-full h-32 bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-brand-navy focus:ring-1 focus:ring-brand-navy/20 resize-none" />
-                        </div>
-                        <DialogFooter className="pt-4 gap-3">
-                            <Button variant="ghost" onClick={() => setIsAddModalOpen(false)} className="rounded-2xl h-12 px-6 font-bold text-brand-navy">Cancel</Button>
-                            <Button className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-12 px-8 font-bold shadow-lg shadow-brand-navy/20 transition-all active:scale-95">Generate Document</Button>
-                        </DialogFooter>
-                    </div>
-                </DialogContent>
-            </Dialog>
+
+            {/* Delivery Note Wizard */}
+            <DeliveryNoteWizard
+                open={isWizardOpen}
+                onOpenChange={setIsWizardOpen}
+            />
+
 
             {/* Preview Modal */}
             <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
