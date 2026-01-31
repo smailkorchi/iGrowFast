@@ -20,6 +20,7 @@ import Analytics from "./pages/Analytics";
 import SalesChannels from "./pages/SalesChannels";
 import Customers from "./pages/Customers";
 import Users from "./pages/Users";
+import AdsHistory from "./pages/AdsHistory";
 import ExpensesDetails from "./pages/ExpensesDetails";
 import ExpensesTypes from "./pages/ExpensesTypes";
 import Cities from "./pages/Cities";
@@ -57,6 +58,7 @@ const App = () => (
                   <Route path="/sales-channels" element={<SalesChannels />} />
                   <Route path="/customers" element={<Customers />} />
                   <Route path="/users" element={<Users />} />
+                  <Route path="/ads-history" element={<AdsHistory />} />
                   <Route path="/expenses-details" element={<ExpensesDetails />} />
                   <Route path="/expenses-types" element={<ExpensesTypes />} />
                   <Route path="/cities" element={<Cities />} />

@@ -27,7 +27,8 @@ import {
     Map,
     Download,
     CheckCircle,
-    ChevronRight
+    ChevronRight,
+    Target
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -81,6 +82,7 @@ const navigation: NavSection[] = [
     {
         label: 'Expenses',
         items: [
+            { icon: Target, label: 'Ads History', path: '/ads-history' },
             { icon: List, label: 'Expenses Details', path: '/expenses-details' },
             { icon: Tag, label: 'Expenses Types', path: '/expenses-types' },
         ]
