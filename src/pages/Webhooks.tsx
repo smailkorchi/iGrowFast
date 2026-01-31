@@ -52,6 +52,7 @@ import {
 import {
     Form,
     FormControl,
+    FormDescription,
     FormField,
     FormItem,
     FormLabel,
@@ -149,11 +150,14 @@ const Webhooks = () => {
     // --- Mutations ---
     const hookMutation = useMutation({
         mutationFn: async ({ values, id }: { values: WebhookValues, id?: string }) => {
+            const fullGeneratedUrl = `${WEBHOOK_BASE_URL}/${values.provider_id}/${values.webhook_secret}`;
+            const dataToSave = { ...values, webhook_url: fullGeneratedUrl };
+
             if (id) {
-                const { error } = await supabase.from(WEBHOOKS_TABLE).update(values as any).eq('id', id);
+                const { error } = await supabase.from(WEBHOOKS_TABLE).update(dataToSave as any).eq('id', id);
                 if (error) throw error;
             } else {
-                const { error } = await supabase.from(WEBHOOKS_TABLE).insert([values as any]);
+                const { error } = await supabase.from(WEBHOOKS_TABLE).insert([dataToSave as any]);
                 if (error) throw error;
             }
         },
@@ -387,7 +391,7 @@ const WebhookCard = ({ hook, projectUrl, onEdit, onDelete }: any) => {
                             <Clock className="w-2.5 h-2.5" /> Last Beat
                         </p>
                         <p className="text-xs font-black text-brand-navy">
-                            {hook.last_received_at ? format(new Date(hook.last_received_at), 'HH:mm:ss') : 'Offline'}
+                            {hook.last_received_at ? format(new Date(hook.last_received_at), 'HH:mm:ss') : 'Waiting for Data...'}
                         </p>
                     </div>
                 </div>
@@ -493,7 +497,7 @@ const WebhookModal = ({ isOpen, onClose, onSubmit, initialData, providers, loadi
                     </form>
                 </Form>
             </DialogContent>
-        </Dialog>
+        </Dialog >
     );
 };
 
