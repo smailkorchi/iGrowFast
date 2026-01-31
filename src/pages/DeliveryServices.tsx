@@ -345,115 +345,149 @@ const DeliveryServices = () => {
 
 const CourierCard = ({ person, onEdit, onDelete }: any) => {
     return (
-        <Card className="group relative overflow-hidden border-none bg-white/60 backdrop-blur-xl hover:shadow-[0_32px_64px_-12px_rgba(0,0,0,0.12)] transition-all duration-500 rounded-[40px] p-2">
-            <CardHeader className="flex flex-row items-center justify-between pb-4 pt-6 px-6">
+        <Card className="group relative overflow-hidden border-none bg-white hover:shadow-[0_40px_80px_-15px_rgba(0,0,0,0.1)] transition-all duration-500 rounded-[32px] border border-slate-100 flex flex-col h-full">
+            <div className="absolute top-0 left-0 w-full h-1.5 bg-brand-navy/5 group-hover:bg-brand-navy transition-colors" />
+
+            <CardHeader className="flex flex-row items-start justify-between p-6">
                 <div className="flex items-center gap-4">
-                    <Avatar className="h-16 w-16 border-4 border-white shadow-2xl">
-                        <AvatarImage src={person.avatar_url} />
-                        <AvatarFallback className="bg-brand-navy text-white text-xl font-black">
-                            {person.name.substring(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                    </Avatar>
-                    <div className="space-y-1">
-                        <CardTitle className="text-xl font-black text-brand-navy">{person.name}</CardTitle>
-                        <Badge variant="secondary" className="bg-emerald-50 text-emerald-600 border-none font-bold text-[10px] uppercase tracking-widest px-2">
-                            Courier Person
-                        </Badge>
+                    <div className="relative">
+                        <Avatar className="h-16 w-16 border-2 border-slate-50 shadow-lg">
+                            <AvatarImage src={person.avatar_url} />
+                            <AvatarFallback className="bg-brand-navy/5 text-brand-navy text-xl font-black">
+                                {person.name.substring(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                        </Avatar>
+                        <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-500 border-4 border-white rounded-full shadow-sm" />
+                    </div>
+                    <div>
+                        <CardTitle className="text-xl font-bold text-brand-navy leading-none mb-1.5">{person.name}</CardTitle>
+                        <div className="flex items-center gap-2">
+                            <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-none font-bold text-[10px] uppercase tracking-wider px-2 h-5">
+                                Courier Agent
+                            </Badge>
+                        </div>
                     </div>
                 </div>
+
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 hover:bg-brand-navy/5">
-                            <MoreVertical className="w-5 h-5 text-muted-foreground" />
+                        <Button variant="ghost" size="icon" className="rounded-xl h-10 w-10 hover:bg-slate-50">
+                            <MoreVertical className="w-5 h-5 text-slate-400" />
                         </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[160px]">
-                        <DropdownMenuItem onClick={onEdit} className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy">
+                    <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[180px]">
+                        <DropdownMenuItem onClick={onEdit} className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy focus:bg-slate-50">
                             <Edit2 className="w-4 h-4 mr-3" /> Edit Profile
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={onDelete} className="rounded-xl p-3 cursor-pointer font-bold text-red-500 hover:bg-red-50">
-                            <Trash2 className="w-4 h-4 mr-3" /> Delete Account
+                        <DropdownMenuItem onClick={onDelete} className="rounded-xl p-3 cursor-pointer font-bold text-red-500 hover:bg-red-50 focus:bg-red-50">
+                            <Trash2 className="w-4 h-4 mr-3" /> Terminate Agent
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
             </CardHeader>
-            <CardContent className="px-6 pb-6 space-y-4">
-                <div className="flex flex-col gap-3">
-                    <div className="flex items-center gap-3 p-4 rounded-[24px] bg-brand-navy/[0.03] border border-brand-navy/[0.02]">
-                        <Mail className="w-4 h-4 text-brand-navy/30" />
-                        <span className="text-sm font-bold text-brand-navy truncate">{person.email}</span>
+
+            <CardContent className="px-6 pb-6 flex-grow space-y-4">
+                <div className="space-y-3">
+                    <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-slate-50/50 border border-slate-100">
+                        <div className="w-8 h-8 rounded-xl bg-white flex items-center justify-center shadow-sm">
+                            <Mail className="w-3.5 h-3.5 text-brand-navy/40" />
+                        </div>
+                        <span className="text-sm font-semibold text-brand-navy truncate">{person.email}</span>
                     </div>
-                    <div className="flex items-center gap-3 p-4 rounded-[24px] bg-brand-navy/[0.03] border border-brand-navy/[0.02]">
-                        <AtSign className="w-4 h-4 text-brand-navy/30" />
-                        <span className="text-sm font-bold text-brand-navy">@{person.username}</span>
+                    <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-slate-50/50 border border-slate-100">
+                        <div className="w-8 h-8 rounded-xl bg-white flex items-center justify-center shadow-sm">
+                            <AtSign className="w-3.5 h-3.5 text-brand-navy/40" />
+                        </div>
+                        <span className="text-sm font-semibold text-brand-navy">@{person.username}</span>
                     </div>
-                </div>
-                <div className="flex items-center justify-between pt-2">
-                    <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-                        <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Authorized</span>
-                    </div>
-                    <span className="text-[10px] font-black text-brand-navy/30 uppercase tracking-widest">ID: {person.id.substring(0, 8)}</span>
                 </div>
             </CardContent>
+
+            <div className="px-6 py-4 bg-slate-50/30 border-t border-slate-50 mt-auto flex items-center justify-between">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Courier ID</span>
+                <span className="text-xs font-mono font-bold text-brand-navy/30">{person.id.substring(0, 8).toUpperCase()}</span>
+            </div>
         </Card>
     );
 };
 
 const PartnerCard = ({ company, onEdit, onDelete }: any) => {
     return (
-        <Card className="group relative overflow-hidden border-none bg-white/60 backdrop-blur-xl hover:shadow-[0_32px_64px_-12px_rgba(0,0,0,0.12)] transition-all duration-500 rounded-[40px] p-2">
-            <CardHeader className="flex flex-row items-center justify-between pb-4 pt-6 px-6">
-                <div className="flex items-center gap-4">
-                    <div className="h-16 w-16 rounded-[24px] bg-white shadow-inner flex items-center justify-center overflow-hidden border border-brand-navy/5">
+        <Card className="group relative overflow-hidden border-none bg-white hover:shadow-[0_40px_80px_-15px_rgba(0,0,0,0.1)] transition-all duration-500 rounded-[32px] border border-slate-100 flex flex-col h-full">
+            <div className="absolute top-0 left-0 w-full h-1.5 bg-brand-navy/5 group-hover:bg-brand-navy transition-colors" />
+
+            <CardHeader className="flex flex-row items-start justify-between p-6">
+                <div className="flex flex-col gap-5">
+                    {/* Logo Section - Massive and Clear */}
+                    <div className="h-24 w-24 rounded-3xl bg-slate-50 border border-slate-100 p-2 flex items-center justify-center overflow-hidden shadow-inner group-hover:scale-105 transition-transform duration-500">
                         {company.logo_url ? (
-                            <img src={company.logo_url} alt="" className="w-full h-full object-cover" />
+                            <img src={company.logo_url} alt="" className="max-w-full max-h-full object-contain" />
                         ) : (
-                            <Building2 className="w-8 h-8 text-brand-navy/20" />
+                            <div className="flex flex-col items-center gap-1 opacity-20">
+                                <Building2 className="w-8 h-8 text-brand-navy" />
+                                <span className="text-[8px] font-black uppercase tracking-tighter">No Logo</span>
+                            </div>
                         )}
                     </div>
-                    <div className="space-y-1">
-                        <CardTitle className="text-xl font-black text-brand-navy">{company.name}</CardTitle>
+
+                    <div>
+                        <CardTitle className="text-2xl font-black text-brand-navy tracking-tight">{company.name}</CardTitle>
                         <Badge className={cn(
-                            "border-none font-bold text-[10px] uppercase tracking-widest px-2",
-                            company.provider_type === 'ameex' ? "bg-orange-50 text-orange-600" :
-                                company.provider_type === 'coliaty' ? "bg-blue-50 text-blue-600" : "bg-slate-50 text-slate-600"
+                            "mt-1.5 border-none font-bold text-[10px] uppercase tracking-widest px-2.5 py-1 rounded-lg",
+                            company.provider_type?.toLowerCase() === 'ameex' ? "bg-orange-100 text-orange-600" :
+                                company.provider_type?.toLowerCase() === 'coliaty' ? "bg-blue-100 text-blue-600" : "bg-slate-100 text-slate-500"
                         )}>
-                            {company.provider_type}
+                            {company.provider_type} System
                         </Badge>
                     </div>
                 </div>
+
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 hover:bg-brand-navy/5">
-                            <MoreVertical className="w-5 h-5 text-muted-foreground" />
+                        <Button variant="ghost" size="icon" className="rounded-xl h-10 w-10 hover:bg-slate-50">
+                            <MoreVertical className="w-5 h-5 text-slate-400" />
                         </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[160px]">
-                        <DropdownMenuItem onClick={onEdit} className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy">
-                            <Edit2 className="w-4 h-4 mr-3" /> Configure API
+                    <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[200px]">
+                        <DropdownMenuItem onClick={onEdit} className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy focus:bg-slate-50">
+                            <Edit2 className="w-4 h-4 mr-3" /> API Configurations
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={onDelete} className="rounded-xl p-3 cursor-pointer font-bold text-red-500 hover:bg-red-50">
-                            <Trash2 className="w-4 h-4 mr-3" /> Terminate Partner
+                        <DropdownMenuItem onClick={onDelete} className="rounded-xl p-3 cursor-pointer font-bold text-red-500 hover:bg-red-50 focus:bg-red-50">
+                            <Trash2 className="w-4 h-4 mr-3" /> Delete Connection
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
             </CardHeader>
-            <CardContent className="px-6 pb-6 space-y-4">
+
+            <CardContent className="px-6 pb-8 space-y-6">
                 <div className="grid grid-cols-2 gap-3">
-                    <div className="p-4 rounded-[24px] bg-brand-navy/[0.03] border border-brand-navy/[0.02]">
-                        <p className="text-[10px] font-black uppercase text-brand-navy/30 mb-1">Entity</p>
-                        <p className="text-xs font-bold text-brand-navy truncate">{company.business_name || 'N/A'}</p>
+                    <div className="p-4 rounded-2xl bg-slate-50/50 border border-slate-100">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Legal Entity</p>
+                        <p className="text-sm font-bold text-brand-navy truncate leading-tight">{company.business_name || 'Not Set'}</p>
                     </div>
-                    <div className="p-4 rounded-[24px] bg-brand-navy/[0.03] border border-brand-navy/[0.02]">
-                        <p className="text-[10px] font-black uppercase text-brand-navy/30 mb-1">Status</p>
-                        <p className="text-xs font-bold text-emerald-600">{company.active ? 'Operational' : 'Paused'}</p>
+                    <div className="p-4 rounded-2xl bg-slate-50/50 border border-slate-100 relative overflow-hidden">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Network Status</p>
+                        <div className="flex items-center gap-2">
+                            <div className={cn("w-2 h-2 rounded-full", company.active ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-slate-300")} />
+                            <p className={cn("text-xs font-bold", company.active ? "text-emerald-600" : "text-slate-500")}>
+                                {company.active ? 'Operational' : 'Offline'}
+                            </p>
+                        </div>
                     </div>
                 </div>
-                <div className="flex items-center gap-2 text-[10px] font-black text-brand-navy/40 uppercase tracking-widest">
-                    <Shield className="w-3 h-3" /> Integration Active: {company.api_key ? 'Encrypted' : 'Key missing'}
+
+                <div className="flex items-center gap-3 py-3 px-4 rounded-2xl bg-brand-navy/5 border border-brand-navy/10 group-hover:bg-brand-navy group-hover:border-brand-navy transition-all duration-300">
+                    <div className="w-8 h-8 rounded-xl bg-white flex items-center justify-center shadow-sm">
+                        <Shield className="w-4 h-4 text-brand-navy" />
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-[10px] font-bold text-brand-navy/40 uppercase group-hover:text-white/40 transition-colors">Security Layer</span>
+                        <span className="text-xs font-bold text-brand-navy group-hover:text-white transition-colors">
+                            {company.api_key ? 'AES-256 Encrypted' : 'Config Warning'}
+                        </span>
+                    </div>
                 </div>
             </CardContent>
         </Card>
