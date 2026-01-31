@@ -27,7 +27,8 @@ import {
     MapPinned,
     ExternalLink,
     RefreshCcw,
-    User
+    User,
+    Filter
 } from 'lucide-react';
 import {
     Card,
@@ -140,6 +141,11 @@ const Orders = () => {
 
     const { toast } = useToast();
     const queryClient = useQueryClient();
+
+    // Filter states
+    const [filterStatus, setFilterStatus] = useState<string>("all");
+    const [filterCity, setFilterCity] = useState<string>("all");
+    const [filterSource, setFilterSource] = useState<string>("all");
 
     // Add custom scrollbar styles to head
     React.useEffect(() => {
@@ -378,12 +384,19 @@ const Orders = () => {
     // --- Helpers ---
     const filteredOrders = useMemo(() => {
         if (!orders) return [];
-        return orders.filter(o =>
-            o.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            o.phone?.includes(searchQuery) ||
-            o.tracking_number?.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-    }, [orders, searchQuery]);
+        return orders.filter(o => {
+            const matchesSearch =
+                o.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                o.phone?.includes(searchQuery) ||
+                o.tracking_number?.toLowerCase().includes(searchQuery.toLowerCase());
+
+            const matchesStatus = filterStatus === "all" || o.order_status_id === filterStatus;
+            const matchesCity = filterCity === "all" || o.city_id === filterCity;
+            const matchesSource = filterSource === "all" || o.source_name === filterSource;
+
+            return matchesSearch && matchesStatus && matchesCity && matchesSource;
+        });
+    }, [orders, searchQuery, filterStatus, filterCity, filterSource]);
 
     const handleEdit = (order: any) => {
         setSelectedOrder(order);
@@ -471,6 +484,85 @@ const Orders = () => {
                             : 0} DH
                     </h3>
                 </Card>
+            </div>
+
+            {/* Filters Toolbar */}
+            <div className="flex flex-col md:flex-row gap-4 items-center justify-between pb-2">
+                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                    <div className="flex items-center gap-2 bg-white p-1 pr-4 rounded-xl shadow-sm border border-brand-navy/5">
+                        <div className="h-8 w-8 rounded-lg bg-brand-navy/5 flex items-center justify-center text-brand-navy/50">
+                            <Filter className="w-4 h-4" />
+                        </div>
+                        <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest hidden sm:inline-block md:hidden lg:inline-block">Filter By:</span>
+
+                        <Select value={filterStatus} onValueChange={setFilterStatus}>
+                            <SelectTrigger className="h-8 w-[140px] border-none bg-transparent hover:bg-brand-navy/5 focus:ring-0 rounded-lg text-xs font-bold text-brand-navy">
+                                <SelectValue placeholder="All Statuses" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl border-none shadow-xl">
+                                <SelectItem value="all" className="font-bold text-xs">All Statuses</SelectItem>
+                                {orderStatuses?.map((s: any) => (
+                                    <SelectItem key={s.id} value={s.id} className="font-bold text-xs">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
+                                            {s.label}
+                                        </div>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+
+                        <div className="w-[1px] h-4 bg-brand-navy/10" />
+
+                        <Select value={filterCity} onValueChange={setFilterCity}>
+                            <SelectTrigger className="h-8 w-[130px] border-none bg-transparent hover:bg-brand-navy/5 focus:ring-0 rounded-lg text-xs font-bold text-brand-navy">
+                                <SelectValue placeholder="All Cities" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl border-none shadow-xl max-h-[300px]">
+                                <SelectItem value="all" className="font-bold text-xs">All Cities</SelectItem>
+                                {cities?.map((c: any) => (
+                                    <SelectItem key={c.id} value={c.id} className="font-bold text-xs">{c.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+
+                        <div className="w-[1px] h-4 bg-brand-navy/10" />
+
+                        <Select value={filterSource} onValueChange={setFilterSource}>
+                            <SelectTrigger className="h-8 w-[130px] border-none bg-transparent hover:bg-brand-navy/5 focus:ring-0 rounded-lg text-xs font-bold text-brand-navy">
+                                <SelectValue placeholder="All Sources" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl border-none shadow-xl">
+                                <SelectItem value="all" className="font-bold text-xs">All Sources</SelectItem>
+                                {SALES_SOURCES.map((s) => (
+                                    <SelectItem key={s} value={s} className="font-bold text-xs capitalize">{s}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    {(filterStatus !== 'all' || filterCity !== 'all' || filterSource !== 'all') && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                                setFilterStatus('all');
+                                setFilterCity('all');
+                                setFilterSource('all');
+                            }}
+                            className="h-10 px-4 rounded-xl text-red-500 hover:bg-red-50 hover:text-red-600 font-bold text-xs gap-2 animate-in fade-in"
+                        >
+                            <X className="w-3 h-3" /> Clear
+                        </Button>
+                    )}
+                </div>
+
+                <div className="flex items-center gap-2 px-4 py-2 bg-brand-navy/[0.02] rounded-xl border border-brand-navy/[0.04]">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-xs font-bold text-brand-navy">
+                        {filteredOrders.length} records found
+                    </span>
+                </div>
             </div>
 
             {/* Content Section */}

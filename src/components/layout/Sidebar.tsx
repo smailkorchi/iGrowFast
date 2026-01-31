@@ -51,6 +51,7 @@ const navigation: NavSection[] = [
     {
         items: [
             { icon: Home, label: 'Dashboard', path: '/' },
+            { icon: BarChart2, label: 'Analytics', path: '/analytics' },
             { icon: ShoppingBag, label: 'Orders', path: '/orders' },
         ]
     },
@@ -73,7 +74,7 @@ const navigation: NavSection[] = [
     {
         items: [
             { icon: RefreshCcw, label: 'Status', path: '/status' },
-            { icon: BarChart2, label: 'Analytics', path: '/analytics' },
+
             { icon: Megaphone, label: 'Sales Channels', path: '/sales-channels' },
             { icon: Users, label: 'Customers', path: '/customers' },
             { icon: UserPlus, label: 'Users', path: '/users' },
