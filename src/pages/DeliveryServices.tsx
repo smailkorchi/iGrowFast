@@ -19,7 +19,10 @@ import {
     Upload,
     Loader2,
     CheckCircle2,
-    ExternalLink
+    ExternalLink,
+    MapPin,
+    Coins,
+    Check
 } from 'lucide-react';
 import {
     Card,
@@ -78,6 +81,12 @@ import { cn } from '@/lib/utils';
 // Types are not yet updated in the generated schema, so we'll use any for table names
 const PROVIDERS_TABLE = 'providers' as any;
 const USERS_TABLE = 'users' as any;
+const COURIER_ZONES_TABLE = 'courier_zones' as any;
+const COURIER_FEES_TABLE = 'courier_fees' as any;
+const ZONES_TABLE = 'zones' as any;
+const CITIES_TABLE = 'cities' as any;
+const COMPANY_ZONES_TABLE = 'company_zones' as any;
+const COMPANY_FEES_TABLE = 'company_fees' as any;
 
 // --- Schemas ---
 
@@ -110,7 +119,13 @@ const DeliveryServices = () => {
     const [activeTab, setActiveTab] = useState<'person' | 'company'>('person');
     const [isPersonModalOpen, setIsPersonModalOpen] = useState(false);
     const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
+    const [isZonesModalOpen, setIsZonesModalOpen] = useState(false);
+    const [isFeesModalOpen, setIsFeesModalOpen] = useState(false);
     const [editingItem, setEditingItem] = useState<any>(null);
+    const [selectedCourier, setSelectedCourier] = useState<any>(null);
+    const [selectedCompany, setSelectedCompany] = useState<any>(null);
+    const [isCompanyZonesModalOpen, setIsCompanyZonesModalOpen] = useState(false);
+    const [isCompanyFeesModalOpen, setIsCompanyFeesModalOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
 
     const { toast } = useToast();
@@ -297,6 +312,8 @@ const DeliveryServices = () => {
                                 key={person.id}
                                 person={person}
                                 onEdit={() => handleEdit(person, 'person')}
+                                onZones={() => { setSelectedCourier(person); setIsZonesModalOpen(true); }}
+                                onFees={() => { setSelectedCourier(person); setIsFeesModalOpen(true); }}
                                 onDelete={() => {
                                     if (confirm('Delete courier account?')) deleteMutation.mutate({ id: person.id, type: 'person' });
                                 }}
@@ -312,6 +329,8 @@ const DeliveryServices = () => {
                                 key={company.id}
                                 company={company}
                                 onEdit={() => handleEdit(company, 'company')}
+                                onZones={() => { setSelectedCompany(company); setIsCompanyZonesModalOpen(true); }}
+                                onFees={() => { setSelectedCompany(company); setIsCompanyFeesModalOpen(true); }}
                                 onDelete={() => {
                                     if (confirm('Delete provider connection?')) deleteMutation.mutate({ id: company.id, type: 'company' });
                                 }}
@@ -337,13 +356,37 @@ const DeliveryServices = () => {
                 initialData={editingItem}
                 loading={companyMutation.isPending}
             />
+
+            <ZonesModal
+                isOpen={isZonesModalOpen}
+                onClose={() => setIsZonesModalOpen(false)}
+                courier={selectedCourier}
+            />
+
+            <FeesModal
+                isOpen={isFeesModalOpen}
+                onClose={() => setIsFeesModalOpen(false)}
+                courier={selectedCourier}
+            />
+
+            <CompanyZonesModal
+                isOpen={isCompanyZonesModalOpen}
+                onClose={() => setIsCompanyZonesModalOpen(false)}
+                company={selectedCompany}
+            />
+
+            <CompanyFeesModal
+                isOpen={isCompanyFeesModalOpen}
+                onClose={() => setIsCompanyFeesModalOpen(false)}
+                company={selectedCompany}
+            />
         </div>
     );
 };
 
 // --- Sub-components ---
 
-const CourierCard = ({ person, onEdit, onDelete }: any) => {
+function CourierCard({ person, onEdit, onZones, onFees, onDelete }: any) {
     return (
         <Card className="group relative overflow-hidden border-none bg-white hover:shadow-[0_40px_80px_-15px_rgba(0,0,0,0.1)] transition-all duration-500 rounded-[32px] border border-slate-100 flex flex-col h-full">
             <div className="absolute top-0 left-0 w-full h-1.5 bg-brand-navy/5 group-hover:bg-brand-navy transition-colors" />
@@ -377,11 +420,18 @@ const CourierCard = ({ person, onEdit, onDelete }: any) => {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[180px]">
                         <DropdownMenuItem onClick={onEdit} className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy focus:bg-slate-50">
-                            <Edit2 className="w-4 h-4 mr-3" /> Edit Profile
+                            <Edit2 className="w-4 h-4 mr-3 text-brand-navy/40" /> Edit Profile
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={onZones} className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy focus:bg-slate-50">
+                            <MapPin className="w-4 h-4 mr-3 text-brand-navy/40" /> Manage Zones
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={onFees} className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy focus:bg-slate-50">
+                            <Coins className="w-4 h-4 mr-3 text-brand-navy/40" /> Set City Fees
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={onDelete} className="rounded-xl p-3 cursor-pointer font-bold text-red-500 hover:bg-red-50 focus:bg-red-50">
-                            <Trash2 className="w-4 h-4 mr-3" /> Terminate Agent
+                            <Trash2 className="w-4 h-4 mr-3 text-red-400" /> Terminate Agent
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
@@ -412,7 +462,7 @@ const CourierCard = ({ person, onEdit, onDelete }: any) => {
     );
 };
 
-const PartnerCard = ({ company, onEdit, onDelete }: any) => {
+function PartnerCard({ company, onEdit, onZones, onFees, onDelete }: any) {
     return (
         <Card className="group relative overflow-hidden border-none bg-white hover:shadow-[0_40px_80px_-15px_rgba(0,0,0,0.1)] transition-all duration-500 rounded-[32px] border border-slate-100 flex flex-col h-full">
             <div className="absolute top-0 left-0 w-full h-1.5 bg-brand-navy/5 group-hover:bg-brand-navy transition-colors" />
@@ -451,11 +501,18 @@ const PartnerCard = ({ company, onEdit, onDelete }: any) => {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[200px]">
                         <DropdownMenuItem onClick={onEdit} className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy focus:bg-slate-50">
-                            <Edit2 className="w-4 h-4 mr-3" /> API Configurations
+                            <Edit2 className="w-4 h-4 mr-3 text-brand-navy/40" /> API Configurations
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={onZones} className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy focus:bg-slate-50">
+                            <MapPin className="w-4 h-4 mr-3 text-brand-navy/40" /> Service Zones
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={onFees} className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy focus:bg-slate-50">
+                            <Coins className="w-4 h-4 mr-3 text-brand-navy/40" /> Delivery Fees
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={onDelete} className="rounded-xl p-3 cursor-pointer font-bold text-red-500 hover:bg-red-50 focus:bg-red-50">
-                            <Trash2 className="w-4 h-4 mr-3" /> Delete Connection
+                            <Trash2 className="w-4 h-4 mr-3 text-red-400" /> Delete Connection
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
@@ -494,7 +551,7 @@ const PartnerCard = ({ company, onEdit, onDelete }: any) => {
     );
 };
 
-const PersonModal = ({ isOpen, onClose, onSubmit, initialData, loading }: any) => {
+function PersonModal({ isOpen, onClose, onSubmit, initialData, loading }: any) {
     const form = useForm<DeliveryPersonValues>({
         resolver: zodResolver(deliveryPersonSchema),
         defaultValues: { name: '', username: '', email: '', password: '' }
@@ -579,7 +636,7 @@ const PersonModal = ({ isOpen, onClose, onSubmit, initialData, loading }: any) =
     );
 };
 
-const CompanyModal = ({ isOpen, onClose, onSubmit, initialData, loading }: any) => {
+function CompanyModal({ isOpen, onClose, onSubmit, initialData, loading }: any) {
     const [logo, setLogo] = useState<File | null>(null);
     const [logoPreview, setLogoPreview] = useState<string | null>(initialData?.logo_url || null);
 
@@ -816,12 +873,362 @@ const CompanyModal = ({ isOpen, onClose, onSubmit, initialData, loading }: any) 
     );
 };
 
-const SkeletonCards = () => (
-    <>
-        {[1, 2, 3].map(i => (
-            <div key={i} className="h-[240px] rounded-[40px] bg-white animate-pulse" />
-        ))}
-    </>
-);
+function ZonesModal({ isOpen, onClose, courier }: any) {
+    const queryClient = useQueryClient();
+    const { toast } = useToast();
+
+    const { data: allZones } = useQuery({
+        queryKey: ['zones'],
+        queryFn: async () => {
+            const { data, error } = await supabase.from(ZONES_TABLE).select('*').order('name');
+            if (error) throw error;
+            return data || [];
+        },
+        enabled: isOpen
+    });
+
+    const { data: assignedZones, isLoading } = useQuery({
+        queryKey: ['courier_zones', courier?.id],
+        queryFn: async () => {
+            const { data, error } = await supabase.from(COURIER_ZONES_TABLE).select('zone_id').eq('courier_id', courier.id);
+            if (error) throw error;
+            return data.map((z: any) => z.zone_id);
+        },
+        enabled: !!courier?.id && isOpen
+    });
+
+    const toggleZone = useMutation({
+        mutationFn: async (zoneId: string) => {
+            const isAssigned = assignedZones?.includes(zoneId);
+            if (isAssigned) {
+                await supabase.from(COURIER_ZONES_TABLE).delete().eq('courier_id', courier.id).eq('zone_id', zoneId);
+            } else {
+                await supabase.from(COURIER_ZONES_TABLE).insert({ courier_id: courier.id, zone_id: zoneId });
+            }
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['courier_zones', courier?.id] });
+            toast({ title: "Updated", description: "Courier's service zones updated." });
+        }
+    });
+
+    return (
+        <Dialog open={isOpen} onOpenChange={(v) => !v && onClose()}>
+            <DialogContent className="max-w-md p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden">
+                <DialogHeader className="p-8 pb-4">
+                    <DialogTitle className="text-2xl font-black text-brand-navy truncate">Service Zones: {courier?.name}</DialogTitle>
+                    <DialogDescription className="font-bold">Select the geographical areas this courier will cover.</DialogDescription>
+                </DialogHeader>
+
+                <div className="p-8 pt-2 space-y-3 max-h-[60vh] overflow-y-auto">
+                    {allZones?.map((zone: any) => {
+                        const active = assignedZones?.includes(zone.id);
+                        return (
+                            <div
+                                key={zone.id}
+                                onClick={() => toggleZone.mutate(zone.id)}
+                                className={cn(
+                                    "p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between group",
+                                    active ? "bg-brand-navy border-brand-navy text-white shadow-xl" : "bg-brand-navy/5 border-transparent text-brand-navy hover:bg-brand-navy/10"
+                                )}
+                            >
+                                <span className="font-bold">{zone.name}</span>
+                                {active ? <Check className="w-5 h-5" /> : <div className="w-5 h-5 rounded-full border-2 border-brand-navy/20 group-hover:border-brand-navy/40" />}
+                            </div>
+                        );
+                    })}
+                </div>
+
+                <div className="p-8 pt-0">
+                    <Button onClick={onClose} variant="secondary" className="w-full h-12 rounded-2xl font-black">Close Management</Button>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+};
+
+function FeesModal({ isOpen, onClose, courier }: any) {
+    const queryClient = useQueryClient();
+    const { toast } = useToast();
+    const [fees, setFees] = useState<Record<string, string>>({});
+
+    const { data: cities, isLoading: loadingCities } = useQuery({
+        queryKey: ['courier_fees_cities', courier?.id],
+        queryFn: async () => {
+            const { data: czones } = await supabase.from(COURIER_ZONES_TABLE).select('zone_id').eq('courier_id', courier.id);
+            const zoneIds = czones?.map((z: any) => z.zone_id) || [];
+            if (!zoneIds.length) return [];
+
+            const { data, error } = await supabase.from(CITIES_TABLE).select('*').in('zone_id', zoneIds).order('name');
+            if (error) throw error;
+            return data || [];
+        },
+        enabled: !!courier?.id && isOpen
+    });
+
+    const { data: savedFees } = useQuery({
+        queryKey: ['courier_fees', courier?.id],
+        queryFn: async () => {
+            const { data, error } = await supabase.from(COURIER_FEES_TABLE).select('*').eq('courier_id', courier.id);
+            if (error) throw error;
+            const feeMap: Record<string, string> = {};
+            data.forEach((f: any) => feeMap[f.city_id] = f.fee.toString());
+            setFees(feeMap);
+            return feeMap;
+        },
+        enabled: !!courier?.id && isOpen
+    });
+
+    const saveFee = useMutation({
+        mutationFn: async ({ cityId, fee }: { cityId: string, fee: string }) => {
+            const numericFee = parseFloat(fee) || 0;
+            const { error } = await supabase.from(COURIER_FEES_TABLE).upsert({
+                courier_id: courier.id,
+                city_id: cityId,
+                fee: numericFee,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'courier_id,city_id' });
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['courier_fees', courier?.id] });
+        }
+    });
+
+    return (
+        <Dialog open={isOpen} onOpenChange={(v) => !v && onClose()}>
+            <DialogContent className="max-w-2xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                <DialogHeader className="p-10 pb-4 shrink-0">
+                    <DialogTitle className="text-3xl font-black text-brand-navy">City Delivery Fees</DialogTitle>
+                    <DialogDescription className="font-bold flex items-center gap-2">
+                        <Coins className="w-4 h-4 text-brand-navy" />
+                        Configure per-city rates for {courier?.name}
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="flex-1 overflow-y-auto p-10 pt-4 space-y-4">
+                    {loadingCities ? (
+                        <div className="flex items-center justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-brand-navy/20" /></div>
+                    ) : cities?.length === 0 ? (
+                        <div className="text-center py-20 bg-brand-navy/5 rounded-[32px] border border-dashed border-brand-navy/10">
+                            <MapPin className="w-12 h-12 text-brand-navy/20 mx-auto mb-4" />
+                            <p className="font-bold text-brand-navy/40">No cities found in assigned zones.</p>
+                            <p className="text-xs font-bold text-brand-navy/20 uppercase mt-1">Assign zones first</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 gap-2">
+                            {cities?.map((city: any) => (
+                                <div key={city.id} className="flex items-center justify-between p-4 rounded-2xl bg-brand-navy/5 border border-brand-navy/[0.03] group hover:bg-brand-navy/[0.08] transition-all">
+                                    <div>
+                                        <p className="font-bold text-brand-navy text-lg">{city.name}</p>
+                                        <p className="text-[10px] font-black uppercase text-brand-navy/20 tracking-widest mt-0.5">Target Destination</p>
+                                    </div>
+                                    <div className="relative w-32">
+                                        <Coins className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-navy/30" />
+                                        <Input
+                                            value={fees[city.id] || ''}
+                                            onChange={(e) => setFees({ ...fees, [city.id]: e.target.value })}
+                                            onBlur={() => saveFee.mutate({ cityId: city.id, fee: fees[city.id] })}
+                                            placeholder="0.00"
+                                            className="h-12 pl-10 pr-4 rounded-xl border-none bg-white font-black text-brand-navy text-right shadow-inner focus-visible:ring-brand-navy/20"
+                                        />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                <div className="p-10 pt-0 shrink-0 bg-brand-white border-t border-brand-navy/5">
+                    <Button onClick={onClose} variant="ghost" className="w-full h-14 rounded-2xl font-black bg-brand-navy text-white hover:bg-brand-navy/90 shadow-xl shadow-brand-navy/20">Finish Pricing</Button>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+};
+
+function CompanyZonesModal({ isOpen, onClose, company }: any) {
+    const queryClient = useQueryClient();
+    const { toast } = useToast();
+
+    const { data: allZones } = useQuery({
+        queryKey: ['zones'],
+        queryFn: async () => {
+            const { data, error } = await supabase.from(ZONES_TABLE).select('*').order('name');
+            if (error) throw error;
+            return data || [];
+        },
+        enabled: isOpen
+    });
+
+    const { data: assignedZones, isLoading } = useQuery({
+        queryKey: ['company_zones', company?.id],
+        queryFn: async () => {
+            const { data, error } = await supabase.from(COMPANY_ZONES_TABLE).select('zone_id').eq('company_id', company.id);
+            if (error) throw error;
+            return data.map((z: any) => z.zone_id);
+        },
+        enabled: !!company?.id && isOpen
+    });
+
+    const toggleZone = useMutation({
+        mutationFn: async (zoneId: string) => {
+            const isAssigned = assignedZones?.includes(zoneId);
+            if (isAssigned) {
+                await supabase.from(COMPANY_ZONES_TABLE).delete().eq('company_id', company.id).eq('zone_id', zoneId);
+            } else {
+                await supabase.from(COMPANY_ZONES_TABLE).insert({ company_id: company.id, zone_id: zoneId });
+            }
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['company_zones', company?.id] });
+            toast({ title: "Updated", description: "Company service zones updated." });
+        }
+    });
+
+    return (
+        <Dialog open={isOpen} onOpenChange={(v) => !v && onClose()}>
+            <DialogContent className="max-w-md p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden">
+                <DialogHeader className="p-8 pb-4">
+                    <DialogTitle className="text-2xl font-black text-brand-navy truncate">Service Zones: {company?.name}</DialogTitle>
+                    <DialogDescription className="font-bold">Select the geographical areas this partner will cover.</DialogDescription>
+                </DialogHeader>
+
+                <div className="p-8 pt-2 space-y-2 max-h-[60vh] overflow-y-auto">
+                    {allZones?.map((zone: any) => {
+                        const active = assignedZones?.includes(zone.id);
+                        return (
+                            <div
+                                key={zone.id}
+                                onClick={() => toggleZone.mutate(zone.id)}
+                                className={cn(
+                                    "p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between group",
+                                    active ? "bg-brand-navy border-brand-navy text-white shadow-xl" : "bg-brand-navy/5 border-transparent text-brand-navy hover:bg-brand-navy/10"
+                                )}
+                            >
+                                <span className="font-bold">{zone.name}</span>
+                                {active ? <Check className="w-5 h-5" /> : <div className="w-5 h-5 rounded-full border-2 border-brand-navy/20 group-hover:border-brand-navy/40" />}
+                            </div>
+                        );
+                    })}
+                </div>
+
+                <div className="p-8 pt-0">
+                    <Button onClick={onClose} variant="secondary" className="w-full h-12 rounded-2xl font-black">Close Management</Button>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+};
+
+function CompanyFeesModal({ isOpen, onClose, company }: any) {
+    const queryClient = useQueryClient();
+    const { toast } = useToast();
+    const [fees, setFees] = useState<Record<string, string>>({});
+
+    const { data: cities, isLoading: loadingCities } = useQuery({
+        queryKey: ['company_fees_cities', company?.id],
+        queryFn: async () => {
+            const { data: czones } = await supabase.from(COMPANY_ZONES_TABLE).select('zone_id').eq('company_id', company.id);
+            const zoneIds = czones?.map((z: any) => z.zone_id) || [];
+            if (!zoneIds.length) return [];
+
+            const { data, error } = await supabase.from(CITIES_TABLE).select('*').in('zone_id', zoneIds).order('name');
+            if (error) throw error;
+            return data || [];
+        },
+        enabled: !!company?.id && isOpen
+    });
+
+    const { data: savedFees } = useQuery({
+        queryKey: ['company_fees', company?.id],
+        queryFn: async () => {
+            const { data, error } = await supabase.from(COMPANY_FEES_TABLE).select('*').eq('company_id', company.id);
+            if (error) throw error;
+            const feeMap: Record<string, string> = {};
+            data.forEach((f: any) => feeMap[f.city_id] = f.fee.toString());
+            setFees(feeMap);
+            return feeMap;
+        },
+        enabled: !!company?.id && isOpen
+    });
+
+    const saveFee = useMutation({
+        mutationFn: async ({ cityId, fee }: { cityId: string, fee: string }) => {
+            const numericFee = parseFloat(fee) || 0;
+            const { error } = await supabase.from(COMPANY_FEES_TABLE).upsert({
+                company_id: company.id,
+                city_id: cityId,
+                fee: numericFee,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'company_id,city_id' });
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['company_fees', company?.id] });
+        }
+    });
+
+    return (
+        <Dialog open={isOpen} onOpenChange={(v) => !v && onClose()}>
+            <DialogContent className="max-w-2xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                <DialogHeader className="p-10 pb-4 shrink-0">
+                    <DialogTitle className="text-3xl font-black text-brand-navy">Company Delivery Fees</DialogTitle>
+                    <DialogDescription className="font-bold flex items-center gap-2">
+                        <Coins className="w-4 h-4 text-brand-navy" />
+                        Configure per-city rates for {company?.name}
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="flex-1 overflow-y-auto p-10 pt-4 space-y-4">
+                    {loadingCities ? (
+                        <div className="flex items-center justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-brand-navy/20" /></div>
+                    ) : cities?.length === 0 ? (
+                        <div className="text-center py-20 bg-brand-navy/5 rounded-[32px] border border-dashed border-brand-navy/10">
+                            <MapPin className="w-12 h-12 text-brand-navy/20 mx-auto mb-4" />
+                            <p className="font-bold text-brand-navy/40">No cities found in assigned zones.</p>
+                            <p className="text-xs font-bold text-brand-navy/20 uppercase mt-1">Assign zones first</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 gap-2">
+                            {cities?.map((city: any) => (
+                                <div key={city.id} className="flex items-center justify-between p-4 rounded-2xl bg-brand-navy/5 border border-brand-navy/[0.03] group hover:bg-brand-navy/[0.08] transition-all">
+                                    <div>
+                                        <p className="font-bold text-brand-navy text-lg">{city.name}</p>
+                                        <p className="text-[10px] font-black uppercase text-brand-navy/20 tracking-widest mt-0.5">Target Destination</p>
+                                    </div>
+                                    <div className="relative w-32">
+                                        <Coins className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-navy/30" />
+                                        <Input
+                                            value={fees[city.id] || ''}
+                                            onChange={(e) => setFees({ ...fees, [city.id]: e.target.value })}
+                                            onBlur={() => saveFee.mutate({ cityId: city.id, fee: fees[city.id] })}
+                                            placeholder="0.00"
+                                            className="h-12 pl-10 pr-4 rounded-xl border-none bg-white font-black text-brand-navy text-right shadow-inner focus-visible:ring-brand-navy/20"
+                                        />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                <div className="p-10 pt-0 shrink-0 bg-brand-white border-t border-brand-navy/5">
+                    <Button onClick={onClose} variant="ghost" className="w-full h-14 rounded-2xl font-black bg-brand-navy text-white hover:bg-brand-navy/90 shadow-xl shadow-brand-navy/20">Finish Pricing</Button>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+};
+
+function SkeletonCards() {
+    return (
+        <>
+            {[1, 2, 3].map(i => (
+                <div key={i} className="h-[240px] rounded-[40px] bg-white animate-pulse" />
+            ))}
+        </>
+    );
+}
 
 export default DeliveryServices;
