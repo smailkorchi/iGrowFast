@@ -7,8 +7,57 @@ export type Json =
     | Json[]
 
 export type Database = {
+    // Allows to automatically instantiate createClient with right options
+    // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+    __InternalSupabase: {
+        PostgrestVersion: "14.1"
+    }
     public: {
         Tables: {
+            ads_history: {
+                Row: {
+                    amount: number
+                    created_at: string | null
+                    end_date: string
+                    id: string
+                    method: string
+                    product_id: string | null
+                    results: number
+                    start_date: string
+                    updated_at: string | null
+                }
+                Insert: {
+                    amount?: number
+                    created_at?: string | null
+                    end_date: string
+                    id?: string
+                    method: string
+                    product_id?: string | null
+                    results?: number
+                    start_date: string
+                    updated_at?: string | null
+                }
+                Update: {
+                    amount?: number
+                    created_at?: string | null
+                    end_date?: string
+                    id?: string
+                    method?: string
+                    product_id?: string | null
+                    results?: number
+                    start_date?: string
+                    updated_at?: string | null
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "ads_history_product_id_fkey"
+                        columns: ["product_id"]
+                        isOneToOne: false
+                        referencedRelation: "products"
+                        referencedColumns: ["id"]
+                    },
+                ]
+            }
             cities: {
                 Row: {
                     created_at: string | null
@@ -38,84 +87,284 @@ export type Database = {
                     },
                 ]
             }
-            order_statuses: {
+            order_items: {
                 Row: {
-                    active: boolean | null
-                    code: string
-                    color: string | null
                     created_at: string | null
                     id: string
-                    label: string
-                    ranking: number | null
-                    recheck: boolean | null
+                    order_id: string
+                    product_id: string
+                    quantity: number
+                    total_price: number | null
+                    unit_price: number
                     updated_at: string | null
                 }
                 Insert: {
-                    active?: boolean | null
-                    code: string
-                    color?: string | null
                     created_at?: string | null
                     id?: string
-                    label: string
-                    ranking?: number | null
-                    recheck?: boolean | null
+                    order_id: string
+                    product_id: string
+                    quantity?: number
+                    total_price?: number | null
+                    unit_price?: number
                     updated_at?: string | null
                 }
                 Update: {
-                    active?: boolean | null
+                    created_at?: string | null
+                    id?: string
+                    order_id?: string
+                    product_id?: string
+                    quantity?: number
+                    total_price?: number | null
+                    unit_price?: number
+                    updated_at?: string | null
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "order_items_order_id_fkey"
+                        columns: ["order_id"]
+                        isOneToOne: false
+                        referencedRelation: "orders"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "order_items_product_id_fkey"
+                        columns: ["product_id"]
+                        isOneToOne: false
+                        referencedRelation: "products"
+                        referencedColumns: ["id"]
+                    },
+                ]
+            }
+            order_statuses: {
+                Row: {
+                    active: boolean
+                    code: string
+                    color: string
+                    created_at: string | null
+                    id: string
+                    label: string
+                    ranking: number
+                    recheck: boolean
+                    updated_at: string | null
+                }
+                Insert: {
+                    active?: boolean
+                    code: string
+                    color: string
+                    created_at?: string | null
+                    id?: string
+                    label: string
+                    ranking: number
+                    recheck?: boolean
+                    updated_at?: string | null
+                }
+                Update: {
+                    active?: boolean
                     code?: string
-                    color?: string | null
+                    color?: string
                     created_at?: string | null
                     id?: string
                     label?: string
-                    ranking?: number | null
-                    recheck?: boolean | null
+                    ranking?: number
+                    recheck?: boolean
                     updated_at?: string | null
                 }
                 Relationships: []
             }
-            package_statuses: {
+            orders: {
                 Row: {
-                    active: boolean | null
-                    code: string
-                    color: string | null
+                    address: string | null
+                    annulation_date: string | null
+                    assign_id: string | null
+                    assignment_date: string | null
+                    city_id: string | null
+                    company_id: string | null
+                    confirmation_date: string | null
+                    confirmed_by_id: string | null
                     created_at: string | null
-                    delivery_service_statuses: Json | null
+                    current_delivery_note_id: string | null
+                    current_return_note_id: string | null
+                    date: string | null
+                    date_deleted: string | null
+                    date_livraison: string | null
+                    delivered: boolean | null
+                    delivery_fees_id: string | null
+                    delivery_note: string | null
+                    delivery_type: string | null
+                    free_shipping: boolean | null
                     id: string
-                    label: string
-                    ranking: number | null
-                    recheck: boolean | null
+                    livreur_id: string | null
+                    name: string | null
+                    note: string | null
+                    old_client_id: string | null
+                    order_status_id: string | null
+                    package_status_id: string | null
+                    payed: boolean | null
+                    payment_delivery_id: string | null
+                    phone: string | null
+                    price: number | null
+                    processing: boolean | null
+                    published: boolean | null
+                    raw_price: number | null
+                    replace: boolean | null
+                    reported_date: string | null
+                    shipping_cost: number | null
+                    source_id: string | null
+                    source_name: string | null
+                    stock_changed: boolean | null
+                    tracking_number: string | null
                     updated_at: string | null
                 }
                 Insert: {
-                    active?: boolean | null
-                    code: string
-                    color?: string | null
+                    address?: string | null
+                    annulation_date?: string | null
+                    assign_id?: string | null
+                    assignment_date?: string | null
+                    city_id?: string | null
+                    company_id?: string | null
+                    confirmation_date?: string | null
+                    confirmed_by_id?: string | null
                     created_at?: string | null
-                    delivery_service_statuses?: Json | null
+                    current_delivery_note_id?: string | null
+                    current_return_note_id?: string | null
+                    date?: string | null
+                    date_deleted?: string | null
+                    date_livraison?: string | null
+                    delivered?: boolean | null
+                    delivery_fees_id?: string | null
+                    delivery_note?: string | null
+                    delivery_type?: string | null
+                    free_shipping?: boolean | null
                     id?: string
-                    label: string
-                    ranking?: number | null
-                    recheck?: boolean | null
+                    livreur_id?: string | null
+                    name?: string | null
+                    note?: string | null
+                    old_client_id?: string | null
+                    order_status_id?: string | null
+                    package_status_id?: string | null
+                    payed?: boolean | null
+                    payment_delivery_id?: string | null
+                    phone?: string | null
+                    price?: number | null
+                    processing?: boolean | null
+                    published?: boolean | null
+                    raw_price?: number | null
+                    replace?: boolean | null
+                    reported_date?: string | null
+                    shipping_cost?: number | null
+                    source_id?: string | null
+                    source_name?: string | null
+                    stock_changed?: boolean | null
+                    tracking_number?: string | null
                     updated_at?: string | null
                 }
                 Update: {
-                    active?: boolean | null
-                    code?: string
-                    color?: string | null
+                    address?: string | null
+                    annulation_date?: string | null
+                    assign_id?: string | null
+                    assignment_date?: string | null
+                    city_id?: string | null
+                    company_id?: string | null
+                    confirmation_date?: string | null
+                    confirmed_by_id?: string | null
                     created_at?: string | null
-                    delivery_service_statuses?: Json | null
+                    current_delivery_note_id?: string | null
+                    current_return_note_id?: string | null
+                    date?: string | null
+                    date_deleted?: string | null
+                    date_livraison?: string | null
+                    delivered?: boolean | null
+                    delivery_fees_id?: string | null
+                    delivery_note?: string | null
+                    delivery_type?: string | null
+                    free_shipping?: boolean | null
+                    id?: string
+                    livreur_id?: string | null
+                    name?: string | null
+                    note?: string | null
+                    old_client_id?: string | null
+                    order_status_id?: string | null
+                    package_status_id?: string | null
+                    payed?: boolean | null
+                    payment_delivery_id?: string | null
+                    phone?: string | null
+                    price?: number | null
+                    processing?: boolean | null
+                    published?: boolean | null
+                    raw_price?: number | null
+                    replace?: boolean | null
+                    reported_date?: string | null
+                    shipping_cost?: number | null
+                    source_id?: string | null
+                    source_name?: string | null
+                    stock_changed?: boolean | null
+                    tracking_number?: string | null
+                    updated_at?: string | null
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "orders_city_id_fkey"
+                        columns: ["city_id"]
+                        isOneToOne: false
+                        referencedRelation: "cities"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "orders_order_status_id_fkey"
+                        columns: ["order_status_id"]
+                        isOneToOne: false
+                        referencedRelation: "order_statuses"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "orders_package_status_id_fkey"
+                        columns: ["package_status_id"]
+                        isOneToOne: false
+                        referencedRelation: "package_statuses"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "orders_source_id_fkey"
+                        columns: ["source_id"]
+                        isOneToOne: false
+                        referencedRelation: "sales_channels"
+                        referencedColumns: ["id"]
+                    },
+                ]
+            }
+            package_statuses: {
+                Row: {
+                    active: boolean
+                    code: string
+                    color: string
+                    created_at: string | null
+                    id: string
+                    label: string
+                    updated_at: string | null
+                }
+                Insert: {
+                    active?: boolean
+                    code: string
+                    color: string
+                    created_at?: string | null
+                    id?: string
+                    label: string
+                    updated_at?: string | null
+                }
+                Update: {
+                    active?: boolean
+                    code?: string
+                    color?: string
+                    created_at?: string | null
                     id?: string
                     label?: string
-                    ranking?: number | null
-                    recheck?: boolean | null
                     updated_at?: string | null
                 }
                 Relationships: []
             }
             products: {
                 Row: {
-                    active: boolean | null
+                    active: boolean
                     code: string
                     cost_price: number
                     created_at: string | null
@@ -125,25 +374,25 @@ export type Database = {
                     label: string | null
                     name: string
                     selling_price: number
-                    stock: number | null
+                    stock: number
                     updated_at: string | null
                 }
                 Insert: {
-                    active?: boolean | null
+                    active?: boolean
                     code: string
-                    cost_price?: number
+                    cost_price: number
                     created_at?: string | null
                     description?: string | null
                     id?: string
                     image_url?: string | null
                     label?: string | null
                     name: string
-                    selling_price?: number
-                    stock?: number | null
+                    selling_price: number
+                    stock?: number
                     updated_at?: string | null
                 }
                 Update: {
-                    active?: boolean | null
+                    active?: boolean
                     code?: string
                     cost_price?: number
                     created_at?: string | null
@@ -153,152 +402,40 @@ export type Database = {
                     label?: string | null
                     name?: string
                     selling_price?: number
-                    stock?: number | null
+                    stock?: number
                     updated_at?: string | null
                 }
                 Relationships: []
             }
-            transactions: {
+            sales_channels: {
                 Row: {
-                    address: string | null
+                    active: boolean
                     created_at: string | null
-                    date: string | null
-                    email: string | null
+                    description: string | null
                     id: string
                     name: string
-                    note: string | null
-                    paid_price: number | null
-                    phone: string | null
-                    price: number | null
-                    product_id: string | null
-                    quantity: number | null
-                    status: string | null
-                    total_price: number | null
-                    tva: number | null
+                    type: string
                     updated_at: string | null
                 }
                 Insert: {
-                    address?: string | null
+                    active?: boolean
                     created_at?: string | null
-                    date?: string | null
-                    email?: string | null
+                    description?: string | null
                     id?: string
                     name: string
-                    note?: string | null
-                    paid_price?: number | null
-                    phone?: string | null
-                    price?: number | null
-                    product_id?: string | null
-                    quantity?: number | null
-                    status?: string | null
-                    total_price?: number | null
-                    tva?: number | null
+                    type: string
                     updated_at?: string | null
                 }
                 Update: {
-                    address?: string | null
+                    active?: boolean
                     created_at?: string | null
-                    date?: string | null
-                    email?: string | null
+                    description?: string | null
                     id?: string
                     name?: string
-                    note?: string | null
-                    paid_price?: number | null
-                    phone?: string | null
-                    price?: number | null
-                    product_id?: string | null
-                    quantity?: number | null
-                    status?: string | null
-                    total_price?: number | null
-                    tva?: number | null
+                    type?: string
                     updated_at?: string | null
                 }
-                Relationships: [
-                    {
-                        foreignKeyName: "transactions_product_id_fkey"
-                        columns: ["product_id"]
-                        isOneToOne: false
-                        referencedRelation: "products"
-                        referencedColumns: ["id"]
-                    },
-                ]
-            }
-            trns_payment: {
-                Row: {
-                    amount: number
-                    created_at: string | null
-                    date: string | null
-                    id: string
-                    method: string | null
-                    transaction_id: string | null
-                }
-                Insert: {
-                    amount?: number
-                    created_at?: string | null
-                    date?: string | null
-                    id?: string
-                    method?: string | null
-                    transaction_id?: string | null
-                }
-                Update: {
-                    amount?: number
-                    created_at?: string | null
-                    date?: string | null
-                    id?: string
-                    method?: string | null
-                    transaction_id?: string | null
-                }
-                Relationships: [
-                    {
-                        foreignKeyName: "trns_payment_transaction_id_fkey"
-                        columns: ["transaction_id"]
-                        isOneToOne: false
-                        referencedRelation: "transactions"
-                        referencedColumns: ["id"]
-                    },
-                ]
-            }
-            trns_purchase: {
-                Row: {
-                    created_at: string | null
-                    id: string
-                    product_id: string | null
-                    quantity: number
-                    sub_total: number
-                    transaction_id: string | null
-                }
-                Insert: {
-                    created_at?: string | null
-                    id?: string
-                    product_id?: string | null
-                    quantity?: number
-                    sub_total?: number
-                    transaction_id?: string | null
-                }
-                Update: {
-                    created_at?: string | null
-                    id?: string
-                    product_id?: string | null
-                    quantity?: number
-                    sub_total?: number
-                    transaction_id?: string | null
-                }
-                Relationships: [
-                    {
-                        foreignKeyName: "trns_purchase_product_id_fkey"
-                        columns: ["product_id"]
-                        isOneToOne: false
-                        referencedRelation: "products"
-                        referencedColumns: ["id"]
-                    },
-                    {
-                        foreignKeyName: "trns_purchase_transaction_id_fkey"
-                        columns: ["transaction_id"]
-                        isOneToOne: false
-                        referencedRelation: "transactions"
-                        referencedColumns: ["id"]
-                    },
-                ]
+                Relationships: []
             }
             users: {
                 Row: {
@@ -308,7 +445,7 @@ export type Database = {
                     created_at: string
                     email: string
                     id: string
-                    name: string | null
+                    name: string
                     permissions: Json | null
                     products: Json | null
                     role: Database["public"]["Enums"]["user_role"]
@@ -321,11 +458,11 @@ export type Database = {
                     avatar_url?: string | null
                     created_at?: string
                     email: string
-                    id?: string
-                    name?: string | null
+                    id: string
+                    name: string
                     permissions?: Json | null
                     products?: Json | null
-                    role: Database["public"]["Enums"]["user_role"]
+                    role?: Database["public"]["Enums"]["user_role"]
                     updated_at?: string
                     username: string
                 }
@@ -336,7 +473,7 @@ export type Database = {
                     created_at?: string
                     email?: string
                     id?: string
-                    name?: string | null
+                    name?: string
                     permissions?: Json | null
                     products?: Json | null
                     role?: Database["public"]["Enums"]["user_role"]
@@ -379,26 +516,27 @@ export type Database = {
     }
 }
 
-type PublicSchema = Database[Extract<keyof Database, "public">]
+type DefaultSchema = Database[Extract<keyof Database, "public">]
+type DatabaseWithoutInternals = Pick<Database, Exclude<keyof Database, "__InternalSupabase">>
 
 export type Tables<
-    PublicTableNameOrOptions extends
-    | keyof (PublicSchema["Tables"] & PublicSchema["Views"])
-    | { schema: keyof Database },
-    TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
-        Database[PublicTableNameOrOptions["schema"]]["Views"])
+    DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+    TableName extends DefaultSchemaTableNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
     : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-    ? (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
-        Database[PublicTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
+    ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
             Row: infer R
         }
     ? R
     : never
-    : PublicTableNameOrOptions extends keyof (PublicSchema["Tables"] &
-        PublicSchema["Views"])
-    ? (PublicSchema["Tables"] & PublicSchema["Views"])[PublicTableNameOrOptions] extends {
+    : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] & DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
         Row: infer R
     }
     ? R
@@ -406,20 +544,20 @@ export type Tables<
     : never
 
 export type TablesInsert<
-    PublicTableNameOrOptions extends
-    | keyof PublicSchema["Tables"]
-    | { schema: keyof Database },
-    TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
+    DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+    TableName extends DefaultSchemaTableNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-    ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
+    ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
         Insert: infer I
     }
     ? I
     : never
-    : PublicTableNameOrOptions extends keyof PublicSchema["Tables"]
-    ? PublicSchema["Tables"][PublicTableNameOrOptions] extends {
+    : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
         Insert: infer I
     }
     ? I
@@ -427,20 +565,20 @@ export type TablesInsert<
     : never
 
 export type TablesUpdate<
-    PublicTableNameOrOptions extends
-    | keyof PublicSchema["Tables"]
-    | { schema: keyof Database },
-    TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
+    DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+    TableName extends DefaultSchemaTableNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-    ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
+    ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
         Update: infer U
     }
     ? U
     : never
-    : PublicTableNameOrOptions extends keyof PublicSchema["Tables"]
-    ? PublicSchema["Tables"][PublicTableNameOrOptions] extends {
+    : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
         Update: infer U
     }
     ? U
@@ -448,29 +586,43 @@ export type TablesUpdate<
     : never
 
 export type Enums<
-    PublicEnumNameOrOptions extends
-    | keyof PublicSchema["Enums"]
-    | { schema: keyof Database },
-    EnumName extends PublicEnumNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicEnumNameOrOptions["schema"]]["Enums"]
+    DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+    EnumName extends DefaultSchemaEnumNameOrOptions extends {
+        schema: keyof DatabaseWithoutInternals
+    }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
     : never = never,
-> = PublicEnumNameOrOptions extends { schema: keyof Database }
-    ? Database[PublicEnumNameOrOptions["schema"]]["Enums"][EnumName]
-    : PublicEnumNameOrOptions extends keyof PublicSchema["Enums"]
-    ? PublicSchema["Enums"][PublicEnumNameOrOptions]
+> = DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+}
+    ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+    : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
     : never
 
 export type CompositeTypes<
     PublicCompositeTypeNameOrOptions extends
-    | keyof PublicSchema["CompositeTypes"]
-    | { schema: keyof Database },
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
     CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
-        schema: keyof Database
+        schema: keyof DatabaseWithoutInternals
     }
-    ? keyof Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
     : never = never,
-> = PublicCompositeTypeNameOrOptions extends { schema: keyof Database }
-    ? Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
-    : PublicCompositeTypeNameOrOptions extends keyof PublicSchema["CompositeTypes"]
-    ? PublicSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+> = PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+}
+    ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+    : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
+
+export const Constants = {
+    public: {
+        Enums: {
+            user_role: ["super admin", "admin", "commercial", "mediabuyer"],
+        },
+    },
+} as const
