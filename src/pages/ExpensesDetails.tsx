@@ -522,7 +522,7 @@ const ExpensesDetails = () => {
 
 const ExpenseCard = ({ expense, onEdit, onDelete }: any) => {
     return (
-        <Card className="group relative overflow-hidden border-none bg-white shadow-sm hover:shadow-2xl transition-all duration-500 rounded-[40px] cursor-default p-1 pb-7">
+        <Card className="group relative overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-2xl transition-all duration-500 rounded-[40px] cursor-default p-1 pb-7">
             <div className="p-7 space-y-6">
                 <div className="flex justify-between items-start">
                     <div className="w-14 h-14 bg-brand-navy/[0.04] rounded-2xl flex items-center justify-center text-brand-navy group-hover:bg-brand-navy group-hover:text-white transition-all duration-500 -rotate-3 group-hover:rotate-0">

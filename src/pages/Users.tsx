@@ -227,7 +227,7 @@ const Users = () => {
                 </Button>
             </div>
 
-            <Card className="border-none shadow-sm bg-brand-white/50 backdrop-blur-sm rounded-[24px]">
+            <Card className="border-none shadow-sm bg-white/50 backdrop-blur-sm rounded-[24px]">
                 <CardContent className="p-4">
                     <div className="relative">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
@@ -294,7 +294,7 @@ const Users = () => {
 
 const UserCard = ({ user, onEdit, onDelete }: { user: any, onEdit: () => void, onDelete: () => void }) => {
     return (
-        <Card className="group relative overflow-hidden border border-brand-white/10 bg-brand-white hover:shadow-2xl hover:shadow-brand-navy/5 transition-all duration-300 rounded-[32px]">
+        <Card className="group relative overflow-hidden border-none bg-white/50 backdrop-blur-sm hover:shadow-2xl transition-all duration-300 rounded-[32px]">
             <CardHeader className="flex flex-row items-start justify-between pb-2">
                 <div className="flex items-center gap-4">
                     <Avatar className="h-14 w-14 border-2 border-brand-white shadow-sm">

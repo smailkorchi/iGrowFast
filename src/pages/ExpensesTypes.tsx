@@ -367,7 +367,7 @@ const ExpenseTypeCard = ({ type, onEdit, onDelete }: any) => {
     return (
         <Card
             className={cn(
-                "group relative overflow-hidden border-none bg-white shadow-sm hover:shadow-2xl transition-all duration-500 rounded-[32px] cursor-default",
+                "group relative overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-2xl transition-all duration-500 rounded-[32px] cursor-default",
                 !type.active && "opacity-60 bg-brand-navy/[0.02]"
             )}
         >

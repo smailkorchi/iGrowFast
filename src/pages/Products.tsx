@@ -268,7 +268,7 @@ const Products = () => {
     };
 
     return (
-        <div className="min-h-screen bg-brand-navy/[0.02] p-4 md:p-8 space-y-8 animate-in fade-in duration-500">
+        <div className="min-h-screen bg-brand-white p-4 md:p-8 space-y-8 animate-in fade-in duration-500">
             {/* Header Section */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div className="space-y-2">
@@ -283,7 +283,7 @@ const Products = () => {
                             placeholder="Search name, code, or label..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-11 h-12 bg-brand-white border-none shadow-sm rounded-2xl focus-visible:ring-1 focus-visible:ring-brand-navy/20 transition-all font-medium"
+                            className="pl-11 h-12 bg-white/50 border-none shadow-sm rounded-2xl focus-visible:ring-1 focus-visible:ring-brand-navy/20 transition-all font-medium"
                         />
                     </div>
                     <Button
@@ -300,7 +300,7 @@ const Products = () => {
             {isLoading ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {Array.from({ length: 8 }).map((_, i) => (
-                        <Card key={i} className="h-[380px] border-none bg-brand-white rounded-[32px] overflow-hidden shadow-sm">
+                        <Card key={i} className="border-none bg-white/50 backdrop-blur-sm rounded-[24px] overflow-hidden shadow-sm">
                             <Skeleton className="h-48 w-full" />
                             <CardContent className="p-6 space-y-4">
                                 <Skeleton className="h-6 w-3/4" />
@@ -314,7 +314,7 @@ const Products = () => {
                     ))}
                 </div>
             ) : filteredProducts?.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-32 space-y-6 bg-brand-white rounded-[40px] shadow-sm border border-brand-navy/[0.03]">
+                <div className="flex flex-col items-center justify-center py-32 space-y-6 bg-white/50 backdrop-blur-sm rounded-[40px] shadow-sm border border-brand-navy/[0.03]">
                     <div className="w-24 h-24 bg-brand-navy/[0.04] rounded-full flex items-center justify-center">
                         <Package className="w-12 h-12 text-brand-navy/20" />
                     </div>
@@ -331,7 +331,7 @@ const Products = () => {
                     {filteredProducts?.map((product) => (
                         <Card
                             key={product.id}
-                            className="group relative overflow-hidden border-none bg-brand-white shadow-sm hover:shadow-2xl transition-all duration-500 rounded-[32px]"
+                            className="group relative overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-2xl transition-all duration-300 rounded-[32px]"
                         >
                             {/* Product Image */}
                             <div className="relative h-48 w-full overflow-hidden bg-brand-navy/[0.02]">

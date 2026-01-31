@@ -249,7 +249,7 @@ const Transactions = () => {
     };
 
     return (
-        <div className="min-h-screen bg-brand-navy/[0.02] p-4 md:p-8 space-y-8 animate-in fade-in duration-500">
+        <div className="min-h-screen bg-brand-white p-4 md:p-8 space-y-8 animate-in fade-in duration-500">
             {/* Header Section */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div className="space-y-2">
@@ -264,7 +264,7 @@ const Transactions = () => {
                             placeholder="Search supplier or phone..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-11 h-12 bg-brand-white border-none shadow-sm rounded-2xl focus-visible:ring-1 focus-visible:ring-brand-navy/20 transition-all font-medium"
+                            className="pl-11 h-12 bg-white/50 border-none shadow-sm rounded-2xl focus-visible:ring-1 focus-visible:ring-brand-navy/20 transition-all font-medium"
                         />
                     </div>
                     <Button
@@ -299,7 +299,7 @@ const Transactions = () => {
                     {filteredTransactions?.map((tx) => (
                         <Card
                             key={tx.id}
-                            className="group relative overflow-hidden border-none bg-brand-white shadow-sm hover:shadow-2xl transition-all duration-500 rounded-[32px]"
+                            className="group relative overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-2xl transition-all duration-500 rounded-[32px]"
                         >
                             <CardContent className="p-8 space-y-6">
                                 <div className="flex justify-between items-start">

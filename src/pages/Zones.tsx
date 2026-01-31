@@ -245,7 +245,7 @@ const ZoneCard = ({ zone, onClick, onEdit, onDelete }: { zone: any, onClick: () 
     return (
         <Card
             onClick={onClick}
-            className="group relative cursor-pointer overflow-hidden border border-brand-white/10 bg-brand-white hover:shadow-2xl hover:shadow-brand-navy/5 transition-all duration-300 rounded-[32px] p-6 hover:-translate-y-1"
+            className="group relative cursor-pointer overflow-hidden border border-brand-white/10 bg-white/50 backdrop-blur-sm hover:shadow-2xl hover:shadow-brand-navy/5 transition-all duration-300 rounded-[32px] p-6 hover:-translate-y-1"
         >
             <div className="flex items-start justify-between mb-4">
                 <div className="w-12 h-12 rounded-2xl bg-brand-navy/[0.04] flex items-center justify-center text-brand-navy group-hover:bg-brand-navy group-hover:text-brand-white transition-all duration-500">
