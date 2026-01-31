@@ -87,7 +87,7 @@ const ImportOrders = () => {
     const { data: cities } = useQuery({
         queryKey: ['cities'],
         queryFn: async () => {
-            const { data, error } = await supabase.from('cities').select('id, name');
+            const { data, error } = await (supabase as any).from('cities').select('id, name, zone_id');
             if (error) throw error;
             return data;
         }
@@ -96,7 +96,61 @@ const ImportOrders = () => {
     const { data: products } = useQuery({
         queryKey: ['products'],
         queryFn: async () => {
-            const { data, error } = await supabase.from('products').select('id, code, name');
+            const { data, error } = await (supabase as any).from('products').select('id, code, name');
+            if (error) throw error;
+            return data;
+        }
+    });
+
+    const { data: couriers } = useQuery({
+        queryKey: ['couriers-all'],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any).from('users').select('id, name').eq('role', 'delivery person');
+            if (error) throw error;
+            return data;
+        }
+    });
+
+    const { data: companies } = useQuery({
+        queryKey: ['companies-all'],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any).from('providers').select('id, name');
+            if (error) throw error;
+            return data;
+        }
+    });
+
+    const { data: courierZones } = useQuery({
+        queryKey: ['courier-zones-all'],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any).from('courier_zones').select('*');
+            if (error) throw error;
+            return data;
+        }
+    });
+
+    const { data: companyZones } = useQuery({
+        queryKey: ['company-zones-all'],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any).from('company_zones').select('*');
+            if (error) throw error;
+            return data;
+        }
+    });
+
+    const { data: courierFees } = useQuery({
+        queryKey: ['courier-fees-all'],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any).from('courier_fees').select('*');
+            if (error) throw error;
+            return data;
+        }
+    });
+
+    const { data: companyFees } = useQuery({
+        queryKey: ['company-fees-all'],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any).from('company_fees').select('*');
             if (error) throw error;
             return data;
         }
@@ -112,20 +166,64 @@ const ImportOrders = () => {
             const total = validOrders.length;
 
             for (const order of validOrders) {
+                // Determine best provider for this order's city automatically
+                let bestProviderId: string | null = null;
+                let bestProviderType: 'courier' | 'company' | null = null;
+                let finalShippingFee = order.shipping_fee;
+
+                const cityData = cities?.find(c => c.id === order.city_id);
+                if (cityData && cityData.zone_id) {
+                    const zoneId = cityData.zone_id;
+
+                    const eligibleCouriers = couriers?.filter((c: any) =>
+                        courierZones?.some((cz: any) => cz.courier_id === c.id && cz.zone_id === zoneId)
+                    ).map((c: any) => ({ ...c, type: 'courier' })) || [];
+
+                    const eligibleCompanies = companies?.filter((c: any) =>
+                        companyZones?.some((cz: any) => cz.company_id === c.id && cz.zone_id === zoneId)
+                    ).map((c: any) => ({ ...c, type: 'company' })) || [];
+
+                    const availableProviders = [...eligibleCouriers, ...eligibleCompanies];
+
+                    if (availableProviders.length > 0) {
+                        const providersWithFees = availableProviders.map(p => {
+                            let fee = Infinity;
+                            if (p.type === 'courier') {
+                                fee = courierFees?.find((f: any) => f.courier_id === p.id && f.city_id === order.city_id)?.fee || Infinity;
+                            } else {
+                                fee = companyFees?.find((f: any) => f.company_id === p.id && f.city_id === order.city_id)?.fee || Infinity;
+                            }
+                            return { ...p, fee: Number(fee) };
+                        });
+
+                        const best = providersWithFees.sort((a, b) => a.fee - b.fee)[0];
+                        if (best) {
+                            bestProviderId = best.id;
+                            bestProviderType = best.type as any;
+                            // Only override if the Excel didn't specify a shipping fee or if we want the system choice
+                            if (finalShippingFee === 0 && best.fee !== Infinity) {
+                                finalShippingFee = best.fee;
+                            }
+                        }
+                    }
+                }
+
                 // 1. Create Order
-                const { data: orderData, error: orderError } = await supabase.from('orders').insert({
+                const { data: orderData, error: orderError } = await (supabase as any).from('orders').insert({
                     name: order.name,
                     phone: order.phone,
                     address: order.address,
                     city_id: order.city_id,
-                    price: order.price, // Total price including shipping? Or subtotal? Usually total.
-                    shipping_cost: order.shipping_fee,
+                    price: order.price + (finalShippingFee > 0 ? finalShippingFee : 0),
+                    shipping_cost: finalShippingFee,
                     note: order.note,
                     delivery_note: order.delivery_note,
                     source_name: order.source,
-                    replace: order.is_exchange, // Exchange?
+                    replace: order.is_exchange,
                     order_status_id: DEFAULT_STATUS_ID,
-                    date: new Date().toISOString().split('T')[0]
+                    date: new Date().toISOString().split('T')[0],
+                    courier_id: bestProviderType === 'courier' ? bestProviderId : null,
+                    company_id: bestProviderType === 'company' ? bestProviderId : null,
                 }).select().single();
 
                 if (orderError) {
@@ -135,12 +233,11 @@ const ImportOrders = () => {
 
                 // 2. Create Order Item if Product Found
                 if (order.product_id && orderData) {
-                    const { error: itemError } = await supabase.from('order_items').insert({
+                    const { error: itemError } = await (supabase as any).from('order_items').insert({
                         order_id: orderData.id,
                         product_id: order.product_id,
                         quantity: order.quantity,
-                        unit_price: order.price, // Assuming unit price was mapped to price
-                        // total_price is usually generated or calc
+                        unit_price: order.price,
                     });
                     if (itemError) console.error("Failed to add items to order", orderData.id, itemError);
                 }
