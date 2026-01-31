@@ -28,7 +28,8 @@ import {
     Download,
     CheckCircle,
     ChevronRight,
-    Target
+    Target,
+    Zap
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -62,6 +63,7 @@ const navigation: NavSection[] = [
             { icon: Repeat, label: 'Return Note', path: '/return-note' },
             { icon: Globe, label: 'Delivery Services', path: '/delivery-services' },
             { icon: CreditCard, label: 'Payment', path: '/payments' },
+            { icon: Zap, label: 'Webhooks', path: '/webhooks' },
         ]
     },
     {

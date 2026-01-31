@@ -25,6 +25,7 @@ import ExpensesTypes from "./pages/ExpensesTypes";
 import Cities from "./pages/Cities";
 import Zones from "./pages/Zones";
 import Profile from "./pages/Profile";
+import Webhooks from "./pages/Webhooks";
 import AppLayout from "./components/layout/AppLayout";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 
@@ -49,6 +50,7 @@ const App = () => (
                   <Route path="/return-note" element={<ReturnNote />} />
                   <Route path="/delivery-services" element={<DeliveryServices />} />
                   <Route path="/payments" element={<Payments />} />
+                  <Route path="/webhooks" element={<Webhooks />} />
                   <Route path="/transactions" element={<Transactions />} />
                   <Route path="/products" element={<Products />} />
                   <Route path="/status" element={<Status />} />
