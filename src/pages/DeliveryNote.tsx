@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase';
 import {
     FileText,
@@ -53,15 +54,256 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
 import { DeliveryNoteWizard } from '@/components/delivery/DeliveryNoteWizard';
-import { format } from 'date-fns';
 
 const DeliveryNote = () => {
+    const { toast } = useToast();
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [selectedNote, setSelectedNote] = useState<any>(null);
+    const [noteDetails, setNoteDetails] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState("");
+
+    // Tracking States
+    const [trackingHistory, setTrackingHistory] = useState<any>(null);
+    const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
+    const [isTrackingLoading, setIsTrackingLoading] = useState(false);
+    const [trackingParcel, setTrackingParcel] = useState<any>(null);
+
+    const EDGE_FUNCTION_URL = "https://zjkqprrfbibjoslvlmxf.supabase.co/functions/v1/provider-integration";
+
+    const handleTrackParcel = async (parcel: any) => {
+        setTrackingParcel(parcel);
+        setIsTrackingModalOpen(true);
+        setIsTrackingLoading(true);
+        setTrackingHistory(null);
+
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const response = await fetch(EDGE_FUNCTION_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session?.access_token}`
+                },
+                body: JSON.stringify({
+                    action: 'track_parcel',
+                    provider_id: parcel.provider_id || selectedNote?.provider_id,
+                    data: {
+                        tracking_code: parcel.tracking_code,
+                        external_id: parcel.external_id
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({ error: 'Failed to fetch tracking data' }));
+                throw new Error(errData.error || `Error ${response.status}`);
+            }
+            const result = await response.json();
+
+            if (result.success) {
+                setTrackingHistory(result.data);
+            } else {
+                throw new Error(result.error || 'Unknown error');
+            }
+        } catch (error: any) {
+            toast({
+                title: "Tracking Error",
+                description: error.message,
+                variant: "destructive"
+            });
+            setIsTrackingModalOpen(false);
+        } finally {
+            setIsTrackingLoading(false);
+        }
+    };
+
+    const handlePrintLabels = async () => {
+        if (!selectedNote || !noteDetails?.provider) return;
+
+        toast({
+            title: "Generating Labels",
+            description: "Please wait while we prepare your labels...",
+        });
+
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const response = await fetch(EDGE_FUNCTION_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session?.access_token}`
+                },
+                body: JSON.stringify({
+                    action: 'get_print_url',
+                    provider_id: selectedNote.provider_id,
+                    data: {
+                        delivery_note_ref: selectedNote.reference,
+                        note_id: selectedNote.id,
+                        external_id: selectedNote.external_id,
+                        print_type: 'labels',
+                        label_format: 'A6'
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({ error: 'Failed to generate labels' }));
+                throw new Error(errData.error || `Error ${response.status}`);
+            }
+            const result = await response.json();
+
+            if (result.success && result.data?.print_html) {
+                const printContent = result.data.print_html;
+
+                if (printContent.startsWith('data:application/pdf;base64,')) {
+                    const link = document.createElement('a');
+                    link.href = printContent;
+                    link.download = `labels-${selectedNote.reference}.pdf`;
+                    link.click();
+                } else if (printContent.startsWith('http')) {
+                    // It's a URL
+                    window.open(printContent, '_blank');
+                } else {
+                    // It's HTML
+                    const printWindow = window.open('', '_blank');
+                    if (printWindow) {
+                        printWindow.document.write(printContent);
+                        printWindow.document.close();
+                        printWindow.print();
+                    }
+                }
+            } else {
+                throw new Error(result.error || 'Failed to get print content');
+            }
+        } catch (error: any) {
+            toast({
+                title: "Print Error",
+                description: error.message,
+                variant: "destructive"
+            });
+        }
+    };
+    const queryClient = useQueryClient();
+
+    const handleDeleteNote = async () => {
+        if (!selectedNote) return;
+
+        try {
+            const isCompanyNote = selectedNote.provider_id != null;
+            const parcelsTable = isCompanyNote ? 'company_parcels' : 'courier_parcels';
+            const noteTable = isCompanyNote ? 'company_delivery_notes' : 'courier_delivery_notes';
+            const noteIdField = isCompanyNote ? 'company_delivery_note_id' : 'courier_delivery_note_id';
+
+            // 1. Delete associated parcels first
+            const { error: parcelsError } = await supabase
+                .from(parcelsTable)
+                .delete()
+                .eq(noteIdField, selectedNote.id);
+
+            if (parcelsError) throw parcelsError;
+
+            // 2. Delete the delivery note itself
+            const { error: noteError } = await supabase
+                .from(noteTable)
+                .delete()
+                .eq('id', selectedNote.id);
+
+            if (noteError) throw noteError;
+
+            // 3. Optional: Call provider to cancel if it was a provider note
+            if (isCompanyNote) {
+                try {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    await fetch(EDGE_FUNCTION_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${session?.access_token}`
+                        },
+                        body: JSON.stringify({
+                            action: 'delete_delivery_note',
+                            provider_id: selectedNote.provider_id,
+                            data: {
+                                reference: selectedNote.reference,
+                                external_id: selectedNote.external_id
+                            }
+                        })
+                    });
+                } catch (e) {
+                    console.error("Provider deletion failed (non-critical):", e);
+                }
+            }
+
+            toast({
+                title: "Deleted Successfully",
+                description: "The delivery note and its parcels have been removed from the database.",
+            });
+
+            setIsDeleteModalOpen(false);
+            setSelectedNote(null);
+
+            // Invalidate queries to refresh the list
+            queryClient.invalidateQueries({ queryKey: ['company-delivery-notes'] });
+            queryClient.invalidateQueries({ queryKey: ['courier-delivery-notes'] });
+
+        } catch (error: any) {
+            toast({
+                title: "Delete Error",
+                description: error.message,
+                variant: "destructive"
+            });
+        }
+    };
+
+    // Fetch delivery note details when modal opens
+    useEffect(() => {
+        async function fetchNoteDetails() {
+            if (!selectedNote || !isViewModalOpen) {
+                setNoteDetails(null);
+                return;
+            }
+
+            // Determine table based on note structure
+            const isCompanyNote = selectedNote.provider_id != null;
+            const parcelsTable = isCompanyNote ? 'company_parcels' : 'courier_parcels';
+            const noteIdField = isCompanyNote ? 'company_delivery_note_id' : 'courier_delivery_note_id';
+
+            // Fetch provider/courier details
+            let providerInfo = null;
+            if (isCompanyNote && selectedNote.provider_id) {
+                const { data: provider } = await supabase
+                    .from('providers')
+                    .select('name, business_name, logo_url, provider_type')
+                    .eq('id', selectedNote.provider_id)
+                    .single();
+                providerInfo = provider;
+            } else if (!isCompanyNote && selectedNote.courier_id) {
+                const { data: courier } = await supabase
+                    .from('users')
+                    .select('name, phone, email')
+                    .eq('id', selectedNote.courier_id)
+                    .single();
+                providerInfo = { name: courier?.name, business_name: courier?.name };
+            }
+
+            // Fetch parcels with tracking codes
+            const { data: parcels } = await supabase
+                .from(parcelsTable)
+                .select('id, reference, order_id, status_id, tracking_code, status_label, external_id, provider_id')
+                .eq(noteIdField, selectedNote.id);
+
+            setNoteDetails({
+                provider: providerInfo,
+                parcels: parcels || []
+            });
+        }
+
+        fetchNoteDetails();
+    }, [selectedNote, isViewModalOpen]);
 
     // Fetch company delivery notes
     const { data: companyNotes, isLoading: loadingCompany } = useQuery({
@@ -303,23 +545,29 @@ const DeliveryNote = () => {
                                     <span>{selectedNote?.reference}</span>
                                 </div>
                             </div>
-                            <div className="w-16 h-16 bg-brand-navy rounded-2xl flex items-center justify-center text-white font-black text-xl">D</div>
+                            {noteDetails?.provider?.logo_url ? (
+                                <div className="p-3 bg-white rounded-2xl shadow-sm border border-brand-navy/5 flex items-center justify-center min-w-[80px]">
+                                    <img src={noteDetails.provider.logo_url} alt="Provider Logo" className="h-10 w-auto object-contain" />
+                                </div>
+                            ) : (
+                                <div className="w-16 h-16 bg-brand-navy rounded-2xl flex items-center justify-center text-white font-black text-xl">D</div>
+                            )}
                         </div>
 
                         <div className="grid grid-cols-2 gap-10">
                             <div className="space-y-4">
-                                <div className="text-[10px] font-black text-brand-navy/40 uppercase tracking-widest">From / Logistics</div>
+                                <div className="text-[10px] font-black text-brand-navy/40 uppercase tracking-widest">Provider / Business</div>
                                 <div className="space-y-1">
-                                    <div className="font-bold text-brand-navy text-lg">DigiCom Management</div>
-                                    <div className="text-sm text-muted-foreground font-medium">Casablanca, Morocco</div>
-                                    <div className="text-sm text-muted-foreground font-medium">+212 5XX-XXXXXX</div>
+                                    <div className="font-bold text-brand-navy text-lg">{noteDetails?.provider?.business_name || noteDetails?.provider?.name || 'Loading...'}</div>
+                                    <div className="text-sm text-muted-foreground font-medium">Provider: {noteDetails?.provider?.provider_type?.toUpperCase() || 'N/A'}</div>
+                                    <div className="text-sm text-muted-foreground font-medium">Reference: {selectedNote?.reference}</div>
                                 </div>
                             </div>
                             <div className="space-y-4 text-right">
-                                <div className="text-[10px] font-black text-brand-navy/40 uppercase tracking-widest">Transport Provider</div>
+                                <div className="text-[10px] font-black text-brand-navy/40 uppercase tracking-widest">Delivery Details</div>
                                 <div className="space-y-1">
-                                    <div className="font-bold text-brand-navy text-lg">{selectedNote?.provider || selectedNote?.courier}</div>
-                                    <div className="text-sm text-muted-foreground font-medium">Scheduled: {selectedNote?.date}</div>
+                                    <div className="font-bold text-brand-navy text-lg">{selectedNote?.parcel_count || 0} Parcels</div>
+                                    <div className="text-sm text-muted-foreground font-medium">Created: {selectedNote?.created_at ? format(new Date(selectedNote.created_at), 'dd MMM yyyy, HH:mm') : 'N/A'}</div>
                                 </div>
                             </div>
                         </div>
@@ -328,36 +576,167 @@ const DeliveryNote = () => {
                             <table className="w-full">
                                 <thead className="bg-brand-navy/[0.03]">
                                     <tr>
-                                        <th className="px-6 py-4 text-left text-[10px] font-black text-brand-navy/40 uppercase tracking-widest">Parcel ID</th>
+                                        <th className="px-6 py-4 text-left text-[10px] font-black text-brand-navy/40 uppercase tracking-widest">Tracking Code</th>
                                         <th className="px-6 py-4 text-left text-[10px] font-black text-brand-navy/40 uppercase tracking-widest">Order Ref</th>
-                                        <th className="px-6 py-4 text-right text-[10px] font-black text-brand-navy/40 uppercase tracking-widest">Status</th>
+                                        <th className="px-6 py-4 text-center text-[10px] font-black text-brand-navy/40 uppercase tracking-widest">Status</th>
+                                        <th className="px-6 py-4 text-right text-[10px] font-black text-brand-navy/40 uppercase tracking-widest">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-brand-navy/5">
-                                    {[1, 2, 3].map((i) => (
-                                        <tr key={i} className="hover:bg-brand-navy/[0.01] transition-colors">
-                                            <td className="px-6 py-4 font-bold text-sm text-brand-navy">PAR-00{i}</td>
-                                            <td className="px-6 py-4 text-xs font-medium text-muted-foreground">#ORD-55{i}</td>
-                                            <td className="px-6 py-4 text-right">
-                                                <Badge className="bg-emerald-50 text-emerald-600 border-none text-[8px] font-black px-2 py-0.5 rounded-lg shadow-none">READY</Badge>
-                                            </td>
+                                    {!noteDetails ? (
+                                        <tr>
+                                            <td colSpan={4} className="px-6 py-8 text-center text-muted-foreground">Loading parcels...</td>
                                         </tr>
-                                    ))}
+                                    ) : noteDetails.parcels.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={4} className="px-6 py-8 text-center text-muted-foreground">No parcels in this delivery note</td>
+                                        </tr>
+                                    ) : (
+                                        noteDetails.parcels.map((parcel: any) => (
+                                            <tr key={parcel.id} className="hover:bg-brand-navy/[0.01] transition-colors">
+                                                <td className="px-6 py-4 font-bold text-sm text-brand-navy">{parcel.tracking_code || parcel.reference}</td>
+                                                <td className="px-6 py-4 text-xs font-medium text-muted-foreground">{parcel.order_id?.slice(0, 8)}</td>
+                                                <td className="px-6 py-4 text-center">
+                                                    <Badge className="bg-emerald-50 text-emerald-600 border-none text-[8px] font-black px-2 py-0.5 rounded-lg shadow-none">
+                                                        {parcel.status_label || parcel.status_id || 'Nouveau'}
+                                                    </Badge>
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    {parcel.tracking_code && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="h-8 text-xs font-bold text-brand-navy hover:bg-brand-navy/5"
+                                                            onClick={() => handleTrackParcel(parcel)}
+                                                        >
+                                                            <Clock className="w-3 h-3 mr-1" />
+                                                            Suivi
+                                                        </Button>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
                                 </tbody>
                             </table>
                         </div>
 
                         <div className="flex justify-end gap-3 pt-4">
-                            <Button variant="outline" className="rounded-2xl h-12 px-6 font-bold border-brand-navy/10 hover:bg-white transition-all flex items-center gap-2">
-                                <Download className="w-4 h-4" /> PDF Export
-                            </Button>
-                            <Button className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-12 px-10 font-bold shadow-lg shadow-brand-navy/20 transition-all">
-                                Update Status
+                            <Button
+                                className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-12 px-8 font-bold shadow-lg shadow-brand-navy/10 transition-all flex items-center gap-2"
+                                onClick={handlePrintLabels}
+                            >
+                                <Download className="w-4 h-4" />
+                                Imprimer Étiquettes
                             </Button>
                         </div>
                     </div>
                 </DialogContent>
             </Dialog>
+
+            {/* Tracking Modal */}
+            <Dialog open={isTrackingModalOpen} onOpenChange={setIsTrackingModalOpen}>
+                <DialogContent className="sm:max-w-[500px] rounded-[32px] border-none p-0 overflow-hidden bg-white">
+                    <DialogHeader className="p-8 pb-0">
+                        <DialogTitle className="text-2xl font-black text-brand-navy flex items-center gap-3">
+                            <div className="p-2 bg-brand-navy/5 rounded-xl">
+                                <Truck className="w-5 h-5 text-brand-navy" />
+                            </div>
+                            Suivi du colis
+                        </DialogTitle>
+                        <DialogDescription className="font-bold text-muted-foreground">
+                            Code: <span className="text-brand-navy">{trackingParcel?.tracking_code}</span>
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="p-8 max-h-[60vh] overflow-y-auto">
+                        {isTrackingLoading ? (
+                            <div className="flex flex-col items-center justify-center py-12 gap-4">
+                                <Loader2 className="w-10 h-10 text-brand-navy animate-spin" />
+                                <p className="font-bold text-muted-foreground animate-pulse">Récupération des données...</p>
+                            </div>
+                        ) : trackingHistory ? (
+                            <div className="space-y-8 relative before:absolute before:left-[17px] before:top-2 before:bottom-2 before:w-0.5 before:bg-brand-navy/5">
+                                {(Array.isArray(trackingHistory?.data) ? trackingHistory.data : (Array.isArray(trackingHistory?.api?.data) ? trackingHistory.api.data : (Array.isArray(trackingHistory) ? trackingHistory : []))).map((event: any, idx: number) => {
+                                    // Status mapping for Coliaty/Ameex
+                                    const statusMap: any = {
+                                        'NEW_PARCEL': 'Nouveau',
+                                        'WAITING_PICKUP': 'En attente de ramassage',
+                                        'DISTRIBUTION': 'En cours de distribution',
+                                        'DELIVERED': 'Livré',
+                                        'REFUSED': 'Refusé',
+                                        'REFUSE': 'Refusé',
+                                        'ANNULE': 'Annulé',
+                                        'CANCELLED': 'Annulé',
+                                        'RETURNED': 'Retourné',
+                                        'RETOUR': 'Retourné',
+                                        'POSTPONED': 'Reporté',
+                                        'WAITING_PREPARATION': 'En préparation',
+                                        'PICKED_UP': 'Ramassé',
+                                        'READY_FOR_PICKUP': 'Prêt pour ramassage'
+                                    };
+
+                                    const rawStatus = event.status || event.state || event.label || "Nouveau";
+                                    const status = statusMap[rawStatus] || rawStatus;
+                                    const date = event.date || event.created_at || event.time;
+                                    const comment = event.comment || event.HISTORY_COMMENT || "";
+                                    const user = event.user?.name || event.author || "";
+
+                                    return (
+                                        <div key={idx} className="relative pl-12 group">
+                                            <div className={`absolute left-0 top-1 w-9 h-9 rounded-full border-4 border-white shadow-sm flex items-center justify-center transition-all group-hover:scale-110 z-10 ${idx === 0 ? 'bg-brand-navy text-white shadow-brand-navy/20' : 'bg-slate-50 text-brand-navy/40'
+                                                }`}>
+                                                <div className="w-2 h-2 rounded-full bg-current" />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <div className="flex items-center justify-between">
+                                                    <span className={`text-sm font-black tracking-tight ${idx === 0 ? 'text-brand-navy' : 'text-muted-foreground'}`}>
+                                                        {status}
+                                                    </span>
+                                                    <span className="text-[10px] font-bold text-muted-foreground opacity-60">
+                                                        {date ? format(new Date(date), 'dd/MM/yyyy HH:mm') : ''}
+                                                    </span>
+                                                </div>
+                                                {comment && (
+                                                    <p className="text-[11px] font-medium text-muted-foreground leading-relaxed italic">
+                                                        "{comment}"
+                                                    </p>
+                                                )}
+                                                {user && (
+                                                    <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground">
+                                                        <div className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center">
+                                                            <Hash className="w-2 h-2" />
+                                                        </div>
+                                                        Par {user}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center py-12 text-center space-y-3">
+                                <div className="p-4 bg-slate-50 rounded-full">
+                                    <SearchX className="w-8 h-8 text-muted-foreground/40" />
+                                </div>
+                                <p className="font-bold text-muted-foreground">Aucun historique disponible pour ce colis.</p>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="p-8 pt-0">
+                        <Button
+                            variant="ghost"
+                            onClick={() => setIsTrackingModalOpen(false)}
+                            className="w-full h-14 rounded-2xl font-black text-sm tracking-widest uppercase hover:bg-slate-50"
+                        >
+                            Fermer
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
 
             {/* Delete Confirmation */}
             <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
@@ -372,7 +751,11 @@ const DeliveryNote = () => {
                         </DialogDescription>
                     </div>
                     <div className="flex flex-col gap-3">
-                        <Button variant="destructive" className="h-14 rounded-2xl font-black text-sm tracking-widest uppercase shadow-lg shadow-red-500/20 active:scale-95 transition-all">
+                        <Button
+                            variant="destructive"
+                            onClick={handleDeleteNote}
+                            className="h-14 rounded-2xl font-black text-sm tracking-widest uppercase shadow-lg shadow-red-500/20 active:scale-95 transition-all"
+                        >
                             Confirm Deletion
                         </Button>
                         <Button variant="ghost" onClick={() => setIsDeleteModalOpen(false)} className="h-12 rounded-2xl font-bold text-brand-navy">

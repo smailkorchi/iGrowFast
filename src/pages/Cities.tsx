@@ -5,9 +5,10 @@ import {
     Plus,
     Search,
     MapPin,
-    Building2,
     Trash2,
-    Loader2
+    Loader2,
+    Pencil,
+    Globe
 } from 'lucide-react';
 import {
     Card,
@@ -56,12 +57,14 @@ import {
 const citySchema = z.object({
     name: z.string().min(2, "Name must be at least 2 characters"),
     zone_id: z.string().uuid("Please select a valid zone"),
+    ameex_code: z.string().optional().nullable(),
 });
 
 type CityFormValues = z.infer<typeof citySchema>;
 
 const Cities = () => {
-    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingCity, setEditingCity] = useState<any>(null);
     const [cityToDelete, setCityToDelete] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const { toast } = useToast();
@@ -100,7 +103,8 @@ const Cities = () => {
                 .from('cities')
                 .insert({
                     name: values.name,
-                    zone_id: values.zone_id
+                    zone_id: values.zone_id,
+                    ameex_code: values.ameex_code
                 })
                 .select('*, zones(name)')
                 .single();
@@ -110,8 +114,35 @@ const Cities = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['cities'] });
-            setIsAddModalOpen(false);
+            setIsModalOpen(false);
             toast({ title: "City created", description: "The city has been successfully added." });
+        },
+        onError: (error: any) => {
+            toast({ title: "Error", description: error.message, variant: "destructive" });
+        }
+    });
+
+    const updateCityMutation = useMutation({
+        mutationFn: async (values: CityFormValues & { id: string }) => {
+            const { data, error } = await supabase
+                .from('cities')
+                .update({
+                    name: values.name,
+                    zone_id: values.zone_id,
+                    ameex_code: values.ameex_code
+                })
+                .eq('id', values.id)
+                .select('*, zones(name)')
+                .single();
+
+            if (error) throw error;
+            return data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['cities'] });
+            setIsModalOpen(false);
+            setEditingCity(null);
+            toast({ title: "City updated", description: "The city has been successfully updated." });
         },
         onError: (error: any) => {
             toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -147,11 +178,16 @@ const Cities = () => {
         defaultValues: {
             name: '',
             zone_id: '',
+            ameex_code: '',
         }
     });
 
     const onSubmit = (values: CityFormValues) => {
-        addCityMutation.mutate(values);
+        if (editingCity) {
+            updateCityMutation.mutate({ ...values, id: editingCity.id });
+        } else {
+            addCityMutation.mutate(values);
+        }
     };
 
     return (
@@ -175,8 +211,9 @@ const Cities = () => {
                     </div>
                     <Button
                         onClick={() => {
-                            form.reset({ name: '', zone_id: '' });
-                            setIsAddModalOpen(true);
+                            setEditingCity(null);
+                            form.reset({ name: '', zone_id: '', ameex_code: '' });
+                            setIsModalOpen(true);
                         }}
                         className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-12 px-6 font-bold shadow-lg shadow-brand-navy/10 transition-all active:scale-95 flex items-center gap-2"
                     >
@@ -207,52 +244,74 @@ const Cities = () => {
                     {filteredCities?.map((city) => (
                         <Card
                             key={city.id}
-                            className="group overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-xl transition-all duration-300 rounded-3xl"
+                            className="group relative overflow-hidden border-none bg-white shadow-sm hover:shadow-xl transition-all duration-300 rounded-[32px] p-6 flex flex-col justify-between gap-6"
                         >
-                            <CardContent className="p-0">
-                                <div className="p-6 flex flex-col h-full justify-between gap-4">
-                                    <div className="flex items-start justify-between">
-                                        <div className="space-y-1">
-                                            <h3 className="text-xl font-bold text-brand-navy leading-none">
-                                                {city.name}
-                                            </h3>
-                                            <div className="flex items-center gap-1.5 text-sm font-bold text-brand-navy/40 uppercase tracking-widest pt-1">
-                                                <MapPin className="w-3 h-3" />
-                                                {(city.zones as any)?.name || 'Unassigned Zone'}
+                            <div className="flex items-start justify-between gap-4">
+                                <div className="space-y-1.5 flex-1 min-w-0">
+                                    <h3 className="text-xl font-bold text-brand-navy truncate leading-tight group-hover:text-brand-navy/80 transition-colors">
+                                        {city.name}
+                                    </h3>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <div className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-brand-navy/[0.04] text-[10px] font-bold text-brand-navy/60 uppercase tracking-wider">
+                                            <MapPin className="w-2.5 h-2.5" />
+                                            {(city.zones as any)?.name || 'Unassigned'}
+                                        </div>
+                                        {city.ameex_code && (
+                                            <div className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-brand-navy/[0.04] text-[10px] font-bold text-brand-navy/60 uppercase tracking-wider">
+                                                <Globe className="w-2.5 h-2.5" />
+                                                AMEEX: {city.ameex_code}
                                             </div>
-                                        </div>
-
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => setCityToDelete(city)}
-                                            className="h-10 w-10 text-muted-foreground hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </Button>
-                                    </div>
-
-                                    <div className="pt-2">
-                                        <div className="h-1.5 w-full bg-brand-navy/[0.03] rounded-full overflow-hidden">
-                                            <div className="h-full bg-brand-navy/20 w-1/3 rounded-full" />
-                                        </div>
+                                        )}
                                     </div>
                                 </div>
-                            </CardContent>
+
+                                <div className="flex items-center gap-1 opacity-10 md:opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-x-2 group-hover:translate-x-0">
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => {
+                                            setEditingCity(city);
+                                            form.reset({
+                                                name: city.name,
+                                                zone_id: city.zone_id,
+                                                ameex_code: city.ameex_code || ''
+                                            });
+                                            setIsModalOpen(true);
+                                        }}
+                                        className="h-9 w-9 text-brand-navy/40 hover:text-brand-navy hover:bg-brand-navy/5 rounded-full"
+                                    >
+                                        <Pencil className="w-4 h-4" />
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => setCityToDelete(city)}
+                                        className="h-9 w-9 text-brand-navy/40 hover:text-red-500 hover:bg-red-50 rounded-full"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                </div>
+                            </div>
+
+                            <div className="relative h-1 w-full bg-brand-navy/[0.03] rounded-full overflow-hidden">
+                                <div className="absolute top-0 left-0 h-full bg-brand-navy/10 w-1/4 rounded-full transition-all group-hover:w-1/2" />
+                            </div>
                         </Card>
                     ))}
                 </div>
             )}
 
-            {/* Add City Modal */}
-            <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+            {/* Add/Edit City Modal */}
+            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                 <DialogContent className="max-w-md p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden">
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit(onSubmit)}>
                             <DialogHeader className="p-8 pb-4">
-                                <DialogTitle className="text-2xl font-bold text-brand-navy">Add New City</DialogTitle>
+                                <DialogTitle className="text-2xl font-bold text-brand-navy">
+                                    {editingCity ? 'Edit City' : 'Add New City'}
+                                </DialogTitle>
                                 <DialogDescription className="text-muted-foreground mt-1">
-                                    Expand your service coverage by adding a new city.
+                                    {editingCity ? 'Update city details and AMEEX mapping.' : 'Expand your service coverage by adding a new city.'}
                                 </DialogDescription>
                             </DialogHeader>
 
@@ -277,7 +336,7 @@ const Cities = () => {
                                     render={({ field }) => (
                                         <FormItem className="space-y-2">
                                             <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Assign to Zone</FormLabel>
-                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <Select onValueChange={field.onChange} value={field.value}>
                                                 <FormControl>
                                                     <SelectTrigger className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner">
                                                         <SelectValue placeholder="Select a zone" />
@@ -295,24 +354,46 @@ const Cities = () => {
                                         </FormItem>
                                     )}
                                 />
+
+                                <FormField
+                                    control={form.control}
+                                    name="ameex_code"
+                                    render={({ field }) => (
+                                        <FormItem className="space-y-2">
+                                            <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">AMEEX City Code</FormLabel>
+                                            <FormControl>
+                                                <Input
+                                                    placeholder="Enter code..."
+                                                    {...field}
+                                                    value={field.value || ''}
+                                                    className="h-12 rounded-xl border-none bg-brand-navy/[0.04] text-base font-medium text-brand-navy shadow-inner focus-visible:ring-1 focus-visible:ring-brand-navy/10 px-4"
+                                                />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
                             </div>
 
                             <DialogFooter className="p-8 pt-0">
                                 <Button
                                     type="button"
                                     variant="ghost"
-                                    onClick={() => setIsAddModalOpen(false)}
+                                    onClick={() => {
+                                        setIsModalOpen(false);
+                                        setEditingCity(null);
+                                    }}
                                     className="rounded-xl h-12 px-6 font-bold hover:bg-muted"
                                 >
                                     Cancel
                                 </Button>
                                 <Button
                                     type="submit"
-                                    disabled={addCityMutation.isPending}
+                                    disabled={addCityMutation.isPending || updateCityMutation.isPending}
                                     className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-xl h-12 px-8 font-bold shadow-lg shadow-brand-navy/20 transition-all active:scale-95"
                                 >
-                                    {addCityMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                                    Create City
+                                    {(addCityMutation.isPending || updateCityMutation.isPending) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                                    {editingCity ? 'Update City' : 'Create City'}
                                 </Button>
                             </DialogFooter>
                         </form>

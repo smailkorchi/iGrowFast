@@ -151,9 +151,9 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                         customer_phone: order.phone,
                         delivery_address: order.address,
                         cod_amount: Number(order.price),
-                        city_id: provider.provider_type === 'ameex' ? order.city.id : undefined,
-                        city_name: provider.provider_type === 'coliaty' ? order.city.name : undefined,
-                        notes: `Order #${order.id.slice(0, 8)} - Products: ${order.items.map((i: any) => i.product.code).join(', ')}`,
+                        city_id: order.city?.id,
+                        city_name: order.city?.name,
+                        notes: `Orders - Products: ${order.items?.map((i: any) => i.product?.code || 'P').join(', ')}`,
                         replaceable: order.replace || false,
                     };
 
@@ -184,10 +184,12 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                         .insert({
                             provider_id: providerId,
                             order_id: order.id,
-                            reference: result.data.tracking_code,
-                            external_id: result.data.external_id,
-                            provider_response: result.data.provider_response,
-                            status_id: null // Will be updated after tracking
+                            reference: result.data?.tracking_code || result.data?.reference || result.data?.bar_code || 'N/A',
+                            tracking_code: result.data?.tracking_code || result.data?.reference || result.data?.bar_code,
+                            status_label: result.data?.status || result.data?.label || 'Nouveau',
+                            external_id: result.data?.id || String(result.data?.external_id || ''),
+                            provider_response: result.data,
+                            status_id: null
                         })
                         .select()
                         .single();
@@ -197,7 +199,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                     results.push({
                         order,
                         parcel,
-                        tracking_code: result.data.tracking_code
+                        tracking_code: result.data?.tracking_code || result.data?.reference || 'N/A'
                     });
                 } catch (error: any) {
                     console.error('Parcel creation error:', error);
@@ -282,6 +284,8 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                 .insert({
                     provider_id: providerId,
                     reference: deliveryNoteRef,
+                    external_id: result.data?.id || String(result.data?.external_id || ''),
+                    parcel_count: parcelCodes.length,
                     status_id: null
                 })
                 .select()
