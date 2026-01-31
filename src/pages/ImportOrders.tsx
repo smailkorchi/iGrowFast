@@ -1,7 +1,605 @@
+import React, { useState, useCallback, useMemo } from 'react';
+import { useDropzone } from 'react-dropzone';
+import * as XLSX from 'xlsx';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
+import {
+    Download,
+    Upload,
+    FileSpreadsheet,
+    CheckCircle2,
+    AlertCircle,
+    Loader2,
+    ArrowRight,
+    Search,
+    ChevronLeft,
+    ChevronRight,
+    Trash2,
+    RefreshCcw,
+    FileCheck,
+    Database,
+    X
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+
+// --- Types & Constants ---
+const PAGE_SIZE = 500;
+const DEFAULT_STATUS_ID = 'deb5c74e-95f3-41a8-8446-c9b831792cca'; // NOUVELLE COMMANDE
+const TEMPLATE_URL = 'https://zjkqprrfbibjoslvlmxf.supabase.co/storage/v1/object/public/documents/Orders%20Model.xlsx';
+
+interface RawRow {
+    [key: string]: any;
+}
+
+interface MappedOrder {
+    id: string;
+    name: string;
+    phone: string;
+    address: string;
+    city_name: string;
+    city_id: string | null;
+    price: number;
+    shipping_fee: number;
+    note: string;
+    delivery_note: string;
+    source: string;
+    is_exchange: boolean;
+    product_sku: string;
+    product_id: string | null;
+    quantity: number;
+
+    // Validation
+    status: 'valid' | 'invalid';
+    errors: string[];
+}
+
 const ImportOrders = () => {
+    const { toast } = useToast();
+    const [file, setFile] = useState<File | null>(null);
+    const [data, setData] = useState<MappedOrder[]>([]);
+    const [isParsing, setIsParsing] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [searchQuery, setSearchQuery] = useState('');
+
+    // --- Queries ---
+    const { data: cities } = useQuery({
+        queryKey: ['cities'],
+        queryFn: async () => {
+            const { data, error } = await supabase.from('cities').select('id, name');
+            if (error) throw error;
+            return data;
+        }
+    });
+
+    const { data: products } = useQuery({
+        queryKey: ['products'],
+        queryFn: async () => {
+            const { data, error } = await supabase.from('products').select('id, code, name');
+            if (error) throw error;
+            return data;
+        }
+    });
+
+    const uploadMutation = useMutation({
+        mutationFn: async (orders: MappedOrder[]) => {
+            // We need to insert one by one or carefully batch to handle relations (orders -> order_items)
+            // Given Supabase restrictions, a loop with error handling is safest for complex relations
+
+            let completed = 0;
+            const validOrders = orders.filter(o => o.status === 'valid');
+            const total = validOrders.length;
+
+            for (const order of validOrders) {
+                // 1. Create Order
+                const { data: orderData, error: orderError } = await supabase.from('orders').insert({
+                    name: order.name,
+                    phone: order.phone,
+                    address: order.address,
+                    city_id: order.city_id,
+                    price: order.price, // Total price including shipping? Or subtotal? Usually total.
+                    shipping_cost: order.shipping_fee,
+                    note: order.note,
+                    delivery_note: order.delivery_note,
+                    source_name: order.source,
+                    replace: order.is_exchange, // Exchange?
+                    order_status_id: DEFAULT_STATUS_ID,
+                    date: new Date().toISOString().split('T')[0]
+                }).select().single();
+
+                if (orderError) {
+                    console.error("Failed to import order", order, orderError);
+                    continue; // Skip this one
+                }
+
+                // 2. Create Order Item if Product Found
+                if (order.product_id && orderData) {
+                    const { error: itemError } = await supabase.from('order_items').insert({
+                        order_id: orderData.id,
+                        product_id: order.product_id,
+                        quantity: order.quantity,
+                        unit_price: order.price, // Assuming unit price was mapped to price
+                        // total_price is usually generated or calc
+                    });
+                    if (itemError) console.error("Failed to add items to order", orderData.id, itemError);
+                }
+
+                completed++;
+                setUploadProgress(Math.round((completed / total) * 100));
+            }
+        },
+        onSuccess: () => {
+            toast({
+                title: "Import Successful",
+                description: `${data.length} orders have been added to the database.`,
+            });
+            setData([]);
+            setFile(null);
+            setUploadProgress(0);
+        },
+        onError: (error: any) => {
+            toast({
+                title: "Import Failed",
+                description: error.message,
+                variant: "destructive"
+            });
+            setUploadProgress(0);
+        }
+    });
+
+    // --- Handlers ---
+    const normalizePhone = (phone: any): string => {
+        if (!phone) return '';
+        const cleaned = phone.toString().replace(/[^0-9]/g, '');
+        // Typical Moroccan normalization: last 10 digits
+        return cleaned.length >= 10 ? cleaned.slice(-10) : cleaned;
+    };
+
+    const findCityId = (cityName: string): string | null => {
+        if (!cityName || !cities) return null;
+        const normalizedInput = cityName.trim().toLowerCase();
+        const match = cities.find(c => c.name.toLowerCase() === normalizedInput);
+        return match ? match.id : null;
+    };
+
+    const findProductId = (sku: string): string | null => {
+        if (!sku || !products) return null;
+        const normalizedInput = sku.trim().toLowerCase();
+        // Match against 'code' (SKU) or 'name'
+        const match = products.find(p =>
+            (p.code?.toLowerCase() === normalizedInput) ||
+            (p.name?.toLowerCase() === normalizedInput)
+        );
+        return match ? match.id : null;
+    };
+
+    const handleFileDrop = useCallback(async (acceptedFiles: File[]) => {
+        const selectedFile = acceptedFiles[0];
+        if (!selectedFile) return;
+
+        setFile(selectedFile);
+        setIsParsing(true);
+        setData([]);
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const buffer = e.target?.result;
+                const workbook = XLSX.read(buffer, { type: 'array' });
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const rawData = XLSX.utils.sheet_to_json(firstSheet) as RawRow[];
+
+                const mapped = rawData.map((row, idx) => {
+                    // Fuzzy header matching
+                    const name = row['Name'] || row['Nom'] || row['Client'] || row['Customer Name'] || '';
+                    const rawPhone = row['Phone'] || row['Téléphone'] || row['Mobile'] || '';
+                    const address = row['Address'] || row['Adresse'] || '';
+                    const cityName = row['City'] || row['Ville'] || '';
+
+                    const source = row['Source'] || '';
+                    const sku = row['Product SKU'] || row['SKU'] || '';
+                    const quantity = parseInt(row['Quantity'] || '1');
+                    const shipping_fee = parseFloat(row['Shipping Fee'] || '0');
+                    const is_exchange = (row['Exchange?'] || row['Exchange'] || '').toString().toLowerCase().includes('yes');
+                    const internal_note = row['Internal Note'] || row['Note'] || '';
+                    const courier_note = row['Courier Note'] || row['Delivery Note'] || '';
+
+                    const rawPrice = row['Price'] || row['Prix'] || row['Unit Price'] || '0';
+                    const price = parseFloat(rawPrice.toString().replace(/[^0-9.]/g, ''));
+
+                    const phone = normalizePhone(rawPhone);
+                    const city_id = findCityId(cityName);
+                    const product_id = findProductId(sku);
+
+                    const errors: string[] = [];
+                    if (!name) errors.push('Name is missing');
+                    if (!phone || phone.length < 9) errors.push('Invalid phone');
+                    if (!city_id) errors.push('City not found');
+                    // Optional: Validation for product
+                    if (sku && !product_id) errors.push(`SKU "${sku}" not found`);
+
+                    return {
+                        id: `row-${idx}`,
+                        name: name.toString().trim(),
+                        phone,
+                        address: address.toString().trim(),
+                        city_name: cityName.toString().trim(),
+                        city_id,
+                        price,
+                        shipping_fee,
+                        note: internal_note.toString().trim(),
+                        delivery_note: courier_note.toString().trim(),
+                        source: source.toString().trim(),
+                        is_exchange,
+                        product_sku: sku.toString().trim(),
+                        product_id,
+                        quantity,
+                        status: errors.length === 0 ? 'valid' : 'invalid',
+                        errors
+                    } as MappedOrder;
+                });
+
+                setData(mapped);
+                setIsParsing(false);
+                toast({ title: "File Parsed", description: `Found ${mapped.length} rows in the file.` });
+            } catch (error: any) {
+                console.error(error);
+                setIsParsing(false);
+                toast({ title: "Parsing Error", description: "Could not read the Excel file. Please check the format.", variant: "destructive" });
+            }
+        };
+        reader.readAsArrayBuffer(selectedFile);
+    }, [cities, products, toast]);
+
+    const { getRootProps, getInputProps, isDragActive } = useDropzone({
+        onDrop: handleFileDrop,
+        accept: {
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+            'application/vnd.ms-excel': ['.xls']
+        },
+        multiple: false
+    });
+
+    const handleDownloadModel = () => {
+        window.open(TEMPLATE_URL, '_blank');
+    };
+
+    // --- Memoized Data View ---
+    const filteredData = useMemo(() => {
+        return data.filter(item =>
+            item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            item.phone.includes(searchQuery) ||
+            item.city_name.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+    }, [data, searchQuery]);
+
+    const paginatedData = useMemo(() => {
+        const start = (currentPage - 1) * PAGE_SIZE;
+        return filteredData.slice(start, start + PAGE_SIZE);
+    }, [filteredData, currentPage]);
+
+    const totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
+    const validCount = data.filter(d => d.status === 'valid').length;
+
     return (
-        <div className="p-8">
-            <h1 className="text-2xl font-bold text-brand-navy">Import Orders</h1>
+        <div className="space-y-8 animate-in fade-in duration-500 pb-20">
+            {/* Header Section */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div>
+                    <h1 className="text-4xl font-bold tracking-tight text-brand-navy">Import Bulk Orders</h1>
+                    <p className="text-muted-foreground mt-2 text-lg">Upload your Excel files to import multiple orders instantly.</p>
+                </div>
+                <Button
+                    variant="outline"
+                    onClick={handleDownloadModel}
+                    className="h-12 px-6 rounded-2xl border-brand-navy/20 hover:bg-brand-navy/5 text-brand-navy font-semibold gap-2 transition-all hover:scale-[1.02]"
+                >
+                    <Download className="w-5 h-5" />
+                    Download Excel Model
+                </Button>
+            </div>
+
+            {/* Upload Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <Card className={cn(
+                    "lg:col-span-2 border-none shadow-xl rounded-[40px] overflow-hidden transition-all duration-500",
+                    isDragActive ? "scale-[0.99]" : ""
+                )}>
+                    <CardContent className="p-0">
+                        <div
+                            {...getRootProps()}
+                            className={cn(
+                                "relative flex flex-col items-center justify-center min-h-[400px] cursor-pointer transition-all duration-500",
+                                isDragActive
+                                    ? "bg-brand-navy/[0.08]"
+                                    : "bg-white/40 hover:bg-white/60 backdrop-blur-xl"
+                            )}
+                        >
+                            <input {...getInputProps()} />
+
+                            <div className="absolute inset-0 border-2 border-dashed border-brand-navy/10 rounded-[40px] m-4 pointer-events-none" />
+
+                            {isParsing ? (
+                                <div className="text-center space-y-4 animate-pulse">
+                                    <div className="w-20 h-20 bg-brand-navy/10 rounded-[32px] flex items-center justify-center mx-auto">
+                                        <Loader2 className="w-10 h-10 text-brand-navy animate-spin" />
+                                    </div>
+                                    <h3 className="text-2xl font-bold text-brand-navy">Analyzing File...</h3>
+                                    <p className="text-muted-foreground">Extracting and normalizing your data</p>
+                                </div>
+                            ) : file && data.length > 0 ? (
+                                <div className="text-center space-y-6">
+                                    <div className="w-24 h-24 bg-green-500/10 rounded-[32px] flex items-center justify-center mx-auto shadow-2xl shadow-green-500/20">
+                                        <FileCheck className="w-12 h-12 text-green-600" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-3xl font-bold text-brand-navy">{file.name}</h3>
+                                        <p className="text-muted-foreground mt-2 font-medium">{data.length} orders detected</p>
+                                    </div>
+                                    <div className="flex items-center justify-center gap-3">
+                                        <Badge className="bg-green-500 h-8 px-4 rounded-full text-sm">{validCount} Ready</Badge>
+                                        <Badge variant="destructive" className="h-8 px-4 rounded-full text-sm">{data.length - validCount} Errors</Badge>
+                                    </div>
+                                    <Button
+                                        onClick={(e) => { e.stopPropagation(); setFile(null); setData([]); }}
+                                        variant="ghost"
+                                        className="text-brand-red hover:bg-brand-red/10 rounded-xl"
+                                    >
+                                        <Trash2 className="w-4 h-4 mr-2" />
+                                        Remove File
+                                    </Button>
+                                </div>
+                            ) : (
+                                <div className="text-center space-y-6 group">
+                                    <div className="w-24 h-24 bg-brand-navy/5 rounded-[32px] flex items-center justify-center mx-auto group-hover:scale-110 transition-transform duration-500 border border-brand-navy/5 shadow-inner">
+                                        <Upload className="w-12 h-12 text-brand-navy/40" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-3xl font-bold text-brand-navy">Drop Excel here</h3>
+                                        <p className="text-muted-foreground mt-2 text-lg">or click to browse from your computer</p>
+                                    </div>
+                                    <div className="flex items-center justify-center gap-8 text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">
+                                        <span className="flex items-center gap-2"><FileSpreadsheet className="w-3 h-3" /> XLSX</span>
+                                        <span className="flex items-center gap-2"><FileSpreadsheet className="w-3 h-3" /> XLS</span>
+                                        <span className="flex items-center gap-2"><FileSpreadsheet className="w-3 h-3" /> CSV</span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Info Card */}
+                <Card className="border-none shadow-xl bg-brand-navy rounded-[40px] text-brand-white p-8 flex flex-col justify-between overflow-hidden relative group">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32 blur-3xl group-hover:bg-white/10 transition-colors" />
+
+                    <div className="relative space-y-6">
+                        <div className="w-14 h-14 bg-white/10 rounded-[20px] flex items-center justify-center backdrop-blur-md">
+                            <Database className="w-7 h-7" />
+                        </div>
+                        <h3 className="text-2xl font-bold leading-tight">Data Integrity Check</h3>
+                        <p className="text-brand-white/60 leading-relaxed font-medium">
+                            Our system automatically verifies phone numbers using Moroccan normalization and checks for city existence in your database.
+                        </p>
+
+                        <div className="space-y-4 pt-4">
+                            {[
+                                { label: 'Phone Normalization', desc: 'Auto-regex strip & format' },
+                                { label: 'City Linkage', desc: 'Matches name to database ID' },
+                                { label: 'Product Mapping', desc: 'Links SKU to Inventory' },
+                                { label: 'Full Data Import', desc: 'Notes, Source, & Fees' }
+                            ].map((item, i) => (
+                                <div key={i} className="flex gap-4">
+                                    <div className="mt-1"><CheckCircle2 className="w-4 h-4 text-green-400" /></div>
+                                    <div>
+                                        <div className="text-sm font-bold">{item.label}</div>
+                                        <div className="text-[10px] uppercase font-bold text-brand-white/40">{item.desc}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="relative pt-12">
+                        {uploadProgress > 0 ? (
+                            <div className="space-y-3">
+                                <div className="flex justify-between text-xs font-bold uppercase tracking-widest">
+                                    <span>Syncing to DB</span>
+                                    <span>{uploadProgress}%</span>
+                                </div>
+                                <Progress value={uploadProgress} className="h-2 bg-white/10" />
+                            </div>
+                        ) : (
+                            <Button
+                                disabled={data.length === 0 || validCount === 0 || uploadMutation.isPending}
+                                onClick={() => uploadMutation.mutate(data.filter(d => d.status === 'valid'))}
+                                className="w-full h-14 bg-brand-white text-brand-navy hover:bg-brand-white/90 rounded-2xl text-base font-black shadow-2xl transition-all"
+                            >
+                                {uploadMutation.isPending ? (
+                                    <>
+                                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                                        Processing...
+                                    </>
+                                ) : (
+                                    <>
+                                        Commit {validCount} Orders
+                                        <ArrowRight className="w-5 h-5 ml-2" />
+                                    </>
+                                )}
+                            </Button>
+                        )}
+                    </div>
+                </Card>
+            </div>
+
+            {/* Data Preview Table */}
+            {data.length > 0 && (
+                <div className="space-y-6 animate-in slide-in-from-bottom-8 duration-700">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="flex items-center gap-4">
+                            <h2 className="text-2xl font-bold text-brand-navy">Import Preview</h2>
+                            <Badge variant="secondary" className="rounded-full px-4 h-7 font-black">{filteredData.length} Total</Badge>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                            <div className="relative w-[300px]">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                <Input
+                                    placeholder="Search in preview..."
+                                    className="pl-11 h-11 rounded-xl bg-white/50 border-none shadow-inner"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <Card className="border-none shadow-xl rounded-[32px] overflow-hidden bg-white/50 backdrop-blur-xl">
+                        <Table>
+                            <TableHeader className="bg-brand-navy/5">
+                                <TableRow className="hover:bg-transparent border-none">
+                                    <TableHead className="font-bold text-brand-navy py-6 pl-8">Client Name</TableHead>
+                                    <TableHead className="font-bold text-brand-navy">Product Details</TableHead>
+                                    <TableHead className="font-bold text-brand-navy">City</TableHead>
+                                    <TableHead className="font-bold text-brand-navy">Financials</TableHead>
+                                    <TableHead className="font-bold text-brand-navy">Status</TableHead>
+                                    <TableHead className="font-bold text-brand-navy pr-8">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {paginatedData.map((row) => (
+                                    <TableRow key={row.id} className="hover:bg-brand-navy/[0.02] border-brand-navy/5 transition-colors group">
+                                        <TableCell className="font-bold text-brand-navy py-5 pl-8">
+                                            <div>{row.name}</div>
+                                            <div className="text-xs text-muted-foreground font-normal">{row.phone}</div>
+                                            <Badge variant="outline" className="mt-1 text-[10px] h-5">{row.source}</Badge>
+                                        </TableCell>
+                                        <TableCell>
+                                            {row.product_id ? (
+                                                <div className="flex flex-col">
+                                                    <span className="font-bold text-brand-navy text-sm">{row.product_sku}</span>
+                                                    <span className="text-xs text-muted-foreground">Qty: {row.quantity}</span>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center gap-1 text-brand-red">
+                                                    <AlertCircle className="w-3 h-3" />
+                                                    <span className="text-xs font-bold">{row.product_sku || 'No SKU'}</span>
+                                                </div>
+                                            )}
+                                        </TableCell>
+                                        <TableCell>
+                                            {row.city_id ? (
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-bold text-brand-navy">{row.city_name}</span>
+                                                    <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center gap-2">
+                                                    <AlertCircle className="w-3.5 h-3.5 text-brand-red" />
+                                                    <span className="text-brand-red font-black text-xs uppercase italic line-through opacity-50">{row.city_name || 'Empty'}</span>
+                                                </div>
+                                            )}
+                                        </TableCell>
+                                        <TableCell>
+                                            <div className="font-bold text-brand-navy">{row.price} DH</div>
+                                            {row.shipping_fee > 0 && <div className="text-xs text-muted-foreground">+ {row.shipping_fee} DH Ship</div>}
+                                        </TableCell>
+                                        <TableCell>
+                                            {row.status === 'valid' ? (
+                                                <Badge className="bg-green-500/10 text-green-600 border-none rounded-lg px-3 py-1 font-bold">Valid</Badge>
+                                            ) : (
+                                                <div className="flex flex-col gap-1">
+                                                    <Badge className="bg-brand-red/10 text-brand-red border-none rounded-lg px-3 py-1 font-bold w-fit">Invalid</Badge>
+                                                    <span className="text-[10px] text-brand-red font-bold uppercase tracking-tighter">{row.errors[0]}</span>
+                                                </div>
+                                            )}
+                                        </TableCell>
+                                        <TableCell className="pr-8">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="rounded-full text-muted-foreground hover:bg-brand-red/10 hover:text-brand-red transition-all"
+                                                onClick={() => setData(prev => prev.filter(d => d.id !== row.id))}
+                                            >
+                                                <X className="w-4 h-4" />
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+
+                        {/* Pagination Controls */}
+                        {totalPages > 1 && (
+                            <div className="p-6 border-t border-brand-navy/5 flex items-center justify-between bg-brand-navy/5">
+                                <div className="text-sm font-bold text-muted-foreground uppercase tracking-widest pl-4">
+                                    Page {currentPage} of {totalPages}
+                                </div>
+                                <div className="flex items-center gap-2 pr-4">
+                                    <Button
+                                        variant="outline"
+                                        size="icon"
+                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                        disabled={currentPage === 1}
+                                        className="rounded-xl border-none shadow-sm hover:scale-105 transition-transform"
+                                    >
+                                        <ChevronLeft className="w-5 h-5" />
+                                    </Button>
+                                    <div className="flex items-center gap-1">
+                                        {Array.from({ length: Math.min(5, totalPages) }).map((_, i) => {
+                                            const pageNum = i + 1;
+                                            return (
+                                                <Button
+                                                    key={pageNum}
+                                                    variant={currentPage === pageNum ? 'default' : 'ghost'}
+                                                    onClick={() => setCurrentPage(pageNum)}
+                                                    className={cn(
+                                                        "w-10 h-10 rounded-xl font-bold",
+                                                        currentPage === pageNum ? "bg-brand-navy text-brand-white shadow-lg" : ""
+                                                    )}
+                                                >
+                                                    {pageNum}
+                                                </Button>
+                                            );
+                                        })}
+                                        {totalPages > 5 && <span className="px-2 text-muted-foreground font-bold">...</span>}
+                                    </div>
+                                    <Button
+                                        variant="outline"
+                                        size="icon"
+                                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                        disabled={currentPage === totalPages}
+                                        className="rounded-xl border-none shadow-sm hover:scale-105 transition-transform"
+                                    >
+                                        <ChevronRight className="w-5 h-5" />
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+                    </Card>
+                </div>
+            )}
         </div>
     );
 };
