@@ -1,28 +1,28 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
     Building2,
-    ChevronRight,
     Plus,
     ArrowRight,
     Loader2,
     ShieldCheck,
-    Lock,
     LogOut,
     Search
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { AddEditBusinessModal } from '@/components/businesses/AddEditBusinessModal';
 
 const SelectBusiness = () => {
     const navigate = useNavigate();
     const { toast } = useToast();
+    const queryClient = useQueryClient();
     const [searchQuery, setSearchQuery] = useState("");
+    const [isAddEditModalOpen, setIsAddEditModalOpen] = useState(false);
 
     const { data: businesses, isLoading } = useQuery({
         queryKey: ['businesses'],
@@ -36,6 +36,36 @@ const SelectBusiness = () => {
             if (error) throw error;
             return data;
         },
+    });
+
+    const upsertMutation = useMutation({
+        mutationFn: async (payload: any) => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) throw new Error("Not authenticated");
+
+            const { id, ...values } = payload;
+            const dataToSubmit = {
+                ...values,
+                creator_id: user.id,
+                updated_at: new Date().toISOString()
+            };
+
+            if (id) {
+                const { error } = await supabase.from('businesses').update(dataToSubmit).eq('id', id);
+                if (error) throw error;
+            } else {
+                const { error } = await supabase.from('businesses').insert([dataToSubmit]);
+                if (error) throw error;
+            }
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['businesses'] });
+            setIsAddEditModalOpen(false);
+            toast({ title: "Success", description: "Business environment registered." });
+        },
+        onError: (err: any) => {
+            toast({ title: "Registration Failed", description: err.message, variant: "destructive" });
+        }
     });
 
     const handleSelect = (business: any) => {
@@ -112,7 +142,7 @@ const SelectBusiness = () => {
                     </div>
 
                     {/* Search & Actions */}
-                    <div className="flex animate-in fade-in slide-in-from-bottom-12 duration-700 delay-200">
+                    <div className="flex flex-col md:flex-row gap-4 animate-in fade-in slide-in-from-bottom-12 duration-700 delay-200">
                         <div className="relative flex-1 group">
                             <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within:text-white/60 transition-colors" />
                             <Input
@@ -122,6 +152,13 @@ const SelectBusiness = () => {
                                 className="h-16 bg-white/[0.03] border-white/5 rounded-[24px] pl-14 text-brand-white font-bold text-lg focus:bg-white/[0.05] focus:border-white/10 transition-all shadow-2xl backdrop-blur-md"
                             />
                         </div>
+                        <Button
+                            onClick={() => setIsAddEditModalOpen(true)}
+                            className="h-16 px-8 bg-brand-white hover:bg-white/90 text-brand-navy rounded-[24px] font-black text-lg gap-3 transition-all hover:scale-[1.02] active:scale-[0.98] shadow-[0_20px_40px_-10px_rgba(255,255,255,0.2)]"
+                        >
+                            <Plus className="w-5 h-5" />
+                            Register New
+                        </Button>
                     </div>
 
                     {/* Cards Grid */}
@@ -139,6 +176,12 @@ const SelectBusiness = () => {
                             <div className="space-y-2">
                                 <h3 className="text-2xl font-black text-brand-white tracking-tight uppercase">No Entities Found</h3>
                                 <p className="text-white/30 text-sm font-medium">Create a business unit to unlock your dashboard.</p>
+                                <Button
+                                    onClick={() => setIsAddEditModalOpen(true)}
+                                    className="mt-4 bg-brand-white text-brand-navy hover:bg-white/90 rounded-2xl h-12 px-6 font-black uppercase text-xs tracking-widest"
+                                >
+                                    Register First Entity
+                                </Button>
                             </div>
                         </div>
                     ) : (
@@ -194,6 +237,14 @@ const SelectBusiness = () => {
                     )}
                 </div>
             </main>
+
+            {/* Add/Edit Modal */}
+            <AddEditBusinessModal
+                isOpen={isAddEditModalOpen}
+                onClose={() => setIsAddEditModalOpen(false)}
+                onSubmit={(values) => upsertMutation.mutate(values)}
+                loading={upsertMutation.isPending}
+            />
 
             {/* Footer Background Decoration */}
             <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
