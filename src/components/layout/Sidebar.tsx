@@ -225,32 +225,28 @@ const Sidebar = () => {
                         )}
                     >
                         <div className="w-[52px] h-14 flex items-center justify-center shrink-0">
-                            {/* In collapsed mode, we show only user avatar to keep it clean */}
-                            <div className="relative group-hover/profile:scale-105 transition-transform duration-500">
-                                <div className="relative flex items-center justify-center">
-                                    {/* Overlapping Avatars (Only visible when expanded OR carefully managed) */}
-                                    <div className="flex -space-x-3 items-center group-hover:group-hover/profile:-space-x-1.5 transition-all duration-700">
-                                        <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-brand-navy bg-brand-navy-light flex items-center justify-center shadow-lg z-20 transition-all duration-700 group-hover:rotate-[-4deg]">
-                                            {isProfileLoading ? (
-                                                <Loader2 className="w-4 h-4 animate-spin text-brand-white" />
-                                            ) : profile?.avatar_url ? (
-                                                <img src={profile.avatar_url} className="w-full h-full object-cover" alt="" />
-                                            ) : (
-                                                <UserIcon className="w-4 h-4 text-brand-white" />
-                                            )}
-                                        </div>
-                                        {/* Business Logo - Hidden or tightly tucked when collapsed */}
-                                        <div className={cn(
-                                            "w-8 h-8 rounded-full overflow-hidden border-2 border-brand-navy bg-white flex items-center justify-center shadow-lg z-10 p-1.5 transition-all duration-700",
-                                            "opacity-0 scale-50 group-hover:opacity-100 group-hover:scale-100" // New logic: only show when sidebar expands
-                                        )}>
-                                            {business?.logo ? (
-                                                <img src={business.logo} className="w-full h-full object-contain" alt="" />
-                                            ) : (
-                                                <Building2 className="w-3 h-3 text-brand-navy/20" />
-                                            )}
-                                        </div>
-                                    </div>
+                            <div className="relative w-8 h-8 group-hover/profile:scale-105 transition-transform duration-500 flex items-center justify-center">
+                                {/* Primary User Avatar - Anchored to Center */}
+                                <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-brand-navy bg-brand-navy-light flex items-center justify-center shadow-lg z-20 transition-all duration-700 group-hover:rotate-[-4deg] shrink-0 relative">
+                                    {isProfileLoading ? (
+                                        <Loader2 className="w-4 h-4 animate-spin text-brand-white" />
+                                    ) : profile?.avatar_url ? (
+                                        <img src={profile.avatar_url} className="w-full h-full object-cover" alt="" />
+                                    ) : (
+                                        <UserIcon className="w-4 h-4 text-brand-white" />
+                                    )}
+                                </div>
+                                {/* Secondary Business Logo - Slides out when expanded */}
+                                <div className={cn(
+                                    "absolute top-0 left-0 rounded-full overflow-hidden border-2 border-brand-navy bg-white flex items-center justify-center shadow-lg z-10 transition-all duration-700",
+                                    "w-8 h-8 opacity-0 pointer-events-none",
+                                    "group-hover:opacity-100 group-hover:translate-x-3.5 group-hover:pointer-events-auto"
+                                )}>
+                                    {business?.logo ? (
+                                        <img src={business.logo} className="w-full h-full object-contain" alt="" />
+                                    ) : (
+                                        <Building2 className="w-3 h-3 text-brand-navy/20" />
+                                    )}
                                 </div>
                             </div>
                         </div>
