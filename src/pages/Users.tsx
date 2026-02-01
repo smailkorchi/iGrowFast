@@ -134,14 +134,17 @@ const Users = () => {
     const [searchQuery, setSearchQuery] = useState("");
     const { toast } = useToast();
     const queryClient = useQueryClient();
+    const activeBusinessId = localStorage.getItem('activeBusinessId');
 
     // --- Queries ---
     const { data: users, isLoading } = useQuery({
-        queryKey: ['users'],
+        queryKey: ['users', activeBusinessId],
         queryFn: async () => {
+            if (!activeBusinessId) return [];
             const { data, error } = await supabase
                 .from('users')
                 .select('*')
+                .eq('DigiCom Business', activeBusinessId)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
@@ -152,7 +155,10 @@ const Users = () => {
     const addUserMutation = useMutation({
         mutationFn: async (values: UserFormValues) => {
             const { data, error } = await supabase.functions.invoke('manage-users', {
-                body: { action: 'create', userData: values }
+                body: {
+                    action: 'create',
+                    userData: { ...values, 'DigiCom Business': activeBusinessId }
+                }
             });
 
             if (error) throw error;
@@ -171,7 +177,11 @@ const Users = () => {
     const updateUserMutation = useMutation({
         mutationFn: async ({ id, values }: { id: string, values: UserFormValues }) => {
             const { data, error } = await supabase.functions.invoke('manage-users', {
-                body: { action: 'update', userId: id, userData: values }
+                body: {
+                    action: 'update',
+                    userId: id,
+                    userData: { ...values, 'DigiCom Business': activeBusinessId }
+                }
             });
 
             if (error) throw error;

@@ -135,12 +135,14 @@ const DeliveryServices = () => {
     // --- Queries ---
 
     const { data: deliveryPeople, isLoading: isLoadingPeople } = useQuery({
-        queryKey: ['users', 'delivery-person'],
+        queryKey: ['delivery-people', activeBusinessId],
         queryFn: async () => {
+            if (!activeBusinessId) return [];
             const { data, error } = await supabase
                 .from(USERS_TABLE)
                 .select('*')
                 .eq('role', 'delivery person' as any)
+                .eq('DigiCom Business', activeBusinessId)
                 .order('created_at', { ascending: false });
             if (error) throw error;
             return (data as any[]) || [];
@@ -172,7 +174,8 @@ const DeliveryServices = () => {
                 active: true,
                 assignment: 0,
                 products: [],
-                permissions: { pages: { '/orders': true } } // Default access
+                permissions: { pages: { '/orders': true } }, // Default access
+                'DigiCom Business': activeBusinessId
             };
 
             const { data, error } = await supabase.functions.invoke('manage-users', {

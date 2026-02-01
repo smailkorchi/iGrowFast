@@ -154,18 +154,19 @@ const Status = () => {
             };
 
             if (editingStatus) {
-                const { data, error } = await (supabase
-                    .from(table as any)
+                const { data, error } = await supabase
+                    .from(table)
                     .update(payload)
-                    .eq('id', editingStatus.id) as any)
+                    .eq('id', editingStatus.id)
+                    .eq('DigiCom Business', activeBusinessId)
                     .select()
                     .single();
                 if (error) throw error;
                 return data;
             } else {
-                const { data, error } = await (supabase
-                    .from(table as any)
-                    .insert(payload) as any)
+                const { data, error } = await supabase
+                    .from(table)
+                    .insert(payload)
                     .select()
                     .single();
                 if (error) throw error;
@@ -189,7 +190,7 @@ const Status = () => {
     const deleteMutation = useMutation({
         mutationFn: async (id: string) => {
             const { error } = await supabase
-                .from(table as any)
+                .from(table)
                 .delete()
                 .eq('id', id)
                 .eq('DigiCom Business', activeBusinessId);

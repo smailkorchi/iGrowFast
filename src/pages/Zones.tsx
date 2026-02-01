@@ -69,13 +69,17 @@ const Zones = () => {
     const { toast } = useToast();
     const queryClient = useQueryClient();
 
+    const activeBusinessId = localStorage.getItem('activeBusinessId');
+
     // --- Queries ---
     const { data: zones, isLoading } = useQuery({
-        queryKey: ['zones'],
+        queryKey: ['zones', activeBusinessId],
         queryFn: async () => {
+            if (!activeBusinessId) return [];
             const { data, error } = await supabase
                 .from('zones')
                 .select('*, cities(id)')
+                .eq('DigiCom Business', activeBusinessId)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
@@ -88,7 +92,8 @@ const Zones = () => {
             const { data, error } = await supabase
                 .from('zones')
                 .insert({
-                    name: values.name
+                    name: values.name,
+                    'DigiCom Business': activeBusinessId
                 })
                 .select()
                 .single();
@@ -111,9 +116,11 @@ const Zones = () => {
             const { data, error } = await supabase
                 .from('zones')
                 .update({
-                    name: values.name
+                    name: values.name,
+                    'DigiCom Business': activeBusinessId
                 })
                 .eq('id', id)
+                .eq('DigiCom Business', activeBusinessId)
                 .select()
                 .single();
 
@@ -135,7 +142,8 @@ const Zones = () => {
             const { error } = await supabase
                 .from('zones')
                 .delete()
-                .eq('id', id);
+                .eq('id', id)
+                .eq('DigiCom Business', activeBusinessId);
 
             if (error) throw error;
         },
@@ -368,16 +376,19 @@ const ZoneModal = ({ isOpen, onClose, onSubmit, initialData, loading, title }: a
 };
 
 const ZoneCitiesModal = ({ zone, isOpen, onClose }: { zone: any, isOpen: boolean, onClose: () => void }) => {
+    const activeBusinessId = localStorage.getItem('activeBusinessId');
     const [citySearch, setCitySearch] = useState("");
     const queryClient = useQueryClient();
     const { toast } = useToast();
 
     const { data: cities, isLoading } = useQuery({
-        queryKey: ['cities-all'],
+        queryKey: ['cities-all', activeBusinessId],
         queryFn: async () => {
+            if (!activeBusinessId) return [];
             const { data, error } = await supabase
                 .from('cities')
                 .select('*')
+                .eq('DigiCom Business', activeBusinessId)
                 .order('name');
             if (error) throw error;
             return data;

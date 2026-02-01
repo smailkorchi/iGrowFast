@@ -114,8 +114,9 @@ const ExpensesTypes = () => {
             if (editingType) {
                 const { data, error } = await (supabase
                     .from('expense_types' as any)
-                    .update(values)
-                    .eq('id', editingType.id) as any)
+                    .update({ ...values, 'DigiCom Business': activeBusinessId })
+                    .eq('id', editingType.id)
+                    .eq('DigiCom Business', activeBusinessId) as any)
                     .select()
                     .single();
                 if (error) throw error;

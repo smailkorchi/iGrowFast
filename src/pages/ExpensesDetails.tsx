@@ -153,8 +153,9 @@ const ExpensesDetails = () => {
             if (editingExpense) {
                 const { data, error } = await (supabase
                     .from('expenses' as any)
-                    .update(payload)
-                    .eq('id', editingExpense.id) as any)
+                    .update({ ...payload, 'DigiCom Business': activeBusinessId })
+                    .eq('id', editingExpense.id)
+                    .eq('DigiCom Business', activeBusinessId) as any)
                     .select()
                     .single();
                 if (error) throw error;

@@ -210,11 +210,13 @@ const Orders = () => {
     });
 
     const { data: cities } = useQuery({
-        queryKey: ['cities-dropdown'],
+        queryKey: ['cities-dropdown', activeBusinessId],
         queryFn: async () => {
+            if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('cities')
                 .select('id, name, zone_id')
+                .eq('DigiCom Business', activeBusinessId)
                 .order('name');
             if (error) throw error;
             return data;
@@ -222,9 +224,15 @@ const Orders = () => {
     });
 
     const { data: couriers } = useQuery({
-        queryKey: ['couriers-dropdown'],
+        queryKey: ['couriers-dropdown', activeBusinessId],
         queryFn: async () => {
-            const { data, error } = await (supabase as any).from('users').select('id, name').eq('role', 'delivery person').eq('active', true);
+            if (!activeBusinessId) return [];
+            const { data, error } = await (supabase as any)
+                .from('users')
+                .select('id, name')
+                .eq('role', 'delivery person')
+                .eq('active', true)
+                .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data;
         }
@@ -258,9 +266,13 @@ const Orders = () => {
     });
 
     const { data: companyZones } = useQuery({
-        queryKey: ['company-zones-all'],
+        queryKey: ['company-zones-all', activeBusinessId],
         queryFn: async () => {
-            const { data, error } = await (supabase as any).from('company_zones').select('*');
+            if (!activeBusinessId) return [];
+            const { data, error } = await (supabase as any)
+                .from('company_zones')
+                .select('*')
+                .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data;
         }

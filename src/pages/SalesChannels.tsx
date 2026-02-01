@@ -98,13 +98,17 @@ const SalesChannels = () => {
     const { toast } = useToast();
     const queryClient = useQueryClient();
 
+    const activeBusinessId = localStorage.getItem('activeBusinessId');
+
     // --- Queries ---
     const { data: channels, isLoading } = useQuery({
-        queryKey: ['sales_channels'],
+        queryKey: ['sales_channels', activeBusinessId],
         queryFn: async () => {
+            if (!activeBusinessId) return [];
             const { data, error } = await (supabase
                 .from('sales_channels' as any)
                 .select('*')
+                .eq('DigiCom Business', activeBusinessId)
                 .order('name', { ascending: true }) as any);
 
             if (error) throw error;
@@ -135,8 +139,9 @@ const SalesChannels = () => {
             if (editingChannel) {
                 const { data, error } = await (supabase
                     .from('sales_channels' as any)
-                    .update(values)
-                    .eq('id', editingChannel.id) as any)
+                    .update({ ...values, 'DigiCom Business': activeBusinessId })
+                    .eq('id', editingChannel.id)
+                    .eq('DigiCom Business', activeBusinessId) as any)
                     .select()
                     .single();
                 if (error) throw error;
@@ -144,7 +149,7 @@ const SalesChannels = () => {
             } else {
                 const { data, error } = await (supabase
                     .from('sales_channels' as any)
-                    .insert(values) as any)
+                    .insert({ ...values, 'DigiCom Business': activeBusinessId }) as any)
                     .select()
                     .single();
                 if (error) throw error;
@@ -170,7 +175,8 @@ const SalesChannels = () => {
             const { error } = await (supabase
                 .from('sales_channels' as any)
                 .delete()
-                .eq('id', id) as any);
+                .eq('id', id)
+                .eq('DigiCom Business', activeBusinessId) as any);
             if (error) throw error;
         },
         onSuccess: () => {

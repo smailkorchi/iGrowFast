@@ -114,9 +114,14 @@ const ImportOrders = () => {
     });
 
     const { data: couriers } = useQuery({
-        queryKey: ['couriers-all'],
+        queryKey: ['couriers-all', activeBusinessId],
         queryFn: async () => {
-            const { data, error } = await (supabase as any).from('users').select('id, name').eq('role', 'delivery person');
+            if (!activeBusinessId) return [];
+            const { data, error } = await (supabase as any)
+                .from('users')
+                .select('id, name')
+                .eq('role', 'delivery person')
+                .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data;
         }
@@ -136,7 +141,7 @@ const ImportOrders = () => {
     });
 
     const { data: courierZones } = useQuery({
-        queryKey: ['courier-zones-all'],
+        queryKey: ['courier-zones-all', activeBusinessId],
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
