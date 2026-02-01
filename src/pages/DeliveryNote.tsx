@@ -594,8 +594,8 @@ const DeliveryNote = () => {
                                 setIsViewModalOpen(true);
                             }}
                             className={`font-bold text-xs gap-2 rounded-xl h-11 px-5 ${brandColor === 'emerald' ? 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700' :
-                                    brandColor === 'orange' ? 'text-orange-600 hover:bg-orange-50 hover:text-orange-700' :
-                                        'text-blue-600 hover:bg-blue-50 hover:text-blue-700'
+                                brandColor === 'orange' ? 'text-orange-600 hover:bg-orange-50 hover:text-orange-700' :
+                                    'text-blue-600 hover:bg-blue-50 hover:text-blue-700'
                                 }`}
                         >
                             <Eye className="w-4 h-4" /> Preview
@@ -722,7 +722,7 @@ const DeliveryNote = () => {
             {/* Preview Modal */}
             <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
                 <DialogContent className="sm:max-w-[700px] rounded-[32px] border-none p-0 overflow-hidden bg-slate-50">
-                    <div className="p-10 space-y-8">
+                    <div className="p-10 space-y-8 max-h-[85vh] overflow-y-auto">
                         <div className="flex justify-between items-start">
                             <div className="space-y-2">
                                 <div className="text-3xl font-black text-brand-navy uppercase tracking-tighter">Delivery Note</div>
