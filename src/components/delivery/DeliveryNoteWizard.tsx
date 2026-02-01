@@ -44,6 +44,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
 
     const { toast } = useToast();
     const queryClient = useQueryClient();
+    const activeBusinessId = localStorage.getItem('activeBusinessId');
 
     // Fetch zones that have confirmed orders
     const { data: zones } = useQuery({
@@ -209,7 +210,8 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                             status_color: providerColor,
                             external_id: result.data?.id || String(result.data?.external_id || ''),
                             provider_response: result.data,
-                            status_id: mappedStatusId
+                            status_id: mappedStatusId,
+                            'DigiCom Business': activeBusinessId
                         })
                         .select()
                         .single();
@@ -306,7 +308,8 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                     reference: deliveryNoteRef,
                     external_id: result.data?.id || String(result.data?.external_id || ''),
                     parcel_count: parcelCodes.length,
-                    status_id: null
+                    status_id: null,
+                    'DigiCom Business': activeBusinessId
                 })
                 .select()
                 .single();

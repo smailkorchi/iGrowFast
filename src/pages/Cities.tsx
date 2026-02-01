@@ -71,9 +71,12 @@ const Cities = () => {
     const queryClient = useQueryClient();
 
     // --- Queries ---
+    const activeBusinessId = localStorage.getItem('activeBusinessId');
+
     const { data: zones } = useQuery({
-        queryKey: ['zones'],
+        queryKey: ['zones', activeBusinessId],
         queryFn: async () => {
+            if (!activeBusinessId) return [];
             const { data, error } = await supabase
                 .from('zones')
                 .select('id, name')
@@ -84,11 +87,13 @@ const Cities = () => {
     });
 
     const { data: cities, isLoading } = useQuery({
-        queryKey: ['cities'],
+        queryKey: ['cities', activeBusinessId],
         queryFn: async () => {
+            if (!activeBusinessId) return [];
             const { data, error } = await supabase
                 .from('cities')
                 .select('*, zones(name)')
+                .eq('DigiCom Business', activeBusinessId)
                 .order('name');
 
             if (error) throw error;
@@ -104,7 +109,8 @@ const Cities = () => {
                 .insert({
                     name: values.name,
                     zone_id: values.zone_id,
-                    ameex_code: values.ameex_code
+                    ameex_code: values.ameex_code,
+                    'DigiCom Business': activeBusinessId
                 })
                 .select('*, zones(name)')
                 .single();
@@ -129,7 +135,8 @@ const Cities = () => {
                 .update({
                     name: values.name,
                     zone_id: values.zone_id,
-                    ameex_code: values.ameex_code
+                    ameex_code: values.ameex_code,
+                    'DigiCom Business': activeBusinessId
                 })
                 .eq('id', values.id)
                 .select('*, zones(name)')

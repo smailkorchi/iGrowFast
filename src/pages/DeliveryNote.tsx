@@ -77,6 +77,7 @@ const DeliveryNote = () => {
     const [isTrackingLoading, setIsTrackingLoading] = useState(false);
     const [trackingParcel, setTrackingParcel] = useState<any>(null);
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+    const activeBusinessId = localStorage.getItem('activeBusinessId');
 
     const EDGE_FUNCTION_URL = "https://zjkqprrfbibjoslvlmxf.supabase.co/functions/v1/provider-integration";
 
@@ -556,8 +557,9 @@ const DeliveryNote = () => {
 
     // Fetch company delivery notes
     const { data: companyNotes, isLoading: loadingCompany } = useQuery({
-        queryKey: ['company-delivery-notes'],
+        queryKey: ['company-delivery-notes', activeBusinessId],
         queryFn: async () => {
+            if (!activeBusinessId) return [];
             const { data, error } = await supabase
                 .from('company_delivery_notes')
                 .select(`
@@ -570,6 +572,7 @@ const DeliveryNote = () => {
                         business_name
                     )
                 `)
+                .eq('DigiCom Business', activeBusinessId)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;

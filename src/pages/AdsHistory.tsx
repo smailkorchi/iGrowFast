@@ -116,12 +116,17 @@ const AdsHistory = () => {
     const queryClient = useQueryClient();
 
     // --- Queries ---
+    const activeBusinessId = localStorage.getItem('activeBusinessId');
+
     const { data: adsHistory, isLoading } = useQuery({
-        queryKey: ['ads_history'],
+        queryKey: ['ads_history', activeBusinessId],
         queryFn: async () => {
+            if (!activeBusinessId) return [];
+
             const { data, error } = await (supabase
                 .from('ads_history' as any)
                 .select('*, products(id, name, code)')
+                .eq('DigiCom Business', activeBusinessId)
                 .order('start_date', { ascending: false }) as any);
 
             if (error) throw error;
@@ -159,6 +164,7 @@ const AdsHistory = () => {
         mutationFn: async (values: AdsHistoryValues) => {
             const payload = {
                 ...values,
+                'DigiCom Business': activeBusinessId,
                 start_date: format(values.start_date, 'yyyy-MM-dd'),
                 end_date: format(values.end_date, 'yyyy-MM-dd'),
             };
