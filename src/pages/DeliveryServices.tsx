@@ -951,6 +951,7 @@ function ZonesModal({ isOpen, onClose, courier }: any) {
 function FeesModal({ isOpen, onClose, courier }: any) {
     const queryClient = useQueryClient();
     const { toast } = useToast();
+    const activeBusinessId = localStorage.getItem('activeBusinessId');
     const [fees, setFees] = useState<Record<string, string>>({});
 
     const { data: cities, isLoading: loadingCities } = useQuery({
@@ -968,9 +969,15 @@ function FeesModal({ isOpen, onClose, courier }: any) {
     });
 
     const { data: savedFees } = useQuery({
-        queryKey: ['courier_fees', courier?.id],
+        queryKey: ['courier_fees', courier?.id, activeBusinessId],
         queryFn: async () => {
-            const { data, error } = await supabase.from(COURIER_FEES_TABLE).select('*').eq('courier_id', courier.id);
+            if (!activeBusinessId) return {};
+            const { data, error } = await supabase
+                .from(COURIER_FEES_TABLE)
+                .select('*')
+                .eq('courier_id', courier.id)
+                .eq('DigiCom Business', activeBusinessId);
+
             if (error) throw error;
             const feeMap: Record<string, string> = {};
             data.forEach((f: any) => feeMap[f.city_id] = f.fee.toString());
@@ -987,12 +994,13 @@ function FeesModal({ isOpen, onClose, courier }: any) {
                 courier_id: courier.id,
                 city_id: cityId,
                 fee: numericFee,
-                updated_at: new Date().toISOString()
-            }, { onConflict: 'courier_id,city_id' });
+                updated_at: new Date().toISOString(),
+                'DigiCom Business': activeBusinessId
+            }, { onConflict: 'courier_id,city_id,DigiCom Business' });
             if (error) throw error;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['courier_fees', courier?.id] });
+            queryClient.invalidateQueries({ queryKey: ['courier_fees', courier?.id, activeBusinessId] });
         }
     });
 
