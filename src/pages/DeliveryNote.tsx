@@ -206,38 +206,61 @@ const DeliveryNote = () => {
                         }
 
                         const styledContent = `
+                            <!DOCTYPE html>
                             <html>
                                 <head>
+                                    <meta charset="UTF-8">
                                     <title>Print Labels - ${selectedNote.reference}</title>
                                     <style>
+                                        /* Critical: Set page size and remove ALL margins */
                                         @page { 
                                             size: ${pageSize}; 
-                                            margin: 0 !important; 
+                                            margin: 0mm;
                                         }
+                                        
                                         html, body { 
-                                            margin: 0 !important; 
-                                            padding: 0 !important; 
+                                            margin: 0;
+                                            padding: 0;
                                             width: 100%;
                                             height: 100%;
                                             background: white;
                                         }
+                                        
                                         .print-container {
                                             width: 100%;
                                             height: 100%;
-                                            display: ${isCentering ? 'flex' : 'block'};
-                                            ${isCentering ? 'align-items: center; justify-content: center;' : ''}
-                                            overflow: hidden;
                                         }
-                                        /* Force hide browser headers/footers */
-                                        @media print {
-                                            @page { margin: 0; }
-                                            body { margin: 1.6cm; } /* Browser usually needs a tiny buffer for some printers, but we try 0 first */
-                                            body { margin: 0 !important; }
+                                        
+                                        /* For thermal printer labels: fill entire space */
+                                        ${format === 'Label_100_100' || format === '10x10' || format === 'A6' || format === 'Label_70_100' ? `
+                                            body {
+                                                overflow: hidden;
+                                            }
+                                            .print-container > div,
+                                            .print-container > svg {
+                                                width: 100%;
+                                                height: 100%;
+                                                margin: 0;
+                                                padding: 0;
+                                            }
+                                        ` : ''}
+                                        
+                                        /* Scale SVG and images to fit exactly */
+                                        svg { 
+                                            width: 100%;
+                                            height: 100%;
+                                            display: block;
                                         }
-                                        /* Scale content to fit if needed */
-                                        svg, img, table { 
-                                            max-width: 100% !important; 
-                                            height: auto !important; 
+                                        
+                                        img { 
+                                            max-width: 100%; 
+                                            height: auto; 
+                                        }
+                                        
+                                        /* Ensure tables fill the space */
+                                        table {
+                                            border-collapse: collapse;
+                                            width: 100%;
                                         }
                                     </style>
                                 </head>
@@ -246,18 +269,17 @@ const DeliveryNote = () => {
                                         ${printContent}
                                     </div>
                                     <script>
+                                        // Auto-trigger print dialog after content loads
                                         function doPrint() {
-                                            // Ensure styles and images are fully processed
                                             setTimeout(() => {
                                                 window.print();
-                                                // Optional: close after print dialog is closed
-                                                // setTimeout(() => window.close(), 1000);
-                                            }, 1000);
+                                            }, 500);
                                         }
+                                        
                                         if (document.readyState === 'complete') {
                                             doPrint();
                                         } else {
-                                            window.onload = doPrint;
+                                            window.addEventListener('load', doPrint);
                                         }
                                     </script>
                                 </body>
