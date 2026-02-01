@@ -385,9 +385,58 @@ const DeliveryNote = () => {
                 .select('id, reference, order_id, status_id, tracking_code, status_label, external_id, provider_id')
                 .eq(noteIdField, selectedNote.id);
 
+            // Fetch real-time status for each parcel from provider
+            let updatedParcels = parcels || [];
+            if (isCompanyNote && providerInfo?.provider_type && parcels && parcels.length > 0) {
+                try {
+                    const { data: { session } } = await supabase.auth.getSession();
+
+                    // Fetch real-time status for each parcel
+                    const statusPromises = parcels.map(async (parcel) => {
+                        if (!parcel.tracking_code) return parcel;
+
+                        try {
+                            const response = await fetch(EDGE_FUNCTION_URL, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${session?.access_token}`
+                                },
+                                body: JSON.stringify({
+                                    action: 'get_parcel_info',
+                                    provider_id: selectedNote.provider_id,
+                                    data: {
+                                        tracking_code: parcel.tracking_code
+                                    }
+                                })
+                            });
+
+                            if (response.ok) {
+                                const result = await response.json();
+                                if (result.success && result.data) {
+                                    return {
+                                        ...parcel,
+                                        real_time_status: result.data.status,
+                                        real_time_status_label: result.data.statusLabel,
+                                        real_time_status_color: result.data.statusColor
+                                    };
+                                }
+                            }
+                        } catch (err) {
+                            console.error('Failed to fetch real-time status for parcel:', parcel.tracking_code, err);
+                        }
+                        return parcel;
+                    });
+
+                    updatedParcels = await Promise.all(statusPromises);
+                } catch (error) {
+                    console.error('Error fetching real-time parcel statuses:', error);
+                }
+            }
+
             setNoteDetails({
                 provider: providerInfo,
-                parcels: parcels || []
+                parcels: updatedParcels
             });
         }
 
@@ -686,9 +735,21 @@ const DeliveryNote = () => {
                                                 <td className="px-6 py-4 font-bold text-sm text-brand-navy">{parcel.tracking_code || parcel.reference}</td>
                                                 <td className="px-6 py-4 text-xs font-medium text-muted-foreground">{parcel.order_id?.slice(0, 8)}</td>
                                                 <td className="px-6 py-4 text-center">
-                                                    <Badge className="bg-emerald-50 text-emerald-600 border-none text-[8px] font-black px-2 py-0.5 rounded-lg shadow-none">
-                                                        {parcel.status_label || parcel.status_id || 'Nouveau'}
-                                                    </Badge>
+                                                    {parcel.real_time_status_label ? (
+                                                        <Badge
+                                                            className="border-none text-[8px] font-black px-2 py-0.5 rounded-lg shadow-none"
+                                                            style={{
+                                                                backgroundColor: parcel.real_time_status_color ? `${parcel.real_time_status_color}15` : '#10b98115',
+                                                                color: parcel.real_time_status_color || '#10b981'
+                                                            }}
+                                                        >
+                                                            {parcel.real_time_status_label}
+                                                        </Badge>
+                                                    ) : (
+                                                        <Badge className="bg-emerald-50 text-emerald-600 border-none text-[8px] font-black px-2 py-0.5 rounded-lg shadow-none">
+                                                            {parcel.status_label || parcel.status_id || 'Nouveau'}
+                                                        </Badge>
+                                                    )}
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
                                                     {parcel.tracking_code && (

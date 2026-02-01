@@ -155,6 +155,11 @@ class ColiatyAdapter {
         }
         return { success: true };
     }
+
+    async getParcelInfo(trackingCode) {
+        // Coliaty implementation - to be added later
+        throw new Error('getParcelInfo not implemented for Coliaty yet');
+    }
 }
 
 class AmeexAdapter {
@@ -243,6 +248,63 @@ class AmeexAdapter {
         console.log('No tracking data found, returning empty array');
         return [];
     }
+
+    async getParcelInfo(trackingCode) {
+        // AMEEX API endpoint for parcel info
+        if (!trackingCode) {
+            throw new Error('AMEEX parcel info requires tracking code');
+        }
+
+        const response = await fetch(`${this.baseUrl}/customer/Delivery/Parcels/Info?ParcelCode=${trackingCode}`, {
+            method: 'GET',
+            headers: this.getAuthHeaders()
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Failed to get AMEEX parcel info: ${errorText}`);
+        }
+
+        const data = await response.json();
+
+        //AMEEX returns parcel info with current status
+        if (data && data.api && data.api.parcel) {
+            const parcel = data.api.parcel;
+
+            // Extract status name from badge HTML (e.g., "Attente De Ramassage")
+            let statusLabel = parcel.statut;
+            const badgeHtml = parcel.statut_badge_html || parcel.statut_s_badge_html || '';
+            const match = badgeHtml.match(/>([^<]+)</);
+            if (match && match[1]) {
+                // Remove any <hr> tags from the matched text
+                statusLabel = match[1].replace(/<hr[^>]*>/g, '').trim();
+            }
+
+            // Extract color from badge HTML style
+            let statusColor = null;
+            const colorMatch = badgeHtml.match(/--color:\s*([^;]+);/);
+            if (colorMatch && colorMatch[1]) {
+                statusColor = colorMatch[1].trim();
+            }
+
+            return {
+                tracking_code: parcel.code,
+                status: parcel.statut,
+                statusLabel: statusLabel,
+                statusColor: statusColor,
+                receiver: parcel.receiver,
+                phone: parcel.phone,
+                city: parcel.city_name,
+                address: parcel.address,
+                cod: parcel.cod,
+                created_at: parcel.c_time_str,
+                _original: parcel
+            };
+        }
+
+        return null;
+    }
+
 
     async getPrintUrl(deliveryNoteRef, labelFormat = 'Label_100_100') {
         // AMEEX uses GET endpoint for printing labels
@@ -398,6 +460,9 @@ Deno.serve(async (req) => {
         switch (action) {
             case 'track_parcel':
                 result = await adapter.trackParcel(data.tracking_code, data.external_id);
+                break;
+            case 'get_parcel_info':
+                result = await adapter.getParcelInfo(data.tracking_code);
                 break;
             case 'get_print_url':
                 const link = await adapter.getPrintUrl(data.delivery_note_ref, data.label_format);
