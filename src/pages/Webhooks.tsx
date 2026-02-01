@@ -108,14 +108,17 @@ const Webhooks = () => {
     const [searchQuery, setSearchQuery] = useState("");
     const { toast } = useToast();
     const queryClient = useQueryClient();
+    const activeBusinessId = localStorage.getItem('activeBusinessId');
 
     // --- Queries ---
     const { data: webhooks, isLoading: hooksLoading } = useQuery({
-        queryKey: ['provider_webhooks'],
+        queryKey: ['provider_webhooks', activeBusinessId],
         queryFn: async () => {
+            if (!activeBusinessId) return [];
             const { data, error } = await supabase
                 .from(WEBHOOKS_TABLE)
                 .select('*, providers(id, name, logo_url)')
+                .eq('DigiCom Business', activeBusinessId)
                 .order('created_at', { ascending: false });
             if (error) throw error;
             return (data as any[]) || [];
@@ -123,11 +126,13 @@ const Webhooks = () => {
     });
 
     const { data: logs, isLoading: logsLoading } = useQuery({
-        queryKey: ['webhook_logs'],
+        queryKey: ['webhook_logs', activeBusinessId],
         queryFn: async () => {
+            if (!activeBusinessId) return [];
             const { data, error } = await supabase
                 .from(LOGS_TABLE)
                 .select('*, providers(name)')
+                .eq('DigiCom Business', activeBusinessId)
                 .order('created_at', { ascending: false })
                 .limit(50);
             if (error) throw error;
@@ -136,12 +141,14 @@ const Webhooks = () => {
     });
 
     const { data: providers } = useQuery({
-        queryKey: ['providers'],
+        queryKey: ['providers', activeBusinessId],
         queryFn: async () => {
+            if (!activeBusinessId) return [];
             const { data, error } = await supabase
                 .from(PROVIDERS_TABLE)
                 .select('id, name, logo_url')
-                .eq('active', true);
+                .eq('active', true)
+                .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return (data as any[]) || [];
         }
@@ -151,10 +158,17 @@ const Webhooks = () => {
     const hookMutation = useMutation({
         mutationFn: async ({ values, id }: { values: WebhookValues, id?: string }) => {
             const fullGeneratedUrl = `${WEBHOOK_BASE_URL}/${values.provider_id}/${values.webhook_secret}`;
-            const dataToSave = { ...values, webhook_url: fullGeneratedUrl };
+            const dataToSave = {
+                ...values,
+                webhook_url: fullGeneratedUrl,
+                'DigiCom Business': activeBusinessId
+            };
 
             if (id) {
-                const { error } = await supabase.from(WEBHOOKS_TABLE).update(dataToSave as any).eq('id', id);
+                const { error } = await supabase.from(WEBHOOKS_TABLE)
+                    .update(dataToSave as any)
+                    .eq('id', id)
+                    .eq('DigiCom Business', activeBusinessId);
                 if (error) throw error;
             } else {
                 const { error } = await supabase.from(WEBHOOKS_TABLE).insert([dataToSave as any]);
@@ -162,7 +176,7 @@ const Webhooks = () => {
             }
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['provider_webhooks'] });
+            queryClient.invalidateQueries({ queryKey: ['provider_webhooks', activeBusinessId] });
             setIsHookModalOpen(false);
             setEditingItem(null);
             toast({ title: "Webhook Updated", description: "Changes saved successfully." });
@@ -171,11 +185,14 @@ const Webhooks = () => {
 
     const deleteMutation = useMutation({
         mutationFn: async ({ table, id }: { table: any, id: string }) => {
-            const { error } = await supabase.from(table).delete().eq('id', id);
+            const { error } = await supabase.from(table)
+                .delete()
+                .eq('id', id)
+                .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
         },
         onSuccess: (_, variables) => {
-            queryClient.invalidateQueries({ queryKey: [variables.table] });
+            queryClient.invalidateQueries({ queryKey: [variables.table, activeBusinessId] });
             toast({ title: "Removed", description: "Endpoint successfully deleted." });
         }
     });

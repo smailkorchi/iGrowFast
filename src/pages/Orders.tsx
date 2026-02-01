@@ -188,8 +188,9 @@ const Orders = () => {
 
     // --- Queries ---
     const { data: orders, isLoading } = useQuery({
-        queryKey: ['orders'],
+        queryKey: ['orders', activeBusinessId],
         queryFn: async () => {
+            if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('orders')
                 .select(`
@@ -200,6 +201,7 @@ const Orders = () => {
                     company:providers(id, name, logo_url),
                     items:order_items(*, product:products(name, code, image_url))
                 `)
+                .eq('DigiCom Business', activeBusinessId)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
@@ -229,18 +231,27 @@ const Orders = () => {
     });
 
     const { data: companies } = useQuery({
-        queryKey: ['companies-dropdown'],
+        queryKey: ['companies-dropdown', activeBusinessId],
         queryFn: async () => {
-            const { data, error } = await (supabase as any).from('providers').select('id, name').eq('active', true);
+            if (!activeBusinessId) return [];
+            const { data, error } = await (supabase as any)
+                .from('providers')
+                .select('id, name')
+                .eq('active', true)
+                .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data;
         }
     });
 
     const { data: courierZones } = useQuery({
-        queryKey: ['courier-zones-all'],
+        queryKey: ['courier-zones-all', activeBusinessId],
         queryFn: async () => {
-            const { data, error } = await (supabase as any).from('courier_zones').select('*');
+            if (!activeBusinessId) return [];
+            const { data, error } = await (supabase as any)
+                .from('courier_zones')
+                .select('*')
+                .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data;
         }
@@ -282,12 +293,14 @@ const Orders = () => {
     });
 
     const { data: orderStatuses } = useQuery({
-        queryKey: ['order-statuses-dropdown'],
+        queryKey: ['order-statuses-dropdown', activeBusinessId],
         queryFn: async () => {
+            if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('order_statuses')
                 .select('id, label, ranking, color')
                 .eq('active', true)
+                .eq('DigiCom Business', activeBusinessId)
                 .order('ranking', { ascending: true });
             if (error) throw error;
             return data;
@@ -295,12 +308,14 @@ const Orders = () => {
     });
 
     const { data: products } = useQuery({
-        queryKey: ['products-dropdown'],
+        queryKey: ['products-dropdown', activeBusinessId],
         queryFn: async () => {
+            if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('products')
                 .select('id, name, code, selling_price')
                 .eq('active', true)
+                .eq('DigiCom Business', activeBusinessId)
                 .order('name');
             if (error) throw error;
             return data;
@@ -426,7 +441,8 @@ const Orders = () => {
                     company_id: values.company_id,
                     price: totalPrice + values.shipping_cost,
                     raw_price: totalPrice,
-                    date: new Date().toISOString()
+                    date: new Date().toISOString(),
+                    'DigiCom Business': activeBusinessId
                 })
                 .select()
                 .single();
@@ -438,7 +454,8 @@ const Orders = () => {
                 order_id: order.id,
                 product_id: item.product_id,
                 quantity: item.quantity,
-                unit_price: item.unit_price
+                unit_price: item.unit_price,
+                'DigiCom Business': activeBusinessId
             }));
 
             const { error: itemsError } = await (supabase as any)
@@ -450,7 +467,7 @@ const Orders = () => {
             return order;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['orders'] });
+            queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
             setIsAddModalOpen(false);
             form.reset();
             toast({ title: "Order Created", description: "Successfully logged new order." });
@@ -487,7 +504,8 @@ const Orders = () => {
                     raw_price: totalPrice,
                     updated_at: new Date().toISOString()
                 })
-                .eq('id', selectedOrder.id);
+                .eq('id', selectedOrder.id)
+                .eq('DigiCom Business', activeBusinessId);
 
             if (orderError) throw orderError;
 
@@ -503,7 +521,8 @@ const Orders = () => {
                 order_id: selectedOrder.id,
                 product_id: item.product_id,
                 quantity: item.quantity,
-                unit_price: item.unit_price
+                unit_price: item.unit_price,
+                'DigiCom Business': activeBusinessId
             }));
 
             const { error: itemsError } = await (supabase as any)
@@ -513,7 +532,7 @@ const Orders = () => {
             if (itemsError) throw itemsError;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['orders'] });
+            queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
             setIsEditModalOpen(false);
             setSelectedOrder(null);
             toast({ title: "Order Updated", description: "Changes saved successfully." });
@@ -525,11 +544,15 @@ const Orders = () => {
 
     const deleteOrderMutation = useMutation({
         mutationFn: async (id: string) => {
-            const { error } = await (supabase as any).from('orders').delete().eq('id', id);
+            const { error } = await (supabase as any)
+                .from('orders')
+                .delete()
+                .eq('id', id)
+                .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['orders'] });
+            queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
             toast({ title: "Order Deleted", description: "Order removed from history." });
         },
         onError: (error: any) => {

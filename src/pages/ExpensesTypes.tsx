@@ -80,14 +80,17 @@ const ExpensesTypes = () => {
 
     const { toast } = useToast();
     const queryClient = useQueryClient();
+    const activeBusinessId = localStorage.getItem('activeBusinessId');
 
     // --- Queries ---
     const { data: expenseTypes, isLoading } = useQuery({
-        queryKey: ['expense_types'],
+        queryKey: ['expense_types', activeBusinessId],
         queryFn: async () => {
+            if (!activeBusinessId) return [];
             const { data, error } = await (supabase
                 .from('expense_types' as any)
                 .select('*')
+                .eq('DigiCom Business', activeBusinessId)
                 .order('name', { ascending: true }) as any);
 
             if (error) throw error;
@@ -120,7 +123,10 @@ const ExpensesTypes = () => {
             } else {
                 const { data, error } = await (supabase
                     .from('expense_types' as any)
-                    .insert(values) as any)
+                    .insert({
+                        ...values,
+                        'DigiCom Business': activeBusinessId
+                    }) as any)
                     .select()
                     .single();
                 if (error) throw error;
@@ -128,7 +134,7 @@ const ExpensesTypes = () => {
             }
         },
         onSuccess: (data: any) => {
-            queryClient.invalidateQueries({ queryKey: ['expense_types'] });
+            queryClient.invalidateQueries({ queryKey: ['expense_types', activeBusinessId] });
             setIsUpsertOpen(false);
             setEditingType(null);
             toast({
@@ -146,11 +152,12 @@ const ExpensesTypes = () => {
             const { error } = await (supabase
                 .from('expense_types' as any)
                 .delete()
-                .eq('id', id) as any);
+                .eq('id', id)
+                .eq('DigiCom Business', activeBusinessId) as any);
             if (error) throw error;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['expense_types'] });
+            queryClient.invalidateQueries({ queryKey: ['expense_types', activeBusinessId] });
             setTypeToDelete(null);
             toast({ title: "Type deleted", description: "The expense type was successfully removed." });
         },

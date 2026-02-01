@@ -50,6 +50,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
     const { data: zones } = useQuery({
         queryKey: ['zones-with-confirmed-orders'],
         queryFn: async () => {
+            if (!activeBusinessId) return [];
             const { data: confirmedStatus } = await supabase
                 .from('order_statuses')
                 .select('id')
@@ -68,11 +69,13 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                         id,
                         orders!inner(
                             id,
-                            company_id
+                            company_id,
+                            "DigiCom Business"
                         )
                     )
                 `)
-                .eq('cities.orders.order_status_id', confirmedStatus.id);
+                .eq('cities.orders.order_status_id', confirmedStatus.id)
+                .eq('cities.orders.DigiCom Business', activeBusinessId);
 
             if (error) throw error;
 
@@ -109,6 +112,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                 `)
                 .eq('order_status_id', confirmedStatus.id)
                 .eq('city.zone_id', selectedZoneId)
+                .eq('DigiCom Business', activeBusinessId)
                 .not('company_id', 'is', null);
 
             if (error) throw error;

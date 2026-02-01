@@ -95,16 +95,19 @@ const Status = () => {
 
     const { toast } = useToast();
     const queryClient = useQueryClient();
+    const activeBusinessId = localStorage.getItem('activeBusinessId');
 
     const table = activeTab === "orders" ? "order_statuses" : "package_statuses";
 
     // --- Queries ---
     const { data: statuses, isLoading } = useQuery({
-        queryKey: ['statuses', activeTab],
+        queryKey: ['statuses', activeTab, activeBusinessId],
         queryFn: async () => {
+            if (!activeBusinessId) return [];
             const { data, error } = await supabase
                 .from(table)
                 .select('*')
+                .eq('DigiCom Business', activeBusinessId)
                 .order('ranking', { ascending: true });
 
             if (error) throw error;
@@ -147,6 +150,7 @@ const Status = () => {
                 recheck: values.recheck,
                 active: values.active,
                 delivery_service_statuses: deliveryStatuses,
+                'DigiCom Business': activeBusinessId,
             };
 
             if (editingStatus) {
@@ -169,7 +173,7 @@ const Status = () => {
             }
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['statuses', activeTab] });
+            queryClient.invalidateQueries({ queryKey: ['statuses', activeTab, activeBusinessId] });
             setIsUpsertOpen(false);
             setEditingStatus(null);
             toast({
@@ -187,11 +191,12 @@ const Status = () => {
             const { error } = await supabase
                 .from(table as any)
                 .delete()
-                .eq('id', id);
+                .eq('id', id)
+                .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['statuses', activeTab] });
+            queryClient.invalidateQueries({ queryKey: ['statuses', activeTab, activeBusinessId] });
             setStatusToDelete(null);
             toast({ title: "Status deleted", description: "The status was successfully removed." });
         },

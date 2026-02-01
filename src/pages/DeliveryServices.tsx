@@ -148,11 +148,13 @@ const DeliveryServices = () => {
     });
 
     const { data: companies, isLoading: isLoadingCompanies } = useQuery({
-        queryKey: ['providers'],
+        queryKey: ['providers', activeBusinessId],
         queryFn: async () => {
+            if (!activeBusinessId) return [];
             const { data, error } = await supabase
                 .from(PROVIDERS_TABLE)
                 .select('*')
+                .eq('DigiCom Business', activeBusinessId)
                 .order('created_at', { ascending: false });
             if (error) throw error;
             return (data as any[]) || [];
@@ -199,17 +201,30 @@ const DeliveryServices = () => {
     const companyMutation = useMutation({
         mutationFn: async ({ values, id }: { values: DeliveryCompanyValues, id?: string }) => {
             if (id) {
-                const { data, error } = await supabase.from(PROVIDERS_TABLE).update(values as any).eq('id', id).select().single();
+                const { data, error } = await supabase
+                    .from(PROVIDERS_TABLE)
+                    .update(values as any)
+                    .eq('id', id)
+                    .eq('DigiCom Business', activeBusinessId)
+                    .select()
+                    .single();
                 if (error) throw error;
                 return data;
             } else {
-                const { data, error } = await supabase.from(PROVIDERS_TABLE).insert([values as any]).select().single();
+                const { data, error } = await supabase
+                    .from(PROVIDERS_TABLE)
+                    .insert([{
+                        ...values as any,
+                        'DigiCom Business': activeBusinessId
+                    }])
+                    .select()
+                    .single();
                 if (error) throw error;
                 return data;
             }
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['providers'] });
+            queryClient.invalidateQueries({ queryKey: ['providers', activeBusinessId] });
             setIsCompanyModalOpen(false);
             setEditingItem(null);
             toast({ title: "Success", description: "Delivery company saved." });
@@ -227,12 +242,16 @@ const DeliveryServices = () => {
                 });
                 if (error) throw error;
             } else {
-                const { error } = await supabase.from(PROVIDERS_TABLE).delete().eq('id', id);
+                const { error } = await supabase
+                    .from(PROVIDERS_TABLE)
+                    .delete()
+                    .eq('id', id)
+                    .eq('DigiCom Business', activeBusinessId);
                 if (error) throw error;
             }
         },
         onSuccess: (_, variables) => {
-            queryClient.invalidateQueries({ queryKey: [variables.type === 'person' ? 'users' : 'providers'] });
+            queryClient.invalidateQueries({ queryKey: [variables.type === 'person' ? 'users' : 'providers', activeBusinessId] });
             toast({ title: "Deleted", description: "Entry removed successfully." });
         }
     });
@@ -877,6 +896,7 @@ function CompanyModal({ isOpen, onClose, onSubmit, initialData, loading }: any) 
 function ZonesModal({ isOpen, onClose, courier }: any) {
     const queryClient = useQueryClient();
     const { toast } = useToast();
+    const activeBusinessId = localStorage.getItem('activeBusinessId');
 
     const { data: allZones } = useQuery({
         queryKey: ['zones'],
@@ -889,9 +909,14 @@ function ZonesModal({ isOpen, onClose, courier }: any) {
     });
 
     const { data: assignedZones, isLoading } = useQuery({
-        queryKey: ['courier_zones', courier?.id],
+        queryKey: ['courier_zones', courier?.id, activeBusinessId],
         queryFn: async () => {
-            const { data, error } = await supabase.from(COURIER_ZONES_TABLE).select('zone_id').eq('courier_id', courier.id);
+            if (!activeBusinessId) return [];
+            const { data, error } = await supabase
+                .from(COURIER_ZONES_TABLE)
+                .select('zone_id')
+                .eq('courier_id', courier.id)
+                .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data.map((z: any) => z.zone_id);
         },
@@ -902,13 +927,24 @@ function ZonesModal({ isOpen, onClose, courier }: any) {
         mutationFn: async (zoneId: string) => {
             const isAssigned = assignedZones?.includes(zoneId);
             if (isAssigned) {
-                await supabase.from(COURIER_ZONES_TABLE).delete().eq('courier_id', courier.id).eq('zone_id', zoneId);
+                await supabase
+                    .from(COURIER_ZONES_TABLE)
+                    .delete()
+                    .eq('courier_id', courier.id)
+                    .eq('zone_id', zoneId)
+                    .eq('DigiCom Business', activeBusinessId);
             } else {
-                await supabase.from(COURIER_ZONES_TABLE).insert({ courier_id: courier.id, zone_id: zoneId });
+                await supabase
+                    .from(COURIER_ZONES_TABLE)
+                    .insert({
+                        courier_id: courier.id,
+                        zone_id: zoneId,
+                        'DigiCom Business': activeBusinessId
+                    });
             }
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['courier_zones', courier?.id] });
+            queryClient.invalidateQueries({ queryKey: ['courier_zones', courier?.id, activeBusinessId] });
             toast({ title: "Updated", description: "Courier's service zones updated." });
         }
     });

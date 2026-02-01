@@ -582,11 +582,13 @@ const DeliveryNote = () => {
 
     // Fetch courier delivery notes
     const { data: courierNotes, isLoading: loadingCourier } = useQuery({
-        queryKey: ['courier-delivery-notes'],
+        queryKey: ['courier-delivery-notes', activeBusinessId],
         queryFn: async () => {
+            if (!activeBusinessId) return [];
             const { data, error } = await supabase
                 .from('courier_delivery_notes')
                 .select('*')
+                .eq('DigiCom Business', activeBusinessId)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;

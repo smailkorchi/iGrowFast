@@ -90,14 +90,17 @@ const Products = () => {
 
     const { toast } = useToast();
     const queryClient = useQueryClient();
+    const activeBusinessId = localStorage.getItem('activeBusinessId');
 
     // --- Queries ---
     const { data: products, isLoading } = useQuery({
-        queryKey: ['products'],
+        queryKey: ['products', activeBusinessId],
         queryFn: async () => {
+            if (!activeBusinessId) return [];
             const { data, error } = await supabase
                 .from('products')
                 .select('*')
+                .eq('DigiCom Business', activeBusinessId)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
@@ -145,6 +148,7 @@ const Products = () => {
                 selling_price: values.selling_price,
                 active: values.active,
                 image_url: values.image_url || null,
+                'DigiCom Business': activeBusinessId
             };
 
             if (editingProduct) {
@@ -167,7 +171,7 @@ const Products = () => {
             }
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['products'] });
+            queryClient.invalidateQueries({ queryKey: ['products', activeBusinessId] });
             setIsModalOpen(false);
             setEditingProduct(null);
             toast({
@@ -185,12 +189,13 @@ const Products = () => {
             const { error } = await supabase
                 .from('products')
                 .delete()
-                .eq('id', id);
+                .eq('id', id)
+                .eq('DigiCom Business', activeBusinessId);
 
             if (error) throw error;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['products'] });
+            queryClient.invalidateQueries({ queryKey: ['products', activeBusinessId] });
             setProductToDelete(null);
             toast({ title: "Product deleted", description: "The product was successfully removed." });
         },

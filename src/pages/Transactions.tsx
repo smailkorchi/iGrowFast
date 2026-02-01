@@ -102,11 +102,13 @@ const Transactions = () => {
 
     const { toast } = useToast();
     const queryClient = useQueryClient();
+    const activeBusinessId = localStorage.getItem('activeBusinessId');
 
     // --- Queries ---
     const { data: transactions, isLoading } = useQuery({
-        queryKey: ['transactions'],
+        queryKey: ['transactions', activeBusinessId],
         queryFn: async () => {
+            if (!activeBusinessId) return [];
             const { data, error } = await supabase
                 .from('transactions')
                 .select(`
@@ -114,6 +116,7 @@ const Transactions = () => {
                     items:trns_purchase(*, product:products(name, code)),
                     payments:trns_payment(*)
                 `)
+                .eq('DigiCom Business', activeBusinessId)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
@@ -122,11 +125,13 @@ const Transactions = () => {
     });
 
     const { data: products } = useQuery({
-        queryKey: ['products-minimal'],
+        queryKey: ['products-minimal', activeBusinessId],
         queryFn: async () => {
+            if (!activeBusinessId) return [];
             const { data, error } = await supabase
                 .from('products')
                 .select('id, name, code, cost_price')
+                .eq('DigiCom Business', activeBusinessId)
                 .eq('active', true);
             if (error) throw error;
             return data;
@@ -174,6 +179,7 @@ const Transactions = () => {
                     address: values.address,
                     note: values.note,
                     date: values.date,
+                    'DigiCom Business': activeBusinessId
                 })
                 .select()
                 .single();
@@ -185,7 +191,8 @@ const Transactions = () => {
                 transaction_id: tx.id,
                 product_id: item.product_id,
                 quantity: item.quantity,
-                sub_total: item.quantity * item.unit_price
+                sub_total: item.quantity * item.unit_price,
+                'DigiCom Business': activeBusinessId
             }));
 
             const { error: itemsError } = await supabase
@@ -197,8 +204,8 @@ const Transactions = () => {
             return tx;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['transactions'] });
-            queryClient.invalidateQueries({ queryKey: ['products'] }); // Stock changed
+            queryClient.invalidateQueries({ queryKey: ['transactions', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['products', activeBusinessId] }); // Stock changed
             setIsAddModalOpen(false);
             transactionForm.reset();
             toast({ title: "Transaction Created", description: "Purchases and stock updated successfully." });
@@ -216,7 +223,8 @@ const Transactions = () => {
                     transaction_id: selectedTransaction.id,
                     amount: values.amount,
                     method: values.method,
-                    date: values.date
+                    date: values.date,
+                    'DigiCom Business': activeBusinessId
                 })
                 .select()
                 .single();
@@ -225,7 +233,7 @@ const Transactions = () => {
             return data;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['transactions'] });
+            queryClient.invalidateQueries({ queryKey: ['transactions', activeBusinessId] });
             setIsPaymentModalOpen(false);
             paymentForm.reset();
             toast({ title: "Payment Added", description: "Ledger updated successfully." });

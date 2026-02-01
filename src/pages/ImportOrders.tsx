@@ -45,7 +45,8 @@ import {
 
 // --- Types & Constants ---
 const PAGE_SIZE = 500;
-const DEFAULT_STATUS_ID = 'deb5c74e-95f3-41a8-8446-c9b831792cca'; // NOUVELLE COMMANDE
+// Default status code for new imports
+const DEFAULT_STATUS_CODE = 'NEW';
 const TEMPLATE_URL = 'https://zjkqprrfbibjoslvlmxf.supabase.co/storage/v1/object/public/documents/Orders%20Model.xlsx';
 
 interface RawRow {
@@ -88,7 +89,12 @@ const ImportOrders = () => {
     const { data: cities } = useQuery({
         queryKey: ['cities'],
         queryFn: async () => {
-            const { data, error } = await (supabase as any).from('cities').select('id, name, zone_id');
+            if (!activeBusinessId) return [];
+            const { data, error } = await (supabase as any)
+                .from('cities')
+                .select('id, name, zone_id')
+                .eq('DigiCom Business', activeBusinessId)
+                .order('name');
             if (error) throw error;
             return data;
         }
@@ -97,7 +103,11 @@ const ImportOrders = () => {
     const { data: products } = useQuery({
         queryKey: ['products'],
         queryFn: async () => {
-            const { data, error } = await (supabase as any).from('products').select('id, code, name');
+            if (!activeBusinessId) return [];
+            const { data, error } = await (supabase as any)
+                .from('products')
+                .select('id, code, name')
+                .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data;
         }
@@ -113,9 +123,13 @@ const ImportOrders = () => {
     });
 
     const { data: companies } = useQuery({
-        queryKey: ['companies-all'],
+        queryKey: ['companies-all', activeBusinessId],
         queryFn: async () => {
-            const { data, error } = await (supabase as any).from('providers').select('id, name');
+            if (!activeBusinessId) return [];
+            const { data, error } = await (supabase as any)
+                .from('providers')
+                .select('id, name')
+                .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data;
         }
@@ -124,7 +138,11 @@ const ImportOrders = () => {
     const { data: courierZones } = useQuery({
         queryKey: ['courier-zones-all'],
         queryFn: async () => {
-            const { data, error } = await (supabase as any).from('courier_zones').select('*');
+            if (!activeBusinessId) return [];
+            const { data, error } = await (supabase as any)
+                .from('courier_zones')
+                .select('*')
+                .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data;
         }
@@ -133,10 +151,30 @@ const ImportOrders = () => {
     const { data: companyZones } = useQuery({
         queryKey: ['company-zones-all'],
         queryFn: async () => {
-            const { data, error } = await (supabase as any).from('company_zones').select('*');
+            if (!activeBusinessId) return [];
+            const { data, error } = await (supabase as any)
+                .from('company_zones')
+                .select('*')
+                .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data;
         }
+    });
+
+    const { data: defaultStatus } = useQuery({
+        queryKey: ['default-order-status', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return null;
+            const { data, error } = await (supabase as any)
+                .from('order_statuses')
+                .select('id')
+                .eq('code', DEFAULT_STATUS_CODE)
+                .eq('DigiCom Business', activeBusinessId)
+                .single();
+            if (error) return null;
+            return data;
+        },
+        enabled: !!activeBusinessId
     });
 
     const { data: courierFees } = useQuery({
@@ -229,10 +267,11 @@ const ImportOrders = () => {
                     delivery_note: order.delivery_note,
                     source_name: order.source,
                     replace: order.is_exchange,
-                    order_status_id: DEFAULT_STATUS_ID,
+                    order_status_id: defaultStatus?.id,
                     date: new Date().toISOString().split('T')[0],
                     courier_id: bestProviderType === 'courier' ? bestProviderId : null,
                     company_id: bestProviderType === 'company' ? bestProviderId : null,
+                    'DigiCom Business': activeBusinessId
                 }).select().single();
 
                 if (orderError) {
@@ -247,6 +286,7 @@ const ImportOrders = () => {
                         product_id: order.product_id,
                         quantity: order.quantity,
                         unit_price: order.price,
+                        'DigiCom Business': activeBusinessId
                     });
                     if (itemError) console.error("Failed to add items to order", orderData.id, itemError);
                 }

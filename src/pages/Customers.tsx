@@ -99,11 +99,13 @@ const Customers = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
     const [sortBy, setSortBy] = useState<'recency' | 'value' | 'frequency'>('recency');
+    const activeBusinessId = localStorage.getItem('activeBusinessId');
 
     // --- Data Fetching ---
     const { data: customers, isLoading } = useQuery({
-        queryKey: ['customers-derived'],
+        queryKey: ['customers-derived', activeBusinessId],
         queryFn: async () => {
+            if (!activeBusinessId) return [];
             // Fetch all orders with necessary fields
             const { data: orders, error } = await supabase
                 .from('orders')
@@ -119,6 +121,7 @@ const Customers = () => {
                     city:cities(name),
                     status:order_statuses(label, color)
                 `)
+                .eq('DigiCom Business', activeBusinessId)
                 .order('date', { ascending: false });
 
             if (error) throw error;

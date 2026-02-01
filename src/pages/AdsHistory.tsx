@@ -135,11 +135,13 @@ const AdsHistory = () => {
     });
 
     const { data: products } = useQuery({
-        queryKey: ['products'],
+        queryKey: ['products', activeBusinessId],
         queryFn: async () => {
+            if (!activeBusinessId) return [];
             const { data, error } = await supabase
                 .from('products')
                 .select('id, name, code')
+                .eq('DigiCom Business', activeBusinessId)
                 .order('name');
             if (error) throw error;
             return data;
@@ -189,7 +191,7 @@ const AdsHistory = () => {
             }
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['ads_history'] });
+            queryClient.invalidateQueries({ queryKey: ['ads_history', activeBusinessId] });
             setIsUpsertOpen(false);
             setEditingHistory(null);
             toast({

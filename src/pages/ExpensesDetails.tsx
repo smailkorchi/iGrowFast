@@ -96,14 +96,17 @@ const ExpensesDetails = () => {
 
     const { toast } = useToast();
     const queryClient = useQueryClient();
+    const activeBusinessId = localStorage.getItem('activeBusinessId');
 
     // --- Queries ---
     const { data: expenses, isLoading: isExpensesLoading } = useQuery({
-        queryKey: ['expenses'],
+        queryKey: ['expenses', activeBusinessId],
         queryFn: async () => {
+            if (!activeBusinessId) return [];
             const { data, error } = await (supabase
                 .from('expenses' as any)
                 .select('*, expense_types(name)')
+                .eq('DigiCom Business', activeBusinessId)
                 .order('date', { ascending: false }) as any);
 
             if (error) throw error;
@@ -112,12 +115,14 @@ const ExpensesDetails = () => {
     });
 
     const { data: expenseTypes } = useQuery({
-        queryKey: ['expense_types'],
+        queryKey: ['expense_types', activeBusinessId],
         queryFn: async () => {
+            if (!activeBusinessId) return [];
             const { data, error } = await (supabase
                 .from('expense_types' as any)
                 .select('*')
                 .eq('active', true)
+                .eq('DigiCom Business', activeBusinessId)
                 .order('name', { ascending: true }) as any);
 
             if (error) throw error;
@@ -157,7 +162,10 @@ const ExpensesDetails = () => {
             } else {
                 const { data, error } = await (supabase
                     .from('expenses' as any)
-                    .insert(payload) as any)
+                    .insert({
+                        ...payload,
+                        'DigiCom Business': activeBusinessId
+                    }) as any)
                     .select()
                     .single();
                 if (error) throw error;
@@ -165,7 +173,7 @@ const ExpensesDetails = () => {
             }
         },
         onSuccess: (data: any) => {
-            queryClient.invalidateQueries({ queryKey: ['expenses'] });
+            queryClient.invalidateQueries({ queryKey: ['expenses', activeBusinessId] });
             setIsUpsertOpen(false);
             setEditingExpense(null);
             toast({
@@ -183,11 +191,12 @@ const ExpensesDetails = () => {
             const { error } = await (supabase
                 .from('expenses' as any)
                 .delete()
-                .eq('id', id) as any);
+                .eq('id', id)
+                .eq('DigiCom Business', activeBusinessId) as any);
             if (error) throw error;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['expenses'] });
+            queryClient.invalidateQueries({ queryKey: ['expenses', activeBusinessId] });
             setExpenseToDelete(null);
             toast({ title: "Expense deleted", description: "The record has been permanently removed." });
         },
