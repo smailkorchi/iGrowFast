@@ -95,7 +95,8 @@ class ColiatyAdapter {
             package_price: parcelData.cash_on_delivery || parcelData.cod_amount || 0,
             package_addresse: parcelData.receiver_address || parcelData.delivery_address,
             package_city: parcelData.city_name,  // Coliaty uses CITY NAME, not ID!
-            package_content: parcelData.note || parcelData.notes || '',
+            package_content: parcelData.product_info || '',
+            package_note: parcelData.delivery_note || '',
             package_no_open: parcelData.no_open || false,
             package_replacement: parcelData.replaceable || false,
             package_old_tracking: parcelData.old_tracking || ''
@@ -558,9 +559,9 @@ class AmeexAdapter {
         console.log('Using AMEEX city code:', cityCode);
         formData.append('city', cityCode);
 
-        const comment = parcelData.note || parcelData.notes || '';
+        const comment = parcelData.delivery_note || '';
         formData.append('comment', comment);
-        formData.append('product', parcelData.product_name || '');
+        formData.append('product', parcelData.product_info || '');
         formData.append('fragile', parcelData.fragile || '0');
         formData.append('open', parcelData.open || 'NO');
         formData.append('try', parcelData.try || 'NO');

@@ -154,7 +154,9 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                         city_id: order.city?.id,
                         city_name: order.city?.name,
                         ameex_city_code: (order.city as any)?.ameex_code,
-                        notes: `Orders - Products: ${order.items?.map((i: any) => i.product?.code || 'P').join(', ')}`,
+                        product_info: order.items?.map((i: any) => `${i.product?.code || 'P'} x${i.quantity || 1}`).join(', '),
+                        note: order.note || '', // Internal note
+                        delivery_note: order.delivery_note || '', // Public note for courier
                         replaceable: order.replace || false,
                     };
 
