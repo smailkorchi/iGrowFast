@@ -39,15 +39,29 @@ class ColiatyAdapter {
     }
 
     async trackParcel(code, externalId) {
-        const response = await fetch(`${this.baseUrl}/parcel/history/${code}?include=status`, {
+        const response = await fetch(`${this.baseUrl}/parcel/history/${code}`, {
             headers: { Authorization: this.getAuthHeader() }
         });
         if (!response.ok) {
             const errorText = await response.text();
             throw new Error(`Failed to track parcel: ${errorText}`);
         }
-        const data = await response.json();
-        return data.data || [];
+        const result = await response.json();
+        // Coliaty returns { success, data: { package_code, details: [] } }
+        const details = result.data?.details || [];
+
+        // Transform Coliaty format to match frontend expectations
+        return details.map((event: any) => ({
+            status: event.HISTORY_STATUS,
+            date: event.HISTORY_STATUS_DATE
+                ? new Date(parseInt(event.HISTORY_STATUS_DATE) * 1000).toISOString()
+                : (event.HISTORY_TIMESTAMP
+                    ? new Date(parseInt(event.HISTORY_TIMESTAMP) * 1000).toISOString()
+                    : null),
+            comment: event.HISTORY_COMMENT || '',
+            user: event.HISTORY_LIVREUR?.name || event.HISTORY_ACTOR?.name || '',
+            _original: event
+        }));
     }
 
     async getPrintUrl(deliveryNoteRef, labelFormat = '10x10') {
