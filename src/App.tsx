@@ -26,6 +26,7 @@ import Cities from "./pages/Cities";
 import Zones from "./pages/Zones";
 import Profile from "./pages/Profile";
 import Webhooks from "./pages/Webhooks";
+import Businesses from "./pages/Businesses";
 import AppLayout from "./components/layout/AppLayout";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 
@@ -61,6 +62,7 @@ const App = () => (
                   <Route path="/ads-history" element={<AdsHistory />} />
                   <Route path="/expenses-details" element={<ExpensesDetails />} />
                   <Route path="/expenses-types" element={<ExpensesTypes />} />
+                  <Route path="/businesses" element={<Businesses />} />
                   <Route path="/cities" element={<Cities />} />
                   <Route path="/zones" element={<Zones />} />
                   <Route path="/profile" element={<Profile />} />

@@ -29,7 +29,8 @@ import {
     CheckCircle,
     ChevronRight,
     Target,
-    Zap
+    Zap,
+    Building2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -93,6 +94,7 @@ const navigation: NavSection[] = [
     {
         label: 'Settings',
         items: [
+            { icon: Building2, label: 'Businesses', path: '/businesses' },
             { icon: MapPin, label: 'Cities', path: '/cities' },
             { icon: Map, label: 'Zones', path: '/zones' },
             { icon: Download, label: 'Import Orders', path: '/import-orders' },
@@ -103,7 +105,7 @@ const navigation: NavSection[] = [
 const Sidebar = () => {
     const navigate = useNavigate();
 
-    const { data: profile, isLoading } = useQuery({
+    const { data: profile, isLoading: isProfileLoading } = useQuery({
         queryKey: ['current-profile'],
         queryFn: async () => {
             const { data: { user } } = await supabase.auth.getUser();
@@ -119,6 +121,25 @@ const Sidebar = () => {
             return data;
         }
     });
+
+    const { data: business, isLoading: isBusinessLoading } = useQuery({
+        queryKey: ['current-business', profile?.id],
+        enabled: !!profile?.id,
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('businesses')
+                .select('*')
+                .eq('creator_id', profile.id)
+                .eq('active', true)
+                .limit(1)
+                .maybeSingle();
+
+            if (error) return null;
+            return data;
+        }
+    });
+
+    const isLoading = isProfileLoading || (!!profile?.id && isBusinessLoading);
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -191,20 +212,35 @@ const Sidebar = () => {
                             isActive ? "bg-brand-white/20 text-brand-white" : "text-brand-white/60 hover:text-brand-white"
                         )}
                     >
-                        <div className="w-[52px] h-14 flex items-center justify-center shrink-0">
-                            <div className="w-9 h-9 rounded-full overflow-hidden border border-brand-white/20 bg-brand-blue flex items-center justify-center">
-                                {isLoading ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : profile?.avatar_url ? (
-                                    <img src={profile.avatar_url} className="w-full h-full object-cover" alt="" />
-                                ) : (
-                                    <UserIcon className="w-5 h-5 text-brand-white" />
+                        <div className="flex items-center gap-3">
+                            <div className="w-[52px] h-14 flex items-center justify-center shrink-0">
+                                <div className="w-9 h-9 rounded-full overflow-hidden border border-brand-white/20 bg-brand-blue flex items-center justify-center">
+                                    {isLoading ? (
+                                        <Loader2 className="w-4 h-4 animate-spin text-brand-white" />
+                                    ) : profile?.avatar_url ? (
+                                        <img src={profile.avatar_url} className="w-full h-full object-cover" alt="" />
+                                    ) : (
+                                        <UserIcon className="w-5 h-5 text-brand-white" />
+                                    )}
+                                </div>
+                            </div>
+                            <div className="flex flex-col opacity-0 group-hover:opacity-100 transition-opacity duration-300 overflow-hidden min-w-0">
+                                <span className="font-semibold text-sm whitespace-nowrap capitalize text-brand-white">{profile?.name || 'Loading...'}</span>
+                                <span className="text-[10px] text-brand-white/50 whitespace-nowrap uppercase tracking-wider">{profile?.role || 'User'}</span>
+
+                                {business && (
+                                    <div className="mt-1.5 pt-1.5 border-t border-brand-white/10 flex items-center gap-2">
+                                        <div className="w-4 h-4 rounded bg-brand-white/10 flex items-center justify-center overflow-hidden shrink-0">
+                                            {business.logo ? (
+                                                <img src={business.logo} alt="" className="w-full h-full object-contain" />
+                                            ) : (
+                                                <Building2 className="w-2.5 h-2.5 text-brand-white/40" />
+                                            )}
+                                        </div>
+                                        <span className="text-[9px] font-bold text-brand-white/40 truncate uppercase">{business.name}</span>
+                                    </div>
                                 )}
                             </div>
-                        </div>
-                        <div className="flex flex-col opacity-0 group-hover:opacity-100 transition-opacity duration-300 overflow-hidden">
-                            <span className="font-semibold text-sm whitespace-nowrap capitalize">{profile?.name || 'Loading...'}</span>
-                            <span className="text-[10px] text-brand-white/50 whitespace-nowrap uppercase">{profile?.role || 'User'}</span>
                         </div>
                     </NavLink>
                 </div>
