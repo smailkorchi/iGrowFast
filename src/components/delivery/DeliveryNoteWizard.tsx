@@ -179,7 +179,23 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
 
                     const result = await response.json();
 
-                    // Save to database
+                    // Map provider status to our internal package_statuses
+                    const providerStatus = result.data?.status || result.data?.label || result.data?.statusLabel || 'Nouveau';
+                    const providerColor = result.data?.statusColor || result.data?.color;
+                    let mappedStatusId = null;
+
+                    // Try to find matching status in package_statuses table for internal mapping
+                    const { data: matchedStatus } = await supabase
+                        .from('package_statuses')
+                        .select('id')
+                        .ilike('label', providerStatus)
+                        .single();
+
+                    if (matchedStatus) {
+                        mappedStatusId = matchedStatus.id;
+                    }
+
+                    // Save to database with mapped status_id and native color
                     const { data: parcel, error: parcelError } = await supabase
                         .from('company_parcels')
                         .insert({
@@ -187,10 +203,11 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                             order_id: order.id,
                             reference: result.data?.tracking_code || result.data?.reference || result.data?.bar_code || 'N/A',
                             tracking_code: result.data?.tracking_code || result.data?.reference || result.data?.bar_code,
-                            status_label: result.data?.status || result.data?.label || 'Nouveau',
+                            status_label: providerStatus,
+                            status_color: providerColor,
                             external_id: result.data?.id || String(result.data?.external_id || ''),
                             provider_response: result.data,
-                            status_id: null
+                            status_id: mappedStatusId
                         })
                         .select()
                         .single();
@@ -359,10 +376,37 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
             await createDeliveryNoteMutation.mutateAsync({ providerId, parcelCodes });
         }
 
+        // Update order statuses to 'PROCESSED'
+        try {
+            const { data: processedStatus } = await supabase
+                .from('order_statuses')
+                .select('id')
+                .eq('label', 'PROCESSED')
+                .single();
+
+            if (processedStatus) {
+                const successfulOrderIds = createdParcels
+                    .filter(p => !p.error && p.order?.id)
+                    .map(p => p.order.id);
+
+                if (successfulOrderIds.length > 0) {
+                    await supabase
+                        .from('orders')
+                        .update({ order_status_id: processedStatus.id })
+                        .in('id', successfulOrderIds);
+                }
+            }
+        } catch (error) {
+            console.error('Error updating order statuses:', error);
+        }
+
         queryClient.invalidateQueries({ queryKey: ['company-delivery-notes'] });
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        queryClient.invalidateQueries({ queryKey: ['confirmed-orders-by-zone'] });
+
         toast({
             title: "Success!",
-            description: `Created ${Object.keys(parcelsByProvider).length} delivery note(s)`
+            description: `Created ${Object.keys(parcelsByProvider).length} delivery note(s) and updated order statuses`
         });
 
         onOpenChange(false);

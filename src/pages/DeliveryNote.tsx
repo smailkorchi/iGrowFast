@@ -23,7 +23,9 @@ import {
     ArrowRightCircle,
     ChevronRight,
     SearchX,
-    Loader2
+    Loader2,
+    LayoutGrid,
+    List
 } from 'lucide-react';
 import {
     Card,
@@ -56,6 +58,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 import { DeliveryNoteWizard } from '@/components/delivery/DeliveryNoteWizard';
 
 const DeliveryNote = () => {
@@ -73,6 +76,7 @@ const DeliveryNote = () => {
     const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
     const [isTrackingLoading, setIsTrackingLoading] = useState(false);
     const [trackingParcel, setTrackingParcel] = useState<any>(null);
+    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
     const EDGE_FUNCTION_URL = "https://zjkqprrfbibjoslvlmxf.supabase.co/functions/v1/provider-integration";
 
@@ -119,6 +123,28 @@ const DeliveryNote = () => {
             if (result.success) {
                 console.log("Setting tracking history:", result.data);
                 setTrackingHistory(result.data);
+
+                // Persist status change to DB if available
+                const providerStatus = result.data?.statusLabel || result.data?.status || result.data?.current_status;
+                const providerColor = result.data?.statusColor || result.data?.color;
+
+                if (providerStatus) {
+                    // map to internal status
+                    const { data: matchedStatus } = await supabase
+                        .from('package_statuses')
+                        .select('id')
+                        .ilike('label', providerStatus)
+                        .single();
+
+                    await supabase
+                        .from('company_parcels')
+                        .update({
+                            status_id: matchedStatus?.id || null,
+                            status_label: providerStatus,
+                            status_color: providerColor
+                        })
+                        .eq('id', parcel.id);
+                }
             } else {
                 console.error("Tracking result failed:", result.error);
                 throw new Error(result.error || 'Unknown error');
@@ -468,11 +494,42 @@ const DeliveryNote = () => {
                             if (response.ok) {
                                 const result = await response.json();
                                 if (result.success && result.data) {
+                                    const providerStatus = result.data.statusLabel || result.data.status || 'Nouveau';
+                                    const providerColor = result.data.statusColor || result.data.color;
+                                    let mappedStatusId = parcel.status_id;
+
+                                    // Map provider status to internal package_statuses
+                                    const { data: matchedStatus } = await supabase
+                                        .from('package_statuses')
+                                        .select('id')
+                                        .ilike('label', providerStatus)
+                                        .single();
+
+                                    if (matchedStatus) {
+                                        mappedStatusId = matchedStatus.id;
+                                    }
+
+                                    // Persist to database if status or color changed
+                                    if (mappedStatusId !== parcel.status_id || providerStatus !== parcel.status_label || providerColor !== parcel.status_color) {
+                                        await supabase
+                                            .from('company_parcels')
+                                            .update({
+                                                status_id: mappedStatusId,
+                                                status_label: providerStatus,
+                                                status_color: providerColor,
+                                                provider_response: result.data // Update with latest info
+                                            })
+                                            .eq('id', parcel.id);
+                                    }
+
                                     return {
                                         ...parcel,
+                                        status_id: mappedStatusId,
+                                        status_label: providerStatus,
+                                        status_color: providerColor,
                                         real_time_status: result.data.status,
-                                        real_time_status_label: result.data.statusLabel,
-                                        real_time_status_color: result.data.statusColor
+                                        real_time_status_label: providerStatus,
+                                        real_time_status_color: providerColor || result.data.statusColor
                                     };
                                 }
                             }
@@ -670,6 +727,109 @@ const DeliveryNote = () => {
         );
     };
 
+    const renderNoteTable = (notes: any[], type: 'company' | 'courier') => (
+        <div className="bg-white/50 backdrop-blur-sm shadow-xl rounded-[32px] overflow-hidden border border-brand-navy/[0.03] mb-20 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                    <thead>
+                        <tr className="bg-brand-navy/[0.02]">
+                            <th className="p-6 text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Reference & Date</th>
+                            <th className="p-6 text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Provider / Courier</th>
+                            <th className="p-6 text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Shipment Info</th>
+                            <th className="p-6 text-[10px] font-black uppercase tracking-widest text-brand-navy/40 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-brand-navy/[0.03]">
+                        {notes.map((note) => {
+                            const provider = note.providers;
+                            const providerType = provider?.provider_type?.toLowerCase();
+                            const brandColor = providerType === 'coliaty' ? 'emerald' : providerType === 'ameex' ? 'orange' : 'blue';
+
+                            return (
+                                <tr key={note.id} className="hover:bg-brand-navy/[0.01] transition-colors group">
+                                    <td className="p-6">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform ${brandColor === 'emerald' ? 'bg-emerald-50 text-emerald-600' :
+                                                brandColor === 'orange' ? 'bg-orange-50 text-orange-600' :
+                                                    'bg-blue-50 text-blue-600'
+                                                }`}>
+                                                <FileText className="w-5 h-5" />
+                                            </div>
+                                            <div className="flex flex-col min-w-0">
+                                                <span className="text-sm font-bold text-brand-navy truncate">
+                                                    {note.reference}
+                                                </span>
+                                                <span className="text-[10px] font-bold text-muted-foreground tracking-wider">
+                                                    {note.created_at ? format(new Date(note.created_at), 'dd MMM yyyy, HH:mm') : 'N/A'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="p-6">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-xl bg-brand-navy/[0.04] p-2 flex items-center justify-center overflow-hidden border border-brand-navy/[0.03]">
+                                                {provider?.logo_url ? (
+                                                    <img src={provider.logo_url} alt="" className="w-full h-full object-contain" />
+                                                ) : (
+                                                    type === 'company' ? <Building2 className="w-4 h-4 text-blue-500" /> : <Truck className="w-4 h-4 text-orange-500" />
+                                                )}
+                                            </div>
+                                            <div className="flex flex-col min-w-0">
+                                                <span className="text-[10px] font-black text-muted-foreground/40 uppercase tracking-widest leading-none">
+                                                    {type === 'company' ? 'Provider' : 'Courier'}
+                                                </span>
+                                                <span className="text-sm font-bold text-brand-navy truncate mt-1">
+                                                    {provider?.business_name || provider?.name || 'Local'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="p-6">
+                                        <div className="flex flex-col gap-1">
+                                            <div className="flex items-center gap-1.5 text-xs font-bold text-brand-navy">
+                                                <Package className="w-3.5 h-3.5 text-indigo-500" />
+                                                {note.parcel_count || 0} Parcels
+                                            </div>
+                                            <div className="flex items-center gap-1.5 text-[10px] font-black text-muted-foreground/40 uppercase tracking-widest">
+                                                ID: {note.id.split('-')[0]}
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="p-6 text-right">
+                                        <div className="flex items-center justify-end gap-2">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => {
+                                                    setSelectedNote(note);
+                                                    setIsViewModalOpen(true);
+                                                }}
+                                                className="h-9 w-9 rounded-xl bg-brand-navy/[0.04] hover:bg-brand-navy text-brand-navy hover:text-brand-white transition-all shadow-sm"
+                                            >
+                                                <Eye className="w-4 h-4" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => {
+                                                    setSelectedNote(note);
+                                                    setIsDeleteModalOpen(true);
+                                                }}
+                                                className="h-9 w-9 rounded-xl bg-brand-navy/[0.04] text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all shadow-sm"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </Button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+
     return (
         <div className="min-h-screen bg-brand-white p-4 md:p-8 space-y-8 animate-in fade-in duration-500">
             {/* Header */}
@@ -707,20 +867,54 @@ const DeliveryNote = () => {
             {/* Content Tabs */}
             <Tabs defaultValue="company" className="space-y-8">
                 <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                    <TabsList className="bg-white/50 p-1.5 rounded-[20px] border border-brand-navy/5 h-14 backdrop-blur-sm self-start">
-                        <TabsTrigger
-                            value="company"
-                            className="rounded-[16px] px-8 h-full font-black text-xs tracking-widest uppercase data-[state=active]:bg-brand-navy data-[state=active]:text-white data-[state=active]:shadow-lg transition-all"
-                        >
-                            Company Notes
-                        </TabsTrigger>
-                        <TabsTrigger
-                            value="courier"
-                            className="rounded-[16px] px-8 h-full font-black text-xs tracking-widest uppercase data-[state=active]:bg-brand-navy data-[state=active]:text-white data-[state=active]:shadow-lg transition-all"
-                        >
-                            Courier Notes
-                        </TabsTrigger>
-                    </TabsList>
+                    <div className="flex items-center gap-4 w-full md:w-auto">
+                        <TabsList className="bg-white/50 p-1.5 rounded-[20px] border border-brand-navy/5 h-14 backdrop-blur-sm">
+                            <TabsTrigger
+                                value="company"
+                                className="rounded-[16px] px-8 h-full font-black text-xs tracking-widest uppercase data-[state=active]:bg-brand-navy data-[state=active]:text-white data-[state=active]:shadow-lg transition-all"
+                            >
+                                Company Notes
+                            </TabsTrigger>
+                            <TabsTrigger
+                                value="courier"
+                                className="rounded-[16px] px-8 h-full font-black text-xs tracking-widest uppercase data-[state=active]:bg-brand-navy data-[state=active]:text-white data-[state=active]:shadow-lg transition-all"
+                            >
+                                Courier Notes
+                            </TabsTrigger>
+                        </TabsList>
+
+                        {/* View Switcher */}
+                        <div className="flex bg-white p-1 rounded-xl shadow-sm border border-brand-navy/5 shrink-0">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setViewMode('grid')}
+                                className={cn(
+                                    "h-8 px-3 rounded-lg gap-2 transition-all duration-300",
+                                    viewMode === 'grid'
+                                        ? "bg-brand-navy text-brand-white shadow-lg"
+                                        : "text-brand-navy/40 hover:text-brand-navy hover:bg-brand-navy/5"
+                                )}
+                            >
+                                <LayoutGrid className="w-4 h-4" />
+                                <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Grid</span>
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setViewMode('list')}
+                                className={cn(
+                                    "h-8 px-3 rounded-lg gap-2 transition-all duration-300",
+                                    viewMode === 'list'
+                                        ? "bg-brand-navy text-brand-white shadow-lg"
+                                        : "text-brand-navy/40 hover:text-brand-navy hover:bg-brand-navy/5"
+                                )}
+                            >
+                                <List className="w-4 h-4" />
+                                <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">List</span>
+                            </Button>
+                        </div>
+                    </div>
 
                     <div className="flex items-center gap-2 px-4 py-2 bg-brand-navy/[0.02] rounded-xl border border-brand-navy/[0.04]">
                         <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -731,35 +925,43 @@ const DeliveryNote = () => {
                 </div>
 
                 <TabsContent value="company" className="mt-0">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {loadingCompany ? (
-                            <div className="col-span-full flex items-center justify-center py-12">
-                                <Loader2 className="w-8 h-8 animate-spin text-brand-navy" />
-                            </div>
-                        ) : companyNotes?.length === 0 ? (
-                            <div className="col-span-full text-center py-12 text-muted-foreground">
-                                No company delivery notes yet. Click "Generate Note" to create one.
+                    {loadingCompany ? (
+                        <div className="flex items-center justify-center py-12">
+                            <Loader2 className="w-8 h-8 animate-spin text-brand-navy" />
+                        </div>
+                    ) : companyNotes?.length === 0 ? (
+                        <div className="text-center py-12 text-muted-foreground">
+                            No company delivery notes yet. Click "Generate Note" to create one.
+                        </div>
+                    ) : (
+                        viewMode === 'grid' ? (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {companyNotes?.map(note => renderNoteCard(note, 'company'))}
                             </div>
                         ) : (
-                            companyNotes?.map(note => renderNoteCard(note, 'company'))
-                        )}
-                    </div>
+                            renderNoteTable(companyNotes || [], 'company')
+                        )
+                    )}
                 </TabsContent>
 
                 <TabsContent value="courier" className="mt-0">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {loadingCourier ? (
-                            <div className="col-span-full flex items-center justify-center py-12">
-                                <Loader2 className="w-8 h-8 animate-spin text-brand-navy" />
-                            </div>
-                        ) : courierNotes?.length === 0 ? (
-                            <div className="col-span-full text-center py-12 text-muted-foreground">
-                                No courier delivery notes yet.
+                    {loadingCourier ? (
+                        <div className="flex items-center justify-center py-12">
+                            <Loader2 className="w-8 h-8 animate-spin text-brand-navy" />
+                        </div>
+                    ) : courierNotes?.length === 0 ? (
+                        <div className="text-center py-12 text-muted-foreground">
+                            No courier delivery notes yet.
+                        </div>
+                    ) : (
+                        viewMode === 'grid' ? (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {courierNotes?.map(note => renderNoteCard(note, 'courier'))}
                             </div>
                         ) : (
-                            courierNotes?.map(note => renderNoteCard(note, 'courier'))
-                        )}
-                    </div>
+                            renderNoteTable(courierNotes || [], 'courier')
+                        )
+                    )}
                 </TabsContent>
             </Tabs>
 
