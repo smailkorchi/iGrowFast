@@ -94,8 +94,14 @@ const Auth = () => {
 
                     {/* Brand Identity */}
                     <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 rounded-2xl bg-white flex items-center justify-center text-[#2d6d6c] font-black text-2xl shadow-xl transform -rotate-3">D</div>
-                        <span className="text-3xl font-black text-white tracking-tighter">DigiCom</span>
+                        <div className="w-11 h-11 rounded-2xl bg-white flex items-center justify-center shadow-xl transform -rotate-3 overflow-hidden p-2">
+                            <img
+                                src="/Logo/DigiCom Icon Transparent.png"
+                                alt="DigiCom"
+                                className="w-full h-full object-contain"
+                            />
+                        </div>
+                        <span className="text-3xl font-black text-white tracking-tighter">DigiCom.</span>
                     </div>
 
                     {/* Form Section */}

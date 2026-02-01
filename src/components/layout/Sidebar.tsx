@@ -166,8 +166,12 @@ const Sidebar = () => {
                 <div className="flex items-center h-20 shrink-0 px-3">
                     <div className="flex items-center w-full h-12 rounded-2xl relative">
                         <div className="w-[52px] h-12 flex items-center justify-center shrink-0">
-                            <div className="w-9 h-9 rounded-xl border border-white/10 bg-white/[0.03] flex items-center justify-center shadow-inner group-hover:rotate-[360deg] transition-all duration-1000">
-                                <Circle className="w-5 h-5 text-brand-white" />
+                            <div className="w-9 h-9 rounded-xl border border-white/10 bg-white/[0.03] flex items-center justify-center shadow-inner group-hover:rotate-[360deg] transition-all duration-1000 overflow-hidden p-1.5">
+                                <img
+                                    src="/Logo/DigiCom Icon Transparent.png"
+                                    alt="DigiCom"
+                                    className="w-full h-full object-contain"
+                                />
                             </div>
                         </div>
                         <span className="ml-3 font-black text-xl tracking-tighter opacity-0 group-hover:opacity-100 transition-all duration-500 delay-100 whitespace-nowrap overflow-hidden text-brand-white">
