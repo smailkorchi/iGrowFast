@@ -29,7 +29,9 @@ import {
     RefreshCcw,
     User,
     Filter,
-    Building2
+    Building2,
+    LayoutGrid,
+    List
 } from 'lucide-react';
 import {
     Card,
@@ -137,6 +139,7 @@ const Orders = () => {
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [selectedOrder, setSelectedOrder] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState("");
+    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
     // Dropdown search states
     const [citySearchOpen, setCitySearchOpen] = useState(false);
@@ -183,8 +186,8 @@ const Orders = () => {
                     *,
                     status:order_statuses(*),
                     city:cities(id, name),
-                    courier:users!orders_courier_id_fkey(id, name),
-                    company:providers(id, name),
+                    courier:users!orders_courier_id_fkey(id, name, avatar_url),
+                    company:providers(id, name, logo_url),
                     items:order_items(*, product:products(name, code, image_url))
                 `)
                 .order('created_at', { ascending: false });
@@ -625,8 +628,40 @@ const Orders = () => {
             </div>
 
             {/* Filters Toolbar */}
-            <div className="flex flex-col md:flex-row gap-4 items-center justify-between pb-2">
-                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+            <div className="flex flex-col md:flex-row gap-4 items-center justify-between pb-4">
+                <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
+                    {/* View Switcher */}
+                    <div className="flex bg-white p-1 rounded-xl shadow-sm border border-brand-navy/5 shrink-0">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setViewMode('grid')}
+                            className={cn(
+                                "h-8 px-3 rounded-lg gap-2 transition-all duration-300",
+                                viewMode === 'grid'
+                                    ? "bg-brand-navy text-brand-white shadow-lg"
+                                    : "text-brand-navy/40 hover:text-brand-navy hover:bg-brand-navy/5"
+                            )}
+                        >
+                            <LayoutGrid className="w-4 h-4" />
+                            <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Grid</span>
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setViewMode('list')}
+                            className={cn(
+                                "h-8 px-3 rounded-lg gap-2 transition-all duration-300",
+                                viewMode === 'list'
+                                    ? "bg-brand-navy text-brand-white shadow-lg"
+                                    : "text-brand-navy/40 hover:text-brand-navy hover:bg-brand-navy/5"
+                            )}
+                        >
+                            <List className="w-4 h-4" />
+                            <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">List</span>
+                        </Button>
+                    </div>
+
                     <div className="flex items-center gap-2 bg-white p-1 pr-4 rounded-xl shadow-sm border border-brand-navy/5">
                         <div className="h-8 w-8 rounded-lg bg-brand-navy/5 flex items-center justify-center text-brand-navy/50">
                             <Filter className="w-4 h-4" />
@@ -715,12 +750,9 @@ const Orders = () => {
                     )}
                 </div>
 
-                <div className="flex items-center gap-2 px-4 py-2 bg-brand-navy/[0.02] rounded-xl border border-brand-navy/[0.04]">
-                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="text-xs font-bold text-brand-navy">
-                        {filteredOrders.length} records found
-                    </span>
-                </div>
+                <span className="text-xs font-bold text-brand-navy">
+                    {filteredOrders.length} records found
+                </span>
             </div>
 
             {/* Content Section */}
@@ -741,119 +773,266 @@ const Orders = () => {
                     </div>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-20">
-                    {filteredOrders.map((order) => (
-                        <Card
-                            key={order.id}
-                            className="group relative overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-2xl transition-all duration-500 rounded-[32px]"
-                        >
-                            <div className="absolute top-0 left-0 w-full h-1.5" style={{ backgroundColor: order.status?.color || '#ccc' }} />
+                viewMode === 'grid' ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-20">
+                        {filteredOrders.map((order) => (
+                            <Card
+                                key={order.id}
+                                className="group relative overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-2xl transition-all duration-500 rounded-[32px]"
+                            >
+                                <div className="absolute top-0 left-0 w-full h-1.5" style={{ backgroundColor: order.status?.color || '#ccc' }} />
 
-                            <CardContent className="p-8 space-y-6">
-                                <div className="flex justify-between items-start">
-                                    <div className="space-y-1">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-10 h-10 rounded-xl bg-brand-navy/[0.04] flex items-center justify-center text-brand-navy">
-                                                <User className="w-5 h-5" />
-                                            </div>
-                                            <div>
-                                                <h3 className="text-xl font-bold text-brand-navy truncate max-w-[150px]">{order.name}</h3>
-                                                <div className="flex items-center gap-1.5 text-muted-foreground">
-                                                    <Phone className="w-3 h-3" />
-                                                    <span className="text-[10px] font-bold tracking-wider">{order.phone}</span>
+                                <CardContent className="p-8 space-y-6">
+                                    <div className="flex justify-between items-start">
+                                        <div className="space-y-1">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-10 h-10 rounded-xl bg-brand-navy/[0.04] flex items-center justify-center text-brand-navy">
+                                                    <User className="w-5 h-5" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-xl font-bold text-brand-navy truncate max-w-[150px]">{order.name}</h3>
+                                                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                                                        <Phone className="w-3 h-3" />
+                                                        <span className="text-[10px] font-bold tracking-wider">{order.phone}</span>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
-                                    <Badge
-                                        style={{ backgroundColor: `${order.status?.color}20`, color: order.status?.color }}
-                                        className="border-none font-black text-[10px] tracking-widest px-3 py-1.5 rounded-xl uppercase"
-                                    >
-                                        {order.status?.label || 'DRAFT'}
-                                    </Badge>
-                                </div>
+                                        <div className="flex flex-col items-end gap-2">
+                                            <Badge
+                                                style={{ backgroundColor: `${order.status?.color}20`, color: order.status?.color }}
+                                                className="border-none font-black text-[10px] tracking-widest px-3 py-1.5 rounded-xl uppercase"
+                                            >
+                                                {order.status?.label || 'DRAFT'}
+                                            </Badge>
 
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center text-orange-500">
-                                            <MapPin className="w-4 h-4" />
-                                        </div>
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest leading-none">City</span>
-                                            <span className="text-xs font-bold text-brand-navy truncate">{order.city?.name}</span>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-500">
-                                            <Hash className="w-4 h-4" />
-                                        </div>
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest leading-none">Source</span>
-                                            <span className="text-xs font-bold text-brand-navy capitalize">{order.source_name}</span>
+                                            {(order.company_id || order.courier_id) && (
+                                                <div className="flex items-center gap-1.5 animate-in fade-in zoom-in duration-300">
+                                                    <div className="w-6 h-6 rounded-lg bg-brand-navy/[0.04] p-1 flex items-center justify-center overflow-hidden border border-brand-navy/[0.03]">
+                                                        {order.company?.logo_url ? (
+                                                            <img src={order.company.logo_url} alt={order.company.name} className="w-full h-full object-contain" />
+                                                        ) : order.courier?.avatar_url ? (
+                                                            <img src={order.courier.avatar_url} alt={order.courier.name} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            order.company_id ? <Building2 className="w-3 h-3 text-blue-500" /> : <Truck className="w-3 h-3 text-orange-500" />
+                                                        )}
+                                                    </div>
+                                                    <span className="text-[9px] font-black text-brand-navy/40 uppercase tracking-tighter">
+                                                        {order.company?.name || order.courier?.name}
+                                                    </span>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
-                                </div>
 
-                                <Separator className="bg-brand-navy/[0.05]" />
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center text-orange-500">
+                                                <MapPin className="w-4 h-4" />
+                                            </div>
+                                            <div className="flex flex-col">
+                                                <span className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest leading-none">City</span>
+                                                <span className="text-xs font-bold text-brand-navy truncate">{order.city?.name}</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-500">
+                                                <Hash className="w-4 h-4" />
+                                            </div>
+                                            <div className="flex flex-col">
+                                                <span className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest leading-none">Source</span>
+                                                <span className="text-xs font-bold text-brand-navy capitalize">{order.source_name}</span>
+                                            </div>
+                                        </div>
+                                    </div>
 
-                                <div className="flex items-center justify-between">
-                                    <div className="space-y-1">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Total Order</p>
-                                        <p className="text-2xl font-black text-brand-navy">{order.price || 0} DH</p>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => {
-                                                setSelectedOrder(order);
-                                                setIsViewModalOpen(true);
-                                            }}
-                                            className="h-10 w-10 rounded-xl bg-brand-navy/[0.04] hover:bg-brand-navy text-brand-navy hover:text-brand-white transition-all shadow-sm"
-                                        >
-                                            <Eye className="w-5 h-5" />
-                                        </Button>
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy/[0.08]">
-                                                    <MoreVertical className="h-5 h-5" />
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[180px] animate-in slide-in-from-top-2">
-                                                <DropdownMenuItem
-                                                    onClick={() => handleEdit(order)}
-                                                    className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3"
-                                                >
-                                                    <Edit2 className="w-4 h-4" />
-                                                    <span className="font-bold">Edit Details</span>
-                                                </DropdownMenuItem>
-                                                <DropdownMenuSeparator />
-                                                <DropdownMenuItem
-                                                    onClick={() => {
-                                                        if (confirm("Delete this order?")) {
-                                                            deleteOrderMutation.mutate(order.id);
-                                                        }
-                                                    }}
-                                                    className="rounded-xl p-3 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-3"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                    <span className="font-bold">Delete Order</span>
-                                                </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
-                                    </div>
-                                </div>
+                                    <Separator className="bg-brand-navy/[0.05]" />
 
-                                {order.replace && (
-                                    <div className="absolute -right-12 -top-12 w-24 h-24 bg-red-500/10 rotate-45 flex items-end justify-center pb-2">
-                                        <RefreshCcw className="w-4 h-4 text-red-500 -rotate-45" />
+                                    <div className="flex items-center justify-between">
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Total Order</p>
+                                            <p className="text-2xl font-black text-brand-navy">{order.price || 0} DH</p>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => {
+                                                    setSelectedOrder(order);
+                                                    setIsViewModalOpen(true);
+                                                }}
+                                                className="h-10 w-10 rounded-xl bg-brand-navy/[0.04] hover:bg-brand-navy text-brand-navy hover:text-brand-white transition-all shadow-sm"
+                                            >
+                                                <Eye className="w-5 h-5" />
+                                            </Button>
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy/[0.08]">
+                                                        <MoreVertical className="h-5 w-5" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[180px] animate-in slide-in-from-top-2">
+                                                    <DropdownMenuItem
+                                                        onClick={() => handleEdit(order)}
+                                                        className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3"
+                                                    >
+                                                        <Edit2 className="w-4 h-4" />
+                                                        <span className="font-bold">Edit Details</span>
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuSeparator />
+                                                    <DropdownMenuItem
+                                                        onClick={() => {
+                                                            if (confirm("Delete this order?")) {
+                                                                deleteOrderMutation.mutate(order.id);
+                                                            }
+                                                        }}
+                                                        className="rounded-xl p-3 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-3"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                        <span className="font-bold">Delete Order</span>
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </div>
                                     </div>
-                                )}
-                            </CardContent>
-                        </Card>
-                    ))}
-                </div>
-            )}
+
+                                    {order.replace && (
+                                        <div className="absolute -right-12 -top-12 w-24 h-24 bg-red-500/10 rotate-45 flex items-end justify-center pb-2">
+                                            <RefreshCcw className="w-4 h-4 text-red-500 -rotate-45" />
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="bg-white/50 backdrop-blur-sm shadow-xl rounded-[32px] overflow-hidden border border-brand-navy/[0.03] mb-20 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-brand-navy/[0.02]">
+                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Customer</th>
+                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Dest. & Source</th>
+                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Status & Provider</th>
+                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Total Amount</th>
+                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-brand-navy/40 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-brand-navy/[0.03]">
+                                    {filteredOrders.map((order) => (
+                                        <tr key={order.id} className="hover:bg-brand-navy/[0.01] transition-colors group">
+                                            <td className="p-6">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-xl bg-brand-navy/[0.04] flex items-center justify-center text-brand-navy shrink-0 group-hover:scale-110 transition-transform">
+                                                        <User className="w-5 h-5" />
+                                                    </div>
+                                                    <div className="flex flex-col min-w-0">
+                                                        <span className="text-sm font-bold text-brand-navy truncate">
+                                                            {order.name}
+                                                            {order.replace && <RefreshCcw className="inline-block w-3 h-3 ml-2 text-red-500" />}
+                                                        </span>
+                                                        <span className="text-[10px] font-bold text-muted-foreground tracking-wider">{order.phone}</span>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="p-6">
+                                                <div className="flex flex-col gap-1">
+                                                    <div className="flex items-center gap-1.5 text-xs font-bold text-brand-navy">
+                                                        <MapPin className="w-3 h-3 text-orange-500" />
+                                                        {order.city?.name}
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                                                        <Hash className="w-3 h-3 text-indigo-500" />
+                                                        {order.source_name}
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="p-6">
+                                                <div className="flex flex-col gap-2">
+                                                    <Badge
+                                                        style={{ backgroundColor: `${order.status?.color}20`, color: order.status?.color }}
+                                                        className="border-none font-black text-[9px] tracking-widest px-2 py-1 rounded-lg uppercase w-fit"
+                                                    >
+                                                        {order.status?.label || 'DRAFT'}
+                                                    </Badge>
+                                                    {(order.company_id || order.courier_id) && (
+                                                        <div className="flex items-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity">
+                                                            <div className="w-5 h-5 rounded-md bg-brand-navy/[0.04] p-0.5 flex items-center justify-center overflow-hidden">
+                                                                {order.company?.logo_url ? (
+                                                                    <img src={order.company.logo_url} alt="" className="w-full h-full object-contain" />
+                                                                ) : order.courier?.avatar_url ? (
+                                                                    <img src={order.courier.avatar_url} alt="" className="w-full h-full object-cover" />
+                                                                ) : (
+                                                                    order.company_id ? <Building2 className="w-2.5 h-2.5 text-blue-500" /> : <Truck className="w-2.5 h-2.5 text-orange-500" />
+                                                                )}
+                                                            </div>
+                                                            <span className="text-[9px] font-black text-brand-navy/60 uppercase tracking-tighter">
+                                                                {order.company?.name || order.courier?.name}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="p-6">
+                                                <div className="flex flex-col">
+                                                    <span className="text-base font-black text-brand-navy">{order.price || 0} DH</span>
+                                                    {order.shipping_cost > 0 && (
+                                                        <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-tighter">+{order.shipping_cost}DH shipping</span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="p-6 text-right">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() => {
+                                                            setSelectedOrder(order);
+                                                            setIsViewModalOpen(true);
+                                                        }}
+                                                        className="h-9 w-9 rounded-xl bg-brand-navy/[0.04] hover:bg-brand-navy text-brand-navy hover:text-brand-white transition-all shadow-sm"
+                                                    >
+                                                        <Eye className="w-4 h-4" />
+                                                    </Button>
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy/[0.08]">
+                                                                <MoreVertical className="h-4 w-4" />
+                                                            </Button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[180px] animate-in slide-in-from-top-2">
+                                                            <DropdownMenuItem
+                                                                onClick={() => handleEdit(order)}
+                                                                className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3"
+                                                            >
+                                                                <Edit2 className="w-4 h-4" />
+                                                                <span className="font-bold">Edit Details</span>
+                                                            </DropdownMenuItem>
+                                                            <DropdownMenuSeparator />
+                                                            <DropdownMenuItem
+                                                                onClick={() => {
+                                                                    if (confirm("Delete this order?")) {
+                                                                        deleteOrderMutation.mutate(order.id);
+                                                                    }
+                                                                }}
+                                                                className="rounded-xl p-3 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-3"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                                <span className="font-bold">Delete Order</span>
+                                                            </DropdownMenuItem>
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )
+            )
+            }
 
             {/* Add/Edit Modal */}
             <Dialog
@@ -1435,8 +1614,14 @@ const Orders = () => {
                                             </div>
                                             {(selectedOrder.courier || selectedOrder.company) && (
                                                 <div className="flex items-start gap-4">
-                                                    <div className="w-10 h-10 rounded-2xl bg-brand-navy/5 flex items-center justify-center text-brand-navy/40 shrink-0 shadow-sm">
-                                                        {selectedOrder.courier ? <Truck className="w-5 h-5 text-orange-500" /> : <Building2 className="w-5 h-5 text-blue-500" />}
+                                                    <div className="w-10 h-10 rounded-2xl bg-brand-navy/5 flex items-center justify-center text-brand-navy/40 shrink-0 shadow-sm overflow-hidden">
+                                                        {selectedOrder.company?.logo_url ? (
+                                                            <img src={selectedOrder.company.logo_url} alt={selectedOrder.company.name} className="w-full h-full object-contain" />
+                                                        ) : selectedOrder.courier?.avatar_url ? (
+                                                            <img src={selectedOrder.courier.avatar_url} alt={selectedOrder.courier.name} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            selectedOrder.courier ? <Truck className="w-5 h-5 text-orange-500" /> : <Building2 className="w-5 h-5 text-blue-500" />
+                                                        )}
                                                     </div>
                                                     <div className="space-y-1">
                                                         <p className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest leading-none">Assigned Provider</p>
@@ -1544,7 +1729,7 @@ const Orders = () => {
                     )}
                 </DialogContent>
             </Dialog>
-        </div>
+        </div >
     );
 };
 
