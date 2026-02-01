@@ -992,6 +992,7 @@ function FeesModal({ isOpen, onClose, courier }: any) {
     const { toast } = useToast();
     const activeBusinessId = localStorage.getItem('activeBusinessId');
     const [fees, setFees] = useState<Record<string, string>>({});
+    const [bulkPrice, setBulkPrice] = useState("");
 
     const { data: cities, isLoading: loadingCities } = useQuery({
         queryKey: ['courier_fees_cities', courier?.id],
@@ -1043,15 +1044,67 @@ function FeesModal({ isOpen, onClose, courier }: any) {
         }
     });
 
+    const handleBulkApply = async () => {
+        if (!bulkPrice || !cities) return;
+
+        const numericPrice = parseFloat(bulkPrice);
+        if (isNaN(numericPrice)) {
+            toast({ title: "Invalid Price", description: "Please enter a valid number", variant: "destructive" });
+            return;
+        }
+
+        const newFees = { ...fees };
+        const updates = cities.map((city: any) => {
+            newFees[city.id] = bulkPrice;
+            return {
+                courier_id: courier.id,
+                city_id: city.id,
+                fee: numericPrice,
+                updated_at: new Date().toISOString(),
+                'DigiCom Business': activeBusinessId
+            };
+        });
+
+        setFees(newFees);
+
+        const { error } = await supabase.from(COURIER_FEES_TABLE).upsert(updates, { onConflict: 'courier_id,city_id,DigiCom Business' });
+
+        if (error) {
+            toast({ title: "Error", description: "Failed to update bulk fees", variant: "destructive" });
+        } else {
+            queryClient.invalidateQueries({ queryKey: ['courier_fees', courier?.id, activeBusinessId] });
+            toast({ title: "Success", description: `Updated ${cities.length} cities to ${bulkPrice} MAD` });
+        }
+    };
+
     return (
         <Dialog open={isOpen} onOpenChange={(v) => !v && onClose()}>
             <DialogContent className="max-w-2xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
                 <DialogHeader className="p-10 pb-4 shrink-0">
-                    <DialogTitle className="text-3xl font-black text-brand-navy">City Delivery Fees</DialogTitle>
-                    <DialogDescription className="font-bold flex items-center gap-2">
-                        <Coins className="w-4 h-4 text-brand-navy" />
-                        Configure per-city rates for {courier?.name}
-                    </DialogDescription>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <DialogTitle className="text-3xl font-black text-brand-navy">City Delivery Fees</DialogTitle>
+                            <DialogDescription className="font-bold flex items-center gap-2 mt-1">
+                                <Coins className="w-4 h-4 text-brand-navy" />
+                                Configure per-city rates for {courier?.name}
+                            </DialogDescription>
+                        </div>
+                    </div>
+
+                    <div className="mt-6 flex items-center gap-3 p-4 bg-brand-navy/5 rounded-2xl border border-brand-navy/10">
+                        <div className="relative flex-1">
+                            <Coins className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-navy/30" />
+                            <Input
+                                placeholder="Unified Price..."
+                                value={bulkPrice}
+                                onChange={(e) => setBulkPrice(e.target.value)}
+                                className="h-12 pl-10 rounded-xl border-none bg-white font-bold text-brand-navy shadow-sm"
+                            />
+                        </div>
+                        <Button onClick={handleBulkApply} className="h-12 px-6 rounded-xl bg-brand-navy text-white font-bold shadow-lg hover:bg-brand-navy/90">
+                            Auto Fill All
+                        </Button>
+                    </div>
                 </DialogHeader>
 
                 <div className="flex-1 overflow-y-auto p-10 pt-4 space-y-4">
@@ -1191,6 +1244,7 @@ function CompanyFeesModal({ isOpen, onClose, company }: any) {
     const { toast } = useToast();
     const activeBusinessId = localStorage.getItem('activeBusinessId');
     const [fees, setFees] = useState<Record<string, string>>({});
+    const [bulkPrice, setBulkPrice] = useState("");
 
     const { data: cities, isLoading: loadingCities } = useQuery({
         queryKey: ['company_fees_cities', company?.id],
@@ -1242,15 +1296,67 @@ function CompanyFeesModal({ isOpen, onClose, company }: any) {
         }
     });
 
+    const handleBulkApply = async () => {
+        if (!bulkPrice || !cities) return;
+
+        const numericPrice = parseFloat(bulkPrice);
+        if (isNaN(numericPrice)) {
+            toast({ title: "Invalid Price", description: "Please enter a valid number", variant: "destructive" });
+            return;
+        }
+
+        const newFees = { ...fees };
+        const updates = cities.map((city: any) => {
+            newFees[city.id] = bulkPrice;
+            return {
+                company_id: company.id,
+                city_id: city.id,
+                fee: numericPrice,
+                updated_at: new Date().toISOString(),
+                'DigiCom Business': activeBusinessId
+            };
+        });
+
+        setFees(newFees);
+
+        const { error } = await supabase.from(COMPANY_FEES_TABLE).upsert(updates, { onConflict: 'company_id,city_id,DigiCom Business' });
+
+        if (error) {
+            toast({ title: "Error", description: "Failed to update bulk fees", variant: "destructive" });
+        } else {
+            queryClient.invalidateQueries({ queryKey: ['company_fees', company?.id, activeBusinessId] });
+            toast({ title: "Success", description: `Updated ${cities.length} cities to ${bulkPrice} MAD` });
+        }
+    };
+
     return (
         <Dialog open={isOpen} onOpenChange={(v) => !v && onClose()}>
             <DialogContent className="max-w-2xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
                 <DialogHeader className="p-10 pb-4 shrink-0">
-                    <DialogTitle className="text-3xl font-black text-brand-navy">Company Delivery Fees</DialogTitle>
-                    <DialogDescription className="font-bold flex items-center gap-2">
-                        <Coins className="w-4 h-4 text-brand-navy" />
-                        Configure per-city rates for {company?.name}
-                    </DialogDescription>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <DialogTitle className="text-3xl font-black text-brand-navy">Company Delivery Fees</DialogTitle>
+                            <DialogDescription className="font-bold flex items-center gap-2 mt-1">
+                                <Coins className="w-4 h-4 text-brand-navy" />
+                                Configure per-city rates for {company?.name}
+                            </DialogDescription>
+                        </div>
+                    </div>
+
+                    <div className="mt-6 flex items-center gap-3 p-4 bg-brand-navy/5 rounded-2xl border border-brand-navy/10">
+                        <div className="relative flex-1">
+                            <Coins className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-navy/30" />
+                            <Input
+                                placeholder="Unified Price..."
+                                value={bulkPrice}
+                                onChange={(e) => setBulkPrice(e.target.value)}
+                                className="h-12 pl-10 rounded-xl border-none bg-white font-bold text-brand-navy shadow-sm"
+                            />
+                        </div>
+                        <Button onClick={handleBulkApply} className="h-12 px-6 rounded-xl bg-brand-navy text-white font-bold shadow-lg hover:bg-brand-navy/90">
+                            Auto Fill All
+                        </Button>
+                    </div>
                 </DialogHeader>
 
                 <div className="flex-1 overflow-y-auto p-10 pt-4 space-y-4">
