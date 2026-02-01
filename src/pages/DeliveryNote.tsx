@@ -159,7 +159,7 @@ const DeliveryNote = () => {
                         delivery_note_ref: selectedNote.reference,
                         note_id: selectedNote.id,
                         external_id: selectedNote.external_id,
-                        print_type: 'labels',
+                        print_type: format === 'Note' ? 'note' : 'labels',
                         label_format: format
                     }
                 })
