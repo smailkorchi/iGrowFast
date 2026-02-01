@@ -27,8 +27,22 @@ import Zones from "./pages/Zones";
 import Profile from "./pages/Profile";
 import Webhooks from "./pages/Webhooks";
 import Businesses from "./pages/Businesses";
+import SelectBusiness from "./pages/SelectBusiness";
 import AppLayout from "./components/layout/AppLayout";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
+import { Navigate, useLocation } from "react-router-dom";
+
+// A small guard to ensure business is selected
+const BusinessGuard = ({ children }: { children: React.ReactNode }) => {
+  const activeBusinessId = localStorage.getItem('activeBusinessId');
+  const location = useLocation();
+
+  if (!activeBusinessId && location.pathname !== '/select-business') {
+    return <Navigate to="/select-business" replace />;
+  }
+
+  return <>{children}</>;
+};
 
 const queryClient = new QueryClient();
 
@@ -40,35 +54,43 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/auth" element={<Auth />} />
+          <Route path="/select-business" element={
+            <ProtectedRoute>
+              <SelectBusiness />
+            </ProtectedRoute>
+          } />
           <Route path="*" element={
             <ProtectedRoute>
-              <AppLayout>
-                <Routes>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/orders" element={<Orders />} />
-                  <Route path="/import-orders" element={<ImportOrders />} />
-                  <Route path="/delivery-note" element={<DeliveryNote />} />
-                  <Route path="/return-note" element={<ReturnNote />} />
-                  <Route path="/delivery-services" element={<DeliveryServices />} />
-                  <Route path="/payments" element={<Payments />} />
-                  <Route path="/webhooks" element={<Webhooks />} />
-                  <Route path="/transactions" element={<Transactions />} />
-                  <Route path="/products" element={<Products />} />
-                  <Route path="/status" element={<Status />} />
-                  <Route path="/analytics" element={<Analytics />} />
-                  <Route path="/sales-channels" element={<SalesChannels />} />
-                  <Route path="/customers" element={<Customers />} />
-                  <Route path="/users" element={<Users />} />
-                  <Route path="/ads-history" element={<AdsHistory />} />
-                  <Route path="/expenses-details" element={<ExpensesDetails />} />
-                  <Route path="/expenses-types" element={<ExpensesTypes />} />
-                  <Route path="/businesses" element={<Businesses />} />
-                  <Route path="/cities" element={<Cities />} />
-                  <Route path="/zones" element={<Zones />} />
-                  <Route path="/profile" element={<Profile />} />
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </AppLayout>
+              <BusinessGuard>
+                <AppLayout>
+                  <Routes>
+                    <Route path="/" element={<Dashboard />} />
+                    {/* ... other routes ... */}
+                    <Route path="/orders" element={<Orders />} />
+                    <Route path="/import-orders" element={<ImportOrders />} />
+                    <Route path="/delivery-note" element={<DeliveryNote />} />
+                    <Route path="/return-note" element={<ReturnNote />} />
+                    <Route path="/delivery-services" element={<DeliveryServices />} />
+                    <Route path="/payments" element={<Payments />} />
+                    <Route path="/webhooks" element={<Webhooks />} />
+                    <Route path="/transactions" element={<Transactions />} />
+                    <Route path="/products" element={<Products />} />
+                    <Route path="/status" element={<Status />} />
+                    <Route path="/analytics" element={<Analytics />} />
+                    <Route path="/sales-channels" element={<SalesChannels />} />
+                    <Route path="/customers" element={<Customers />} />
+                    <Route path="/users" element={<Users />} />
+                    <Route path="/ads-history" element={<AdsHistory />} />
+                    <Route path="/expenses-details" element={<ExpensesDetails />} />
+                    <Route path="/expenses-types" element={<ExpensesTypes />} />
+                    <Route path="/businesses" element={<Businesses />} />
+                    <Route path="/cities" element={<Cities />} />
+                    <Route path="/zones" element={<Zones />} />
+                    <Route path="/profile" element={<Profile />} />
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </AppLayout>
+              </BusinessGuard>
             </ProtectedRoute>
           } />
         </Routes>

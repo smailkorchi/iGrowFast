@@ -123,27 +123,34 @@ const Sidebar = () => {
         }
     });
 
-    const { data: business, isLoading: isBusinessLoading } = useQuery({
-        queryKey: ['current-business', profile?.id],
-        enabled: !!profile?.id,
+    const { data: business, isLoading: isBusinessLoading, refetch: refetchBusiness } = useQuery({
+        queryKey: ['current-business'],
         queryFn: async () => {
+            const activeId = localStorage.getItem('activeBusinessId');
+            if (!activeId) return null;
+
             const { data, error } = await supabase
                 .from('businesses')
                 .select('*')
-                .eq('creator_id', profile.id)
-                .eq('active', true)
-                .limit(1)
-                .maybeSingle();
+                .eq('id', activeId)
+                .single();
 
             if (error) return null;
             return data;
         }
     });
 
-    const isLoading = isProfileLoading || (!!profile?.id && isBusinessLoading);
+    React.useEffect(() => {
+        const handleRefresh = () => refetchBusiness();
+        window.addEventListener('businessSelected', handleRefresh);
+        return () => window.removeEventListener('businessSelected', handleRefresh);
+    }, [refetchBusiness]);
+
+    const isLoading = isProfileLoading || isBusinessLoading;
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
+        localStorage.removeItem('activeBusinessId');
         navigate('/auth');
     };
 
@@ -205,7 +212,7 @@ const Sidebar = () => {
                 {/* Profile Section - Refined for both states */}
                 <div className="px-3 pt-4 pb-2 border-t border-white/[0.03]">
                     <NavLink
-                        to="/profile"
+                        to="/select-business"
                         className={({ isActive }) => cn(
                             "flex items-center h-14 rounded-2xl transition-all duration-500 group/profile relative overflow-hidden",
                             "hover:bg-white/[0.05]",
