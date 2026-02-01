@@ -81,6 +81,12 @@ const DeliveryNote = () => {
         setTrackingHistory(null);
 
         try {
+            console.log("Tracking parcel via Edge Function:", {
+                tracking_code: parcel.tracking_code,
+                external_id: parcel.external_id,
+                provider_id: parcel.provider_id || selectedNote?.provider_id
+            });
+
             const { data: { session } } = await supabase.auth.getSession();
             const response = await fetch(EDGE_FUNCTION_URL, {
                 method: 'POST',
@@ -98,18 +104,25 @@ const DeliveryNote = () => {
                 })
             });
 
+            console.log("Edge Function Response Status:", response.status);
+
             if (!response.ok) {
                 const errData = await response.json().catch(() => ({ error: 'Failed to fetch tracking data' }));
+                console.error("Tracking error data:", errData);
                 throw new Error(errData.error || `Error ${response.status}`);
             }
             const result = await response.json();
+            console.log("Tracking result:", result);
 
             if (result.success) {
+                console.log("Setting tracking history:", result.data);
                 setTrackingHistory(result.data);
             } else {
+                console.error("Tracking result failed:", result.error);
                 throw new Error(result.error || 'Unknown error');
             }
         } catch (error: any) {
+            console.error("handleTrackParcel catch block:", error);
             toast({
                 title: "Tracking Error",
                 description: error.message,
@@ -799,8 +812,10 @@ const DeliveryNote = () => {
                                     };
 
                                     // Our Edge Function now returns normalized fields: status, date, comment, user
+                                    // AMEEX also provides statusLabel (friendly name from API)
                                     const rawStatus = event.status || "Nouveau";
-                                    const status = statusMap[rawStatus] || rawStatus;
+                                    const statusLabel = event.statusLabel; // AMEEX provides this
+                                    const status = statusLabel || statusMap[rawStatus] || rawStatus;
                                     const date = event.date;
                                     const comment = event.comment || "";
                                     const user = (typeof event.user === 'object' ? event.user?.name : event.user) || "";
