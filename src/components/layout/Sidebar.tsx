@@ -166,7 +166,7 @@ const Sidebar = () => {
                 <div className="flex items-center h-20 shrink-0 px-3">
                     <div className="flex items-center w-full h-12 rounded-2xl relative">
                         <div className="w-[52px] h-12 flex items-center justify-center shrink-0">
-                            <div className="w-9 h-9 rounded-xl border border-white/10 bg-white/[0.03] flex items-center justify-center shadow-inner group-hover:rotate-[360deg] transition-all duration-1000 overflow-hidden p-1.5">
+                            <div className="w-9 h-9 rounded-xl bg-brand-white flex items-center justify-center shadow-xl group-hover:rotate-[360deg] transition-all duration-1000 overflow-hidden p-1.5">
                                 <img
                                     src="/Logo/DigiCom Icon Transparent.png"
                                     alt="DigiCom"
