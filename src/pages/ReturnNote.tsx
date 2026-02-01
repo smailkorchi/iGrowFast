@@ -1,4 +1,7 @@
 import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
+import { format, parseISO } from 'date-fns';
 import {
     RotateCcw,
     Plus,
@@ -44,6 +47,7 @@ import {
 } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { useToast } from '@/hooks/use-toast';
 
 const ReturnNote = () => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -53,16 +57,64 @@ const ReturnNote = () => {
     const [selectedNote, setSelectedNote] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState("");
 
-    // Mock Data
-    const companyReturnNotes = [
-        { id: 1, reference: 'RN-2024-001', provider: 'AMEEX', date: '2024-01-31', status: 'processing', parcels: 3 },
-        { id: 2, reference: 'RN-2024-002', provider: 'Coliaty', date: '2024-01-28', status: 'completed', parcels: 5 },
-    ];
+    const { toast } = useToast();
+    const queryClient = useQueryClient();
+    const activeBusinessId = localStorage.getItem('activeBusinessId');
 
-    const courierReturnNotes = [
-        { id: 3, reference: 'CRN-2024-001', courier: 'Ahmed Delivery', date: '2024-01-31', status: 'pending_pickup', parcels: 2 },
-        { id: 4, reference: 'CRN-2024-002', courier: 'Smail Korchi', date: '2024-01-25', status: 'completed', parcels: 8 },
-    ];
+    // --- Queries ---
+    const { data: companyReturnNotes = [], isLoading: loadingCompany } = useQuery({
+        queryKey: ['company-return-notes', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return [];
+            const { data, error } = await supabase
+                .from('company_return_notes')
+                .select(`
+                    *,
+                    provider:providers(name),
+                    parcels:company_parcels(count),
+                    status:status_id(label)
+                `)
+                .eq('DigiCom Business', activeBusinessId)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            return data.map(note => ({
+                ...note,
+                date: format(parseISO(note.created_at), 'PPP'),
+                provider: (note.provider as any)?.name,
+                parcels: (note.parcels?.[0] as any)?.count || 0,
+                status: (note.status as any)?.label || 'pending'
+            })) || [];
+        }
+    });
+
+    const { data: courierReturnNotes = [], isLoading: loadingCourier } = useQuery({
+        queryKey: ['courier-return-notes', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return [];
+            const { data, error } = await supabase
+                .from('courier_return_notes')
+                .select(`
+                    *,
+                    courier:users(name),
+                    parcels:courier_parcels(count),
+                    status:status_id(label)
+                `)
+                .eq('DigiCom Business', activeBusinessId)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            return data.map(note => ({
+                ...note,
+                date: format(parseISO(note.created_at), 'PPP'),
+                courier: (note.courier as any)?.name,
+                parcels: (note.parcels?.[0] as any)?.count || 0,
+                status: (note.status as any)?.label || 'pending'
+            })) || [];
+        }
+    });
+
+    const isLoading = loadingCompany || loadingCourier;
 
     const getStatusBadge = (status: string) => {
         switch (status) {
@@ -234,13 +286,35 @@ const ReturnNote = () => {
 
                 <TabsContent value="company" className="mt-0">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {companyReturnNotes.map(note => renderNoteCard(note, 'company'))}
+                        {isLoading ? (
+                            Array(3).fill(0).map((_, i) => (
+                                <Card key={i} className="h-[300px] animate-pulse bg-white/50 rounded-[32px]" />
+                            ))
+                        ) : companyReturnNotes.length > 0 ? (
+                            companyReturnNotes.map(note => renderNoteCard(note, 'company'))
+                        ) : (
+                            <div className="col-span-full py-20 text-center">
+                                <SearchX className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-20" />
+                                <p className="text-muted-foreground font-bold">No company return notes found.</p>
+                            </div>
+                        )}
                     </div>
                 </TabsContent>
 
                 <TabsContent value="courier" className="mt-0">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {courierReturnNotes.map(note => renderNoteCard(note, 'courier'))}
+                        {isLoading ? (
+                            Array(3).fill(0).map((_, i) => (
+                                <Card key={i} className="h-[300px] animate-pulse bg-white/50 rounded-[32px]" />
+                            ))
+                        ) : courierReturnNotes.length > 0 ? (
+                            courierReturnNotes.map(note => renderNoteCard(note, 'courier'))
+                        ) : (
+                            <div className="col-span-full py-20 text-center">
+                                <SearchX className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-20" />
+                                <p className="text-muted-foreground font-bold">No courier return notes found.</p>
+                            </div>
+                        )}
                     </div>
                 </TabsContent>
             </Tabs>
