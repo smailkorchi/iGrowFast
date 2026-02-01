@@ -231,6 +231,22 @@ const DeliveryNote = () => {
                                             height: 100%;
                                         }
                                         
+                                        /* CRITICAL: Hide empty elements that cause blank pages */
+                                        div:empty,
+                                        p:empty,
+                                        span:empty {
+                                            display: none !important;
+                                        }
+                                        
+                                        /* Prevent page breaks between elements */
+                                        @media print {
+                                            .print-container > * {
+                                                page-break-before: avoid !important;
+                                                page-break-after: avoid !important;
+                                                page-break-inside: avoid !important;
+                                            }
+                                        }
+                                        
                                         /* For thermal printer labels: fill entire space */
                                         ${format === 'Label_100_100' || format === '10x10' || format === 'A6' || format === 'Label_70_100' ? `
                                             body {
@@ -269,11 +285,25 @@ const DeliveryNote = () => {
                                         ${printContent}
                                     </div>
                                     <script>
-                                        // Auto-trigger print dialog after content loads
+                                        // Remove empty elements that cause blank pages
+                                        document.addEventListener('DOMContentLoaded', () => {
+                                            const allDivs = document.querySelectorAll('div, p, span, section');
+                                            allDivs.forEach(el => {
+                                                const text = el.textContent?.trim() || '';
+                                                const hasImages = el.querySelector('img, svg, canvas');
+                                                const hasContent = text.length > 0 || hasImages;
+                                                
+                                                if (!hasContent && el.children.length === 0) {
+                                                    el.style.display = 'none';
+                                                }
+                                            });
+                                        });
+                                        
+                                        // Auto-trigger print dialog after content loads and cleanup
                                         function doPrint() {
                                             setTimeout(() => {
                                                 window.print();
-                                            }, 500);
+                                            }, 800);
                                         }
                                         
                                         if (document.readyState === 'complete') {
