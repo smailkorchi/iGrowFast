@@ -30,11 +30,12 @@ import {
     ChevronRight,
     Target,
     Zap,
-    Building2
+    Building2,
+    LogOut,
+    User as UserIcon,
+    Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-import { LogOut, User as UserIcon, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useQuery } from '@tanstack/react-query';
 
@@ -150,7 +151,7 @@ const Sidebar = () => {
         <div className="fixed left-0 top-0 bottom-0 z-50 flex items-center">
             <div
                 className={cn(
-                    "group ml-4 flex flex-col h-[calc(100vh-2rem)] bg-brand-navy rounded-[32px] text-brand-white transition-all duration-300 ease-in-out overflow-hidden shadow-2xl border border-brand-white/10",
+                    "group ml-4 flex flex-col h-[calc(100vh-2rem)] bg-brand-navy rounded-[32px] text-brand-white transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] overflow-hidden shadow-[0_32px_80px_-16px_rgba(0,0,0,0.5)] border border-white/5",
                     "w-[76px] hover:w-[260px]"
                 )}
             >
@@ -158,104 +159,119 @@ const Sidebar = () => {
                 <div className="flex items-center h-20 shrink-0 px-3">
                     <div className="flex items-center w-full h-12 rounded-2xl relative">
                         <div className="w-[52px] h-12 flex items-center justify-center shrink-0">
-                            <div className="w-10 h-10 rounded-full border-2 border-brand-white/20 flex items-center justify-center">
-                                <Circle className="w-6 h-6 shrink-0" />
+                            <div className="w-9 h-9 rounded-xl border border-white/10 bg-white/[0.03] flex items-center justify-center shadow-inner group-hover:rotate-[360deg] transition-all duration-1000">
+                                <Circle className="w-5 h-5 text-brand-white" />
                             </div>
                         </div>
-                        <span className="ml-1 font-bold text-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap overflow-hidden">
-                            DigiCom
+                        <span className="ml-3 font-black text-xl tracking-tighter opacity-0 group-hover:opacity-100 transition-all duration-500 delay-100 whitespace-nowrap overflow-hidden text-brand-white">
+                            DigiCom<span className="text-white/20">.</span>
                         </span>
                     </div>
                 </div>
 
-                {/* Separator */}
-                <div className="mx-6 border-t border-brand-white/10 mb-2" />
-
                 {/* Navigation Sections */}
-                <div className="flex-1 px-3 space-y-1 overflow-y-auto no-scrollbar pb-4">
+                <div className="flex-1 px-3 space-y-5 overflow-y-auto no-scrollbar pb-6 scroll-smooth">
                     {navigation.map((section, idx) => (
-                        <div key={idx} className="space-y-1">
+                        <div key={idx} className="space-y-1.5">
                             {section.label && (
-                                <div className="px-4 pt-4 pb-1 text-[10px] uppercase tracking-wider text-brand-white/30 font-bold opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                <div className="px-4 pb-0.5 text-[8px] uppercase tracking-[0.3em] text-brand-white/20 font-black opacity-0 group-hover:opacity-100 transition-all duration-300">
                                     {section.label}
                                 </div>
                             )}
-                            {section.items.map((item) => (
-                                <NavLink
-                                    key={item.path}
-                                    to={item.path}
-                                    className={({ isActive }) => cn(
-                                        "flex items-center h-11 rounded-2xl transition-all duration-200 group/item relative",
-                                        "hover:bg-brand-white/10",
-                                        isActive ? "bg-brand-white/20 text-brand-white" : "text-brand-white/60 hover:text-brand-white"
-                                    )}
-                                >
-                                    <div className="w-[52px] h-11 flex items-center justify-center shrink-0">
-                                        <item.icon className="w-5 h-5" />
-                                    </div>
-                                    <span className="font-medium text-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap">
-                                        {item.label}
-                                    </span>
-                                </NavLink>
-                            ))}
+                            <div className="space-y-0.5">
+                                {section.items.map((item) => (
+                                    <NavLink
+                                        key={item.path}
+                                        to={item.path}
+                                        className={({ isActive }) => cn(
+                                            "flex items-center h-11 rounded-2xl transition-all duration-300 group/item relative overflow-hidden",
+                                            "hover:bg-white/[0.04]",
+                                            isActive ? "bg-white/[0.08] text-brand-white shadow-sm" : "text-brand-white/40 hover:text-brand-white"
+                                        )}
+                                    >
+                                        <div className="w-[52px] h-11 flex items-center justify-center shrink-0 relative z-10 transition-transform duration-300 group-hover/item:scale-110">
+                                            <item.icon className="w-5 h-5" />
+                                        </div>
+                                        <span className="font-bold text-[13px] opacity-0 group-hover:opacity-100 transition-all duration-500 delay-75 whitespace-nowrap relative z-10">
+                                            {item.label}
+                                        </span>
+                                    </NavLink>
+                                ))}
+                            </div>
                         </div>
                     ))}
                 </div>
 
-                {/* Profile Section */}
-                <div className="px-3 pb-2 border-t border-brand-white/10 pt-4">
+                {/* Profile Section - Refined for both states */}
+                <div className="px-3 pt-4 pb-2 border-t border-white/[0.03]">
                     <NavLink
                         to="/profile"
                         className={({ isActive }) => cn(
-                            "flex items-center h-14 rounded-2xl transition-all duration-200 group/item relative",
-                            "hover:bg-brand-white/10",
-                            isActive ? "bg-brand-white/20 text-brand-white" : "text-brand-white/60 hover:text-brand-white"
+                            "flex items-center h-14 rounded-2xl transition-all duration-500 group/profile relative overflow-hidden",
+                            "hover:bg-white/[0.05]",
+                            "group-hover:bg-white/[0.02] group-hover:border group-hover:border-white/[0.03]", // Capsule only shows when sidebar is expanded
+                            isActive && "group-hover:bg-white/[0.08] group-hover:border-white/5"
                         )}
                     >
-                        <div className="flex items-center gap-3">
-                            <div className="w-[52px] h-14 flex items-center justify-center shrink-0">
-                                <div className="w-9 h-9 rounded-full overflow-hidden border border-brand-white/20 bg-brand-blue flex items-center justify-center">
-                                    {isLoading ? (
-                                        <Loader2 className="w-4 h-4 animate-spin text-brand-white" />
-                                    ) : profile?.avatar_url ? (
-                                        <img src={profile.avatar_url} className="w-full h-full object-cover" alt="" />
-                                    ) : (
-                                        <UserIcon className="w-5 h-5 text-brand-white" />
-                                    )}
-                                </div>
-                            </div>
-                            <div className="flex flex-col opacity-0 group-hover:opacity-100 transition-opacity duration-300 overflow-hidden min-w-0">
-                                <span className="font-semibold text-sm whitespace-nowrap capitalize text-brand-white">{profile?.name || 'Loading...'}</span>
-                                <span className="text-[10px] text-brand-white/50 whitespace-nowrap uppercase tracking-wider">{profile?.role || 'User'}</span>
-
-                                {business && (
-                                    <div className="mt-1.5 pt-1.5 border-t border-brand-white/10 flex items-center gap-2">
-                                        <div className="w-4 h-4 rounded bg-brand-white/10 flex items-center justify-center overflow-hidden shrink-0">
-                                            {business.logo ? (
-                                                <img src={business.logo} alt="" className="w-full h-full object-contain" />
+                        <div className="w-[52px] h-14 flex items-center justify-center shrink-0">
+                            {/* In collapsed mode, we show only user avatar to keep it clean */}
+                            <div className="relative group-hover/profile:scale-105 transition-transform duration-500">
+                                <div className="relative flex items-center justify-center">
+                                    {/* Overlapping Avatars (Only visible when expanded OR carefully managed) */}
+                                    <div className="flex -space-x-3 items-center group-hover:group-hover/profile:-space-x-1.5 transition-all duration-700">
+                                        <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-brand-navy bg-brand-navy-light flex items-center justify-center shadow-lg z-20 transition-all duration-700 group-hover:rotate-[-4deg]">
+                                            {isProfileLoading ? (
+                                                <Loader2 className="w-4 h-4 animate-spin text-brand-white" />
+                                            ) : profile?.avatar_url ? (
+                                                <img src={profile.avatar_url} className="w-full h-full object-cover" alt="" />
                                             ) : (
-                                                <Building2 className="w-2.5 h-2.5 text-brand-white/40" />
+                                                <UserIcon className="w-4 h-4 text-brand-white" />
                                             )}
                                         </div>
-                                        <span className="text-[9px] font-bold text-brand-white/40 truncate uppercase">{business.name}</span>
+                                        {/* Business Logo - Hidden or tightly tucked when collapsed */}
+                                        <div className={cn(
+                                            "w-8 h-8 rounded-full overflow-hidden border-2 border-brand-navy bg-white flex items-center justify-center shadow-lg z-10 p-1.5 transition-all duration-700",
+                                            "opacity-0 scale-50 group-hover:opacity-100 group-hover:scale-100" // New logic: only show when sidebar expands
+                                        )}>
+                                            {business?.logo ? (
+                                                <img src={business.logo} className="w-full h-full object-contain" alt="" />
+                                            ) : (
+                                                <Building2 className="w-3 h-3 text-brand-navy/20" />
+                                            )}
+                                        </div>
                                     </div>
-                                )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Text - Scaled down for better fit */}
+                        <div className="ml-2 opacity-0 group-hover:opacity-100 transition-all duration-500 delay-150 whitespace-nowrap overflow-hidden">
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-bold text-brand-white tracking-tight truncate max-w-[120px]">
+                                    {business?.name || profile?.name}
+                                </span>
+                                <div className="flex items-center gap-1 mt-0.5">
+                                    <div className="w-1 h-1 rounded-full bg-emerald-500" />
+                                    <span className="text-[8px] text-white/30 font-black uppercase tracking-[0.2em]">
+                                        {profile?.role || 'Admin'}
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </NavLink>
                 </div>
 
-                {/* Sign Out CTA */}
+                {/* Sign Out */}
                 <div className="px-3 pb-4">
                     <button
                         onClick={handleLogout}
-                        className="flex items-center w-full h-11 rounded-2xl text-brand-red/60 hover:text-brand-red hover:bg-brand-red/10 transition-all duration-200"
+                        className="flex items-center w-full h-11 rounded-2xl text-white/10 hover:text-red-400 hover:bg-red-400/5 transition-all duration-300"
                     >
                         <div className="w-[52px] h-11 flex items-center justify-center shrink-0">
-                            <LogOut className="w-5 h-5" />
+                            <LogOut className="w-4 h-4" />
                         </div>
-                        <span className="font-medium text-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap">
-                            Sign Out
+                        <span className="font-bold text-xs opacity-0 group-hover:opacity-100 transition-all duration-500 delay-75 whitespace-nowrap">
+                            Logout
                         </span>
                     </button>
                 </div>
