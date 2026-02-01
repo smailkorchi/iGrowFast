@@ -157,8 +157,44 @@ class ColiatyAdapter {
     }
 
     async getParcelInfo(trackingCode) {
-        // Coliaty implementation - to be added later
-        throw new Error('getParcelInfo not implemented for Coliaty yet');
+        // Coliaty API endpoint for parcel status
+        if (!trackingCode) {
+            throw new Error('Tracking code required');
+        }
+
+        const response = await fetch(`${this.baseUrl}/parcel/status/${trackingCode}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${this.apiKeyPublic}:${this.apiKeySecret}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Failed to get Coliaty parcel info: ${errorText}`);
+        }
+
+        const result = await response.json();
+
+        // Coliaty returns {success, data: {status, parcel, business}}
+        if (result.success && result.data) {
+            const { status, parcel } = result.data;
+            return {
+                tracking_code: parcel.code,
+                status: status.code,
+                statusLabel: status.label,
+                statusColor: null, // Coliaty doesn't provide color in this endpoint
+                receiver: parcel.receiver,
+                phone: parcel.phone,
+                price: parcel.price,
+                comment: status.comment || '',
+                date: status.date,
+                _original: result.data
+            };
+        }
+
+        return null;
     }
 }
 
