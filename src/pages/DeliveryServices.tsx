@@ -130,6 +130,7 @@ const DeliveryServices = () => {
 
     const { toast } = useToast();
     const queryClient = useQueryClient();
+    const activeBusinessId = localStorage.getItem('activeBusinessId');
 
     // --- Queries ---
 
@@ -1050,6 +1051,7 @@ function FeesModal({ isOpen, onClose, courier }: any) {
 function CompanyZonesModal({ isOpen, onClose, company }: any) {
     const queryClient = useQueryClient();
     const { toast } = useToast();
+    const activeBusinessId = localStorage.getItem('activeBusinessId');
 
     const { data: allZones } = useQuery({
         queryKey: ['zones'],
@@ -1062,9 +1064,14 @@ function CompanyZonesModal({ isOpen, onClose, company }: any) {
     });
 
     const { data: assignedZones, isLoading } = useQuery({
-        queryKey: ['company_zones', company?.id],
+        queryKey: ['company_zones', company?.id, activeBusinessId],
         queryFn: async () => {
-            const { data, error } = await supabase.from(COMPANY_ZONES_TABLE).select('zone_id').eq('company_id', company.id);
+            if (!activeBusinessId) return [];
+            const { data, error } = await supabase
+                .from(COMPANY_ZONES_TABLE)
+                .select('zone_id')
+                .eq('company_id', company.id)
+                .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data.map((z: any) => z.zone_id);
         },
@@ -1075,13 +1082,24 @@ function CompanyZonesModal({ isOpen, onClose, company }: any) {
         mutationFn: async (zoneId: string) => {
             const isAssigned = assignedZones?.includes(zoneId);
             if (isAssigned) {
-                await supabase.from(COMPANY_ZONES_TABLE).delete().eq('company_id', company.id).eq('zone_id', zoneId);
+                await supabase
+                    .from(COMPANY_ZONES_TABLE)
+                    .delete()
+                    .eq('company_id', company.id)
+                    .eq('zone_id', zoneId)
+                    .eq('DigiCom Business', activeBusinessId);
             } else {
-                await supabase.from(COMPANY_ZONES_TABLE).insert({ company_id: company.id, zone_id: zoneId });
+                await supabase
+                    .from(COMPANY_ZONES_TABLE)
+                    .insert({
+                        company_id: company.id,
+                        zone_id: zoneId,
+                        'DigiCom Business': activeBusinessId
+                    });
             }
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['company_zones', company?.id] });
+            queryClient.invalidateQueries({ queryKey: ['company_zones', company?.id, activeBusinessId] });
             toast({ title: "Updated", description: "Company service zones updated." });
         }
     });
@@ -1124,6 +1142,7 @@ function CompanyZonesModal({ isOpen, onClose, company }: any) {
 function CompanyFeesModal({ isOpen, onClose, company }: any) {
     const queryClient = useQueryClient();
     const { toast } = useToast();
+    const activeBusinessId = localStorage.getItem('activeBusinessId');
     const [fees, setFees] = useState<Record<string, string>>({});
 
     const { data: cities, isLoading: loadingCities } = useQuery({
@@ -1141,9 +1160,15 @@ function CompanyFeesModal({ isOpen, onClose, company }: any) {
     });
 
     const { data: savedFees } = useQuery({
-        queryKey: ['company_fees', company?.id],
+        queryKey: ['company_fees', company?.id, activeBusinessId],
         queryFn: async () => {
-            const { data, error } = await supabase.from(COMPANY_FEES_TABLE).select('*').eq('company_id', company.id);
+            if (!activeBusinessId) return {};
+            const { data, error } = await supabase
+                .from(COMPANY_FEES_TABLE)
+                .select('*')
+                .eq('company_id', company.id)
+                .eq('DigiCom Business', activeBusinessId);
+
             if (error) throw error;
             const feeMap: Record<string, string> = {};
             data.forEach((f: any) => feeMap[f.city_id] = f.fee.toString());
@@ -1160,12 +1185,13 @@ function CompanyFeesModal({ isOpen, onClose, company }: any) {
                 company_id: company.id,
                 city_id: cityId,
                 fee: numericFee,
-                updated_at: new Date().toISOString()
-            }, { onConflict: 'company_id,city_id' });
+                updated_at: new Date().toISOString(),
+                'DigiCom Business': activeBusinessId
+            }, { onConflict: 'company_id,city_id,DigiCom Business' });
             if (error) throw error;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['company_fees', company?.id] });
+            queryClient.invalidateQueries({ queryKey: ['company_fees', company?.id, activeBusinessId] });
         }
     });
 

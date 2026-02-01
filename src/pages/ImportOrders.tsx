@@ -82,6 +82,7 @@ const ImportOrders = () => {
     const [uploadProgress, setUploadProgress] = useState(0);
     const [currentPage, setCurrentPage] = useState(1);
     const [searchQuery, setSearchQuery] = useState('');
+    const activeBusinessId = localStorage.getItem('activeBusinessId');
 
     // --- Queries ---
     const { data: cities } = useQuery({
@@ -148,9 +149,13 @@ const ImportOrders = () => {
     });
 
     const { data: companyFees } = useQuery({
-        queryKey: ['company-fees-all'],
+        queryKey: ['company-fees-all', activeBusinessId],
         queryFn: async () => {
-            const { data, error } = await (supabase as any).from('company_fees').select('*');
+            if (!activeBusinessId) return [];
+            const { data, error } = await (supabase as any)
+                .from('company_fees')
+                .select('*')
+                .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data;
         }

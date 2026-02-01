@@ -149,6 +149,7 @@ const Orders = () => {
 
     const { toast } = useToast();
     const queryClient = useQueryClient();
+    const activeBusinessId = localStorage.getItem('activeBusinessId');
 
     // Filter states
     const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -264,9 +265,13 @@ const Orders = () => {
     });
 
     const { data: companyFees } = useQuery({
-        queryKey: ['company-fees-all'],
+        queryKey: ['company-fees-all', activeBusinessId],
         queryFn: async () => {
-            const { data, error } = await (supabase as any).from('company_fees').select('*');
+            if (!activeBusinessId) return [];
+            const { data, error } = await (supabase as any)
+                .from('company_fees')
+                .select('*')
+                .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data;
         }
