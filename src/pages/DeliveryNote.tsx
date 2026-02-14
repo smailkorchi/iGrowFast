@@ -698,14 +698,15 @@ const DeliveryNote = () => {
         // Get provider info and brand color
         const provider = note.providers;
         const providerType = provider?.provider_type?.toLowerCase();
-        const brandColor = providerType === 'coliaty' ? 'emerald' : providerType === 'ameex' ? 'orange' : 'blue';
+        const brandColor = providerType === 'coliaty' ? 'emerald' : providerType === 'ameex' ? 'orange' : providerType === 'ozon' ? 'red' : 'blue';
 
         return (
             <Card key={note.id} className="group relative overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-2xl transition-all duration-500 rounded-[32px]">
                 {/* Provider brand color accent */}
                 <div className={`absolute top-0 left-0 w-full h-1.5 ${brandColor === 'emerald' ? 'bg-emerald-500' :
                     brandColor === 'orange' ? 'bg-orange-500' :
-                        'bg-blue-500'
+                        brandColor === 'red' ? 'bg-red-500' :
+                            'bg-blue-500'
                     }`} />
 
                 <CardContent className="p-8 space-y-6">
@@ -716,7 +717,8 @@ const DeliveryNote = () => {
                             {provider?.logo_url ? (
                                 <div className={`p-3 rounded-2xl border-2 ${brandColor === 'emerald' ? 'bg-emerald-50 border-emerald-200' :
                                     brandColor === 'orange' ? 'bg-orange-50 border-orange-200' :
-                                        'bg-blue-50 border-blue-200'
+                                        brandColor === 'red' ? 'bg-red-50 border-red-200' :
+                                            'bg-blue-50 border-blue-200'
                                     }`}>
                                     <img
                                         src={provider.logo_url}
@@ -727,7 +729,8 @@ const DeliveryNote = () => {
                             ) : (
                                 <div className={`w-16 h-16 rounded-2xl flex items-center justify-center font-bold text-white ${brandColor === 'emerald' ? 'bg-emerald-500' :
                                     brandColor === 'orange' ? 'bg-orange-500' :
-                                        'bg-blue-500'
+                                        brandColor === 'red' ? 'bg-red-500' :
+                                            'bg-blue-500'
                                     }`}>
                                     {type === 'company' ? <Building2 className="w-7 h-7" /> : <Truck className="w-7 h-7" />}
                                 </div>
@@ -851,7 +854,7 @@ const DeliveryNote = () => {
                         {notes.map((note) => {
                             const provider = note.providers;
                             const providerType = provider?.provider_type?.toLowerCase();
-                            const brandColor = providerType === 'coliaty' ? 'emerald' : providerType === 'ameex' ? 'orange' : 'blue';
+                            const brandColor = providerType === 'coliaty' ? 'emerald' : providerType === 'ameex' ? 'orange' : providerType === 'ozon' ? 'red' : 'blue';
 
                             return (
                                 <tr key={note.id} className="hover:bg-brand-navy/[0.01] transition-colors group">
@@ -859,7 +862,8 @@ const DeliveryNote = () => {
                                         <div className="flex items-center gap-3">
                                             <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform ${brandColor === 'emerald' ? 'bg-emerald-50 text-emerald-600' :
                                                 brandColor === 'orange' ? 'bg-orange-50 text-orange-600' :
-                                                    'bg-blue-50 text-blue-600'
+                                                    brandColor === 'red' ? 'bg-red-50 text-red-600' :
+                                                        'bg-blue-50 text-blue-600'
                                                 }`}>
                                                 <FileText className="w-5 h-5" />
                                             </div>
