@@ -243,9 +243,9 @@ const ExpensesDetails = () => {
     const totalAmount = filteredExpenses?.reduce((acc: number, curr: any) => acc + Number(curr.amount), 0) || 0;
 
     return (
-        <div className="min-h-screen bg-brand-white p-4 md:p-8 space-y-8 animate-in fade-in duration-500">
+        <div className="space-y-8 animate-in fade-in duration-500">
             {/* Header Section */}
-            <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-6">
+            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
                 <div className="space-y-4">
                     <div className="space-y-2">
                         <h1 className="text-4xl font-black tracking-tight text-brand-navy uppercase flex items-center gap-3">
@@ -255,15 +255,15 @@ const ExpensesDetails = () => {
                         <p className="text-brand-navy/60 text-lg font-medium">Keep track of every cent your business spends.</p>
                     </div>
 
-                    <div className="flex flex-wrap gap-4 pt-2">
-                        <div className="bg-brand-navy p-6 rounded-[32px] min-w-[200px] shadow-2xl shadow-brand-navy/20 group hover:scale-105 transition-transform duration-500">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                        <div className="bg-brand-navy p-6 rounded-[32px] shadow-2xl shadow-brand-navy/20 group hover:scale-[1.02] transition-transform duration-500">
                             <p className="text-[10px] font-black uppercase tracking-widest text-brand-white/40 mb-1">Total Period Budget</p>
                             <div className="flex items-baseline gap-1">
                                 <span className="text-3xl font-black text-brand-white">{totalAmount.toLocaleString()}</span>
                                 <span className="text-sm font-bold text-brand-white/60">DH</span>
                             </div>
                         </div>
-                        <div className="bg-brand-blue p-6 rounded-[32px] min-w-[200px] shadow-2xl shadow-brand-blue/20 group hover:scale-105 transition-transform duration-500">
+                        <div className="bg-brand-blue p-6 rounded-[32px] shadow-2xl shadow-brand-blue/20 group hover:scale-[1.02] transition-transform duration-500">
                             <p className="text-[10px] font-black uppercase tracking-widest text-brand-white/40 mb-1">Total Transactions</p>
                             <div className="flex items-baseline gap-1">
                                 <span className="text-3xl font-black text-brand-white">{filteredExpenses?.length || 0}</span>
@@ -273,7 +273,7 @@ const ExpensesDetails = () => {
                     </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-3 items-center w-full xl:w-auto">
+                <div className="flex flex-col md:flex-row gap-3 items-center w-full lg:w-auto">
                     <div className="relative group flex-1 sm:w-80">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-navy/40 transition-colors group-focus-within:text-brand-navy" />
                         <Input

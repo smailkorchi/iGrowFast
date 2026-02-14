@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
     Home,
     Users,
@@ -47,6 +47,7 @@ type NavItem = {
 
 type NavSection = {
     label?: string;
+    icon?: any;
     items: NavItem[];
 };
 
@@ -60,6 +61,7 @@ const navigation: NavSection[] = [
     },
     {
         label: 'Shipping',
+        icon: Truck,
         items: [
             { icon: FileText, label: 'Delivery Note', path: '/delivery-note' },
             { icon: Repeat, label: 'Return Note', path: '/return-note' },
@@ -70,6 +72,7 @@ const navigation: NavSection[] = [
     },
     {
         label: 'Inventory',
+        icon: Package,
         items: [
             { icon: ArrowRightLeft, label: 'Transactions', path: '/transactions' },
             { icon: Box, label: 'Products', path: '/products' },
@@ -78,7 +81,6 @@ const navigation: NavSection[] = [
     {
         items: [
             { icon: RefreshCcw, label: 'Status', path: '/status' },
-
             { icon: Megaphone, label: 'Sales Channels', path: '/sales-channels' },
             { icon: Users, label: 'Customers', path: '/customers' },
             { icon: UserPlus, label: 'Users', path: '/users' },
@@ -86,6 +88,7 @@ const navigation: NavSection[] = [
     },
     {
         label: 'Expenses',
+        icon: Wallet,
         items: [
             { icon: Target, label: 'Ads History', path: '/ads-history' },
             { icon: List, label: 'Expenses Details', path: '/expenses-details' },
@@ -94,6 +97,7 @@ const navigation: NavSection[] = [
     },
     {
         label: 'Settings',
+        icon: Settings,
         items: [
             { icon: Building2, label: 'Businesses', path: '/businesses' },
             { icon: MapPin, label: 'Cities', path: '/cities' },
@@ -105,6 +109,31 @@ const navigation: NavSection[] = [
 
 const Sidebar = () => {
     const navigate = useNavigate();
+    const location = useLocation();
+
+    // State for expanded section (Accordion behavior)
+    const [expandedSection, setExpandedSection] = React.useState<string | null>(() => {
+        let activeSection = null;
+        navigation.forEach(section => {
+            if (section.label && section.items.some(item => location.pathname === item.path)) {
+                activeSection = section.label;
+            }
+        });
+        return activeSection;
+    });
+
+    const toggleSection = (label: string) => {
+        setExpandedSection(prev => prev === label ? null : label);
+    };
+
+    // Auto-expand when path changes
+    React.useEffect(() => {
+        navigation.forEach(section => {
+            if (section.label && expandedSection !== section.label && section.items.some(item => location.pathname === item.path)) {
+                setExpandedSection(section.label);
+            }
+        });
+    }, [location.pathname]);
 
     const { data: profile, isLoading: isProfileLoading } = useQuery({
         queryKey: ['current-profile'],
@@ -146,8 +175,6 @@ const Sidebar = () => {
         return () => window.removeEventListener('businessSelected', handleRefresh);
     }, [refetchBusiness]);
 
-    const isLoading = isProfileLoading || isBusinessLoading;
-
     const handleLogout = async () => {
         await supabase.auth.signOut();
         localStorage.removeItem('activeBusinessId');
@@ -155,135 +182,191 @@ const Sidebar = () => {
     };
 
     return (
-        <div className="fixed left-0 top-0 bottom-0 z-50 flex items-center">
-            <div
-                className={cn(
-                    "group ml-4 flex flex-col h-[calc(100vh-2rem)] bg-brand-navy rounded-[32px] text-brand-white transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] overflow-hidden shadow-[0_32px_80px_-16px_rgba(0,0,0,0.5)] border border-white/5",
-                    "w-[76px] hover:w-[260px]"
-                )}
-            >
-                {/* Top Logo Section */}
-                <div className="flex items-center h-20 shrink-0 px-3">
-                    <div className="flex items-center w-full h-12 rounded-2xl relative">
-                        <div className="w-[52px] h-12 flex items-center justify-center shrink-0">
-                            <div className="w-9 h-9 rounded-xl bg-brand-white flex items-center justify-center shadow-xl group-hover:rotate-[360deg] transition-all duration-1000 overflow-hidden p-1.5">
-                                <img
-                                    src="/Logo/DigiCom Icon Transparent.png"
-                                    alt="DigiCom"
-                                    className="w-full h-full object-contain"
-                                />
+        <aside className="relative flex-none transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] group/sidebar w-[92px] hover:w-[276px]">
+            {/* 
+                Fixed Container: 
+                We use w-inherit logic manually via classes to ensure the labels and width expand correctly.
+                The pointer-events-none on the fixed wrapper ensures it doesn't block the page, 
+                while the pointer-events-auto on the actual sidebar allows interaction.
+            */}
+            <div className="fixed left-0 top-0 bottom-0 flex items-center z-50 transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] w-[92px] group-hover/sidebar:w-[276px] pointer-events-none">
+                <div
+                    className={cn(
+                        "flex flex-col ml-4 h-[calc(100vh-2rem)] bg-brand-navy rounded-[32px] text-brand-white transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] overflow-hidden shadow-[0_32px_80px_-16px_rgba(0,0,0,0.5)] border border-white/5 pointer-events-auto",
+                        "w-[76px] group-hover/sidebar:w-[260px] group/sidebar-inner"
+                    )}
+                >
+                    {/* Top Logo Section */}
+                    <div className="flex items-center h-20 shrink-0 px-3">
+                        <div className="flex items-center w-full h-12 rounded-2xl relative">
+                            <div className="w-[52px] h-12 flex items-center justify-center shrink-0">
+                                <div className="w-9 h-9 rounded-xl bg-brand-white flex items-center justify-center shadow-xl group-hover/sidebar-inner:rotate-[360deg] transition-all duration-1000 overflow-hidden p-1.5">
+                                    <img
+                                        src="/Logo/DigiCom Icon Transparent.png"
+                                        alt="DigiCom"
+                                        className="w-full h-full object-contain"
+                                    />
+                                </div>
                             </div>
+                            <span className="ml-3 font-black text-xl tracking-tighter opacity-0 group-hover/sidebar-inner:opacity-100 transition-all duration-500 delay-100 whitespace-nowrap overflow-hidden text-brand-white">
+                                DigiCom<span className="text-white/20">.</span>
+                            </span>
                         </div>
-                        <span className="ml-3 font-black text-xl tracking-tighter opacity-0 group-hover:opacity-100 transition-all duration-500 delay-100 whitespace-nowrap overflow-hidden text-brand-white">
-                            DigiCom<span className="text-white/20">.</span>
-                        </span>
+                    </div>
+
+                    {/* Navigation Sections */}
+                    <div className="flex-1 px-3 space-y-1 overflow-y-auto no-scrollbar pb-6 scroll-smooth">
+                        {navigation.map((section, idx) => (
+                            <div key={idx} className="space-y-1">
+                                {section.label ? (
+                                    <>
+                                        <button
+                                            onClick={() => toggleSection(section.label!)}
+                                            className={cn(
+                                                "flex items-center w-full h-11 rounded-2xl transition-all duration-300 group/item relative overflow-hidden",
+                                                "hover:bg-white/[0.04]",
+                                                (expandedSection === section.label || section.items.some(item => location.pathname === item.path))
+                                                    ? "text-brand-white"
+                                                    : "text-brand-white/40 hover:text-brand-white"
+                                            )}
+                                        >
+                                            <div className="w-[52px] h-11 flex items-center justify-center shrink-0 relative z-10 transition-transform duration-300 group-hover/item:scale-110">
+                                                {section.icon && <section.icon className="w-5 h-5" />}
+                                            </div>
+                                            <div className="flex-1 flex items-center justify-between pr-4 opacity-0 group-hover/sidebar-inner:opacity-100 transition-all duration-500 delay-75">
+                                                <span className="font-bold text-[13px] whitespace-nowrap">
+                                                    {section.label}
+                                                </span>
+                                                <ChevronRight className={cn(
+                                                    "w-4 h-4 transition-transform duration-300",
+                                                    expandedSection === section.label && "rotate-90"
+                                                )} />
+                                            </div>
+                                        </button>
+
+                                        <div className={cn(
+                                            "space-y-0.5 overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]",
+                                            expandedSection === section.label ? "max-h-[400px] opacity-100 mt-1" : "max-h-0 opacity-0"
+                                        )}>
+                                            {section.items.map((item) => (
+                                                <NavLink
+                                                    key={item.path}
+                                                    to={item.path}
+                                                    className={({ isActive }) => cn(
+                                                        "flex items-center h-10 rounded-xl transition-all duration-300 group/subitem relative overflow-hidden ml-1",
+                                                        "hover:bg-white/[0.04]",
+                                                        isActive ? "bg-white/[0.08] text-brand-white shadow-sm" : "text-brand-white/50 hover:text-brand-white"
+                                                    )}
+                                                >
+                                                    {({ isActive }) => (
+                                                        <>
+                                                            <div className="w-[48px] h-10 flex items-center justify-center shrink-0 relative z-10 transition-transform duration-300 group-hover/subitem:scale-110">
+                                                                <item.icon className={cn("w-4 h-4", isActive ? "text-brand-white" : "text-brand-white/40 group-hover/subitem:text-brand-white")} />
+                                                            </div>
+                                                            <span className="font-bold text-[12px] opacity-0 group-hover/sidebar-inner:opacity-100 transition-all duration-500 delay-75 whitespace-nowrap relative z-10">
+                                                                {item.label}
+                                                            </span>
+                                                        </>
+                                                    )}
+                                                </NavLink>
+                                            ))}
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="space-y-0.5">
+                                        {section.items.map((item) => (
+                                            <NavLink
+                                                key={item.path}
+                                                to={item.path}
+                                                className={({ isActive }) => cn(
+                                                    "flex items-center h-11 rounded-2xl transition-all duration-300 group/item relative overflow-hidden",
+                                                    "hover:bg-white/[0.04]",
+                                                    isActive ? "bg-white/[0.08] text-brand-white shadow-sm" : "text-brand-white/40 hover:text-brand-white"
+                                                )}
+                                            >
+                                                <div className="w-[52px] h-11 flex items-center justify-center shrink-0 relative z-10 transition-transform duration-300 group-hover/item:scale-110">
+                                                    <item.icon className="w-5 h-5" />
+                                                </div>
+                                                <span className="font-bold text-[13px] opacity-0 group-hover/sidebar-inner:opacity-100 transition-all duration-500 delay-75 whitespace-nowrap relative z-10">
+                                                    {item.label}
+                                                </span>
+                                            </NavLink>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Profile Section */}
+                    <div className="px-3 pt-4 pb-2 border-t border-white/[0.03]">
+                        <NavLink
+                            to="/select-business"
+                            className={({ isActive }) => cn(
+                                "flex items-center h-14 rounded-2xl transition-all duration-500 group/profile relative overflow-hidden",
+                                "hover:bg-white/[0.05]",
+                                "group-hover/sidebar-inner:bg-white/[0.02] group-hover/sidebar-inner:border group-hover/sidebar-inner:border-white/[0.03]",
+                                isActive && "group-hover/sidebar-inner:bg-white/[0.08] group-hover/sidebar-inner:border-white/5"
+                            )}
+                        >
+                            <div className="w-[52px] h-14 flex items-center justify-center shrink-0">
+                                <div className="relative w-8 h-8 group-hover/profile:scale-105 transition-transform duration-500 flex items-center justify-center">
+                                    <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-brand-navy bg-brand-navy-light flex items-center justify-center shadow-lg z-20 transition-all duration-700 group-hover/sidebar-inner:rotate-[-4deg] shrink-0 relative">
+                                        {isProfileLoading ? (
+                                            <Loader2 className="w-4 h-4 animate-spin text-brand-white" />
+                                        ) : profile?.avatar_url ? (
+                                            <img src={profile.avatar_url} className="w-full h-full object-cover" alt="" />
+                                        ) : (
+                                            <UserIcon className="w-4 h-4 text-brand-white" />
+                                        )}
+                                    </div>
+                                    <div className={cn(
+                                        "absolute top-0 left-0 rounded-full overflow-hidden border-2 border-brand-navy bg-white flex items-center justify-center shadow-lg z-10 transition-all duration-700",
+                                        "w-8 h-8 opacity-0 pointer-events-none",
+                                        "group-hover/sidebar-inner:opacity-100 group-hover/sidebar-inner:translate-x-3.5 group-hover/sidebar-inner:pointer-events-auto"
+                                    )}>
+                                        {business?.logo ? (
+                                            <img src={business.logo} className="w-full h-full object-contain" alt="" />
+                                        ) : (
+                                            <Building2 className="w-3 h-3 text-brand-navy/20" />
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="ml-2 opacity-0 group-hover/sidebar-inner:opacity-100 transition-all duration-500 delay-150 whitespace-nowrap overflow-hidden">
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] font-bold text-brand-white tracking-tight truncate max-w-[120px]">
+                                        {business?.name || profile?.name}
+                                    </span>
+                                    <div className="flex items-center gap-1 mt-0.5">
+                                        <div className="w-1 h-1 rounded-full bg-emerald-500" />
+                                        <span className="text-[8px] text-white/30 font-black uppercase tracking-[0.2em]">
+                                            {profile?.role || 'Admin'}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </NavLink>
+                    </div>
+
+                    {/* Sign Out */}
+                    <div className="px-3 pb-4">
+                        <button
+                            onClick={handleLogout}
+                            className="flex items-center w-full h-11 rounded-2xl text-white/10 hover:text-red-400 hover:bg-red-400/5 transition-all duration-300"
+                        >
+                            <div className="w-[52px] h-11 flex items-center justify-center shrink-0">
+                                <LogOut className="w-4 h-4" />
+                            </div>
+                            <span className="font-bold text-xs opacity-0 group-hover/sidebar-inner:opacity-100 transition-all duration-500 delay-75 whitespace-nowrap">
+                                Logout
+                            </span>
+                        </button>
                     </div>
                 </div>
-
-                {/* Navigation Sections */}
-                <div className="flex-1 px-3 space-y-5 overflow-y-auto no-scrollbar pb-6 scroll-smooth">
-                    {navigation.map((section, idx) => (
-                        <div key={idx} className="space-y-1.5">
-                            {section.label && (
-                                <div className="px-4 pb-0.5 text-[8px] uppercase tracking-[0.3em] text-brand-white/20 font-black opacity-0 group-hover:opacity-100 transition-all duration-300">
-                                    {section.label}
-                                </div>
-                            )}
-                            <div className="space-y-0.5">
-                                {section.items.map((item) => (
-                                    <NavLink
-                                        key={item.path}
-                                        to={item.path}
-                                        className={({ isActive }) => cn(
-                                            "flex items-center h-11 rounded-2xl transition-all duration-300 group/item relative overflow-hidden",
-                                            "hover:bg-white/[0.04]",
-                                            isActive ? "bg-white/[0.08] text-brand-white shadow-sm" : "text-brand-white/40 hover:text-brand-white"
-                                        )}
-                                    >
-                                        <div className="w-[52px] h-11 flex items-center justify-center shrink-0 relative z-10 transition-transform duration-300 group-hover/item:scale-110">
-                                            <item.icon className="w-5 h-5" />
-                                        </div>
-                                        <span className="font-bold text-[13px] opacity-0 group-hover:opacity-100 transition-all duration-500 delay-75 whitespace-nowrap relative z-10">
-                                            {item.label}
-                                        </span>
-                                    </NavLink>
-                                ))}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-
-                {/* Profile Section - Refined for both states */}
-                <div className="px-3 pt-4 pb-2 border-t border-white/[0.03]">
-                    <NavLink
-                        to="/select-business"
-                        className={({ isActive }) => cn(
-                            "flex items-center h-14 rounded-2xl transition-all duration-500 group/profile relative overflow-hidden",
-                            "hover:bg-white/[0.05]",
-                            "group-hover:bg-white/[0.02] group-hover:border group-hover:border-white/[0.03]", // Capsule only shows when sidebar is expanded
-                            isActive && "group-hover:bg-white/[0.08] group-hover:border-white/5"
-                        )}
-                    >
-                        <div className="w-[52px] h-14 flex items-center justify-center shrink-0">
-                            <div className="relative w-8 h-8 group-hover/profile:scale-105 transition-transform duration-500 flex items-center justify-center">
-                                {/* Primary User Avatar - Anchored to Center */}
-                                <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-brand-navy bg-brand-navy-light flex items-center justify-center shadow-lg z-20 transition-all duration-700 group-hover:rotate-[-4deg] shrink-0 relative">
-                                    {isProfileLoading ? (
-                                        <Loader2 className="w-4 h-4 animate-spin text-brand-white" />
-                                    ) : profile?.avatar_url ? (
-                                        <img src={profile.avatar_url} className="w-full h-full object-cover" alt="" />
-                                    ) : (
-                                        <UserIcon className="w-4 h-4 text-brand-white" />
-                                    )}
-                                </div>
-                                {/* Secondary Business Logo - Slides out when expanded */}
-                                <div className={cn(
-                                    "absolute top-0 left-0 rounded-full overflow-hidden border-2 border-brand-navy bg-white flex items-center justify-center shadow-lg z-10 transition-all duration-700",
-                                    "w-8 h-8 opacity-0 pointer-events-none",
-                                    "group-hover:opacity-100 group-hover:translate-x-3.5 group-hover:pointer-events-auto"
-                                )}>
-                                    {business?.logo ? (
-                                        <img src={business.logo} className="w-full h-full object-contain" alt="" />
-                                    ) : (
-                                        <Building2 className="w-3 h-3 text-brand-navy/20" />
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Text - Scaled down for better fit */}
-                        <div className="ml-2 opacity-0 group-hover:opacity-100 transition-all duration-500 delay-150 whitespace-nowrap overflow-hidden">
-                            <div className="flex flex-col">
-                                <span className="text-[10px] font-bold text-brand-white tracking-tight truncate max-w-[120px]">
-                                    {business?.name || profile?.name}
-                                </span>
-                                <div className="flex items-center gap-1 mt-0.5">
-                                    <div className="w-1 h-1 rounded-full bg-emerald-500" />
-                                    <span className="text-[8px] text-white/30 font-black uppercase tracking-[0.2em]">
-                                        {profile?.role || 'Admin'}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                    </NavLink>
-                </div>
-
-                {/* Sign Out */}
-                <div className="px-3 pb-4">
-                    <button
-                        onClick={handleLogout}
-                        className="flex items-center w-full h-11 rounded-2xl text-white/10 hover:text-red-400 hover:bg-red-400/5 transition-all duration-300"
-                    >
-                        <div className="w-[52px] h-11 flex items-center justify-center shrink-0">
-                            <LogOut className="w-4 h-4" />
-                        </div>
-                        <span className="font-bold text-xs opacity-0 group-hover:opacity-100 transition-all duration-500 delay-75 whitespace-nowrap">
-                            Logout
-                        </span>
-                    </button>
-                </div>
             </div>
-        </div>
+        </aside>
     );
 };
 
