@@ -521,14 +521,20 @@ class AmeexAdapter {
 
         // Normalize phone for AMEEX: must be 10 digits starting with 05/06/07/08
         if (phone) {
-            // Remove any spaces, dashes, or special characters
-            phone = phone.replace(/[\s\-\(\)]/g, '');
+            // Remove + and any non-digits
+            phone = String(phone).replace(/\D/g, '');
 
-            // If it's 9 digits and starts with 5, 6, 7, or 8, add leading 0
-            if (phone.length === 9 && /^[5678]/.test(phone)) {
-                phone = '0' + phone;
-                console.log('Added leading 0 to phone:', phone);
+            // Handle 212 prefix
+            if (phone.startsWith('212')) {
+                phone = phone.substring(3);
             }
+
+            // Ensure starts with 0
+            if (!phone.startsWith('0')) {
+                phone = '0' + phone;
+            }
+
+            console.log('📱 Phone normalization result:', phone);
 
             // Validate format
             if (!/^0[5678]\d{8}$/.test(phone)) {
@@ -701,7 +707,11 @@ class AmeexAdapter {
             formData.append('parcels[]', code);
         });
 
-        const response = await fetch(`${this.baseUrl}/customer/Delivery/DeliveryNotes/Action/Type/AddParcels?Ref=${deliveryNoteRef}`, {
+        const url = `${this.baseUrl}/customer/Delivery/DeliveryNotes/Action/Type/AddParcels?Ref=${deliveryNoteRef}`;
+        console.log('📡 AMEEX AddParcels Request:', url);
+        console.log('📦 Payload:', formData.toString());
+
+        const response = await fetch(url, {
             method: 'POST',
             headers: {
                 'C-Api-Id': this.apiId,
@@ -711,14 +721,16 @@ class AmeexAdapter {
             body: formData.toString()
         });
 
+        console.log('📡 AMEEX Response Status:', response.status);
+
         if (!response.ok) {
             const errText = await response.text();
-            console.error('AMEEX add parcels error:', errText);
+            console.error('❌ AMEEX add parcels error:', errText);
             throw new Error(`Failed to add parcels to AMEEX note: ${errText}`);
         }
 
         const result = await response.json();
-        console.log('AMEEX addParcelsToNote response:', JSON.stringify(result, null, 2));
+        console.log('✅ AMEEX addParcelsToNote result:', JSON.stringify(result, null, 2));
         console.log('=== AMEEX addParcelsToNote END ===');
 
         return result.data || result;

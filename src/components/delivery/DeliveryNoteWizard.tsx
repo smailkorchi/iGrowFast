@@ -32,15 +32,24 @@ const EDGE_FUNCTION_URL = 'https://zjkqprrfbibjoslvlmxf.supabase.co/functions/v1
 interface DeliveryNoteWizardProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    lockZoneId?: string;
+    lockProviderId?: string;
 }
 
-export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, onOpenChange }) => {
+export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, onOpenChange, lockZoneId, lockProviderId }) => {
     const [step, setStep] = useState<'zone' | 'creating' | 'review' | 'finalizing'>('zone');
-    const [selectedZoneId, setSelectedZoneId] = useState<string>('');
+    const [selectedZoneId, setSelectedZoneId] = useState<string>(lockZoneId || '');
     const [zoneSearch, setZoneSearch] = useState('');
     const [createdParcels, setCreatedParcels] = useState<any[]>([]);
     const [deliveryNotes, setDeliveryNotes] = useState<any[]>([]);
     const [currentProvider, setCurrentProvider] = useState<string>('');
+
+    // Update selectedZoneId when lockZoneId changes
+    React.useEffect(() => {
+        if (lockZoneId) {
+            setSelectedZoneId(lockZoneId);
+        }
+    }, [lockZoneId]);
 
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -120,6 +129,12 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
             // Group by provider
             const grouped = (data || []).reduce((acc: any, order: any) => {
                 const providerId = order.company_id;
+
+                // If a provider is locked, only include that provider
+                if (lockProviderId && providerId !== lockProviderId) {
+                    return acc;
+                }
+
                 if (!acc[providerId]) {
                     acc[providerId] = {
                         provider: order.company,
@@ -222,13 +237,14 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
 
                     if (parcelError) throw parcelError;
 
+                    console.log(`✅ Parcel created for ${order.name}:`, result.data?.tracking_code);
                     results.push({
                         order,
                         parcel,
                         tracking_code: result.data?.tracking_code || result.data?.reference || 'N/A'
                     });
                 } catch (error: any) {
-                    console.error('Parcel creation error:', error);
+                    console.error(`❌ Parcel creation failed for ${order.name}:`, error);
                     results.push({
                         order,
                         error: error.message
@@ -236,6 +252,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                 }
             }
 
+            console.log('🏁 Batch creation finished. Results:', results);
             return results;
         },
         onSuccess: (results) => {
@@ -246,96 +263,150 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
     // Create delivery note for provider
     const createDeliveryNoteMutation = useMutation({
         mutationFn: async ({ providerId, parcelCodes }: { providerId: string; parcelCodes: string[] }) => {
-            // Get user session
             const { data: { session } } = await supabase.auth.getSession();
+            if (!session) throw new Error('Not authenticated');
 
-            // Create delivery note via Edge Function
-            const response = await fetch(EDGE_FUNCTION_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session?.access_token}`
-                },
-                body: JSON.stringify({
-                    action: 'create_delivery_note',
-                    provider_id: providerId
-                })
-            });
+            // 1. Check if there is an existing OPEN delivery note for this Provider + Zone
+            console.log('🔍 Checking for existing note:', { providerId, zoneId: selectedZoneId, businessId: activeBusinessId });
 
-            if (!response.ok) throw new Error('Failed to create delivery note');
+            const { data: existingNote, error: searchError } = await supabase
+                .from('company_delivery_notes')
+                .select('*')
+                .eq('provider_id', providerId)
+                .eq('zone_id', selectedZoneId)
+                .eq('is_finalized', false)
+                .eq('DigiCom Business', activeBusinessId) // FIXED: used .eq instead of .is
+                .maybeSingle();
 
-            const result = await response.json();
-            const deliveryNoteRef = result.data.reference;
+            if (searchError) {
+                console.error('❌ Error searching for existing note:', searchError);
+            }
 
-            // Add parcels to delivery note
+            console.log('📝 Search result:', existingNote);
+
+            let deliveryNoteRef;
+            let deliveryNoteId;
+            let externalId;
+
+            if (existingNote) {
+                // Use existing note
+                deliveryNoteRef = existingNote.reference;
+                deliveryNoteId = existingNote.id;
+                externalId = existingNote.external_id;
+            } else {
+                // Create NEW delivery note via Edge Function
+                const response = await fetch(EDGE_FUNCTION_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${session.access_token}`
+                    },
+                    body: JSON.stringify({
+                        action: 'create_delivery_note',
+                        provider_id: providerId
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || 'Failed to create delivery note');
+                }
+
+                const result = await response.json();
+                deliveryNoteRef = result.data.reference;
+                externalId = result.data?.id || String(result.data?.external_id || '');
+
+                // Save new note to database
+                const { data: note, error: noteError } = await supabase
+                    .from('company_delivery_notes')
+                    .insert({
+                        provider_id: providerId,
+                        zone_id: selectedZoneId,
+                        reference: deliveryNoteRef,
+                        external_id: externalId,
+                        parcel_count: 0, // Will update after adding parcels
+                        is_finalized: false,
+                        'DigiCom Business': activeBusinessId
+                    })
+                    .select()
+                    .single();
+
+                if (noteError) throw noteError;
+                deliveryNoteId = note.id;
+            }
+
+            // 2. Add parcels to the delivery note (new or existing)
             const addResponse = await fetch(EDGE_FUNCTION_URL, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session?.access_token}`
+                    'Authorization': `Bearer ${session.access_token}`
                 },
                 body: JSON.stringify({
                     action: 'add_parcels_to_delivery_note',
                     provider_id: providerId,
                     data: {
                         delivery_note_ref: deliveryNoteRef,
+                        delivery_note_id: deliveryNoteId,
+                        external_id: externalId,
                         parcel_codes: parcelCodes
                     }
                 })
             });
 
-            if (!addResponse.ok) throw new Error('Failed to add parcels to delivery note');
+            if (!addResponse.ok) {
+                const errorData = await addResponse.json().catch(() => ({}));
+                console.error('❌ Edge Function add_parcels failed:', errorData);
+                throw new Error(errorData.error || 'Failed to add parcels to delivery note');
+            }
 
-            // Finalize delivery note
-            const finalizeResponse = await fetch(EDGE_FUNCTION_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session?.access_token}`
-                },
-                body: JSON.stringify({
-                    action: 'finalize_delivery_note',
-                    provider_id: providerId,
-                    data: {
-                        delivery_note_ref: deliveryNoteRef
-                    }
-                })
-            });
+            console.log('✅ Edge Function Success. Updating local DB...');
 
-            if (!finalizeResponse.ok) throw new Error('Failed to finalize delivery note');
-
-            // Save to database
-            const { data: note, error: noteError } = await supabase
-                .from('company_delivery_notes')
-                .insert({
-                    provider_id: providerId,
-                    reference: deliveryNoteRef,
-                    external_id: result.data?.id || String(result.data?.external_id || ''),
-                    parcel_count: parcelCodes.length,
-                    status_id: null,
-                    'DigiCom Business': activeBusinessId
-                })
-                .select()
-                .single();
-
-            if (noteError) throw noteError;
-
+            // 3. Update database records
             // Update parcels with delivery note ID
             const parcelIds = createdParcels
                 .filter(p => parcelCodes.includes(p.tracking_code))
-                .map(p => p.parcel.id);
+                .map(p => p.parcel?.id)
+                .filter(Boolean);
+
+            console.log('🆔 Parcel IDs to link:', parcelIds);
+
+            if (parcelIds.length > 0) {
+                const { error: linkError } = await supabase
+                    .from('company_parcels')
+                    .update({ company_delivery_note_id: deliveryNoteId })
+                    .in('id', parcelIds);
+
+                if (linkError) {
+                    console.error('❌ Error linking parcels to note:', linkError);
+                    throw linkError;
+                }
+            }
+
+            // Update delivery note parcel count
+            const { data: updatedNote } = await supabase
+                .from('company_delivery_notes')
+                .select('id')
+                .eq('id', deliveryNoteId)
+                .single();
+
+            // Fetch current total count for this note
+            const { count } = await supabase
+                .from('company_parcels')
+                .select('*', { count: 'exact', head: true })
+                .eq('company_delivery_note_id', deliveryNoteId);
 
             await supabase
-                .from('company_parcels')
-                .update({ company_delivery_note_id: note.id })
-                .in('id', parcelIds);
+                .from('company_delivery_notes')
+                .update({ parcel_count: count || 0 })
+                .eq('id', deliveryNoteId);
 
-            return { note, providerId };
+            return { note: { id: deliveryNoteId, reference: deliveryNoteRef }, providerId, isNew: !existingNote };
         },
         onSuccess: (result) => {
             setDeliveryNotes(prev => [...prev, result]);
             toast({
-                title: "Delivery Note Created",
+                title: result.isNew ? "Delivery Note Created" : "Parcels Added to Note",
                 description: `Reference: ${result.note.reference}`
             });
         }
@@ -381,8 +452,36 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
             return acc;
         }, {});
 
-        for (const [providerId, parcelCodes] of Object.entries(parcelsByProvider) as any) {
-            await createDeliveryNoteMutation.mutateAsync({ providerId, parcelCodes });
+        if (Object.keys(parcelsByProvider).length === 0) {
+            toast({
+                title: "No Parcels to Add",
+                description: "There are no successful parcels to include in a delivery note.",
+                variant: "destructive"
+            });
+            setStep('review');
+            return;
+        }
+
+        console.log('📦 Starting delivery note confirmation for:', parcelsByProvider);
+
+        for (const [pId, codes] of Object.entries(parcelsByProvider)) {
+            const providerId = pId as string;
+            const parcelCodes = codes as string[];
+
+            if (!parcelCodes || parcelCodes.length === 0) continue;
+
+            console.log(`🚀 Finalizing note for provider ${providerId} with ${parcelCodes.length} parcels`);
+            try {
+                await createDeliveryNoteMutation.mutateAsync({ providerId, parcelCodes });
+            } catch (err: any) {
+                console.error(`❌ Confirmation failed for provider ${providerId}:`, err);
+                toast({
+                    title: "Confirmation Failed",
+                    description: `Could not finish delivery note for one of the providers: ${err.message}`,
+                    variant: "destructive"
+                });
+                // Continue with other providers if any
+            }
         }
 
         // Update order statuses to 'PROCESSED'
@@ -464,21 +563,37 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                             </div>
 
                             <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                                {filteredZones.map((zone) => (
-                                    <button
-                                        key={zone.id}
-                                        onClick={() => setSelectedZoneId(zone.id)}
-                                        className={`w-full p-4 rounded-2xl border-2 transition-all text-left ${selectedZoneId === zone.id
-                                            ? 'border-brand-navy bg-brand-navy/5'
-                                            : 'border-slate-200 hover:border-brand-navy/30'
-                                            }`}
-                                    >
-                                        <div className="font-bold text-brand-navy">{zone.name}</div>
-                                        <div className="text-xs text-muted-foreground mt-1">
-                                            {zone.cities.length} cities with orders
+                                {lockZoneId ? (
+                                    <div className="p-4 rounded-2xl border-2 border-brand-navy bg-brand-navy/5">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <div className="font-bold text-brand-navy">
+                                                    {zones?.find(z => z.id === lockZoneId)?.name || 'Direct Addition'}
+                                                </div>
+                                                <div className="text-xs text-muted-foreground mt-1">
+                                                    Adding orders to existing delivery note
+                                                </div>
+                                            </div>
+                                            <Badge className="bg-brand-navy text-white">LOCKED</Badge>
                                         </div>
-                                    </button>
-                                ))}
+                                    </div>
+                                ) : (
+                                    filteredZones.map((zone) => (
+                                        <button
+                                            key={zone.id}
+                                            onClick={() => setSelectedZoneId(zone.id)}
+                                            className={`w-full p-4 rounded-2xl border-2 transition-all text-left ${selectedZoneId === zone.id
+                                                ? 'border-brand-navy bg-brand-navy/5'
+                                                : 'border-slate-200 hover:border-brand-navy/30'
+                                                }`}
+                                        >
+                                            <div className="font-bold text-brand-navy">{zone.name}</div>
+                                            <div className="text-xs text-muted-foreground mt-1">
+                                                {zone.cities.length} cities with orders
+                                            </div>
+                                        </button>
+                                    ))
+                                )}
                             </div>
 
                             {selectedZoneId && ordersGrouped && (
@@ -546,17 +661,20 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                                 </div>
                             ))}
 
-                            {failedParcels.map((item, idx) => (
-                                <div key={idx} className="p-4 bg-red-50 rounded-2xl border border-red-200">
-                                    <div className="flex items-start gap-3">
-                                        <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
-                                        <div>
-                                            <div className="font-bold text-brand-navy">{item.order.name}</div>
-                                            <div className="text-xs text-red-600">{item.error}</div>
-                                        </div>
+                            {failedParcels.length > 0 && (
+                                <div className="space-y-4 pt-4 border-t">
+                                    <div className="text-sm font-bold text-red-500 flex items-center gap-2">
+                                        <AlertCircle className="w-4 h-4" />
+                                        Failed to create ({failedParcels.length})
                                     </div>
+                                    {failedParcels.map((item, idx) => (
+                                        <div key={idx} className="p-4 bg-red-50 rounded-2xl border border-red-200">
+                                            <div className="font-bold text-red-900">{item.order.name}</div>
+                                            <div className="text-xs text-red-600 mt-1">{item.error}</div>
+                                        </div>
+                                    ))}
                                 </div>
-                            ))}
+                            )}
                         </div>
 
                         <div className="p-8 pt-0">

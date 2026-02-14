@@ -25,7 +25,8 @@ import {
     SearchX,
     Loader2,
     LayoutGrid,
-    List
+    List,
+    PlusCircle
 } from 'lucide-react';
 import {
     Card,
@@ -77,6 +78,8 @@ const DeliveryNote = () => {
     const [isTrackingLoading, setIsTrackingLoading] = useState(false);
     const [trackingParcel, setTrackingParcel] = useState<any>(null);
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+    const [wizardZoneId, setWizardZoneId] = useState<string | undefined>(undefined);
+    const [wizardProviderId, setWizardProviderId] = useState<string | undefined>(undefined);
     const activeBusinessId = localStorage.getItem('activeBusinessId');
 
     const EDGE_FUNCTION_URL = "https://zjkqprrfbibjoslvlmxf.supabase.co/functions/v1/provider-integration";
@@ -357,6 +360,67 @@ const DeliveryNote = () => {
             });
         }
     };
+    const handleFinalizeNote = async (note: any) => {
+        if (!note || note.is_finalized) return;
+
+        toast({
+            title: "Finalizing Note",
+            description: "Closing the delivery note in the provider's system...",
+        });
+
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const response = await fetch(EDGE_FUNCTION_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session?.access_token}`
+                },
+                body: JSON.stringify({
+                    action: 'finalize_delivery_note',
+                    provider_id: note.provider_id,
+                    data: {
+                        delivery_note_ref: note.reference,
+                        external_id: note.external_id
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({ error: 'Failed to finalize delivery note' }));
+                throw new Error(errData.error || `Error ${response.status}`);
+            }
+
+            // Update database
+            const { error } = await supabase
+                .from('company_delivery_notes')
+                .update({ is_finalized: true })
+                .eq('id', note.id);
+
+            if (error) throw error;
+
+            toast({
+                title: "Finalized Successfully",
+                description: "The delivery note is now finalized and closed.",
+            });
+
+            // Refresh queries
+            queryClient.invalidateQueries({ queryKey: ['company-delivery-notes'] });
+
+            // If the modal is open, update the local state
+            if (selectedNote?.id === note.id) {
+                setSelectedNote({ ...note, is_finalized: true });
+            }
+
+        } catch (error: any) {
+            toast({
+                title: "Finalization Error",
+                description: error.message,
+                variant: "destructive"
+            });
+        }
+    };
+
     const queryClient = useQueryClient();
 
     const handleDeleteNote = async () => {
@@ -650,7 +714,12 @@ const DeliveryNote = () => {
 
                             {/* Note Info */}
                             <div className="flex-1 min-w-0">
-                                <h3 className="text-xl font-black text-brand-navy tracking-tight truncate">{note.reference}</h3>
+                                <div className="flex items-center gap-2">
+                                    <h3 className="text-xl font-black text-brand-navy tracking-tight truncate">{note.reference}</h3>
+                                    {!note.is_finalized && (
+                                        <Badge className="bg-amber-500/10 text-amber-600 border-none font-black text-[9px] uppercase tracking-tighter px-2 rounded-lg">Draft</Badge>
+                                    )}
+                                </div>
                                 <div className="flex items-center gap-2 text-muted-foreground mt-1">
                                     <Calendar className="w-3.5 h-3.5" />
                                     <span className="text-xs font-semibold">
@@ -727,6 +796,19 @@ const DeliveryNote = () => {
                             <Trash2 className="w-4 h-4" />
                         </Button>
                     </div>
+
+                    {!note.is_finalized && note.provider_id && (
+                        <Button
+                            onClick={() => {
+                                setWizardZoneId(note.zone_id);
+                                setWizardProviderId(note.provider_id);
+                                setIsWizardOpen(true);
+                            }}
+                            className="w-full bg-brand-navy/5 hover:bg-brand-navy/10 text-brand-navy rounded-xl h-10 font-bold text-xs gap-2"
+                        >
+                            <PlusCircle className="w-4 h-4" /> Add Orders
+                        </Button>
+                    )}
                 </CardContent>
             </Card>
         );
@@ -761,9 +843,14 @@ const DeliveryNote = () => {
                                                 <FileText className="w-5 h-5" />
                                             </div>
                                             <div className="flex flex-col min-w-0">
-                                                <span className="text-sm font-bold text-brand-navy truncate">
-                                                    {note.reference}
-                                                </span>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-sm font-bold text-brand-navy truncate">
+                                                        {note.reference}
+                                                    </span>
+                                                    {!note.is_finalized && (
+                                                        <Badge className="bg-amber-500/10 text-amber-600 border-none font-black text-[8px] uppercase tracking-tighter px-1.5 rounded-md">Draft</Badge>
+                                                    )}
+                                                </div>
                                                 <span className="text-[10px] font-bold text-muted-foreground tracking-wider">
                                                     {note.created_at ? format(new Date(note.created_at), 'dd MMM yyyy, HH:mm') : 'N/A'}
                                                 </span>
@@ -813,6 +900,20 @@ const DeliveryNote = () => {
                                             >
                                                 <Eye className="w-4 h-4" />
                                             </Button>
+                                            {!note.is_finalized && note.provider_id && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => {
+                                                        setWizardZoneId(note.zone_id);
+                                                        setWizardProviderId(note.provider_id);
+                                                        setIsWizardOpen(true);
+                                                    }}
+                                                    className="h-9 w-9 rounded-xl bg-brand-navy/[0.04] hover:bg-emerald-500 text-brand-navy hover:text-white transition-all shadow-sm"
+                                                >
+                                                    <PlusCircle className="w-4 h-4" />
+                                                </Button>
+                                            )}
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
@@ -974,7 +1075,15 @@ const DeliveryNote = () => {
             {/* Delivery Note Wizard */}
             <DeliveryNoteWizard
                 open={isWizardOpen}
-                onOpenChange={setIsWizardOpen}
+                onOpenChange={(open) => {
+                    setIsWizardOpen(open);
+                    if (!open) {
+                        setWizardZoneId(undefined);
+                        setWizardProviderId(undefined);
+                    }
+                }}
+                lockZoneId={wizardZoneId}
+                lockProviderId={wizardProviderId}
             />
 
 
@@ -1079,6 +1188,16 @@ const DeliveryNote = () => {
                         </div>
 
                         <div className="flex justify-end gap-3 pt-4">
+                            {!selectedNote?.is_finalized && selectedNote?.provider_id && (
+                                <Button
+                                    onClick={() => handleFinalizeNote(selectedNote)}
+                                    className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl h-12 px-8 font-bold shadow-lg shadow-emerald-500/10 transition-all flex items-center gap-2"
+                                >
+                                    <CheckCircle2 className="w-4 h-4" />
+                                    Finaliser le Bon
+                                </Button>
+                            )}
+
                             {noteDetails?.provider?.provider_type === 'ameex' ? (
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
