@@ -87,11 +87,11 @@ const ImportOrders = () => {
 
     // --- Queries ---
     const { data: cities } = useQuery({
-        queryKey: ['cities'],
+        queryKey: ['master-cities'],
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
-                .from('cities')
+                .from('master_cities')
                 .select('id, name, zone_id')
                 .eq('DigiCom Business', activeBusinessId)
                 .order('name');
@@ -241,9 +241,9 @@ const ImportOrders = () => {
                         const providersWithFees = availableProviders.map(p => {
                             let fee = Infinity;
                             if (p.type === 'courier') {
-                                fee = courierFees?.find((f: any) => f.courier_id === p.id && f.city_id === order.city_id)?.fee || Infinity;
+                                fee = courierFees?.find((f: any) => f.courier_id === p.id && (f.master_city_id === order.city_id || f.city_id === order.city_id))?.fee || Infinity;
                             } else {
-                                fee = companyFees?.find((f: any) => f.company_id === p.id && f.city_id === order.city_id)?.fee || Infinity;
+                                fee = companyFees?.find((f: any) => f.company_id === p.id && (f.master_city_id === order.city_id || f.city_id === order.city_id))?.fee || Infinity;
                             }
                             return { ...p, fee: Number(fee) };
                         });
@@ -265,7 +265,8 @@ const ImportOrders = () => {
                     name: order.name,
                     phone: order.phone,
                     address: order.address,
-                    city_id: order.city_id,
+                    city_id: order.city_id, // Keep for backward compatibility if needed, but master_city_id is primary now
+                    master_city_id: order.city_id,
                     price: order.price + (finalShippingFee > 0 ? finalShippingFee : 0),
                     shipping_cost: finalShippingFee,
                     note: order.note,

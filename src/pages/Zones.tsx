@@ -78,7 +78,7 @@ const Zones = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await supabase
                 .from('zones')
-                .select('*, cities(id)')
+                .select('*, master_cities(id)')
                 .eq('DigiCom Business', activeBusinessId)
                 .order('created_at', { ascending: false });
 
@@ -294,7 +294,7 @@ const ZoneCard = ({ zone, onClick, onEdit, onDelete }: { zone: any, onClick: () 
             <div className="mt-6 flex items-center justify-between">
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-brand-navy/[0.04] text-brand-navy border border-brand-navy/[0.06]">
                     <Building2 className="w-3.5 h-3.5" />
-                    <span className="text-xs font-bold leading-none">{zone.cities?.length || 0} Cities</span>
+                    <span className="text-xs font-bold leading-none">{zone.master_cities?.length || 0} Cities</span>
                 </div>
                 <div className="text-[10px] font-bold uppercase tracking-widest text-brand-navy/40 group-hover:text-brand-navy transition-colors">
                     Territory
@@ -386,7 +386,7 @@ const ZoneCitiesModal = ({ zone, isOpen, onClose }: { zone: any, isOpen: boolean
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await supabase
-                .from('cities')
+                .from('master_cities')
                 .select('*')
                 .eq('DigiCom Business', activeBusinessId)
                 .order('name');
@@ -399,7 +399,7 @@ const ZoneCitiesModal = ({ zone, isOpen, onClose }: { zone: any, isOpen: boolean
     const updateCityZoneMutation = useMutation({
         mutationFn: async ({ cityId, zoneId }: { cityId: string, zoneId: string | null }) => {
             const { error } = await supabase
-                .from('cities')
+                .from('master_cities')
                 .update({ zone_id: zoneId })
                 .eq('id', cityId);
             if (error) throw error;

@@ -64,6 +64,7 @@ import { DeliveryNoteWizard } from '@/components/delivery/DeliveryNoteWizard';
 
 const DeliveryNote = () => {
     const { toast } = useToast();
+    const queryClient = useQueryClient();
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -138,7 +139,7 @@ const DeliveryNote = () => {
                         .from('package_statuses')
                         .select('id')
                         .ilike('label', providerStatus)
-                        .single();
+                        .maybeSingle();
 
                     await supabase
                         .from('company_parcels')
@@ -149,6 +150,27 @@ const DeliveryNote = () => {
                         })
                         .eq('id', parcel.id);
                 }
+
+                // Update local state for immediate feedback
+                if (noteDetails?.parcels) {
+                    setNoteDetails({
+                        ...noteDetails,
+                        parcels: noteDetails.parcels.map((p: any) =>
+                            p.id === parcel.id
+                                ? {
+                                    ...p,
+                                    status_label: providerStatus,
+                                    status_color: providerColor,
+                                    real_time_status_label: providerStatus,
+                                    real_time_status_color: providerColor
+                                }
+                                : p
+                        )
+                    });
+                }
+
+                // Invalidate query
+                queryClient.invalidateQueries({ queryKey: ['company-delivery-notes'] });
             } else {
                 console.error("Tracking result failed:", result.error);
                 throw new Error(result.error || 'Unknown error');
@@ -202,7 +224,7 @@ const DeliveryNote = () => {
             const result = await response.json();
 
             if (result.success && result.data?.print_html) {
-                const printContent = result.data.print_html;
+                const printContent = String(result.data.print_html);
 
                 if (printContent.startsWith('data:application/pdf;base64,')) {
                     // Convert base64 to Blob to open in new tab instead of downloading
@@ -421,7 +443,6 @@ const DeliveryNote = () => {
         }
     };
 
-    const queryClient = useQueryClient();
 
     const handleDeleteNote = async () => {
         if (!selectedNote) return;
@@ -1242,6 +1263,27 @@ const DeliveryNote = () => {
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
+                            ) : (noteDetails?.provider?.provider_type === 'ozon' || noteDetails?.provider?.provider_type === 'OZON') ? (
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-12 px-8 font-bold shadow-lg shadow-brand-navy/10 transition-all flex items-center gap-2">
+                                            <Download className="w-4 h-4" />
+                                            Imprimer
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent className="rounded-2xl p-2 border-none shadow-2xl bg-white min-w-[200px]">
+                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer" onClick={() => handlePrintLabels('10x10')}>
+                                            Ticket Thermique (10x10)
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer" onClick={() => handlePrintLabels('A4')}>
+                                            Tickets A4 (4/page)
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer text-blue-600" onClick={() => handlePrintLabels('Note')}>
+                                            Bon de Livraison
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             ) : (
                                 <Button
                                     className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-12 px-8 font-bold shadow-lg shadow-brand-navy/10 transition-all flex items-center gap-2"
@@ -1279,7 +1321,13 @@ const DeliveryNote = () => {
                             </div>
                         ) : trackingHistory ? (
                             <div className="space-y-8 relative before:absolute before:left-[17px] before:top-2 before:bottom-2 before:w-0.5 before:bg-brand-navy/5">
-                                {(Array.isArray(trackingHistory) ? trackingHistory : []).map((event: any, idx: number) => {
+                                {(() => {
+                                    // Handle both old (array) and new (object with .history) formats
+                                    const events = Array.isArray(trackingHistory)
+                                        ? trackingHistory
+                                        : (trackingHistory?.history || []);
+                                    return events;
+                                })().map((event: any, idx: number) => {
                                     // Status mapping for Coliaty/Ameex labels
                                     const statusMap: any = {
                                         'NEW_PARCEL': 'Nouveau',

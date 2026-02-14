@@ -88,12 +88,12 @@ const Cities = () => {
     });
 
     const { data: cities, isLoading } = useQuery({
-        queryKey: ['cities', activeBusinessId],
+        queryKey: ['master-cities', activeBusinessId],
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await supabase
-                .from('cities')
-                .select('*, zones(name)')
+                .from('master_cities')
+                .select('*, zones(name), ameex:ameex_cities(name, ameex_city_id), coliaty:coliaty_cities(city_name), ozonexpress:ozonexpress_cities(name, ozon_city_id)')
                 .eq('DigiCom Business', activeBusinessId)
                 .order('name');
 
@@ -106,11 +106,10 @@ const Cities = () => {
     const addCityMutation = useMutation({
         mutationFn: async (values: CityFormValues) => {
             const { data, error } = await supabase
-                .from('cities')
+                .from('master_cities')
                 .insert({
                     name: values.name,
                     zone_id: values.zone_id,
-                    ameex_code: values.ameex_code,
                     'DigiCom Business': activeBusinessId
                 })
                 .select('*, zones(name)')
@@ -120,9 +119,9 @@ const Cities = () => {
             return data;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['cities'] });
+            queryClient.invalidateQueries({ queryKey: ['master-cities'] });
             setIsModalOpen(false);
-            toast({ title: "City created", description: "The city has been successfully added." });
+            toast({ title: "City created", description: "The city has been successfully added to Master Cities." });
         },
         onError: (error: any) => {
             toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -132,11 +131,10 @@ const Cities = () => {
     const updateCityMutation = useMutation({
         mutationFn: async (values: CityFormValues & { id: string }) => {
             const { data, error } = await supabase
-                .from('cities')
+                .from('master_cities')
                 .update({
                     name: values.name,
                     zone_id: values.zone_id,
-                    ameex_code: values.ameex_code,
                     'DigiCom Business': activeBusinessId
                 })
                 .eq('id', values.id)
@@ -147,7 +145,7 @@ const Cities = () => {
             return data;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['cities'] });
+            queryClient.invalidateQueries({ queryKey: ['master-cities'] });
             setIsModalOpen(false);
             setEditingCity(null);
             toast({ title: "City updated", description: "The city has been successfully updated." });
@@ -160,14 +158,14 @@ const Cities = () => {
     const deleteCityMutation = useMutation({
         mutationFn: async (id: string) => {
             const { error } = await supabase
-                .from('cities')
+                .from('master_cities')
                 .delete()
                 .eq('id', id);
 
             if (error) throw error;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['cities'] });
+            queryClient.invalidateQueries({ queryKey: ['master-cities'] });
             setCityToDelete(null);
             toast({ title: "City deleted", description: "The city was successfully removed." });
         },
@@ -264,10 +262,22 @@ const Cities = () => {
                                             <MapPin className="w-2.5 h-2.5" />
                                             {(city.zones as any)?.name || 'Unassigned'}
                                         </div>
-                                        {city.ameex_code && (
+                                        {city.ameex && (
                                             <div className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-brand-navy/[0.04] text-[10px] font-bold text-brand-navy/60 uppercase tracking-wider">
                                                 <Globe className="w-2.5 h-2.5" />
-                                                AMEEX: {city.ameex_code}
+                                                AMEEX: {(city.ameex as any).name}
+                                            </div>
+                                        )}
+                                        {city.coliaty && (
+                                            <div className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-brand-navy/[0.04] text-[10px] font-bold text-brand-navy/60 uppercase tracking-wider">
+                                                <Globe className="w-2.5 h-2.5" />
+                                                Coliaty: {(city.coliaty as any).city_name}
+                                            </div>
+                                        )}
+                                        {city.ozonexpress && (
+                                            <div className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-brand-navy/[0.04] text-[10px] font-bold text-brand-navy/60 uppercase tracking-wider">
+                                                <Globe className="w-2.5 h-2.5" />
+                                                Ozon: {(city.ozonexpress as any).name}
                                             </div>
                                         )}
                                     </div>

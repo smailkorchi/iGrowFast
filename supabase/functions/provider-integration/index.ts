@@ -6,6 +6,192 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+class OzonAdapter {
+    constructor(credentials) {
+        // Documentation says Base URL: https://api.ozonexpress.ma/customers/{YOUR_ID}/{YOUR_API_KEY}
+        // credentials.business_id maps to {YOUR_ID}
+        // credentials.api_key maps to {YOUR_API_KEY}
+        const customerId = credentials.business_id || '';
+        const apiKey = credentials.api_key || '';
+        this.baseUrl = `https://api.ozonexpress.ma/customers/${customerId}/${apiKey}`;
+        this.pdfBaseUrl = 'https://client.ozoneexpress.ma';
+    }
+
+    async createParcel(parcelData, supabase) {
+        console.log('=== OZON createParcel START ===');
+
+        let ozonCityId = parcelData.ozon_city_id;
+
+        if (parcelData.master_city_id && supabase) {
+            const { data: mapping } = await supabase
+                .from('master_cities')
+                .select('ozonexpress_cities(ozon_city_id)')
+                .eq('id', parcelData.master_city_id)
+                .single();
+
+            if (mapping?.ozonexpress_cities?.ozon_city_id) {
+                ozonCityId = mapping.ozonexpress_cities.ozon_city_id;
+            }
+        }
+
+        if (!ozonCityId) {
+            throw new Error('Ozon city ID is required and could not be resolved from master_city_id');
+        }
+
+        // Ozon uses multipart/form-data. Using FormData object for fetch.
+        const formData = new FormData();
+        formData.append('parcel-receiver', parcelData.receiver_name || parcelData.customer_name);
+        formData.append('parcel-phone', parcelData.receiver_phone || parcelData.customer_phone);
+        formData.append('parcel-city', ozonCityId);
+        formData.append('parcel-address', parcelData.receiver_address || parcelData.delivery_address);
+        formData.append('parcel-price', String(parcelData.cash_on_delivery || parcelData.cod_amount || 0));
+        formData.append('parcel-note', parcelData.delivery_note || '');
+        formData.append('parcel-nature', parcelData.product_info || '');
+        formData.append('parcel-stock', '0'); // 1 = stock, 0 = pickup
+        formData.append('parcel-open', parcelData.open === 'YES' ? '1' : '2'); // 1 = Open, 2 = Don't open
+        formData.append('parcel-fragile', parcelData.fragile ? '1' : '0');
+        formData.append('parcel-replace', parcelData.replaceable ? '1' : '0');
+
+        const response = await fetch(`${this.baseUrl}/add-parcel`, {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!response.ok) {
+            const errText = await response.text();
+            throw new Error(`Ozon Error: ${errText}`);
+        }
+
+        const rawData = await response.json();
+        const data = rawData['ADD-PARCEL'];
+
+        if (!data || data.RESULT !== 'SUCCESS') {
+            throw new Error(`Ozon API Error: ${data?.MESSAGE || 'Unknown error'}`);
+        }
+
+        return {
+            tracking_code: data['NEW-PARCEL']['TRACKING-NUMBER'],
+            external_id: data['NEW-PARCEL']['TRACKING-NUMBER'], // Ozon uses tracking number as primary ref
+            provider_response: rawData
+        };
+    }
+
+    async getParcelInfo(trackingCode) {
+        // Since getParcelInfo often needs the current status and Ozon's parcel-info might be limited,
+        // we'll reuse the robust tracking logic to ensure consistent data.
+        return this.trackParcel(trackingCode);
+    }
+
+    async trackParcel(trackingCode) {
+        const formData = new FormData();
+        formData.append('tracking-number', trackingCode);
+
+        const response = await fetch(`${this.baseUrl}/tracking`, {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!response.ok) return null;
+        const rawData = await response.json();
+        const data = rawData['TRACKING'];
+
+        if (!data || data.RESULT !== 'SUCCESS') return null;
+
+        // Ozon returns history as an object with numeric keys. Convert it to a sorted array.
+        const historyObj = data.HISTORY || {};
+        const history = Object.entries(historyObj)
+            .sort(([a], [b]) => Number(b) - Number(a))
+            .map(([_, event]: any) => ({
+                status: event.STATUT,
+                date: event.TIME ? new Date(Number(event.TIME) * 1000).toISOString() : event.TIME_STR,
+                comment: event.COMMENT || '',
+                _original: event
+            }));
+
+        const lastStatus = data.LAST_TRACKING?.STATUT || 'Unknown';
+
+        return {
+            tracking_code: trackingCode,
+            status: lastStatus,
+            statusLabel: lastStatus,
+            history: history,
+            _original: rawData
+        };
+    }
+
+    // Delivery Note workflow (BL)
+    async createDeliveryNote() {
+        // Step 1: Create BL
+        const response = await fetch(`${this.baseUrl}/add-delivery-note`, { method: 'POST' });
+        if (!response.ok) throw new Error('Ozon BL Creation Failed');
+
+        const data = await response.json();
+        if (data['ADD-BL']?.RESULT !== 'SUCCESS') {
+            throw new Error(`Ozon BL Error: ${data['ADD-BL']?.MESSAGE || 'Unknown'}`);
+        }
+
+        return {
+            reference: data['ADD-BL']['NEW-BL']['REF'],
+            external_id: String(data['ADD-BL']['NEW-BL']['ID'])
+        };
+    }
+
+    async addParcelsToNote(blRef, parcels) {
+        // Step 2: Add Parcels
+        const formData = new FormData();
+        formData.append('Ref', blRef);
+        parcels.forEach(code => formData.append('Codes[]', code));
+
+        const response = await fetch(`${this.baseUrl}/add-parcel-to-delivery-note`, {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!response.ok) throw new Error('Ozon Add Parcels Failed');
+        const data = await response.json();
+
+        return {
+            success: data['ADD-PARCEL-BL']?.RESULT === 'SUCCESS',
+            _original: data
+        };
+    }
+
+    async finalizeDeliveryNote(blRef) {
+        // Step 3: Save BL
+        const formData = new FormData();
+        formData.append('Ref', blRef);
+
+        const response = await fetch(`${this.baseUrl}/save-delivery-note`, {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!response.ok) throw new Error('Ozon Finalize BL Failed');
+        const data = await response.json();
+
+        return {
+            success: data['SAVE-BL']?.RESULT === 'SUCCESS',
+            reference: blRef
+        };
+    }
+
+    async getPrintUrl(blRef, labelFormat, printType = 'labels') {
+        let endpoint = '/pdf-delivery-note'; // Default Standard (Note)
+
+        if (printType === 'labels') {
+            if (labelFormat === 'Label_A4' || labelFormat === 'A4') {
+                endpoint = '/pdf-delivery-note-tickets';
+            } else if (labelFormat === 'Label_100_100' || labelFormat === '10x10' || labelFormat === 'thermal' || labelFormat === 'A6') {
+                endpoint = '/pdf-delivery-note-tickets-4-4';
+            }
+        } else if (printType === 'note') {
+            endpoint = '/pdf-delivery-note';
+        }
+
+        return `${this.pdfBaseUrl}${endpoint}?dn-ref=${blRef}`;
+    }
+}
+
 class ColiatyAdapter {
     constructor(credentials) {
         this.baseUrl = credentials.api_base_url || 'https://customer-api-v1.coliaty.com';
@@ -51,7 +237,7 @@ class ColiatyAdapter {
         const details = result.data?.details || [];
 
         // Transform Coliaty format to match frontend expectations
-        return details.map((event: any) => ({
+        const history = details.map((event: any) => ({
             status: event.HISTORY_STATUS,
             date: event.HISTORY_STATUS_DATE
                 ? new Date(parseInt(event.HISTORY_STATUS_DATE) * 1000).toISOString()
@@ -62,6 +248,16 @@ class ColiatyAdapter {
             user: event.HISTORY_LIVREUR?.name || event.HISTORY_ACTOR?.name || '',
             _original: event
         }));
+
+        // Get current status from the latest event
+        const latestEvent = history[0] || {};
+
+        return {
+            status: latestEvent.status || 'Unknown',
+            statusLabel: latestEvent.status || 'Unknown',
+            history: history,
+            _original: result
+        };
     }
 
     async getPrintUrl(deliveryNoteRef, labelFormat = '10x10') {
@@ -79,10 +275,17 @@ class ColiatyAdapter {
             throw new Error(`Failed to get print URL: ${errText}`);
         }
         const result = await response.json();
-        return result.data?.url || result.data?.pdf_url || result.data;
+        const url = result.data?.url || result.data?.pdf_url;
+        if (typeof url === 'string') return url;
+
+        // If data itself is the URL string
+        if (typeof result.data === 'string') return result.data;
+
+        console.error('Coliaty print response unexpected format:', JSON.stringify(result));
+        throw new Error('Coliaty print URL not found in response');
     }
 
-    async createParcel(parcelData) {
+    async createParcel(parcelData, supabase) {
         console.log('=== COLIATY createParcel START ===');
         console.log('Input parcelData:', JSON.stringify(parcelData, null, 2));
 
@@ -94,13 +297,25 @@ class ColiatyAdapter {
             package_phone: parcelData.receiver_phone || parcelData.customer_phone,
             package_price: parcelData.cash_on_delivery || parcelData.cod_amount || 0,
             package_addresse: parcelData.receiver_address || parcelData.delivery_address,
-            package_city: parcelData.city_name,  // Coliaty uses CITY NAME, not ID!
+            package_city: parcelData.coliaty_city_name || parcelData.city_name,
             package_content: parcelData.product_info || '',
             package_note: parcelData.delivery_note || '',
             package_no_open: parcelData.no_open || false,
             package_replacement: parcelData.replaceable || false,
             package_old_tracking: parcelData.old_tracking || ''
         };
+
+        if (parcelData.master_city_id && supabase) {
+            const { data: mapping } = await supabase
+                .from('master_cities')
+                .select('coliaty_cities(city_name)')
+                .eq('id', parcelData.master_city_id)
+                .single();
+
+            if (mapping?.coliaty_cities?.city_name) {
+                payload.package_city = mapping.coliaty_cities.city_name;
+            }
+        }
 
         console.log('Mapped payload for Coliaty:', JSON.stringify(payload, null, 2));
 
@@ -329,7 +544,6 @@ class ColiatyAdapter {
                 .reduce((data, byte) => data + String.fromCharCode(byte), '')
         );
 
-        // Return as data URL string
         return `data:application/pdf;base64,${base64}`;
     }
 }
@@ -387,7 +601,7 @@ class AmeexAdapter {
             console.log('Found tracking data at data.api.tracking, length:', trackingData.length);
 
             // Normalize AMEEX data to match UI expectations
-            const normalized = trackingData.map((event) => ({
+            const history = trackingData.map((event) => ({
                 status: event.statut,                    // NEW_PARCEL, WAITING_PICKUP, etc.
                 statusLabel: event.statut_name,          // "Nouveau Colis", "Attente De Ramassage"
                 date: event.time_str,                    // "2026-02-01 00:08"
@@ -403,7 +617,16 @@ class AmeexAdapter {
                 _original: event
             }));
 
-            return normalized;
+            // Get current status from the latest event (Ameex history is sorted ASC, so latest is at the end)
+            const latestEvent = history[history.length - 1] || {};
+
+            return {
+                status: latestEvent.status || 'Unknown',
+                statusLabel: latestEvent.statusLabel || latestEvent.status || 'Unknown',
+                statusColor: latestEvent.color,
+                history: history,
+                _original: data
+            };
         }
 
         // Fallback to other possible formats
@@ -500,11 +723,49 @@ class AmeexAdapter {
         }
 
         // AMEEX returns HTML directly for printing
+        // AMEEX returns HTML directly for printing
         const html = await response.text();
+
+        // Defensive check: if it's JSON, it might be an error or misinterpretation
+        if (html.trim().startsWith('{') || html.trim().startsWith('[')) {
+            console.log('AMEEX JSON Response:', html);
+            try {
+                const json = JSON.parse(html);
+
+                // Check if it's an error message
+                if (json.error || json.message) {
+                    // Check if it's a "success" message but wrapped
+                    if (json.login === 'success' || json.status === 'success' || json.api?.type === 'success') {
+                        // Try to find HTML content
+                        const content = json.api?.data?.html || json.data?.html || json.html || json.content;
+                        if (content && typeof content === 'string') {
+                            return content;
+                        }
+                    } else {
+                        throw new Error(json.error || json.message);
+                    }
+                }
+
+                // Fallback: try to find any HTML-like string
+                const content = json.api?.data?.html || json.data?.html || json.html;
+                if (content && typeof content === 'string') {
+                    return content;
+                }
+
+            } catch (e) {
+                // Should we ignore? The outer block catches it.
+                if (e.message !== 'AMEEX returned JSON instead of HTML...') {
+                    // It's a real error from the API
+                    throw new Error(`AMEEX Error: ${e.message}`);
+                }
+            }
+            throw new Error(`AMEEX returned JSON instead of HTML: ${html.substring(0, 200)}...`);
+        }
+
         return html;
     }
 
-    async createParcel(parcelData) {
+    async createParcel(parcelData, supabase) {
         // AMEEX uses form-data format
         console.log('=== AMEEX createParcel START ===');
         console.log('Input parcelData:', JSON.stringify(parcelData, null, 2));
@@ -550,19 +811,28 @@ class AmeexAdapter {
         formData.append('address', address);
         formData.append('cod', cod);
 
-        // City: CRITICAL - Must use ameex_city_code (numeric code)
-        const cityCode = parcelData.ameex_city_code;
-        if (!cityCode) {
-            console.error('MISSING AMEEX_CITY_CODE!');
-            console.error('Available city fields:', {
-                ameex_city_code: parcelData.ameex_city_code,
-                city_id: parcelData.city_id,
-                city_name: parcelData.city_name
-            });
-            throw new Error(`AMEEX city code is required. Got: city_id=${parcelData.city_id}, city_name=${parcelData.city_name}. Please ensure ameex_code is set in the cities table.`);
+        // City selection: Prefer master_city_id resolve, then ameex_city_code
+        let cityCode = parcelData.ameex_city_code;
+
+        if (parcelData.master_city_id && supabase) {
+            console.log('Resolving AMEEX code from master_city_id:', parcelData.master_city_id);
+            const { data: mapping } = await supabase
+                .from('master_cities')
+                .select('ameex_cities(ameex_city_id)')
+                .eq('id', parcelData.master_city_id)
+                .single();
+
+            if (mapping?.ameex_cities?.ameex_city_id) {
+                cityCode = mapping.ameex_cities.ameex_city_id;
+                console.log('Resolved AMEEX code:', cityCode);
+            }
         }
 
-        console.log('Using AMEEX city code:', cityCode);
+        if (!cityCode) {
+            console.error('MISSING AMEEX_CITY_CODE!');
+            throw new Error(`AMEEX city code is required. Please ensure the city is mapped to AMEEX.`);
+        }
+
         formData.append('city', cityCode);
 
         const comment = parcelData.delivery_note || '';
@@ -782,81 +1052,6 @@ class AmeexAdapter {
     }
 
 
-    async getPrintUrl(deliveryNoteRef, labelFormat, printType = 'labels') {
-        console.log('🖨️ AMEEX: Getting print URL for:', deliveryNoteRef);
-        console.log('Label format:', labelFormat);
-        console.log('Print type:', printType);
-
-        // AMEEX has two different print endpoints:
-        // 1. Labels: /Print/Type/Labels - prints parcel labels
-        // 2. Note: /Print/Type/Note - prints the delivery note document
-        let printUrl;
-        if (printType === 'note') {
-            printUrl = `${this.baseUrl}/customer/Delivery/DeliveryNotes/Print/Type/Note?Ref=${deliveryNoteRef}`;
-        } else {
-            // Labels - format: 10x10, 10x15, or A4
-            printUrl = `${this.baseUrl}/customer/Delivery/DeliveryNotes/Print/Type/Labels?Ref=${deliveryNoteRef}&LabelType=${labelFormat || '10x10'}`;
-        }
-
-        console.log('Print URL:', printUrl);
-
-        const response = await fetch(printUrl, {
-            headers: {
-                'C-Api-Id': this.apiId,
-                'C-Api-Key': this.apiKey
-            }
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('🖨️ AMEEX Print Error:', errorText);
-            throw new Error(`Failed to fetch print HTML: ${errorText}`);
-        }
-
-        // AMEEX can return HTML directly or JSON with HTML
-        const text = await response.text();
-        console.log('🖨️ Response first 100 chars:', text.substring(0, 100));
-
-        // Check if response starts with HTML
-        if (text.trim().startsWith('<') || text.trim().startsWith('<!')) {
-            // It's HTML directly
-            return text;
-        }
-
-        // Try to parse as JSON (in case AMEEX wraps it or returns error)
-        try {
-            const result = JSON.parse(text);
-            console.log('🖨️ Parsed JSON response type:', result.api?.type);
-
-            // Check for HTML in response - AMEEX returns: { api: { data: { html: "..." } } }
-            const html = result.api?.data?.html || result.data?.html || result.html;
-
-            if (html !== undefined) {
-                if (html.trim() === '') {
-                    throw new Error('AMEEX: No content to print. Make sure the delivery note has parcels.');
-                }
-                return html;
-            }
-
-            // Check for error in response
-            const errorMsg = result.api?.message || result.api?.msg || result.api?.error || result.message || result.error;
-            if (errorMsg) {
-                throw new Error(`AMEEX: ${errorMsg}`);
-            }
-
-            console.error('🖨️ Unexpected response:', text);
-            throw new Error('HTML not found in AMEEX response');
-        } catch (e) {
-            if (e.message.startsWith('AMEEX:')) {
-                throw e; // Re-throw our formatted error
-            }
-            // Not JSON, might be HTML anyway
-            if (text.includes('<html') || text.includes('<body') || text.includes('<div')) {
-                return text;
-            }
-            throw new Error(`Unexpected response: ${text.substring(0, 200)}`);
-        }
-    }
 }
 
 Deno.serve(async (req) => {
@@ -878,8 +1073,16 @@ Deno.serve(async (req) => {
 
         console.log('Provider:', provider.name, 'Type:', provider.provider_type);
 
-        const adapter = provider.provider_type === 'coliaty' ? new ColiatyAdapter(provider) : new AmeexAdapter(provider);
+        const type = String(provider.provider_type || '').toLowerCase();
+        const adapter = type === 'coliaty'
+            ? new ColiatyAdapter(provider)
+            : type === 'ozon'
+                ? new OzonAdapter(provider)
+                : new AmeexAdapter(provider);
 
+        // Adapter initialization
+
+        // Adapter methods (excluding print which returns URL strings)
         let result;
         switch (action) {
             case 'track_parcel':
@@ -896,9 +1099,8 @@ Deno.serve(async (req) => {
                 result = { print_html: link };
                 break;
             case 'create_parcel':
-                console.log('Creating parcel with data:', JSON.stringify(data, null, 2));
-                result = await adapter.createParcel(data);
-                console.log('Parcel created:', JSON.stringify(result, null, 2));
+                console.log('Creating parcel');
+                result = await adapter.createParcel(data, supabase);
                 break;
             case 'create_delivery_note':
                 console.log('Creating delivery note');

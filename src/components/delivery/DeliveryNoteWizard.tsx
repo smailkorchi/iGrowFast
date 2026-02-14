@@ -68,13 +68,13 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
 
             if (!confirmedStatus) return [];
 
-            // Get zones that have cities with confirmed orders
+            // Get zones that have master_cities with confirmed orders
             const { data, error } = await supabase
                 .from('zones')
                 .select(`
                     id,
                     name,
-                    cities!inner(
+                    master_cities!inner(
                         id,
                         orders!inner(
                             id,
@@ -83,14 +83,14 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                         )
                     )
                 `)
-                .eq('cities.orders.order_status_id', confirmedStatus.id)
-                .eq('cities.orders.DigiCom Business', activeBusinessId);
+                .eq('master_cities.orders.order_status_id', confirmedStatus.id)
+                .eq('master_cities.orders.DigiCom Business', activeBusinessId);
 
             if (error) throw error;
 
             // Filter zones that actually have orders
             return data?.filter(zone =>
-                zone.cities.some((city: any) => city.orders.length > 0)
+                zone.master_cities.some((city: any) => city.orders.length > 0)
             ) || [];
         },
         enabled: open
@@ -112,7 +112,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                 .from('orders')
                 .select(`
                     *,
-                    city:cities!inner(id, name, zone_id, ameex_code),
+                    city:master_cities!inner(id, name, zone_id),
                     company:providers(id, name, provider_type),
                     items:order_items(
                         *,
@@ -171,9 +171,8 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                         customer_phone: order.phone,
                         delivery_address: order.address,
                         cod_amount: Number(order.price),
-                        city_id: order.city?.id,
+                        master_city_id: order.master_city_id,
                         city_name: order.city?.name,
-                        ameex_city_code: (order.city as any)?.ameex_code,
                         product_info: order.items?.map((i: any) => `${i.product?.code || 'P'} x${i.quantity || 1}`).join(', '),
                         note: order.note || '', // Internal note
                         delivery_note: order.delivery_note || '', // Public note for courier
@@ -211,7 +210,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                         .from('package_statuses')
                         .select('id')
                         .ilike('label', providerStatus)
-                        .single();
+                        .maybeSingle();
 
                     if (matchedStatus) {
                         mappedStatusId = matchedStatus.id;
@@ -589,7 +588,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                                         >
                                             <div className="font-bold text-brand-navy">{zone.name}</div>
                                             <div className="text-xs text-muted-foreground mt-1">
-                                                {zone.cities.length} cities with orders
+                                                {zone.master_cities.length} cities with orders
                                             </div>
                                         </button>
                                     ))

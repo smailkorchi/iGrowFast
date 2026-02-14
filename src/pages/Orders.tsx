@@ -196,7 +196,7 @@ const Orders = () => {
                 .select(`
                     *,
                     status:order_statuses(*),
-                    city:cities(id, name),
+                    city:master_cities(id, name),
                     courier:users!orders_courier_id_fkey(id, name, avatar_url),
                     company:providers(id, name, logo_url),
                     items:order_items(*, product:products(name, code, image_url))
@@ -214,7 +214,7 @@ const Orders = () => {
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
-                .from('cities')
+                .from('master_cities')
                 .select('id, name, zone_id')
                 .eq('DigiCom Business', activeBusinessId)
                 .order('name');
@@ -362,19 +362,42 @@ const Orders = () => {
     const availableProviders = useMemo(() => {
         if (!selectedCityId || !cities) return [];
         const city = cities.find((c: any) => c.id === selectedCityId);
-        if (!city?.zone_id) return [];
+        if (!city) return [];
 
         const zoneId = city.zone_id;
-        const eligibleCouriers = couriers?.filter((c: any) =>
-            courierZones?.some((cz: any) => cz.courier_id === c.id && cz.zone_id === zoneId)
-        ).map((c: any) => ({ ...c, type: 'courier' })) || [];
 
-        const eligibleCompanies = companies?.filter((c: any) =>
+        // 1. Providers eligible via zone
+        const zoneCouriers = zoneId ? couriers?.filter((c: any) =>
+            courierZones?.some((cz: any) => cz.courier_id === c.id && cz.zone_id === zoneId)
+        ) : [];
+
+        const zoneCompanies = zoneId ? companies?.filter((c: any) =>
             companyZones?.some((cz: any) => cz.company_id === c.id && cz.zone_id === zoneId)
-        ).map((c: any) => ({ ...c, type: 'company' })) || [];
+        ) : [];
+
+        // 2. Providers that have a fee for this city (even if no zone)
+        const feeCouriers = couriers?.filter((c: any) =>
+            courierFees?.some((f: any) => f.courier_id === c.id && (f.master_city_id === selectedCityId || f.city_id === selectedCityId))
+        ) || [];
+
+        const feeCompanies = companies?.filter((c: any) =>
+            companyFees?.some((f: any) => f.company_id === c.id && (f.master_city_id === selectedCityId || f.city_id === selectedCityId))
+        ) || [];
+
+        // Combine and unique by ID
+        const combinedCouriers = [...(zoneCouriers || []), ...feeCouriers];
+        const combinedCompanies = [...(zoneCompanies || []), ...feeCompanies];
+
+        const eligibleCouriers = combinedCouriers
+            .filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)
+            .map((c: any) => ({ ...c, type: 'courier' }));
+
+        const eligibleCompanies = combinedCompanies
+            .filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)
+            .map((c: any) => ({ ...c, type: 'company' }));
 
         return [...eligibleCouriers, ...eligibleCompanies];
-    }, [selectedCityId, cities, couriers, companies, courierZones, companyZones]);
+    }, [selectedCityId, cities, couriers, companies, courierZones, companyZones, courierFees, companyFees]);
 
     const allProviders = useMemo(() => {
         const c = couriers?.map((p: any) => ({ ...p, type: 'courier' })) || [];
@@ -382,46 +405,55 @@ const Orders = () => {
         return [...c, ...comp];
     }, [couriers, companies]);
 
-    // Simple one-way sync: If city changes and we don't have a provider, find the best one
+    // Auto-select best provider and set fee when city changes
     React.useEffect(() => {
-        if (!selectedCityId || !availableProviders.length || (form.getValues('courier_id') || form.getValues('company_id'))) return;
+        if (!selectedCityId || !availableProviders.length) return;
 
-        // Map providers to their fee for this city
-        const providersWithFees = availableProviders.map(p => {
-            let fee = Infinity;
-            if (p.type === 'courier') {
-                fee = courierFees?.find((f: any) => f.courier_id === p.id && f.city_id === selectedCityId)?.fee || Infinity;
-            } else {
-                fee = companyFees?.find((f: any) => f.company_id === p.id && f.city_id === selectedCityId)?.fee || Infinity;
+        // If no provider selected, pick the best one
+        if (!selectedCourierId && !selectedCompanyId) {
+            const providersWithFees = availableProviders.map(p => {
+                let fee = Infinity;
+                if (p.type === 'courier') {
+                    fee = courierFees?.find((f: any) => f.courier_id === p.id && (f.master_city_id === selectedCityId || f.city_id === selectedCityId))?.fee || Infinity;
+                } else {
+                    fee = companyFees?.find((f: any) => f.company_id === p.id && (f.master_city_id === selectedCityId || f.city_id === selectedCityId))?.fee || Infinity;
+                }
+                return { ...p, fee: Number(fee) };
+            });
+
+            const best = providersWithFees.sort((a, b) => a.fee - b.fee)[0];
+            if (best) {
+                if (best.type === 'courier') {
+                    form.setValue('courier_id', best.id);
+                    form.setValue('company_id', null);
+                } else {
+                    form.setValue('company_id', best.id);
+                    form.setValue('courier_id', null);
+                }
+                form.setValue('shipping_cost', best.fee === Infinity ? 0 : best.fee);
             }
-            return { ...p, fee: Number(fee) };
-        });
-
-        // Sort by fee ascending
-        const best = providersWithFees.sort((a, b) => a.fee - b.fee)[0];
-
-        if (best) {
-            if (best.type === 'courier') {
-                form.setValue('courier_id', best.id);
-                form.setValue('company_id', null);
-            } else {
-                form.setValue('company_id', best.id);
-                form.setValue('courier_id', null);
+        } else {
+            // Provider is already selected, just update the fee for the new city
+            let foundFee = 0;
+            if (selectedCourierId) {
+                foundFee = courierFees?.find((f: any) => f.courier_id === selectedCourierId && (f.master_city_id === selectedCityId || f.city_id === selectedCityId))?.fee || 0;
+            } else if (selectedCompanyId) {
+                foundFee = companyFees?.find((f: any) => f.company_id === selectedCompanyId && (f.master_city_id === selectedCityId || f.city_id === selectedCityId))?.fee || 0;
             }
-            form.setValue('shipping_cost', best.fee === Infinity ? 0 : best.fee);
+            form.setValue('shipping_cost', Number(foundFee));
         }
-    }, [selectedCityId, availableProviders, courierFees, companyFees, form]);
+    }, [selectedCityId, availableProviders, courierFees, companyFees, selectedCourierId, selectedCompanyId, form]);
 
-    const calculateShippingFee = async () => {
-        if (!selectedCityId) return;
+    const calculateShippingFee = () => {
+        if (!selectedCityId || (!selectedCourierId && !selectedCompanyId)) return;
 
+        let fee = 0;
         if (selectedCourierId) {
-            const { data } = await (supabase as any).from('courier_fees').select('fee').eq('courier_id', selectedCourierId).eq('city_id', selectedCityId).single();
-            if (data) form.setValue('shipping_cost', Number((data as any).fee));
+            fee = courierFees?.find((f: any) => f.courier_id === selectedCourierId && (f.master_city_id === selectedCityId || f.city_id === selectedCityId))?.fee || 0;
         } else if (selectedCompanyId) {
-            const { data } = await (supabase as any).from('company_fees').select('fee').eq('company_id', selectedCompanyId).eq('city_id', selectedCityId).single();
-            if (data) form.setValue('shipping_cost', Number((data as any).fee));
+            fee = companyFees?.find((f: any) => f.company_id === selectedCompanyId && (f.master_city_id === selectedCityId || f.city_id === selectedCityId))?.fee || 0;
         }
+        form.setValue('shipping_cost', Number(fee));
     };
 
     const { fields, append, remove } = useFieldArray({
@@ -440,7 +472,7 @@ const Orders = () => {
                 .insert({
                     name: values.name,
                     phone: values.phone,
-                    city_id: values.city_id,
+                    master_city_id: values.city_id,
                     address: values.address,
                     source_name: values.source_name,
                     shipping_cost: values.shipping_cost,
@@ -501,7 +533,7 @@ const Orders = () => {
                 .update({
                     name: values.name,
                     phone: values.phone,
-                    city_id: values.city_id,
+                    master_city_id: values.city_id,
                     address: values.address,
                     source_name: values.source_name,
                     shipping_cost: values.shipping_cost,
@@ -582,7 +614,7 @@ const Orders = () => {
                 o.tracking_number?.toLowerCase().includes(searchQuery.toLowerCase());
 
             const matchesStatus = filterStatus === "all" || o.order_status_id === filterStatus;
-            const matchesCity = filterCity === "all" || o.city_id === filterCity;
+            const matchesCity = filterCity === "all" || o.master_city_id === filterCity || o.city_id === filterCity;
             const matchesSource = filterSource === "all" || o.source_name === filterSource;
             const matchesProvider = filterProvider === "all" || o.courier_id === filterProvider || o.company_id === filterProvider;
 
@@ -595,7 +627,7 @@ const Orders = () => {
         form.reset({
             name: order.name,
             phone: order.phone,
-            city_id: order.city_id,
+            city_id: order.master_city_id || order.city_id,
             address: order.address,
             source_name: order.source_name,
             shipping_cost: Number(order.shipping_cost),
@@ -1284,12 +1316,12 @@ const Orders = () => {
                                                                     if (provider?.type === 'courier') {
                                                                         form.setValue('courier_id', val);
                                                                         form.setValue('company_id', null);
-                                                                        const fee = courierFees?.find((f: any) => f.courier_id === val && f.city_id === selectedCityId)?.fee;
+                                                                        const fee = courierFees?.find((f: any) => f.courier_id === val && (f.master_city_id === selectedCityId || f.city_id === selectedCityId))?.fee;
                                                                         form.setValue('shipping_cost', fee ? Number(fee) : 0);
                                                                     } else {
                                                                         form.setValue('company_id', val);
                                                                         form.setValue('courier_id', null);
-                                                                        const fee = companyFees?.find((f: any) => f.company_id === val && f.city_id === selectedCityId)?.fee;
+                                                                        const fee = companyFees?.find((f: any) => f.company_id === val && (f.master_city_id === selectedCityId || f.city_id === selectedCityId))?.fee;
                                                                         form.setValue('shipping_cost', fee ? Number(fee) : 0);
                                                                     }
                                                                 }}
