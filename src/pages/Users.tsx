@@ -98,6 +98,7 @@ const userSchema = z.object({
     password: z.string().min(6, "Password must be at least 6 characters").optional().or(z.literal('')),
     role: z.enum(['super admin', 'admin', 'mediabuyer', 'commercial']),
     assignment: z.number().default(0),
+    commission_price: z.number().default(0),
     products: z.array(z.string()).default([]),
     active: z.boolean().default(true),
     permissions: z.record(z.any()).default({}),
@@ -354,9 +355,18 @@ const UserCard = ({ user, onEdit, onDelete }: { user: any, onEdit: () => void, o
                     </div>
                     <div className="flex flex-col p-3 rounded-2xl bg-muted/30">
                         <span className="text-muted-foreground text-[10px] font-bold uppercase tracking-wider">Assignment</span>
-                        <span className="font-semibold text-brand-navy">{user.assignment}%</span>
+                        <span className="font-semibold text-brand-navy">{user.assignment}</span>
                     </div>
                 </div>
+                {user.role === 'commercial' && (
+                    <div className="flex flex-col p-3 rounded-2xl bg-brand-blue/5 border border-brand-blue/10">
+                        <div className="flex items-center gap-2 mb-1">
+                            <Tag className="w-3.5 h-3.5 text-brand-blue/60" />
+                            <span className="text-muted-foreground text-[10px] font-bold uppercase tracking-wider">Commission Price</span>
+                        </div>
+                        <span className="font-semibold text-brand-blue">{user.commission_price || 0} DH</span>
+                    </div>
+                )}
                 <div className="flex flex-col p-3 rounded-2xl bg-brand-navy/5 border border-brand-navy/10">
                     <div className="flex items-center gap-2 mb-1">
                         <Mail className="w-3.5 h-3.5 text-brand-navy/60" />
@@ -395,7 +405,6 @@ const UserCard = ({ user, onEdit, onDelete }: { user: any, onEdit: () => void, o
 const UserModal = ({ isOpen, onClose, onSubmit, initialData, loading, title }: any) => {
     const [avatar, setAvatar] = useState<File | null>(null);
     const [avatarPreview, setAvatarPreview] = useState<string | null>(initialData?.avatar_url || null);
-    const [activeTab, setActiveTab] = useState<'details' | 'permissions'>('details');
 
     const form = useForm<UserFormValues>({
         resolver: zodResolver(userSchema),
@@ -406,11 +415,31 @@ const UserModal = ({ isOpen, onClose, onSubmit, initialData, loading, title }: a
             password: '',
             role: 'commercial',
             assignment: 0,
+            commission_price: 0,
             products: [],
             active: true,
             permissions: {},
         }
     });
+
+    const { data: products } = useQuery({
+        queryKey: ['products'],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('products')
+                .select('id, name, image_url, code')
+                .eq('active', true)
+                .order('name');
+            if (error) throw error;
+            return data;
+        }
+    });
+
+    const [productSearch, setProductSearch] = useState("");
+    const filteredProducts = products?.filter(p =>
+        p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+        p.code.toLowerCase().includes(productSearch.toLowerCase())
+    );
 
     useEffect(() => {
         if (isOpen) {
@@ -476,52 +505,32 @@ const UserModal = ({ isOpen, onClose, onSubmit, initialData, loading, title }: a
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="max-w-4xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden overflow-y-auto max-h-[90vh]">
+            <DialogContent className="max-w-6xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden overflow-y-auto max-h-[90vh]">
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(handleFormSubmit)}>
-                        <DialogHeader className="p-8 pb-0">
+                    <form onSubmit={form.handleSubmit(handleFormSubmit)} className="flex flex-col h-full overflow-hidden">
+                        <DialogHeader className="p-8 pb-4 border-b border-brand-navy/5">
                             <div className="flex items-center justify-between">
                                 <div>
                                     <DialogTitle className="text-3xl font-bold text-brand-navy">{title}</DialogTitle>
                                     <DialogDescription className="text-muted-foreground mt-1 text-base">
-                                        Account management and security settings.
+                                        Configure account details and access levels.
                                     </DialogDescription>
-                                </div>
-                                <div className="flex bg-muted/50 p-1.5 rounded-[22px] border border-muted shadow-inner">
-                                    <button
-                                        type="button"
-                                        onClick={() => setActiveTab('details')}
-                                        className={cn(
-                                            "px-8 py-2.5 rounded-[18px] text-sm font-bold transition-all duration-300",
-                                            activeTab === 'details' ? "bg-brand-white shadow-md text-brand-navy scale-[1.02]" : "text-muted-foreground hover:text-brand-navy"
-                                        )}
-                                    >
-                                        Member Profile
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setActiveTab('permissions')}
-                                        className={cn(
-                                            "px-8 py-2.5 rounded-[18px] text-sm font-bold transition-all duration-300",
-                                            activeTab === 'permissions' ? "bg-brand-white shadow-md text-brand-navy scale-[1.02]" : "text-muted-foreground hover:text-brand-navy"
-                                        )}
-                                    >
-                                        Permissions
-                                    </button>
                                 </div>
                             </div>
                         </DialogHeader>
 
-                        <ScrollArea className="h-full min-h-[500px] max-h-[60vh] p-8 pt-6">
-                            {activeTab === 'details' ? (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                                    <div className="space-y-8 animate-in slide-in-from-left-4 duration-500">
+                        <div className="flex flex-col lg:flex-row min-h-[500px] max-h-[70vh] overflow-hidden">
+                            {/* Main Section - Base Information */}
+                            <ScrollArea className="flex-1 p-8">
+                                <div className="space-y-8">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        {/* Avatar Section */}
                                         <div className="space-y-4">
-                                            <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Profile Picture</FormLabel>
+                                            <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Profile Avatar</FormLabel>
                                             <div
                                                 {...getRootProps()}
                                                 className={cn(
-                                                    "relative group flex flex-col items-center justify-center border-2 border-dashed rounded-[40px] p-8 transition-all duration-500 cursor-pointer overflow-hidden aspect-square max-w-[240px] mx-auto bg-brand-navy/[0.02]",
+                                                    "relative group flex flex-col items-center justify-center border-2 border-dashed rounded-[40px] p-4 transition-all duration-500 cursor-pointer overflow-hidden aspect-square max-w-[180px] bg-brand-navy/[0.02]",
                                                     isDragActive ? "border-brand-blue bg-brand-blue/5 scale-95" : "border-brand-navy/10 hover:border-brand-navy/30 hover:bg-brand-navy/[0.05]",
                                                     avatarPreview ? "p-0" : ""
                                                 )}
@@ -538,294 +547,295 @@ const UserModal = ({ isOpen, onClose, onSubmit, initialData, loading, title }: a
                                                     </>
                                                 ) : (
                                                     <div className="text-center group-hover:scale-105 transition-transform duration-500">
-                                                        <div className="w-20 h-20 rounded-[24px] bg-brand-navy/5 flex items-center justify-center mx-auto mb-4 border border-brand-navy/5">
-                                                            <Upload className="w-8 h-8 text-brand-navy/40" />
+                                                        <div className="w-12 h-12 rounded-[18px] bg-brand-navy/5 flex items-center justify-center mx-auto mb-2 border border-brand-navy/5">
+                                                            <Upload className="w-5 h-5 text-brand-navy/40" />
                                                         </div>
-                                                        <p className="text-sm font-bold text-brand-navy">Drop image here</p>
-                                                        <span className="text-[10px] text-muted-foreground mt-1 block uppercase tracking-tighter">or click to browse</span>
+                                                        <p className="text-[10px] font-bold text-brand-navy">Drop Image</p>
                                                     </div>
                                                 )}
                                             </div>
                                         </div>
 
-                                        <FormField
-                                            control={form.control}
-                                            name="role"
-                                            render={({ field }) => (
-                                                <FormItem className="space-y-2">
-                                                    <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Organizational Role</FormLabel>
-                                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                        <FormControl>
-                                                            <SelectTrigger className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy focus:ring-2 focus:ring-brand-navy/10 transition-all shadow-inner">
-                                                                <SelectValue placeholder="Assign a role" />
-                                                            </SelectTrigger>
-                                                        </FormControl>
-                                                        <SelectContent className="rounded-2xl border-none shadow-2xl p-2 bg-brand-white/95 backdrop-blur-xl">
-                                                            {['super admin', 'admin', 'mediabuyer', 'commercial'].map((role) => (
-                                                                <SelectItem key={role} value={role} className="rounded-xl p-3 capitalize font-bold text-brand-navy focus:bg-brand-navy focus:text-brand-white transition-colors cursor-pointer">
-                                                                    {role}
-                                                                </SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-
-                                        <div className="grid grid-cols-2 gap-6">
-                                            <FormField
-                                                control={form.control}
-                                                name="assignment"
-                                                render={({ field }) => (
-                                                    <FormItem className="space-y-2">
-                                                        <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Monthly Assignment</FormLabel>
-                                                        <FormControl>
-                                                            <div className="relative">
-                                                                <Input
-                                                                    type="number"
-                                                                    {...field}
-                                                                    onChange={e => field.onChange(parseInt(e.target.value) || 0)}
-                                                                    className="h-14 pl-12 rounded-2xl border-none bg-brand-navy/[0.04] text-lg font-black text-brand-navy shadow-inner"
-                                                                />
-                                                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-navy/30 font-bold">%</span>
-                                                            </div>
-                                                        </FormControl>
-                                                        <FormMessage />
-                                                    </FormItem>
-                                                )}
-                                            />
-                                            <FormField
-                                                control={form.control}
-                                                name="active"
-                                                render={({ field }) => (
-                                                    <FormItem className="flex flex-col justify-end">
-                                                        <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70 mb-2">Status</FormLabel>
-                                                        <div className="flex items-center gap-4 h-14 bg-brand-navy/[0.04] px-4 rounded-2xl border border-transparent transition-all shadow-inner">
-                                                            <Switch
-                                                                checked={field.value}
-                                                                onCheckedChange={field.onChange}
-                                                                className="data-[state=checked]:bg-green-500"
-                                                            />
-                                                            <span className="text-xs font-black uppercase text-brand-navy tracking-tight">{field.value ? 'Active' : 'Disabled'}</span>
-                                                        </div>
-                                                    </FormItem>
-                                                )}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-8 animate-in slide-in-from-right-4 duration-500">
-                                        <div className="grid grid-cols-1 gap-6">
+                                        {/* Name & Role Section */}
+                                        <div className="space-y-6">
                                             <FormField
                                                 control={form.control}
                                                 name="name"
                                                 render={({ field }) => (
                                                     <FormItem className="space-y-2">
-                                                        <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Full Identification Name</FormLabel>
+                                                        <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Full Name</FormLabel>
                                                         <FormControl>
-                                                            <Input placeholder="E.g. Alexander Pierce" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner" />
+                                                            <Input placeholder="E.g. Alexander Pierce" {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy shadow-inner" />
                                                         </FormControl>
                                                         <FormMessage />
                                                     </FormItem>
                                                 )}
                                             />
-
-                                            <div className="grid grid-cols-1 gap-6">
-                                                <FormField
-                                                    control={form.control}
-                                                    name="username"
-                                                    render={({ field }) => (
-                                                        <FormItem className="space-y-2">
-                                                            <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Username Address</FormLabel>
-                                                            <FormControl>
-                                                                <div className="relative">
-                                                                    <span className="absolute left-5 top-1/2 -translate-y-1/2 text-brand-navy/30 font-black">@</span>
-                                                                    <Input placeholder="p_alexander" {...field} className="h-14 pl-10 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner" />
-                                                                </div>
-                                                            </FormControl>
-                                                            <FormMessage />
-                                                        </FormItem>
-                                                    )}
-                                                />
-                                                <FormField
-                                                    control={form.control}
-                                                    name="email"
-                                                    render={({ field }) => (
-                                                        <FormItem className="space-y-2">
-                                                            <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Official Email</FormLabel>
-                                                            <FormControl>
-                                                                <div className="relative">
-                                                                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-navy/30" />
-                                                                    <Input type="email" placeholder="alex@digicom.team" {...field} className="h-14 pl-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner" />
-                                                                </div>
-                                                            </FormControl>
-                                                            <FormMessage />
-                                                        </FormItem>
-                                                    )}
-                                                />
-                                            </div>
-
                                             <FormField
                                                 control={form.control}
-                                                name="password"
+                                                name="role"
                                                 render={({ field }) => (
                                                     <FormItem className="space-y-2">
-                                                        <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Secure Code</FormLabel>
-                                                        <FormControl>
-                                                            <Input
-                                                                type="password"
-                                                                placeholder={initialData ? "••••••••" : "Minimum 8 characters"}
-                                                                {...field}
-                                                                className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner"
-                                                            />
-                                                        </FormControl>
-                                                        {initialData && <FormDescription className="text-[10px] uppercase font-bold text-brand-navy/30 px-2 tracking-widest">Only fill if you need to reset</FormDescription>}
-                                                        <FormMessage />
-                                                    </FormItem>
-                                                )}
-                                            />
-
-                                            <FormField
-                                                control={form.control}
-                                                name="products"
-                                                render={({ field }) => (
-                                                    <FormItem className="space-y-2">
-                                                        <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Inventory Scope (SKUs)</FormLabel>
-                                                        <FormControl>
-                                                            <Input
-                                                                placeholder="DIGI-01, DIGI-02"
-                                                                value={field.value.join(', ')}
-                                                                onChange={e => field.onChange(e.target.value.split(',').map(s => s.trim()).filter(s => s !== ''))}
-                                                                className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner"
-                                                            />
-                                                        </FormControl>
+                                                        <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">System Role</FormLabel>
+                                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                            <FormControl>
+                                                                <SelectTrigger className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy focus:ring-2 focus:ring-brand-navy/10 transition-all shadow-inner">
+                                                                    <SelectValue placeholder="Assign a role" />
+                                                                </SelectTrigger>
+                                                            </FormControl>
+                                                            <SelectContent className="rounded-2xl border-none shadow-2xl p-2 bg-brand-white/95 backdrop-blur-xl">
+                                                                {['super admin', 'admin', 'mediabuyer', 'commercial'].map((role) => (
+                                                                    <SelectItem key={role} value={role} className="rounded-xl p-3 capitalize font-bold text-brand-navy focus:bg-brand-navy focus:text-brand-white transition-colors cursor-pointer">
+                                                                        {role}
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
                                                         <FormMessage />
                                                     </FormItem>
                                                 )}
                                             />
                                         </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        <FormField
+                                            control={form.control}
+                                            name="username"
+                                            render={({ field }) => (
+                                                <FormItem className="space-y-2">
+                                                    <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Username</FormLabel>
+                                                    <FormControl>
+                                                        <div className="relative">
+                                                            <span className="absolute left-5 top-1/2 -translate-y-1/2 text-brand-navy/30 font-black text-sm">@</span>
+                                                            <Input placeholder="p_alexander" {...field} className="h-12 pl-10 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy shadow-inner" />
+                                                        </div>
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control}
+                                            name="email"
+                                            render={({ field }) => (
+                                                <FormItem className="space-y-2">
+                                                    <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Email Address</FormLabel>
+                                                    <FormControl>
+                                                        <div className="relative">
+                                                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-navy/30" />
+                                                            <Input type="email" placeholder="alex@digicom.team" {...field} className="h-12 pl-12 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy shadow-inner" />
+                                                        </div>
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        <FormField
+                                            control={form.control}
+                                            name="password"
+                                            render={({ field }) => (
+                                                <FormItem className="space-y-2">
+                                                    <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Password</FormLabel>
+                                                    <FormControl>
+                                                        <Input
+                                                            type="password"
+                                                            placeholder={initialData ? "••••••••" : "Minimum 6 characters"}
+                                                            {...field}
+                                                            className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy shadow-inner"
+                                                        />
+                                                    </FormControl>
+                                                    {initialData && <FormDescription className="text-[10px] uppercase font-bold text-brand-navy/30 px-2">Leave blank to keep current</FormDescription>}
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control}
+                                            name="active"
+                                            render={({ field }) => (
+                                                <FormItem className="flex flex-col justify-end">
+                                                    <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70 mb-2">Account Status</FormLabel>
+                                                    <div className="flex items-center gap-4 h-12 bg-brand-navy/[0.04] px-4 rounded-2xl shadow-inner">
+                                                        <Switch
+                                                            checked={field.value}
+                                                            onCheckedChange={field.onChange}
+                                                            className="data-[state=checked]:bg-green-500"
+                                                        />
+                                                        <span className="text-xs font-black uppercase text-brand-navy tracking-tight">{field.value ? 'Active' : 'Disabled'}</span>
+                                                    </div>
+                                                </FormItem>
+                                            )}
+                                        />
                                     </div>
                                 </div>
-                            ) : (
-                                <div className="space-y-10 animate-in slide-in-from-right-6 duration-700">
-                                    <div className="bg-brand-navy/[0.03] p-8 rounded-[40px] border border-brand-navy/[0.06] shadow-inner">
-                                        <div className="flex items-center gap-5 mb-8">
-                                            <div className="w-14 h-14 rounded-[20px] bg-brand-navy text-brand-white flex items-center justify-center shadow-lg shadow-brand-navy/30">
-                                                <Shield className="w-7 h-7" />
-                                            </div>
-                                            <div>
-                                                <h4 className="text-xl font-black text-brand-navy tracking-tight">System Module Access</h4>
-                                                <p className="text-xs font-bold text-muted-foreground/60 uppercase tracking-wider">Define environment visibility per page</p>
-                                            </div>
-                                        </div>
+                            </ScrollArea>
 
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                            {pages.map((page) => (
-                                                <div
-                                                    key={page.path}
-                                                    className={cn(
-                                                        "flex items-center gap-4 p-5 rounded-[22px] transition-all duration-300 cursor-pointer group/row border-2",
-                                                        form.watch('permissions.pages')?.[page.path]
-                                                            ? "bg-brand-navy border-brand-navy shadow-2xl shadow-brand-navy/20"
-                                                            : "bg-brand-white border-transparent hover:border-brand-navy/10 hover:shadow-xl"
-                                                    )}
-                                                    onClick={() => {
-                                                        const current = form.getValues('permissions.pages') || {};
-                                                        form.setValue('permissions.pages', {
-                                                            ...current,
-                                                            [page.path]: !current[page.path]
-                                                        });
-                                                    }}
-                                                >
-                                                    <div className={cn(
-                                                        "w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-500",
-                                                        form.watch('permissions.pages')?.[page.path]
-                                                            ? "bg-brand-white/10 text-brand-white scale-110"
-                                                            : "bg-brand-navy/5 text-brand-navy"
-                                                    )}>
-                                                        <page.icon className="w-5 h-5" />
-                                                    </div>
-                                                    <div className="flex flex-col min-w-0">
-                                                        <span className={cn(
-                                                            "text-sm font-black transition-colors truncate",
-                                                            form.watch('permissions.pages')?.[page.path] ? "text-brand-white" : "text-brand-navy"
-                                                        )}>
-                                                            {page.label}
-                                                        </span>
-                                                    </div>
-                                                    <div className={cn(
-                                                        "ml-auto w-6 h-6 rounded-full flex items-center justify-center transition-all duration-500",
-                                                        form.watch('permissions.pages')?.[page.path]
-                                                            ? "bg-brand-white text-brand-navy rotate-0"
-                                                            : "bg-brand-navy/5 text-transparent -rotate-90 scale-50"
-                                                    )}>
-                                                        <Check className="w-3.5 h-3.5" />
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
+                            {/* Side Section - Role Specific Details */}
+                            {form.watch('role') !== 'super admin' && form.watch('role') !== 'mediabuyer' && (
+                                <div className="w-full lg:w-[450px] bg-muted/20 border-l border-brand-navy/5 flex flex-col overflow-hidden">
+                                    <div className="p-8 pb-4">
+                                        <h4 className="text-xl font-bold text-brand-navy">
+                                            {form.watch('role') === 'admin' ? 'Page Access' : 'Business Parameters'}
+                                        </h4>
+                                        <p className="text-xs text-muted-foreground font-medium">
+                                            {form.watch('role') === 'admin' ? 'Select which modules this admin can access.' : 'Configure sales targets and product scope.'}
+                                        </p>
                                     </div>
 
-                                    <div className="space-y-6 px-4">
-                                        <div className="flex items-center gap-2">
-                                            <h5 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/50">Structural Action Rights</h5>
-                                            <div className="h-px flex-1 bg-brand-navy/5" />
-                                        </div>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                                            {[
-                                                { key: 'can_create', label: 'Write Access', desc: 'Create new records' },
-                                                { key: 'can_edit', label: 'Modify Access', desc: 'Edit existing data' },
-                                                { key: 'can_delete', label: 'Purge Access', desc: 'Remove entries' },
-                                                { key: 'can_export', label: 'Export Rights', desc: 'Download CSV/PDF' },
-                                                { key: 'can_import', label: 'Import Rights', desc: 'Upload bulk data' },
-                                                { key: 'can_view_sensitive', label: 'Sensitive View', desc: 'Hidden info' },
-                                            ].map((perm) => (
-                                                <div
-                                                    key={perm.key}
-                                                    className={cn(
-                                                        "flex flex-col gap-3 p-6 rounded-[32px] transition-all duration-300 border-2",
-                                                        form.watch(`permissions.actions.${perm.key}`)
-                                                            ? "bg-brand-white border-brand-navy shadow-xl"
-                                                            : "bg-brand-navy/[0.02] border-transparent hover:bg-brand-navy/[0.04]"
-                                                    )}
-                                                >
-                                                    <div className="flex items-center justify-between">
-                                                        <span className="text-sm font-black text-brand-navy uppercase tracking-tight">{perm.label}</span>
-                                                        <Checkbox
-                                                            id={perm.key}
-                                                            checked={form.watch(`permissions.actions.${perm.key}`)}
-                                                            onCheckedChange={(checked) => {
-                                                                form.setValue(`permissions.actions.${perm.key}`, checked === true);
+                                    <ScrollArea className="flex-1 p-8 pt-2">
+                                        {form.watch('role') === 'admin' && (
+                                            <div className="grid grid-cols-1 gap-3">
+                                                {pages.map((page) => {
+                                                    const isChecked = form.watch('permissions.pages')?.[page.path];
+                                                    return (
+                                                        <div
+                                                            key={page.path}
+                                                            className={cn(
+                                                                "flex items-center gap-4 p-4 rounded-2xl transition-all duration-200 cursor-pointer group border-2",
+                                                                isChecked
+                                                                    ? "bg-brand-navy border-brand-navy text-brand-white"
+                                                                    : "bg-brand-white border-transparent hover:border-brand-navy/10"
+                                                            )}
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                const current = form.getValues('permissions.pages') || {};
+                                                                form.setValue('permissions.pages', {
+                                                                    ...current,
+                                                                    [page.path]: !current[page.path]
+                                                                }, { shouldDirty: true });
                                                             }}
-                                                            className="w-6 h-6 rounded-lg border-2 border-brand-navy/20 data-[state=checked]:bg-brand-navy data-[state=checked]:border-brand-navy"
+                                                        >
+                                                            <div className={cn(
+                                                                "w-10 h-10 rounded-xl flex items-center justify-center transition-all",
+                                                                isChecked ? "bg-white/10" : "bg-brand-navy/5 text-brand-navy"
+                                                            )}>
+                                                                <page.icon className="w-5 h-5" />
+                                                            </div>
+                                                            <span className="text-sm font-bold flex-1">{page.label}</span>
+                                                            <div className={cn(
+                                                                "w-6 h-6 rounded-full flex items-center justify-center border-2 transition-all",
+                                                                isChecked ? "bg-white border-white text-brand-navy" : "border-brand-navy/10 text-transparent"
+                                                            )}>
+                                                                <Check className="w-3.5 h-3.5" />
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+
+                                        {form.watch('role') === 'commercial' && (
+                                            <div className="space-y-8">
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <FormField
+                                                        control={form.control}
+                                                        name="assignment"
+                                                        render={({ field }) => (
+                                                            <FormItem className="space-y-2">
+                                                                <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Order Attribution</FormLabel>
+                                                                <FormControl>
+                                                                    <div className="relative">
+                                                                        <Input type="number" {...field} onChange={e => field.onChange(Number(e.target.value))} className="h-12 rounded-2xl border-none bg-brand-white text-sm font-bold text-brand-navy shadow-sm" />
+                                                                    </div>
+                                                                </FormControl>
+                                                            </FormItem>
+                                                        )}
+                                                    />
+                                                    <FormField
+                                                        control={form.control}
+                                                        name="commission_price"
+                                                        render={({ field }) => (
+                                                            <FormItem className="space-y-2">
+                                                                <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Comm. Price</FormLabel>
+                                                                <FormControl>
+                                                                    <div className="relative">
+                                                                        <Input type="number" {...field} onChange={e => field.onChange(Number(e.target.value))} className="h-12 rounded-2xl border-none bg-brand-white text-sm font-bold text-brand-navy shadow-sm" />
+                                                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-brand-navy/20 text-xs">DH</span>
+                                                                    </div>
+                                                                </FormControl>
+                                                            </FormItem>
+                                                        )}
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-4">
+                                                    <div className="flex items-center justify-between">
+                                                        <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Available Products</FormLabel>
+                                                        <Badge variant="outline" className="text-[10px] font-bold">{form.watch('products')?.length || 0} selected</Badge>
+                                                    </div>
+                                                    <div className="relative">
+                                                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                                        <Input
+                                                            placeholder="Search products..."
+                                                            value={productSearch}
+                                                            onChange={(e) => setProductSearch(e.target.value)}
+                                                            className="h-11 pl-11 rounded-2xl border-none bg-white shadow-sm text-sm"
                                                         />
                                                     </div>
-                                                    <p className="text-[10px] font-bold text-muted-foreground/60 leading-relaxed uppercase tracking-widest">{perm.desc}</p>
+                                                    <div className="space-y-2 max-h-[400px]">
+                                                        {filteredProducts?.map((product) => {
+                                                            const isSelected = form.watch('products')?.includes(product.code);
+                                                            return (
+                                                                <div
+                                                                    key={product.id}
+                                                                    onClick={() => {
+                                                                        const current = form.getValues('products') || [];
+                                                                        const next = isSelected
+                                                                            ? current.filter(id => id !== product.code)
+                                                                            : [...current, product.code];
+                                                                        form.setValue('products', next, { shouldDirty: true });
+                                                                    }}
+                                                                    className={cn(
+                                                                        "flex items-center gap-3 p-3 rounded-2xl transition-all cursor-pointer border-2 group",
+                                                                        isSelected ? "bg-brand-navy border-brand-navy text-white" : "bg-white border-transparent hover:border-brand-navy/10"
+                                                                    )}
+                                                                >
+                                                                    <Avatar className="h-10 w-10 rounded-xl border border-muted group-hover:scale-105 transition-transform">
+                                                                        <AvatarImage src={product.image_url || ''} className="object-cover" />
+                                                                        <AvatarFallback className="text-[10px] font-bold">PR</AvatarFallback>
+                                                                    </Avatar>
+                                                                    <div className="flex flex-col min-w-0 flex-1">
+                                                                        <span className="text-xs font-bold truncate">{product.name}</span>
+                                                                        <span className={cn("text-[10px] font-medium", isSelected ? "text-white/60" : "text-muted-foreground")}>{product.code}</span>
+                                                                    </div>
+                                                                    <div className={cn(
+                                                                        "w-5 h-5 rounded-full flex items-center justify-center border-2 transition-all",
+                                                                        isSelected ? "bg-white border-white text-brand-navy" : "border-brand-navy/10 text-transparent"
+                                                                    )}>
+                                                                        <Check className="w-3 h-3" />
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
                                                 </div>
-                                            ))}
-                                        </div>
-                                    </div>
+                                            </div>
+                                        )}
+                                    </ScrollArea>
                                 </div>
                             )}
-                        </ScrollArea>
+                        </div>
 
-                        <DialogFooter className="p-8 pt-4 gap-4 bg-brand-white border-t border-brand-navy/5">
+                        <DialogFooter className="p-8 pb-8 pt-4 gap-4 bg-brand-white border-t border-brand-navy/5">
                             <Button
                                 type="button"
                                 variant="ghost"
                                 onClick={onClose}
-                                className="h-14 px-8 rounded-2xl font-black text-xs uppercase tracking-widest text-muted-foreground hover:bg-muted/50 hover:text-brand-navy transition-all"
+                                className="h-12 px-8 rounded-2xl font-bold text-xs uppercase tracking-widest text-muted-foreground hover:bg-muted/50 hover:text-brand-navy transition-all"
                             >
-                                Discard Changes
+                                Discard
                             </Button>
                             <Button
                                 type="submit"
                                 disabled={loading}
-                                className="h-14 px-12 rounded-2xl bg-brand-navy hover:bg-brand-navy/90 text-brand-white font-black text-xs uppercase tracking-[0.1em] shadow-2xl shadow-brand-navy/40 transition-all hover:translate-y-[-2px] active:scale-95 disabled:opacity-50"
+                                className="h-12 px-10 rounded-2xl bg-brand-navy hover:bg-brand-navy/90 text-brand-white font-bold text-xs uppercase tracking-[0.1em] shadow-xl shadow-brand-navy/20 transition-all hover:translate-y-[-2px] active:scale-95 disabled:opacity-50"
                             >
                                 {loading && <Loader2 className="w-4 h-4 mr-3 animate-spin" />}
-                                {initialData ? 'Save Modifications' : 'Finalize Account'}
+                                {initialData ? 'Update Account' : 'Create User'}
                             </Button>
                         </DialogFooter>
                     </form>
