@@ -33,7 +33,8 @@ import {
     Building2,
     LogOut,
     User as UserIcon,
-    Loader2
+    Loader2,
+    Calculator
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
@@ -103,6 +104,13 @@ const navigation: NavSection[] = [
             { icon: MapPin, label: 'Cities', path: '/cities' },
             { icon: Map, label: 'Zones', path: '/zones' },
             { icon: Download, label: 'Import Orders', path: '/import-orders' },
+        ]
+    },
+    {
+        label: 'Tools',
+        icon: Calculator,
+        items: [
+            { icon: Calculator, label: 'Profit Calculator', path: '/calculator' },
         ]
     }
 ];

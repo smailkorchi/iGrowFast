@@ -28,6 +28,7 @@ import Profile from "./pages/Profile";
 import Webhooks from "./pages/Webhooks";
 import Businesses from "./pages/Businesses";
 import SelectBusiness from "./pages/SelectBusiness";
+import Calculator from "./pages/Calculator";
 import AppLayout from "./components/layout/AppLayout";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { Navigate, useLocation } from "react-router-dom";
@@ -86,6 +87,7 @@ const App = () => (
                     <Route path="/businesses" element={<Businesses />} />
                     <Route path="/cities" element={<Cities />} />
                     <Route path="/zones" element={<Zones />} />
+                    <Route path="/calculator" element={<Calculator />} />
                     <Route path="/profile" element={<Profile />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
