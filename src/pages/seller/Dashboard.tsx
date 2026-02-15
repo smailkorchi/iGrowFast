@@ -15,9 +15,10 @@ import { formatDistanceToNow, isToday, isYesterday, format } from 'date-fns';
 
 interface UserProfile {
     id: string;
-    full_name: string | null;
+    name: string | null;
     avatar_url: string | null;
     email: string | null;
+    "DigiCom Business": string | null;
 }
 
 interface SellerStats {
@@ -87,13 +88,17 @@ const SellerDashboard = () => {
         fetchSellerData();
     }, []);
 
-    const logPresence = async (userId: string) => {
+    const logPresence = async (userId: string, businessId?: string) => {
         try {
             const today = new Date().toISOString().split('T')[0];
             const { error } = await supabase
                 .from('seller_presences')
                 .upsert(
-                    { seller_id: userId, date: today },
+                    {
+                        seller_id: userId,
+                        date: today,
+                        "DigiCom Business": businessId
+                    },
                     { onConflict: 'seller_id, date' }
                 );
 
@@ -116,7 +121,7 @@ const SellerDashboard = () => {
 
             if (profile) {
                 setUserProfile(profile as UserProfile);
-                logPresence(session.user.id);
+                logPresence(session.user.id, profile["DigiCom Business"]);
             }
         }
     };
@@ -226,7 +231,7 @@ const SellerDashboard = () => {
     };
 
     const getUserName = () => {
-        return userProfile?.full_name || userProfile?.email?.split('@')[0] || 'Seller';
+        return userProfile?.name || userProfile?.email?.split('@')[0] || 'Seller';
     };
 
     const getStatusColor = (status: string) => {
