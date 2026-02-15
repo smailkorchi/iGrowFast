@@ -60,7 +60,7 @@ interface Payout {
   days_present: number;
   delivered_orders: number;
   bank_snapshot: any;
-  status: 'draft' | 'paid' | 'cancelled';
+  status: 'pending' | 'paid';
   created_at: string;
   paid_at: string | null;
   seller: {
@@ -89,7 +89,7 @@ const AdminSalaries = () => {
   const [sellers, setSellers] = useState<SellerUser[]>([]);
   const [stats, setStats] = useState({
     totalPaid: 0,
-    totalDraft: 0,
+    totalPending: 0,
     thisMonthCount: 0,
     paidThisMonth: 0
   });
@@ -144,7 +144,7 @@ const AdminSalaries = () => {
         const statsObj = paymentsData.reduce((acc, p) => {
           const amt = Number(p.total_amount);
           if (p.status === 'paid') acc.totalPaid += amt;
-          if (p.status === 'draft') acc.totalDraft += amt;
+          if (p.status === 'pending') acc.totalPending += amt;
 
           const payDate = new Date(p.created_at);
           if (payDate >= startOfThisMonth) {
@@ -152,7 +152,7 @@ const AdminSalaries = () => {
             if (p.status === 'paid') acc.paidThisMonth += amt;
           }
           return acc;
-        }, { totalPaid: 0, totalDraft: 0, thisMonthCount: 0, paidThisMonth: 0 });
+        }, { totalPaid: 0, totalPending: 0, thisMonthCount: 0, paidThisMonth: 0 });
 
         setStats(statsObj);
       }
@@ -236,7 +236,7 @@ const AdminSalaries = () => {
           days_present: payoutPreview.days,
           delivered_orders: payoutPreview.orders,
           bank_snapshot: payoutPreview.bank,
-          status: 'draft'
+          status: 'pending'
         });
 
       if (error) throw error;
@@ -256,7 +256,7 @@ const AdminSalaries = () => {
     }
   };
 
-  const updateStatus = async (ids: string[], status: 'paid' | 'cancelled' | 'draft') => {
+  const updateStatus = async (ids: string[], status: 'paid' | 'pending') => {
     try {
       const { error } = await supabase
         .from('seller_payments')
@@ -334,7 +334,7 @@ const AdminSalaries = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
           { label: 'Total Paid Out', val: stats.totalPaid, icon: CheckCircle2, sub: 'All time history', color: 'primary' },
-          { label: 'Pending Drafts', val: stats.totalDraft, icon: Clock, sub: 'Awaiting approval', color: 'orange' },
+          { label: 'Pending Payouts', val: stats.totalPending, icon: Clock, sub: 'Awaiting approval', color: 'orange' },
           { label: 'Paid This Month', val: stats.paidThisMonth, icon: Receipt, sub: `${stats.thisMonthCount} settlements`, color: 'blue' },
           { label: 'Active Sellers', val: sellers.length, icon: Users, sub: 'Total workforce', color: 'purple' }
         ].map((s, i) => (
@@ -388,9 +388,8 @@ const AdminSalaries = () => {
               </SelectTrigger>
               <SelectContent className="rounded-2xl border-gray-100">
                 <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="draft">Drafts</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="paid">Paid</SelectItem>
-                <SelectItem value="cancelled">Cancelled</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -473,11 +472,11 @@ const AdminSalaries = () => {
                       </td>
                       <td className="p-6 text-center">
                         <Badge className={`rounded-xl px-4 h-8 border-0 shadow-sm ${p.status === 'paid' ? 'bg-green-50 text-green-700' :
-                          p.status === 'draft' ? 'bg-orange-50 text-orange-700' :
+                          p.status === 'pending' ? 'bg-orange-50 text-orange-700' :
                             'bg-red-50 text-red-700'
                           }`}>
                           <div className={`w-1.5 h-1.5 rounded-full mr-2 ${p.status === 'paid' ? 'bg-green-500' :
-                            p.status === 'draft' ? 'bg-orange-500' :
+                            p.status === 'pending' ? 'bg-orange-500' :
                               'bg-red-500'
                             }`} />
                           {p.status.toUpperCase()}
@@ -508,12 +507,12 @@ const AdminSalaries = () => {
                                 <CheckCircle2 className="w-4 h-4 mr-3" /> Mark as Paid
                               </DropdownMenuItem>
                             )}
-                            {p.status !== 'cancelled' && (
+                            {p.status === 'paid' && (
                               <DropdownMenuItem
-                                onClick={() => updateStatus([p.id], 'cancelled')}
-                                className="rounded-xl h-11 px-4 cursor-pointer text-red-600 focus:bg-red-50"
+                                onClick={() => updateStatus([p.id], 'pending')}
+                                className="rounded-xl h-11 px-4 cursor-pointer text-orange-600 focus:bg-orange-50"
                               >
-                                <XCircle className="w-4 h-4 mr-3" /> Cancel Payment
+                                <XCircle className="w-4 h-4 mr-3" /> Revert to Pending
                               </DropdownMenuItem>
                             )}
                           </DropdownMenuContent>
@@ -686,7 +685,7 @@ const AdminSalaries = () => {
                   </div>
                 </div>
                 <Badge className={`rounded-xl px-4 h-8 border-0 ${activePayout.status === 'paid' ? 'bg-green-50 text-green-700' :
-                  activePayout.status === 'draft' ? 'bg-orange-50 text-orange-700' :
+                  activePayout.status === 'pending' ? 'bg-orange-50 text-orange-700' :
                     'bg-red-50 text-red-700'
                   }`}>
                   {activePayout.status.toUpperCase()}
@@ -762,13 +761,13 @@ const AdminSalaries = () => {
                     Confirm Payment & Notify Seller
                   </Button>
                 )}
-                {activePayout.status !== 'cancelled' && (
+                {activePayout.status === 'paid' && (
                   <Button
                     variant="outline"
-                    onClick={() => updateStatus([activePayout.id], 'cancelled')}
-                    className="h-14 rounded-2xl border-gray-200 flex-1 hover:bg-red-50 hover:text-red-600 transition-colors"
+                    onClick={() => updateStatus([activePayout.id], 'pending')}
+                    className="h-14 rounded-2xl border-gray-200 flex-1 hover:bg-orange-50 hover:text-orange-600 transition-colors"
                   >
-                    Void Transaction
+                    Revert to Pending
                   </Button>
                 )}
               </DialogFooter>

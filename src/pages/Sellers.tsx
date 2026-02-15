@@ -196,7 +196,7 @@ const Sellers = () => {
         const totalEarnings = sellerEarnings.reduce((sum, e) => sum + (Number(e.total_earned) || 0), 0);
 
         const totalPaid = sellerPayments.filter(p => p.status === 'paid').reduce((sum, p) => sum + (Number(p.total_amount) || 0), 0);
-        const totalUnpaid = sellerPayments.filter(p => p.status === 'draft').reduce((sum, p) => sum + (Number(p.total_amount) || 0), 0);
+        const totalUnpaid = sellerPayments.filter(p => p.status === 'pending').reduce((sum, p) => sum + (Number(p.total_amount) || 0), 0);
 
         const daysPresent = sellerPresences.length;
         const avgDailyDelivered = daysPresent > 0 ? delivered / daysPresent : 0;
@@ -204,8 +204,8 @@ const Sellers = () => {
         const productNames = (seller.products || []).map((pid: string) => productsMap[pid] || { name: 'Unknown Product', image: null });
 
         // Last active from presences
-        const sortedPresences = [...sellerPresences].sort((a, b) => new Date(b.date || b.presence_date).getTime() - new Date(a.date || a.presence_date).getTime());
-        const lastActive = sortedPresences[0]?.date || sortedPresences[0]?.presence_date || null;
+        const sortedPresences = [...sellerPresences].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        const lastActive = sortedPresences[0]?.date || null;
 
         // Top city from delivered orders
         const cityMap: Record<string, number> = {};
@@ -222,7 +222,7 @@ const Sellers = () => {
           total_amount: Number(p.total_amount) || 0,
           days_present: p.days_present || 0,
           delivered_orders: p.delivered_orders || 0,
-          status: p.status || 'draft',
+          status: p.status || 'pending',
         }));
 
         return {
@@ -630,7 +630,7 @@ const Sellers = () => {
                             <td className="py-3 text-right text-gray-500">{p.days_present}</td>
                             <td className="py-3 text-right text-gray-500">{p.delivered_orders}</td>
                             <td className="py-3 text-right text-gray-700">{p.commission_earned.toLocaleString()}</td>
-                            <td className="py-3 text-right font-semibold text-gray-900">{p.total_amount.toLocaleString()}</td>
+                            <td className="py-3 text-right font-semibold text-gray-900">{p.total_amount.toLocaleString()} DH</td>
                             <td className="py-3 text-right">
                               <Badge className={`border-0 text-[9px] px-2 py-0.5 rounded-lg ${p.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'}`}>
                                 {p.status}

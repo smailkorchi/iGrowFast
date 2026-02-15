@@ -158,11 +158,16 @@ const SellerDashboard = () => {
                 status: (o.order_statuses as any)?.code?.toLowerCase() || 'unknown'
             }));
 
+            // Status code helpers matching actual order_statuses.code values
+            const isDelivered = (s: string) => ['paid', 'unpaid'].includes(s);
+            const isPending = (s: string) => ['new', 'relaunch_new'].includes(s);
+            const isConfirmed = (s: string) => ['confirmed', 'processed', 'paid', 'unpaid'].includes(s);
+
             const todayOrders = orders.filter(o => new Date(o.created_at) >= today);
             const todayRevenue = todayOrders.reduce((sum, o) => sum + (Number((o as any).price) || 0), 0);
 
-            const delivered = orders.filter(o => o.status === 'delivered').length;
-            const confirmed = orders.filter(o => ['confirmed', 'shipped', 'delivered'].includes(o.status)).length;
+            const delivered = orders.filter(o => isDelivered(o.status)).length;
+            const confirmed = orders.filter(o => isConfirmed(o.status)).length;
             const successRate = orders.length > 0 ? (delivered / orders.length) * 100 : 0;
             const confirmRate = orders.length > 0 ? (confirmed / orders.length) * 100 : 0;
             const liveCommission = delivered * commissionRate;
@@ -170,7 +175,7 @@ const SellerDashboard = () => {
             setStats({
                 todayOrders: todayOrders.length,
                 todayRevenue,
-                pendingOrders: orders.filter(o => o.status === 'pending').length,
+                pendingOrders: orders.filter(o => isPending(o.status)).length,
                 confirmedOrders: confirmed,
                 deliveredOrders: delivered,
                 totalOrders: orders.length,
@@ -206,7 +211,7 @@ const SellerDashboard = () => {
                     productMap[pName] = { name: pName, image: item.products?.image_url || null, delivered: 0, total: 0, revenue: 0 };
                 }
                 productMap[pName].total++;
-                if (o.status === 'delivered') {
+                if (isDelivered(o.status)) {
                     productMap[pName].delivered++;
                     productMap[pName].revenue += Number(o.price) || 0;
                 }
@@ -235,15 +240,14 @@ const SellerDashboard = () => {
     };
 
     const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'pending': return 'bg-orange-100 text-orange-700';
-            case 'confirmed': return 'bg-blue-100 text-blue-700';
-            case 'delivered': return 'bg-green-100 text-green-700';
-            case 'cancelled': return 'bg-red-100 text-red-700';
-            case 'shipped': return 'bg-indigo-100 text-indigo-700';
-            case 'fake_order': return 'bg-rose-100 text-rose-700';
-            default: return 'bg-gray-100 text-gray-700';
-        }
+        if (['paid', 'unpaid'].includes(status)) return 'bg-green-100 text-green-700';
+        if (['new', 'relaunch_new'].includes(status)) return 'bg-orange-100 text-orange-700';
+        if (status === 'confirmed') return 'bg-blue-100 text-blue-700';
+        if (status === 'canceled') return 'bg-red-100 text-red-700';
+        if (status === 'processed') return 'bg-indigo-100 text-indigo-700';
+        if (['faux commande', 'commandedouble'].includes(status)) return 'bg-rose-100 text-rose-700';
+        if (status === 'return') return 'bg-amber-100 text-amber-700';
+        return 'bg-gray-100 text-gray-700';
     };
 
     // Group recent orders by day

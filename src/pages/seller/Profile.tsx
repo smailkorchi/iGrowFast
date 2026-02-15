@@ -106,8 +106,8 @@ const SellerProfile = () => {
 
                 if (!ordersError && orders) {
                     const total = orders.length;
-                    const confirmed = orders.filter(o => ['confirmed', 'shipped', 'delivered'].includes(o.status)).length;
-                    const delivered = orders.filter(o => o.status === 'delivered').length;
+                    const confirmed = orders.filter(o => ['confirmed', 'processed', 'paid', 'unpaid'].includes(o.status)).length;
+                    const delivered = orders.filter(o => ['paid', 'unpaid'].includes(o.status)).length;
 
                     const cRate = total > 0 ? (confirmed / total) * 100 : 0;
                     const dRate = confirmed > 0 ? (delivered / confirmed) * 100 : 0;
@@ -157,11 +157,11 @@ const SellerProfile = () => {
                                 total: items.length,
                                 confirmed: items.filter(i => {
                                     const status = Array.isArray(i.orders) ? i.orders[0]?.status : (i.orders as any)?.status;
-                                    return ['confirmed', 'shipped', 'delivered'].includes(status);
+                                    return ['confirmed', 'processed', 'paid', 'unpaid'].includes(status);
                                 }).length,
                                 delivered: items.filter(i => {
                                     const status = Array.isArray(i.orders) ? i.orders[0]?.status : (i.orders as any)?.status;
-                                    return status === 'delivered';
+                                    return ['paid', 'unpaid'].includes(status);
                                 }).length
                             };
                         });

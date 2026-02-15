@@ -77,11 +77,10 @@ const SellerWallet = () => {
 
                 const stats = currentMonthLogs.reduce((acc, curr) => ({
                     total: acc.total + Number(curr.total_earned),
-                    salary: acc.salary + Number(curr.salary_earned),
                     commission: acc.commission + Number(curr.commission_earned),
-                    days: acc.days + (Number(curr.salary_earned) > 0 ? 1 : 0),
+                    days: acc.days + (Number(curr.commission_earned) > 0 || Number(curr.delivered_count) > 0 ? 1 : 0),
                     delivered: acc.delivered + Number(curr.delivered_count)
-                }), { total: 0, salary: 0, commission: 0, days: 0, delivered: 0 });
+                }), { total: 0, commission: 0, days: 0, delivered: 0 });
 
                 setMonthStats(stats);
             }
@@ -176,11 +175,11 @@ const SellerWallet = () => {
                             <div className="w-12 h-12 bg-purple-50 rounded-2xl flex items-center justify-center group-hover:bg-purple-100 transition-colors">
                                 <PieChart className="w-6 h-6 text-purple-600" />
                             </div>
-                            <Badge variant="secondary" className="bg-purple-50 text-purple-600 border-0 font-medium">Commission</Badge>
+                            <Badge variant="secondary" className="bg-purple-50 text-purple-600 border-0 font-medium">Monthly Stats</Badge>
                         </div>
                         <div className="space-y-1">
-                            <p className="text-3xl font-medium text-gray-900 tracking-tight">{monthStats.commission.toFixed(2)} <span className="text-lg font-light text-gray-400">MAD</span></p>
-                            <p className="text-sm text-gray-500 font-light">Bonus earned</p>
+                            <p className="text-3xl font-medium text-gray-900 tracking-tight">{monthStats.delivered} <span className="text-lg font-light text-gray-400">Orders</span></p>
+                            <p className="text-sm text-gray-500 font-light">Performance overview</p>
                         </div>
                     </CardContent>
                 </Card>
@@ -222,9 +221,8 @@ const SellerWallet = () => {
                             <thead>
                                 <tr className="text-left border-b border-gray-50/50 bg-gray-50/30">
                                     <th className="p-6 text-[10px] uppercase tracking-widest font-medium text-gray-400">Date Log</th>
-                                    <th className="p-6 text-[10px] uppercase tracking-widest font-medium text-gray-400">Base Salary Piece</th>
-                                    <th className="p-6 text-[10px] uppercase tracking-widest font-medium text-gray-400">Commission Piece</th>
-                                    <th className="p-6 text-[10px] uppercase tracking-widest font-medium text-gray-400">Delivered</th>
+                                    <th className="p-6 text-[10px] uppercase tracking-widest font-medium text-gray-400">Earnings Details</th>
+                                    <th className="p-6 text-[10px] uppercase tracking-widest font-medium text-gray-400">Activity Status</th>
                                     <th className="p-6 text-[10px] uppercase tracking-widest font-medium text-gray-400 text-right">Day Total</th>
                                 </tr>
                             </thead>
@@ -253,19 +251,13 @@ const SellerWallet = () => {
                                             </td>
                                             <td className="p-6">
                                                 <div className="flex items-center gap-2">
-                                                    <div className="w-2 h-2 rounded-full bg-blue-400" />
-                                                    <span className="text-sm text-gray-600 font-mono tracking-tighter">+{Number(log.salary_earned).toFixed(2)} MAD</span>
-                                                </div>
-                                            </td>
-                                            <td className="p-6">
-                                                <div className="flex items-center gap-2">
                                                     <div className="w-2 h-2 rounded-full bg-purple-400" />
-                                                    <span className="text-sm text-gray-600 font-mono tracking-tighter">+{Number(log.commission_earned).toFixed(2)} MAD</span>
+                                                    <span className="text-sm text-gray-600 font-mono tracking-tighter">+{Number(log.commission_earned).toFixed(2)} MAD Portfolio</span>
                                                 </div>
                                             </td>
                                             <td className="p-6">
                                                 <Badge variant="outline" className="rounded-lg border-gray-200 text-gray-500 font-light px-2 h-6">
-                                                    {log.delivered_count} Units
+                                                    {log.delivered_count} Units Delivered
                                                 </Badge>
                                             </td>
                                             <td className="p-6 text-right">
@@ -350,21 +342,15 @@ const SellerWallet = () => {
                                 <div className="flex-1 space-y-4">
                                     <div className="space-y-1">
                                         <div className="flex justify-between text-xs text-gray-500 mb-1.5">
-                                            <span>Salary Portion</span>
-                                            <span className="font-mono">{Math.round((monthStats.salary / (monthStats.total || 1)) * 100)}%</span>
+                                            <span>Commission Earned</span>
+                                            <span className="font-mono">{monthStats.total > 0 ? 100 : 0}%</span>
                                         </div>
                                         <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
-                                            <div className="h-full bg-blue-500 transition-all duration-1000" style={{ width: `${(monthStats.salary / (monthStats.total || 1)) * 100}%` }} />
+                                            <div className="h-full bg-primary transition-all duration-1000" style={{ width: `${monthStats.total > 0 ? 100 : 0}%` }} />
                                         </div>
                                     </div>
-                                    <div className="space-y-1">
-                                        <div className="flex justify-between text-xs text-gray-500 mb-1.5">
-                                            <span>Commission Portion</span>
-                                            <span className="font-mono">{Math.round((monthStats.commission / (monthStats.total || 1)) * 100)}%</span>
-                                        </div>
-                                        <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
-                                            <div className="h-full bg-purple-500 transition-all duration-1000" style={{ width: `${(monthStats.commission / (monthStats.total || 1)) * 100}%` }} />
-                                        </div>
+                                    <div className="text-xs text-gray-400 font-light leading-relaxed">
+                                        Your monthly revenue is derived from successfully delivered orders and performance milestones.
                                     </div>
                                 </div>
                                 <div className="w-32 h-32 flex items-center justify-center relative">

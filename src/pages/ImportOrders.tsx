@@ -146,7 +146,7 @@ const ImportOrders = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('courier_zones')
-                .select('*')
+                .select('id, courier_id, zone_id')
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data;
@@ -159,7 +159,7 @@ const ImportOrders = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('company_zones')
-                .select('*')
+                .select('id, company_id, zone_id')
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data;
@@ -188,7 +188,7 @@ const ImportOrders = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('courier_fees')
-                .select('*')
+                .select('id, courier_id, master_city_id, city_id, fee')
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data;
@@ -201,7 +201,7 @@ const ImportOrders = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('company_fees')
-                .select('*')
+                .select('id, company_id, master_city_id, city_id, fee')
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data;
@@ -265,9 +265,10 @@ const ImportOrders = () => {
                     name: order.name,
                     phone: order.phone,
                     address: order.address,
-                    city_id: order.city_id, // Keep for backward compatibility if needed, but master_city_id is primary now
+                    city_id: order.city_id,
                     master_city_id: order.city_id,
                     price: order.price + (finalShippingFee > 0 ? finalShippingFee : 0),
+                    raw_price: order.price,
                     shipping_cost: finalShippingFee,
                     note: order.note,
                     delivery_note: order.delivery_note,

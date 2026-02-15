@@ -106,12 +106,11 @@ const SellerPayments = () => {
 
             // Prepare Chart Data
             const monthlyData = paidPayments.map(p => {
-                const date = parseISO(p.payout_month);
+                const date = p.payout_month ? parseISO(p.payout_month) : null;
                 return {
-                    month: isNaN(date.getTime()) ? 'Unknown' : format(date, 'MMM yyyy'),
+                    month: date && !isNaN(date.getTime()) ? format(date, 'MMM yyyy') : 'Unknown',
                     amount: Number(p.total_amount),
-                    commission: Number(p.commission_earned),
-                    salary: Number(p.salary_earned)
+                    commission: Number(p.commission_earned)
                 };
             });
             setChartData(monthlyData);
@@ -423,21 +422,13 @@ const SellerPayments = () => {
 
                             <div className="p-10 space-y-8">
                                 {/* Financial Grid */}
-                                <div className="grid grid-cols-2 gap-6">
+                                <div className="grid grid-cols-1 gap-6">
                                     <div className="p-6 rounded-3xl bg-white shadow-sm border border-gray-100 flex flex-col justify-between group hover:shadow-md transition-shadow">
-                                        <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400 mb-4">Base Remuneration</p>
-                                        <p className="text-3xl font-light text-gray-900">{Number(selectedPayment.salary_earned).toLocaleString()} <span className="text-sm font-light text-gray-400">MAD</span></p>
-                                        <div className="mt-4 pt-4 border-t border-gray-50 flex items-center justify-between">
-                                            <span className="text-[10px] text-gray-400 uppercase font-bold">Duration</span>
-                                            <span className="text-xs font-medium text-gray-600">{selectedPayment.days_present} Presence Days</span>
-                                        </div>
-                                    </div>
-                                    <div className="p-6 rounded-3xl bg-white shadow-sm border border-gray-100 flex flex-col justify-between group hover:shadow-md transition-shadow">
-                                        <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400 mb-4">Performance Component</p>
+                                        <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400 mb-4">Settlement Breakdown</p>
                                         <p className="text-3xl font-light text-gray-900">{Number(selectedPayment.commission_earned).toLocaleString()} <span className="text-sm font-light text-gray-400">MAD</span></p>
                                         <div className="mt-4 pt-4 border-t border-gray-50 flex items-center justify-between">
-                                            <span className="text-[10px] text-gray-400 uppercase font-bold">Impact</span>
-                                            <span className="text-xs font-medium text-gray-600">{selectedPayment.delivered_orders} Units Delivered</span>
+                                            <span className="text-[10px] text-gray-400 uppercase font-bold">Activity</span>
+                                            <span className="text-xs font-medium text-gray-600">{selectedPayment.delivered_orders} Units · {selectedPayment.days_present} Days</span>
                                         </div>
                                     </div>
                                 </div>

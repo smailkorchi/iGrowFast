@@ -61,7 +61,6 @@ interface PerformanceStats {
 
 interface ChartData {
     month: string;
-    salary: number;
     commission: number;
     total: number;
 }
@@ -154,6 +153,11 @@ const SellerStatistics = () => {
                 status: (o.order_statuses as any)?.code?.toLowerCase() || 'unknown'
             }));
 
+            // Status code helpers matching actual order_statuses.code values
+            const isDelivered = (s: string) => ['paid', 'unpaid'].includes(s);
+            const isConfirmedOrBeyond = (s: string) => ['confirmed', 'processed', 'paid', 'unpaid'].includes(s);
+            const isFake = (s: string) => ['faux commande', 'commandedouble'].includes(s);
+
             if (ordersError) throw ordersError;
 
             // Calculate Order Distribution
@@ -163,11 +167,16 @@ const SellerStatistics = () => {
             });
 
             const statusConfig: Record<string, { label: string, color: string }> = {
-                delivered: { label: 'Delivered', color: '#10B981' },
+                paid: { label: 'Delivered (Paid)', color: '#10B981' },
+                unpaid: { label: 'Delivered (Unpaid)', color: '#F59E0B' },
                 confirmed: { label: 'Confirmed', color: '#3B82F6' },
-                pending: { label: 'Pending', color: '#F97316' },
-                cancelled: { label: 'Cancelled', color: '#EF4444' },
-                fake_order: { label: 'Fake', color: '#94A3B8' }
+                new: { label: 'New', color: '#F97316' },
+                relaunch_new: { label: 'Relaunched', color: '#F97316' },
+                canceled: { label: 'Cancelled', color: '#EF4444' },
+                processed: { label: 'Processed', color: '#6366F1' },
+                return: { label: 'Return', color: '#DC2626' },
+                'faux commande': { label: 'Fake', color: '#94A3B8' },
+                commandedouble: { label: 'Duplicate', color: '#94A3B8' }
             };
 
             const formattedDist = Object.entries(distMap).map(([status, count]) => ({
@@ -179,7 +188,7 @@ const SellerStatistics = () => {
 
             // Calculate Regional Data
             const cityMap: Record<string, number> = {};
-            orders?.filter(o => o.status === 'delivered').forEach(o => {
+            orders?.filter(o => isDelivered(o.status)).forEach(o => {
                 const cityName = (o.master_cities as any)?.name || 'Unknown';
                 cityMap[cityName] = (cityMap[cityName] || 0) + 1;
             });
@@ -205,7 +214,7 @@ const SellerStatistics = () => {
                         prodMap[pName] = { name: pName, image: pImage, attributed: 0, delivered: 0, successRate: 0, revenue: 0 };
                     }
                     prodMap[pName].attributed += 1;
-                    if (o.status === 'delivered') {
+                    if (isDelivered(o.status)) {
                         prodMap[pName].delivered += 1;
                         prodMap[pName].revenue += Number(item.unit_price) * Number(item.quantity);
                     }
@@ -232,9 +241,8 @@ const SellerStatistics = () => {
             earnings?.forEach(e => {
                 const monthStr = format(parseISO(e.date), 'MMM yyyy');
                 if (!monthlyMap[monthStr]) {
-                    monthlyMap[monthStr] = { month: monthStr, salary: 0, commission: 0, total: 0 };
+                    monthlyMap[monthStr] = { month: monthStr, commission: 0, total: 0 };
                 }
-                monthlyMap[monthStr].salary += Number(e.salary_earned);
                 monthlyMap[monthStr].commission += Number(e.commission_earned);
                 monthlyMap[monthStr].total += Number(e.total_earned);
             });
@@ -260,7 +268,7 @@ const SellerStatistics = () => {
 
             // Calculate Final KPIs
             const totalAttributed = orders?.length || 0;
-            const deliveredOrders = orders?.filter(o => o.status === 'delivered').length || 0;
+            const deliveredOrders = orders?.filter(o => isDelivered(o.status)).length || 0;
             const successRate = totalAttributed > 0 ? (deliveredOrders / totalAttributed) * 100 : 0;
             const efficiency = (presenceCount || 0) > 0 ? deliveredOrders / (presenceCount || 0) : 0;
 
@@ -295,9 +303,9 @@ const SellerStatistics = () => {
 
             // Calculate Detailed Ratios
             const totalOrdersCount = orders?.length || 0;
-            const confirmedOrders = orders?.filter(o => ['confirmed', 'shipped', 'delivered'].includes(o.status)).length || 0;
-            const deliveredOrdersCount = orders?.filter(o => o.status === 'delivered').length || 0;
-            const fakeOrders = orders?.filter(o => o.status === 'fake_order').length || 0;
+            const confirmedOrders = orders?.filter(o => isConfirmedOrBeyond(o.status)).length || 0;
+            const deliveredOrdersCount = orders?.filter(o => isDelivered(o.status)).length || 0;
+            const fakeOrders = orders?.filter(o => isFake(o.status)).length || 0;
 
             const confirmRate = totalOrdersCount > 0 ? (confirmedOrders / totalOrdersCount) * 100 : 0;
             const deliveryEff = confirmedOrders > 0 ? (deliveredOrdersCount / confirmedOrders) * 100 : 0;
@@ -349,7 +357,7 @@ const SellerStatistics = () => {
                     <div className="mt-2 pt-2 border-t border-gray-50 flex items-center justify-between">
                         <span className="text-[10px] uppercase font-bold text-gray-400">Monthly Total</span>
                         <span className="text-xs font-bold text-primary">
-                            {(payload[0].value + payload[1].value).toLocaleString()} MAD
+                            {payload[0].value.toLocaleString()} MAD
                         </span>
                     </div>
                 </div>
@@ -455,11 +463,7 @@ const SellerStatistics = () => {
                             <div className="flex items-center gap-4">
                                 <div className="flex items-center gap-2">
                                     <div className="w-3 h-3 rounded-full bg-primary" />
-                                    <span className="text-[10px] font-bold text-gray-400 uppercase">Commission</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <div className="w-3 h-3 rounded-full bg-blue-500" />
-                                    <span className="text-[10px] font-bold text-gray-400 uppercase">Fixed Salary</span>
+                                    <span className="text-[10px] font-bold text-gray-400 uppercase">Growth Performance (Commission)</span>
                                 </div>
                             </div>
                         </div>
@@ -468,10 +472,6 @@ const SellerStatistics = () => {
                         <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={revenueData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
                                 <defs>
-                                    <linearGradient id="colorSalary" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.1} />
-                                        <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
-                                    </linearGradient>
                                     <linearGradient id="colorCommission" x1="0" y1="0" x2="0" y2="1">
                                         <stop offset="5%" stopColor="#F97316" stopOpacity={0.1} />
                                         <stop offset="95%" stopColor="#F97316" stopOpacity={0} />
@@ -494,17 +494,8 @@ const SellerStatistics = () => {
                                 <Tooltip content={<CustomTooltip />} />
                                 <Area
                                     type="monotone"
-                                    dataKey="salary"
-                                    name="Fixed Salary"
-                                    stroke="#3B82F6"
-                                    strokeWidth={3}
-                                    fillOpacity={1}
-                                    fill="url(#colorSalary)"
-                                />
-                                <Area
-                                    type="monotone"
                                     dataKey="commission"
-                                    name="Commission"
+                                    name="Monthly Settlement"
                                     stroke="#F97316"
                                     strokeWidth={3}
                                     fillOpacity={1}
