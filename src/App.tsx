@@ -29,6 +29,9 @@ import Webhooks from "./pages/Webhooks";
 import Businesses from "./pages/Businesses";
 import SelectBusiness from "./pages/SelectBusiness";
 import Calculator from "./pages/Calculator";
+import AdminDemands from "./pages/Demands";
+import AdminSalaries from "./pages/Salaries";
+import AdminSellers from "./pages/Sellers";
 import SellerDashboard from "./pages/seller/Dashboard";
 import SellerOrders from "./pages/seller/Orders";
 import SellerPayments from "./pages/seller/Payments";
@@ -116,6 +119,9 @@ const App = () => (
                     <Route path="/cities" element={<Cities />} />
                     <Route path="/zones" element={<Zones />} />
                     <Route path="/calculator" element={<Calculator />} />
+                    <Route path="/demands" element={<AdminDemands />} />
+                    <Route path="/salaries" element={<AdminSalaries />} />
+                    <Route path="/sellers" element={<AdminSellers />} />
                     <Route path="/profile" element={<Profile />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>

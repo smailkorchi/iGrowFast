@@ -34,7 +34,9 @@ import {
     LogOut,
     User as UserIcon,
     Loader2,
-    Calculator
+    Calculator,
+    Store,
+    MessageSquare
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
@@ -85,6 +87,15 @@ const navigation: NavSection[] = [
             { icon: Megaphone, label: 'Sales Channels', path: '/sales-channels' },
             { icon: Users, label: 'Customers', path: '/customers' },
             { icon: UserPlus, label: 'Users', path: '/users' },
+        ]
+    },
+    {
+        label: 'Sellers',
+        icon: Store,
+        items: [
+            { icon: Users, label: 'Sellers', path: '/sellers' },
+            { icon: MessageSquare, label: 'Demands', path: '/demands' },
+            { icon: DollarSign, label: 'Salaries', path: '/salaries' },
         ]
     },
     {
