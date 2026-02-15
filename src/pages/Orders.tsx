@@ -98,6 +98,9 @@ import { Check, ChevronsUpDown } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 
+import { Checkbox } from "@/components/ui/checkbox";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+
 // --- Schemas ---
 const orderItemSchema = z.object({
     product_id: z.string().uuid("Please select a product"),
@@ -141,7 +144,11 @@ const Orders = () => {
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [selectedOrder, setSelectedOrder] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState("");
-    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+    const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
+    const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
+    const [isAttributionModalOpen, setIsAttributionModalOpen] = useState(false);
+    const [isBulkStatusModalOpen, setIsBulkStatusModalOpen] = useState(false);
+    const [sellerSearchQuery, setSellerSearchQuery] = useState("");
 
     // Dropdown search states
     const [citySearchOpen, setCitySearchOpen] = useState(false);
@@ -198,6 +205,7 @@ const Orders = () => {
                     status:order_statuses(*),
                     city:master_cities(id, name),
                     courier:users!orders_courier_id_fkey(id, name, avatar_url),
+                    assignee:users!orders_assign_id_fkey(id, name, avatar_url),
                     company:providers(id, name, logo_url),
                     items:order_items(*, product:products(name, code, image_url))
                 `)
@@ -332,6 +340,21 @@ const Orders = () => {
             if (error) throw error;
             return data;
         },
+    });
+
+    const { data: sellers } = useQuery({
+        queryKey: ['sellers-commercial', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return [];
+            const { data, error } = await (supabase as any)
+                .from('users')
+                .select('id, name, avatar_url, role')
+                .eq('role', 'commercial')
+                .eq('active', true)
+                .eq('DigiCom Business', activeBusinessId);
+            if (error) throw error;
+            return data;
+        }
     });
 
     // --- Form ---
@@ -604,6 +627,60 @@ const Orders = () => {
         }
     });
 
+    const bulkStatusMutation = useMutation({
+        mutationFn: async ({ orderIds, statusId }: { orderIds: string[], statusId: string }) => {
+            const { error } = await (supabase as any)
+                .from('orders')
+                .update({ order_status_id: statusId, updated_at: new Date().toISOString() })
+                .in('id', orderIds)
+                .eq('DigiCom Business', activeBusinessId);
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
+            setSelectedOrders([]);
+            setIsBulkStatusModalOpen(false);
+            toast({ title: "Success", description: "Orders status updated successfully." });
+        },
+        onError: (error: any) => {
+            toast({ title: "Error", description: error.message, variant: "destructive" });
+        }
+    });
+
+    const bulkAttributeMutation = useMutation({
+        mutationFn: async ({ orderIds, sellerId }: { orderIds: string[], sellerId: string | null }) => {
+            const { error } = await (supabase as any)
+                .from('orders')
+                .update({ assign_id: sellerId, updated_at: new Date().toISOString() })
+                .in('id', orderIds)
+                .eq('DigiCom Business', activeBusinessId);
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
+            setSelectedOrders([]);
+            setIsAttributionModalOpen(false);
+            toast({ title: "Success", description: "Orders attributed successfully." });
+        },
+        onError: (error: any) => {
+            toast({ title: "Error", description: error.message, variant: "destructive" });
+        }
+    });
+
+    const toggleOrderSelection = (id: string) => {
+        setSelectedOrders(prev =>
+            prev.includes(id) ? prev.filter(oid => oid !== id) : [...prev, id]
+        );
+    };
+
+    const toggleSelectAll = (orderIds: string[]) => {
+        if (selectedOrders.length === orderIds.length) {
+            setSelectedOrders([]);
+        } else {
+            setSelectedOrders(orderIds);
+        }
+    };
+
     // --- Helpers ---
     const filteredOrders = useMemo(() => {
         if (!orders) return [];
@@ -858,293 +935,403 @@ const Orders = () => {
                     </div>
                 </div>
             ) : (
-                viewMode === 'grid' ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-20">
-                        {filteredOrders.map((order) => (
-                            <Card
-                                key={order.id}
-                                className="group relative overflow-hidden border-none bg-white/60 backdrop-blur-md shadow-sm hover:shadow-2xl transition-all duration-500 rounded-[32px] border border-white/20"
-                            >
-                                {/* Status Accent Bar */}
-                                <div className="absolute top-0 left-0 w-full h-1.5 opacity-80" style={{ backgroundColor: order.status?.color || '#ccc' }} />
+                <>
+                    {viewMode === 'grid' ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-20">
+                            {filteredOrders.map((order) => (
+                                <Card
+                                    key={order.id}
+                                    className="group relative overflow-hidden border-none bg-white/60 backdrop-blur-md shadow-sm hover:shadow-2xl transition-all duration-500 rounded-[32px] border border-white/20"
+                                >
+                                    {/* Status Accent Bar */}
+                                    <div className="absolute top-0 left-0 w-full h-1.5 opacity-80" style={{ backgroundColor: order.status?.color || '#ccc' }} />
 
-                                <CardContent className="p-7 space-y-6">
-                                    {/* Status Row */}
-                                    <div className="flex flex-wrap items-center justify-between gap-3">
-                                        {/* Order Status */}
-                                        <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-2xl bg-white shadow-sm border border-brand-navy/[0.03]">
-                                            <div className="p-1 rounded-lg" style={{ backgroundColor: `${order.status?.color}15` }}>
-                                                <ShieldCheck className="w-4 h-4" style={{ color: order.status?.color }} />
-                                            </div>
-                                            <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: order.status?.color }}>
-                                                {order.status?.label || 'DRAFT'}
-                                            </span>
-                                        </div>
+                                    {/* Selection Checkbox */}
+                                    <div className="absolute top-4 left-4 z-10">
+                                        <Checkbox
+                                            checked={selectedOrders.includes(order.id)}
+                                            onCheckedChange={() => toggleOrderSelection(order.id)}
+                                            className="h-5 w-5 rounded-md border-white/20 data-[state=checked]:bg-brand-navy data-[state=checked]:text-brand-white shadow-lg"
+                                        />
+                                    </div>
 
-                                        {/* Package Status */}
-                                        {order.package_status_label && (
-                                            <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-2xl bg-brand-navy/[0.03] border border-brand-navy/[0.05] animate-pulse-subtle">
-                                                <div className="p-1 rounded-lg bg-brand-navy/10">
-                                                    <Truck className="w-4 h-4 text-brand-navy/60" />
+                                    <CardContent className="p-7 space-y-6">
+                                        {/* Status Row */}
+                                        <div className="flex flex-wrap items-center justify-between gap-3">
+                                            {/* Order Status */}
+                                            <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-2xl bg-white shadow-sm border border-brand-navy/[0.03]">
+                                                <div className="p-1 rounded-lg" style={{ backgroundColor: `${order.status?.color}15` }}>
+                                                    <ShieldCheck className="w-4 h-4" style={{ color: order.status?.color }} />
                                                 </div>
-                                                <span className="text-[10px] font-black uppercase tracking-widest text-brand-navy/60">
-                                                    {order.package_status_label}
+                                                <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: order.status?.color }}>
+                                                    {order.status?.label || 'DRAFT'}
                                                 </span>
                                             </div>
-                                        )}
-                                    </div>
 
-                                    {/* Client Info */}
-                                    <div className="space-y-3">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-navy to-brand-navy/80 flex items-center justify-center text-white shadow-lg shadow-brand-navy/20 group-hover:scale-110 transition-transform duration-500">
-                                                <User className="w-6 h-6" />
-                                            </div>
-                                            <div className="flex flex-col min-w-0">
-                                                <h3 className="text-xl font-black text-brand-navy truncate leading-tight tracking-tight">
-                                                    {order.name}
-                                                </h3>
-                                                <div className="flex items-center gap-1.5 text-muted-foreground/70">
-                                                    <Phone className="w-3 h-3" />
-                                                    <span className="text-xs font-bold tracking-wider">{order.phone}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {(order.company_id || order.courier_id) && (
-                                            <div className="flex items-center gap-2 ml-1">
-                                                <div className="w-5 h-5 rounded-md bg-brand-navy/[0.03] p-0.5 border border-brand-navy/[0.05] flex items-center justify-center overflow-hidden">
-                                                    {order.company?.logo_url ? (
-                                                        <img src={order.company.logo_url} alt={order.company.name} className="w-full h-full object-contain" />
-                                                    ) : order.courier?.avatar_url ? (
-                                                        <img src={order.courier.avatar_url} alt={order.courier.name} className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        order.company_id ? <Building2 className="w-3 h-3 text-blue-500/50" /> : <Truck className="w-3 h-3 text-orange-500/50" />
-                                                    )}
-                                                </div>
-                                                <span className="text-[10px] font-black text-brand-navy/30 uppercase tracking-tighter">
-                                                    Logistics: <span className="text-brand-navy/60">{order.company?.name || order.courier?.name}</span>
-                                                </span>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Metadata Grid */}
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="p-3.5 rounded-[20px] bg-brand-navy/[0.02] border border-brand-navy/[0.03] hover:bg-white transition-colors duration-300">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <div className="w-6 h-6 rounded-lg bg-orange-50 flex items-center justify-center text-orange-500">
-                                                    <MapPin className="w-3.5 h-3.5" />
-                                                </div>
-                                                <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/50">Destination</span>
-                                            </div>
-                                            <p className="text-sm font-bold text-brand-navy truncate pl-8">{order.city?.name}</p>
-                                        </div>
-                                        <div className="p-3.5 rounded-[20px] bg-brand-navy/[0.02] border border-brand-navy/[0.03] hover:bg-white transition-colors duration-300">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <div className="w-6 h-6 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-500">
-                                                    <Hash className="w-3.5 h-3.5" />
-                                                </div>
-                                                <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/50">Channel</span>
-                                            </div>
-                                            <p className="text-sm font-bold text-brand-navy capitalize pl-8">{order.source_name}</p>
-                                        </div>
-                                    </div>
-
-                                    <Separator className="bg-brand-navy/[0.05]" />
-
-                                    {/* Footer */}
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 leading-none mb-1">Net Balance</span>
-                                            <div className="flex items-baseline gap-1">
-                                                <span className="text-3xl font-black text-brand-navy">{order.price || 0}</span>
-                                                <span className="text-xs font-black text-brand-navy/40 uppercase">DH</span>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex gap-2">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => {
-                                                    setSelectedOrder(order);
-                                                    setIsViewModalOpen(true);
-                                                }}
-                                                className="h-12 w-12 rounded-2xl bg-brand-navy/[0.04] hover:bg-brand-navy text-brand-navy hover:text-brand-white transition-all duration-300 shadow-sm active:scale-95"
-                                            >
-                                                <Eye className="w-6 h-6" />
-                                            </Button>
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="h-12 w-12 rounded-2xl bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy/10 active:scale-95 transition-all">
-                                                        <MoreVertical className="h-6 w-6" />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[200px] animate-in slide-in-from-top-2">
-                                                    <DropdownMenuItem
-                                                        onClick={() => handleEdit(order)}
-                                                        className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3 transition-colors"
-                                                    >
-                                                        <Edit2 className="w-4 h-4" />
-                                                        <span className="font-bold">Modify Details</span>
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuSeparator />
-                                                    <DropdownMenuItem
-                                                        onClick={() => {
-                                                            if (confirm("Delete this order? This action is permanent.")) {
-                                                                deleteOrderMutation.mutate(order.id);
-                                                            }
-                                                        }}
-                                                        className="rounded-xl p-3 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-3 transition-colors"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                        <span className="font-bold">Delete Order</span>
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                        </div>
-                                    </div>
-
-                                    {/* Exchange Flag */}
-                                    {order.replace && (
-                                        <div className="absolute -right-12 -top-12 w-24 h-24 bg-red-500/10 rotate-45 flex items-end justify-center pb-2 group-hover:bg-red-500/20 transition-colors">
-                                            <RefreshCcw className="w-5 h-5 text-red-500 -rotate-45" />
-                                        </div>
-                                    )}
-                                </CardContent>
-                            </Card>
-                        ))}
-                    </div>
-                ) : (
-                    <div className="bg-white/50 backdrop-blur-sm shadow-xl rounded-[32px] overflow-hidden border border-brand-navy/[0.03] mb-20 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-brand-navy/[0.02]">
-                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Customer</th>
-                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Dest. & Source</th>
-                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Status & Provider</th>
-                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Total Amount</th>
-                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-brand-navy/40 text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-brand-navy/[0.03]">
-                                    {filteredOrders.map((order) => (
-                                        <tr key={order.id} className="hover:bg-brand-navy/[0.01] transition-colors group">
-                                            <td className="p-6">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-xl bg-brand-navy/[0.04] flex items-center justify-center text-brand-navy shrink-0 group-hover:scale-110 transition-transform">
-                                                        <User className="w-5 h-5" />
+                                            {/* Package Status */}
+                                            {order.package_status_label && (
+                                                <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-2xl bg-brand-navy/[0.03] border border-brand-navy/[0.05] animate-pulse-subtle">
+                                                    <div className="p-1 rounded-lg bg-brand-navy/10">
+                                                        <Truck className="w-4 h-4 text-brand-navy/60" />
                                                     </div>
-                                                    <div className="flex flex-col min-w-0">
-                                                        <span className="text-sm font-bold text-brand-navy truncate">
-                                                            {order.name}
-                                                            {order.replace && <RefreshCcw className="inline-block w-3 h-3 ml-2 text-red-500" />}
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-brand-navy/60">
+                                                        {order.package_status_label}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Client Info */}
+                                        <div className="space-y-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-navy to-brand-navy/80 flex items-center justify-center text-white shadow-lg shadow-brand-navy/20 group-hover:scale-110 transition-transform duration-500">
+                                                    <User className="w-6 h-6" />
+                                                </div>
+                                                <div className="flex flex-col min-w-0">
+                                                    <h3 className="text-xl font-black text-brand-navy truncate leading-tight tracking-tight">
+                                                        {order.name}
+                                                    </h3>
+                                                    <div className="flex items-center gap-1.5 text-muted-foreground/70">
+                                                        <Phone className="w-3 h-3" />
+                                                        <span className="text-xs font-bold tracking-wider">{order.phone}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Assigned Seller Tag */}
+                                            {order.assignee && (
+                                                <div className="absolute top-6 right-6">
+                                                    <div className="flex items-center gap-2 pl-1 pr-3 py-1 rounded-2xl bg-white/80 backdrop-blur-sm border border-brand-navy/[0.03] shadow-sm transform group-hover:scale-105 transition-transform duration-300">
+                                                        <Avatar className="w-6 h-6 border-2 border-white shadow-sm">
+                                                            <AvatarImage src={order.assignee.avatar_url} />
+                                                            <AvatarFallback className="bg-orange-100 text-orange-600 text-[10px] font-black">
+                                                                {order.assignee.name?.[0]}
+                                                            </AvatarFallback>
+                                                        </Avatar>
+                                                        <span className="text-[10px] font-black text-brand-navy/60 uppercase tracking-tighter truncate max-w-[80px]">
+                                                            {order.assignee.name}
                                                         </span>
-                                                        <span className="text-[10px] font-bold text-muted-foreground tracking-wider">{order.phone}</span>
                                                     </div>
                                                 </div>
-                                            </td>
-                                            <td className="p-6">
-                                                <div className="flex flex-col gap-1">
-                                                    <div className="flex items-center gap-1.5 text-xs font-bold text-brand-navy">
-                                                        <MapPin className="w-3 h-3 text-orange-500" />
-                                                        {order.city?.name}
+                                            )}
+
+                                            {(order.company_id || order.courier_id) && (
+                                                <div className="flex items-center gap-2 ml-1">
+                                                    <div className="w-5 h-5 rounded-md bg-brand-navy/[0.03] p-0.5 border border-brand-navy/[0.05] flex items-center justify-center overflow-hidden">
+                                                        {order.company?.logo_url ? (
+                                                            <img src={order.company.logo_url} alt={order.company.name} className="w-full h-full object-contain" />
+                                                        ) : order.courier?.avatar_url ? (
+                                                            <img src={order.courier.avatar_url} alt={order.courier.name} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            order.company_id ? <Building2 className="w-3 h-3 text-blue-500/50" /> : <Truck className="w-3 h-3 text-orange-500/50" />
+                                                        )}
                                                     </div>
-                                                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                                                        <Hash className="w-3 h-3 text-indigo-500" />
-                                                        {order.source_name}
-                                                    </div>
+                                                    <span className="text-[10px] font-black text-brand-navy/30 uppercase tracking-tighter">
+                                                        Logistics: <span className="text-brand-navy/60">{order.company?.name || order.courier?.name}</span>
+                                                    </span>
                                                 </div>
-                                            </td>
-                                            <td className="p-6">
-                                                <div className="flex flex-col gap-1.5">
-                                                    <div className="flex flex-wrap items-center gap-2">
-                                                        <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white shadow-sm border border-brand-navy/[0.03]">
-                                                            <ShieldCheck className="w-3 h-3" style={{ color: order.status?.color }} />
-                                                            <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: order.status?.color }}>
-                                                                {order.status?.label || 'DRAFT'}
+                                            )}
+                                        </div>
+
+                                        {/* Metadata Grid */}
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="p-3.5 rounded-[20px] bg-brand-navy/[0.02] border border-brand-navy/[0.03] hover:bg-white transition-colors duration-300">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <div className="w-6 h-6 rounded-lg bg-orange-50 flex items-center justify-center text-orange-500">
+                                                        <MapPin className="w-3.5 h-3.5" />
+                                                    </div>
+                                                    <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/50">Destination</span>
+                                                </div>
+                                                <p className="text-sm font-bold text-brand-navy truncate pl-8">{order.city?.name}</p>
+                                            </div>
+                                            <div className="p-3.5 rounded-[20px] bg-brand-navy/[0.02] border border-brand-navy/[0.03] hover:bg-white transition-colors duration-300">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <div className="w-6 h-6 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-500">
+                                                        <Hash className="w-3.5 h-3.5" />
+                                                    </div>
+                                                    <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/50">Channel</span>
+                                                </div>
+                                                <p className="text-sm font-bold text-brand-navy capitalize pl-8">{order.source_name}</p>
+                                            </div>
+                                        </div>
+
+                                        <Separator className="bg-brand-navy/[0.05]" />
+
+                                        {/* Footer */}
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex flex-col">
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 leading-none mb-1">Net Balance</span>
+                                                <div className="flex items-baseline gap-1">
+                                                    <span className="text-3xl font-black text-brand-navy">{order.price || 0}</span>
+                                                    <span className="text-xs font-black text-brand-navy/40 uppercase">DH</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex gap-2">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => {
+                                                        setSelectedOrder(order);
+                                                        setIsViewModalOpen(true);
+                                                    }}
+                                                    className="h-12 w-12 rounded-2xl bg-brand-navy/[0.04] hover:bg-brand-navy text-brand-navy hover:text-brand-white transition-all duration-300 shadow-sm active:scale-95"
+                                                >
+                                                    <Eye className="w-6 h-6" />
+                                                </Button>
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" size="icon" className="h-12 w-12 rounded-2xl bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy/10 active:scale-95 transition-all">
+                                                            <MoreVertical className="h-6 w-6" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[200px] animate-in slide-in-from-top-2">
+                                                        <DropdownMenuItem
+                                                            onClick={() => handleEdit(order)}
+                                                            className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3 transition-colors"
+                                                        >
+                                                            <Edit2 className="w-4 h-4" />
+                                                            <span className="font-bold">Modify Details</span>
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuSeparator />
+                                                        <DropdownMenuItem
+                                                            onClick={() => {
+                                                                if (confirm("Delete this order? This action is permanent.")) {
+                                                                    deleteOrderMutation.mutate(order.id);
+                                                                }
+                                                            }}
+                                                            className="rounded-xl p-3 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-3 transition-colors"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                            <span className="font-bold">Delete Order</span>
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </div>
+                                        </div>
+
+                                        {/* Exchange Flag */}
+                                        {order.replace && (
+                                            <div className="absolute -right-12 -top-12 w-24 h-24 bg-red-500/10 rotate-45 flex items-end justify-center pb-2 group-hover:bg-red-500/20 transition-colors">
+                                                <RefreshCcw className="w-5 h-5 text-red-500 -rotate-45" />
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="bg-white/50 backdrop-blur-sm shadow-xl rounded-[32px] overflow-hidden border border-brand-navy/[0.03] mb-20 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-brand-navy/[0.02]">
+                                            <th className="p-6 w-12">
+                                                <Checkbox
+                                                    checked={selectedOrders.length === filteredOrders.length && filteredOrders.length > 0}
+                                                    onCheckedChange={() => toggleSelectAll(filteredOrders.map(o => o.id))}
+                                                    className="translate-y-0.5"
+                                                />
+                                            </th>
+                                            <th className="p-6 text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Customer</th>
+                                            <th className="p-6 text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Dest. & Source</th>
+                                            <th className="p-6 text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Status & Provider</th>
+                                            <th className="p-6 text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Assigned Seller</th>
+                                            <th className="p-6 text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Total Amount</th>
+                                            <th className="p-6 text-[10px] font-black uppercase tracking-widest text-brand-navy/40 text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-brand-navy/[0.03]">
+                                        {filteredOrders.map((order) => (
+                                            <tr key={order.id} className={cn(
+                                                "hover:bg-brand-navy/[0.01] transition-colors group",
+                                                selectedOrders.includes(order.id) ? "bg-brand-navy/[0.02]" : ""
+                                            )}>
+                                                <td className="p-6">
+                                                    <Checkbox
+                                                        checked={selectedOrders.includes(order.id)}
+                                                        onCheckedChange={() => toggleOrderSelection(order.id)}
+                                                    />
+                                                </td>
+                                                <td className="p-6">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 rounded-xl bg-brand-navy/[0.04] flex items-center justify-center text-brand-navy shrink-0 group-hover:scale-110 transition-transform">
+                                                            <User className="w-5 h-5" />
+                                                        </div>
+                                                        <div className="flex flex-col min-w-0">
+                                                            <span className="text-sm font-bold text-brand-navy truncate">
+                                                                {order.name}
+                                                                {order.replace && <RefreshCcw className="inline-block w-3 h-3 ml-2 text-red-500" />}
                                                             </span>
+                                                            <span className="text-[10px] font-bold text-muted-foreground tracking-wider">{order.phone}</span>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="p-6">
+                                                    <div className="flex flex-col gap-1">
+                                                        <div className="flex items-center gap-1.5 text-xs font-bold text-brand-navy">
+                                                            <MapPin className="w-3 h-3 text-orange-500" />
+                                                            {order.city?.name}
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                                                            <Hash className="w-3 h-3 text-indigo-500" />
+                                                            {order.source_name}
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="p-6">
+                                                    <div className="flex flex-col gap-1.5">
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white shadow-sm border border-brand-navy/[0.03]">
+                                                                <ShieldCheck className="w-3 h-3" style={{ color: order.status?.color }} />
+                                                                <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: order.status?.color }}>
+                                                                    {order.status?.label || 'DRAFT'}
+                                                                </span>
+                                                            </div>
+
+                                                            {order.package_status_label && (
+                                                                <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-brand-navy/[0.03] border border-brand-navy/[0.05] animate-pulse-subtle">
+                                                                    <Truck className="w-3 h-3 text-brand-navy/60" />
+                                                                    <span className="text-[8px] font-bold text-brand-navy/60 uppercase tracking-tight">
+                                                                        {order.package_status_label}
+                                                                    </span>
+                                                                </div>
+                                                            )}
                                                         </div>
 
-                                                        {order.package_status_label && (
-                                                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-brand-navy/[0.03] border border-brand-navy/[0.05] animate-pulse-subtle">
-                                                                <Truck className="w-3 h-3 text-brand-navy/60" />
-                                                                <span className="text-[8px] font-bold text-brand-navy/60 uppercase tracking-tight">
-                                                                    {order.package_status_label}
+                                                        {(order.company_id || order.courier_id) && (
+                                                            <div className="flex items-center gap-1 opacity-30 group-hover:opacity-100 transition-opacity duration-300">
+                                                                <span className="text-[7px] font-black text-brand-navy uppercase tracking-widest">via</span>
+                                                                <span className="text-[8px] font-black text-brand-navy uppercase tracking-tighter">
+                                                                    {order.company?.name || order.courier?.name}
                                                                 </span>
                                                             </div>
                                                         )}
                                                     </div>
-
-                                                    {(order.company_id || order.courier_id) && (
-                                                        <div className="flex items-center gap-1 opacity-30 group-hover:opacity-100 transition-opacity duration-300">
-                                                            <span className="text-[7px] font-black text-brand-navy uppercase tracking-widest">via</span>
-                                                            <span className="text-[8px] font-black text-brand-navy uppercase tracking-tighter">
-                                                                {order.company?.name || order.courier?.name}
-                                                            </span>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="p-6">
-                                                <div className="flex flex-col">
-                                                    <span className="text-base font-black text-brand-navy">{order.price || 0} DH</span>
-                                                </div>
-                                            </td>
-                                            <td className="p-6 text-right">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() => {
-                                                            setSelectedOrder(order);
-                                                            setIsViewModalOpen(true);
-                                                        }}
-                                                        className="h-9 w-9 rounded-xl bg-brand-navy/[0.04] hover:bg-brand-navy text-brand-navy hover:text-brand-white transition-all shadow-sm"
-                                                    >
-                                                        <Eye className="w-4 h-4" />
-                                                    </Button>
-                                                    <DropdownMenu>
-                                                        <DropdownMenuTrigger asChild>
-                                                            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy/[0.08]">
-                                                                <MoreVertical className="h-4 w-4" />
-                                                            </Button>
-                                                        </DropdownMenuTrigger>
-                                                        <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[180px] animate-in slide-in-from-top-2">
-                                                            <DropdownMenuItem
-                                                                onClick={() => handleEdit(order)}
-                                                                className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3"
-                                                            >
-                                                                <Edit2 className="w-4 h-4" />
-                                                                <span className="font-bold">Edit Details</span>
-                                                            </DropdownMenuItem>
-                                                            <DropdownMenuSeparator />
-                                                            <DropdownMenuItem
-                                                                onClick={() => {
-                                                                    if (confirm("Delete this order?")) {
-                                                                        deleteOrderMutation.mutate(order.id);
-                                                                    }
-                                                                }}
-                                                                className="rounded-xl p-3 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-3"
-                                                            >
-                                                                <Trash2 className="w-4 h-4" />
-                                                                <span className="font-bold">Delete Order</span>
-                                                            </DropdownMenuItem>
-                                                        </DropdownMenuContent>
-                                                    </DropdownMenu>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                                </td>
+                                                <td className="p-6">
+                                                    <div className="flex items-center gap-2">
+                                                        {order.assignee ? (
+                                                            <div className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-orange-50 border border-orange-100 shadow-sm animate-in fade-in zoom-in duration-300">
+                                                                <Avatar className="w-6 h-6 border-2 border-white">
+                                                                    <AvatarImage src={order.assignee.avatar_url} />
+                                                                    <AvatarFallback className="bg-orange-200 text-orange-700 text-[10px] font-black">
+                                                                        {order.assignee.name?.[0]}
+                                                                    </AvatarFallback>
+                                                                </Avatar>
+                                                                <span className="text-[10px] font-black text-orange-700 uppercase tracking-tight truncate max-w-[80px]">
+                                                                    {order.assignee.name}
+                                                                </span>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-gray-50 border border-gray-100 opacity-50">
+                                                                <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
+                                                                    <User className="w-3 h-3 text-gray-400" />
+                                                                </div>
+                                                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Unassigned</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="p-6">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-base font-black text-brand-navy">{order.price || 0} DH</span>
+                                                    </div>
+                                                </td>
+                                                <td className="p-6 text-right">
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() => {
+                                                                setSelectedOrder(order);
+                                                                setIsViewModalOpen(true);
+                                                            }}
+                                                            className="h-9 w-9 rounded-xl bg-brand-navy/[0.04] hover:bg-brand-navy text-brand-navy hover:text-brand-white transition-all shadow-sm"
+                                                        >
+                                                            <Eye className="w-4 h-4" />
+                                                        </Button>
+                                                        <DropdownMenu>
+                                                            <DropdownMenuTrigger asChild>
+                                                                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy/[0.08]">
+                                                                    <MoreVertical className="h-4 w-4" />
+                                                                </Button>
+                                                            </DropdownMenuTrigger>
+                                                            <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[180px] animate-in slide-in-from-top-2">
+                                                                <DropdownMenuItem
+                                                                    onClick={() => handleEdit(order)}
+                                                                    className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3"
+                                                                >
+                                                                    <Edit2 className="w-4 h-4" />
+                                                                    <span className="font-bold">Edit Details</span>
+                                                                </DropdownMenuItem>
+                                                                <DropdownMenuSeparator />
+                                                                <DropdownMenuItem
+                                                                    onClick={() => {
+                                                                        if (confirm("Delete this order?")) {
+                                                                            deleteOrderMutation.mutate(order.id);
+                                                                        }
+                                                                    }}
+                                                                    className="rounded-xl p-3 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-3"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                    <span className="font-bold">Delete Order</span>
+                                                                </DropdownMenuItem>
+                                                            </DropdownMenuContent>
+                                                        </DropdownMenu>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
-                    </div>
-                )
-            )
-            }
+                    )}
+
+                    {/* Bulk Edit Bar */}
+                    {selectedOrders.length > 0 && (
+                        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-10 duration-500">
+                            <div className="bg-brand-navy text-brand-white px-8 py-4 rounded-[32px] shadow-2xl flex flex-col md:flex-row items-center gap-6 md:gap-8 backdrop-blur-xl bg-brand-navy/90 border border-white/10 mx-4">
+                                <div className="flex items-center gap-3 pr-0 md:pr-8 border-r-0 md:border-r border-white/10">
+                                    <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center font-black text-xs">
+                                        {selectedOrders.length}
+                                    </div>
+                                    <span className="text-sm font-bold whitespace-nowrap">Orders Selected</span>
+                                </div>
+
+                                <div className="flex flex-wrap items-center justify-center gap-2">
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setIsBulkStatusModalOpen(true)}
+                                        className="text-brand-white hover:bg-white/10 rounded-2xl gap-2 font-bold px-4"
+                                    >
+                                        <ShieldCheck className="w-4 h-4" /> Change Status
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setIsAttributionModalOpen(true)}
+                                        className="text-brand-white hover:bg-white/10 rounded-2xl gap-2 font-bold px-4"
+                                    >
+                                        <User className="w-4 h-4" /> Attribute Seller
+                                    </Button>
+                                    <div className="w-[1px] h-4 bg-white/10 mx-2 hidden md:block" />
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setSelectedOrders([])}
+                                        className="text-red-400 hover:bg-red-500/10 rounded-2xl gap-2 font-bold px-4"
+                                    >
+                                        <X className="w-4 h-4" /> Cancel
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </>
+            )}
 
             {/* Add/Edit Modal */}
             <Dialog
@@ -1842,6 +2029,106 @@ const Orders = () => {
                             </DialogFooter>
                         </div>
                     )}
+                </DialogContent>
+            </Dialog>
+            {/* Bulk Status Update Modal */}
+            <Dialog open={isBulkStatusModalOpen} onOpenChange={setIsBulkStatusModalOpen}>
+                <DialogContent className="max-w-md p-0 border-none bg-brand-white rounded-[32px] shadow-2xl overflow-hidden">
+                    <DialogHeader className="p-8 pb-0">
+                        <DialogTitle className="text-2xl font-black text-brand-navy">Update Status</DialogTitle>
+                        <DialogDescription className="text-sm font-bold text-muted-foreground">
+                            Change status for {selectedOrders.length} selected orders
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="p-8 space-y-4">
+                        <div className="grid grid-cols-1 gap-2">
+                            {orderStatuses?.map((status: any) => (
+                                <Button
+                                    key={status.id}
+                                    variant="outline"
+                                    onClick={() => bulkStatusMutation.mutate({ orderIds: selectedOrders, statusId: status.id })}
+                                    disabled={bulkStatusMutation.isPending}
+                                    className="h-14 justify-start gap-4 rounded-2xl border-none bg-brand-navy/[0.02] hover:bg-brand-navy/[0.05] text-brand-navy font-bold transition-all group px-4"
+                                >
+                                    <div
+                                        className="w-4 h-4 rounded-full shadow-sm group-hover:scale-110 transition-transform"
+                                        style={{ backgroundColor: status.color }}
+                                    />
+                                    <span className="flex-1 text-left">{status.label}</span>
+                                    {bulkStatusMutation.isPending && <Loader2 className="w-4 h-4 animate-spin opacity-50" />}
+                                </Button>
+                            ))}
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Seller Attribution Modal */}
+            <Dialog open={isAttributionModalOpen} onOpenChange={setIsAttributionModalOpen}>
+                <DialogContent className="max-w-md p-8 border-none bg-brand-white rounded-[40px] shadow-2xl">
+                    <DialogHeader className="mb-6">
+                        <DialogTitle className="text-3xl font-black text-brand-navy tracking-tight">Assign Seller</DialogTitle>
+                        <DialogDescription className="text-sm font-bold text-muted-foreground mt-1">
+                            Team attribution for {selectedOrders.length} orders
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-6">
+                        <div className="relative group">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-navy/20 group-focus-within:text-brand-navy/40 transition-colors" />
+                            <Input
+                                placeholder="Search commercial..."
+                                value={sellerSearchQuery}
+                                onChange={(e) => setSellerSearchQuery(e.target.value)}
+                                className="h-14 pl-12 pr-4 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/20 focus-visible:ring-1 focus-visible:ring-brand-navy/10 shadow-inner"
+                            />
+                        </div>
+
+                        <div className="max-h-[350px] overflow-y-auto pr-2 custom-scrollbar space-y-3">
+                            {/* Unassign Option */}
+                            <Button
+                                variant="ghost"
+                                onClick={() => bulkAttributeMutation.mutate({ orderIds: selectedOrders, sellerId: null })}
+                                disabled={bulkAttributeMutation.isPending}
+                                className="w-full h-16 justify-start gap-4 rounded-[24px] hover:bg-red-50 text-red-600 transition-all font-bold px-4 border border-transparent hover:border-red-100"
+                            >
+                                <div className="w-10 h-10 rounded-2xl bg-red-100 flex items-center justify-center text-red-600 shadow-sm shadow-red-500/10">
+                                    <X className="w-5 h-5" />
+                                </div>
+                                <div className="text-left">
+                                    <p className="text-sm font-black uppercase tracking-tight">Clear Assignee</p>
+                                    <p className="text-[10px] opacity-60">Set orders as unassigned</p>
+                                </div>
+                                {bulkAttributeMutation.isPending && <Loader2 className="w-4 h-4 ml-auto animate-spin" />}
+                            </Button>
+
+                            <Separator className="bg-brand-navy/[0.05] my-4" />
+
+                            {sellers
+                                ?.filter((s: any) => s.name?.toLowerCase().includes(sellerSearchQuery.toLowerCase()))
+                                .map((seller: any) => (
+                                    <Button
+                                        key={seller.id}
+                                        variant="ghost"
+                                        onClick={() => bulkAttributeMutation.mutate({ orderIds: selectedOrders, sellerId: seller.id })}
+                                        disabled={bulkAttributeMutation.isPending}
+                                        className="w-full h-16 justify-start gap-4 rounded-[24px] hover:bg-brand-navy/[0.03] text-brand-navy transition-all font-bold px-4 border border-transparent hover:border-brand-navy/[0.05]"
+                                    >
+                                        <Avatar className="w-10 h-10 border-2 border-white shadow-md">
+                                            <AvatarImage src={seller.avatar_url} />
+                                            <AvatarFallback className="bg-brand-navy text-brand-white text-xs">
+                                                {seller.name?.[0]}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                        <div className="text-left">
+                                            <p className="text-sm font-black uppercase tracking-tight">{seller.name}</p>
+                                            <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">{seller.role}</p>
+                                        </div>
+                                        {bulkAttributeMutation.isPending && <Loader2 className="w-4 h-4 ml-auto animate-spin opacity-40" />}
+                                    </Button>
+                                ))}
+                        </div>
+                    </div>
                 </DialogContent>
             </Dialog>
         </div >

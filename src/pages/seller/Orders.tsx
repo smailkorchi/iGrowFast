@@ -211,7 +211,7 @@ const Orders = () => {
                     items:order_items(*, product:products(name, code, image_url))
                 `)
                 .eq('DigiCom Business', activeBusinessId)
-                .eq('seller_id', userId)
+                .eq('assign_id', userId)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
@@ -498,7 +498,8 @@ const Orders = () => {
                     raw_price: totalPrice,
                     date: new Date().toISOString(),
                     'DigiCom Business': activeBusinessId,
-                    seller_id: userId
+                    seller_id: userId,
+                    assign_id: userId
                 })
                 .select()
                 .single();
