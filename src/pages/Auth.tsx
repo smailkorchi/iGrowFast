@@ -49,11 +49,23 @@ const Auth = () => {
 
             if (error) throw error;
 
+            // Check user role for redirect
+            const { data: profile } = await supabase
+                .from('users')
+                .select('role')
+                .eq('id', data.user.id)
+                .single();
+
             toast({
                 title: "Welcome back!",
                 description: "Successfully signed in to DigiCom.",
             });
-            navigate('/');
+
+            if (profile?.role === 'seller') {
+                navigate('/seller/dashboard');
+            } else {
+                navigate('/');
+            }
         } catch (error: any) {
             toast({
                 title: "Sign in failed",

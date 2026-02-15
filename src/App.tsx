@@ -29,7 +29,15 @@ import Webhooks from "./pages/Webhooks";
 import Businesses from "./pages/Businesses";
 import SelectBusiness from "./pages/SelectBusiness";
 import Calculator from "./pages/Calculator";
+import SellerDashboard from "./pages/seller/Dashboard";
+import SellerOrders from "./pages/seller/Orders";
+import SellerPayments from "./pages/seller/Payments";
+import SellerProfile from "./pages/seller/Profile";
+import SellerStatistics from "./pages/seller/Statistics";
+import SellerWallet from "./pages/seller/Wallet";
+import SellerDemands from "./pages/seller/Demands";
 import AppLayout from "./components/layout/AppLayout";
+import SellerLayout from "./components/layout/SellerLayout";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { Navigate, useLocation } from "react-router-dom";
 
@@ -60,8 +68,28 @@ const App = () => (
               <SelectBusiness />
             </ProtectedRoute>
           } />
+
+          {/* Seller Routes */}
+          <Route path="/seller/*" element={
+            <ProtectedRoute allowedRoles={['seller', 'commercial']}>
+              <SellerLayout>
+                <Routes>
+                  <Route path="dashboard" element={<SellerDashboard />} />
+                  <Route path="orders" element={<SellerOrders />} />
+                  <Route path="payments" element={<SellerPayments />} />
+                  <Route path="profile" element={<SellerProfile />} />
+                  <Route path="statistics" element={<SellerStatistics />} />
+                  <Route path="wallet" element={<SellerWallet />} />
+                  <Route path="demands" element={<SellerDemands />} />
+                  <Route path="" element={<Navigate to="dashboard" replace />} />
+                </Routes>
+              </SellerLayout>
+            </ProtectedRoute>
+          } />
+
+          {/* Admin Routes */}
           <Route path="*" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['super admin', 'admin', 'mediabuyer', 'delivery person']}>
               <BusinessGuard>
                 <AppLayout>
                   <Routes>

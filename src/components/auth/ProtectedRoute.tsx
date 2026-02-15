@@ -1,12 +1,18 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Loader2 } from 'lucide-react';
 
-export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+interface ProtectedRouteProps {
+    children: React.ReactNode;
+    allowedRoles?: string[];
+}
+
+export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
     const [loading, setLoading] = useState(true);
     const [authenticated, setAuthenticated] = useState(false);
     const navigate = useNavigate();
+    const location = useLocation();
 
     useEffect(() => {
         const checkAuth = async () => {
@@ -14,9 +20,38 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
             if (!session) {
                 navigate('/auth');
-            } else {
-                setAuthenticated(true);
+                setLoading(false);
+                return;
             }
+
+            if (allowedRoles && allowedRoles.length > 0) {
+                const { data: userProfile, error } = await supabase
+                    .from('users')
+                    .select('role')
+                    .eq('id', session.user.id)
+                    .single();
+
+                if (error || !userProfile) {
+                    console.error("Error fetching user profile or profile not found:", error);
+                    navigate('/auth');
+                    setLoading(false);
+                    return;
+                }
+
+                if (!allowedRoles.includes(userProfile.role)) {
+                    // Redirect based on role
+                    if (userProfile.role === 'seller' || userProfile.role === 'commercial') {
+                        navigate('/seller/dashboard');
+                    } else {
+                        // For other roles trying to access restricted areas, redirect to their home or root
+                        // Default fallback
+                        navigate('/');
+                    }
+                    return;
+                }
+            }
+
+            setAuthenticated(true);
             setLoading(false);
         };
 
@@ -26,12 +61,13 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
             if (event === 'SIGNED_OUT') {
                 navigate('/auth');
             } else if (session) {
+                // We might want to re-check role here if session changes, but for now basic auth check
                 setAuthenticated(true);
             }
         });
 
         return () => subscription.unsubscribe();
-    }, [navigate]);
+    }, [navigate, allowedRoles]);
 
     if (loading) {
         return (
