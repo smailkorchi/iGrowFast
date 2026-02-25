@@ -328,7 +328,7 @@ const Orders = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('order_statuses')
-                .select('id, label, ranking, color')
+                .select('id, code, label, ranking, color')
                 .eq('active', true)
                 .eq('DigiCom Business', activeBusinessId)
                 .order('ranking', { ascending: true });
@@ -547,27 +547,53 @@ const Orders = () => {
 
             const totalPrice = values.items.reduce((acc, item) => acc + (item.quantity * item.unit_price), 0);
 
+            // Get current user
+            const userRes = await (supabase as any).auth.getUser();
+            const currentUserId = userRes.data.user?.id;
+
+            // Build update payload
+            const updatePayload: any = {
+                name: values.name,
+                phone: values.phone,
+                master_city_id: values.city_id,
+                address: values.address,
+                source_name: values.source_name,
+                shipping_cost: values.shipping_cost,
+                replace: values.replace,
+                note: values.note,
+                delivery_note: values.delivery_note,
+                delivery_type: values.delivery_type,
+                order_status_id: values.order_status_id,
+                courier_id: values.courier_id,
+                company_id: values.company_id,
+                price: totalPrice + values.shipping_cost,
+                raw_price: totalPrice,
+                updated_at: new Date().toISOString()
+            };
+
+            // Status-specific field population
+            if (values.order_status_id && values.order_status_id !== selectedOrder.order_status_id) {
+                const newStatus = orderStatuses?.find((s: any) => s.id === values.order_status_id);
+                if (newStatus?.code === 'CONFIRMED') {
+                    updatePayload.confirmed_by_id = currentUserId;
+                    updatePayload.confirmation_date = new Date().toISOString();
+                }
+                if (newStatus?.code === 'CANCELED') {
+                    updatePayload.canceled_by_id = currentUserId;
+                    updatePayload.annulation_date = new Date().toISOString();
+                }
+                if (newStatus?.code === 'PAID') {
+                    updatePayload.date_livraison = new Date().toISOString();
+                }
+                if (newStatus?.code === 'POSTPONED') {
+                    updatePayload.reported_date = new Date().toISOString();
+                }
+            }
+
             // 1. Update order
             const { error: orderError } = await (supabase as any)
                 .from('orders')
-                .update({
-                    name: values.name,
-                    phone: values.phone,
-                    master_city_id: values.city_id,
-                    address: values.address,
-                    source_name: values.source_name,
-                    shipping_cost: values.shipping_cost,
-                    replace: values.replace,
-                    note: values.note,
-                    delivery_note: values.delivery_note,
-                    delivery_type: values.delivery_type,
-                    order_status_id: values.order_status_id,
-                    courier_id: values.courier_id,
-                    company_id: values.company_id,
-                    price: totalPrice + values.shipping_cost,
-                    raw_price: totalPrice,
-                    updated_at: new Date().toISOString()
-                })
+                .update(updatePayload)
                 .eq('id', selectedOrder.id)
                 .eq('DigiCom Business', activeBusinessId);
 
@@ -603,7 +629,7 @@ const Orders = () => {
                         order_id: selectedOrder.id,
                         status_id: values.order_status_id,
                         comment: values.history_comment || '',
-                        changed_by: (await (supabase as any).auth.getUser()).data.user?.id,
+                        changed_by: currentUserId,
                         'DigiCom Business': activeBusinessId
                     });
                 if (historyError) console.error("History Error", historyError);
