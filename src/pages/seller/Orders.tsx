@@ -33,7 +33,8 @@ import {
     LayoutGrid,
     List,
     ShoppingBag,
-    ShieldCheck
+    ShieldCheck,
+    BarChart3
 } from 'lucide-react';
 import {
     Card,
@@ -71,6 +72,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import CustomerInsights from '@/components/CustomerInsights';
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
@@ -148,6 +150,7 @@ const Orders = () => {
     // Dropdown search states
     const [citySearchOpen, setCitySearchOpen] = useState(false);
     const [statusSearchOpen, setStatusSearchOpen] = useState(false);
+    const [showCustomerInsights, setShowCustomerInsights] = useState(false);
 
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -1288,13 +1291,41 @@ const Orders = () => {
                                             render={({ field }) => (
                                                 <FormItem className="space-y-1">
                                                     <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Contact Number</FormLabel>
-                                                    <FormControl>
-                                                        <Input placeholder="+212..." {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner" />
-                                                    </FormControl>
+                                                    <div className="relative">
+                                                        <FormControl>
+                                                            <Input placeholder="+212..." {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner pr-12" />
+                                                        </FormControl>
+                                                        {(field.value?.replace(/[^0-9+]/g, '') || '').length >= 6 && (
+                                                            <Popover open={showCustomerInsights} onOpenChange={setShowCustomerInsights}>
+                                                                <PopoverTrigger asChild>
+                                                                    <button
+                                                                        type="button"
+                                                                        className={cn(
+                                                                            "absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-200",
+                                                                            showCustomerInsights
+                                                                                ? "bg-brand-navy text-brand-white shadow-lg shadow-brand-navy/20 scale-105"
+                                                                                : "bg-brand-navy/10 text-brand-navy/50 hover:bg-brand-navy/20 hover:text-brand-navy"
+                                                                        )}
+                                                                    >
+                                                                        <BarChart3 className="w-4 h-4" />
+                                                                    </button>
+                                                                </PopoverTrigger>
+                                                                <PopoverContent
+                                                                    className="w-[420px] p-4 rounded-2xl border-none shadow-2xl bg-white/95 backdrop-blur-xl"
+                                                                    align="end"
+                                                                    side="right"
+                                                                    sideOffset={12}
+                                                                >
+                                                                    <CustomerInsights phone={field.value || ''} />
+                                                                </PopoverContent>
+                                                            </Popover>
+                                                        )}
+                                                    </div>
                                                     <FormMessage />
                                                 </FormItem>
                                             )}
                                         />
+
                                         <FormField
                                             control={form.control}
                                             name="city_id"
@@ -1810,6 +1841,9 @@ const Orders = () => {
                             </div>
 
                             <div className="overflow-y-auto p-10 space-y-10 flex-1 custom-scrollbar">
+                                {/* Customer Insights in Preview */}
+                                <CustomerInsights phone={selectedOrder.phone || ''} />
+
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                                     {/* Logistics Info */}
                                     <div className="space-y-6">
