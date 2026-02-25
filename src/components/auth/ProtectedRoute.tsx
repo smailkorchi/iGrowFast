@@ -24,27 +24,35 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
                 return;
             }
 
+            // Always fetch the user profile to check active status
+            const { data: userProfile, error } = await supabase
+                .from('users')
+                .select('role, active')
+                .eq('id', session.user.id)
+                .single();
+
+            if (error || !userProfile) {
+                console.error("Error fetching user profile or profile not found:", error);
+                navigate('/auth');
+                setLoading(false);
+                return;
+            }
+
+            // Block disabled accounts: sign them out immediately
+            if (userProfile.active === false) {
+                await supabase.auth.signOut();
+                localStorage.removeItem('activeBusinessId');
+                navigate('/auth');
+                setLoading(false);
+                return;
+            }
+
             if (allowedRoles && allowedRoles.length > 0) {
-                const { data: userProfile, error } = await supabase
-                    .from('users')
-                    .select('role')
-                    .eq('id', session.user.id)
-                    .single();
-
-                if (error || !userProfile) {
-                    console.error("Error fetching user profile or profile not found:", error);
-                    navigate('/auth');
-                    setLoading(false);
-                    return;
-                }
-
                 if (!allowedRoles.includes(userProfile.role)) {
                     // Redirect based on role
                     if (userProfile.role === 'seller' || userProfile.role === 'commercial') {
                         navigate('/seller/dashboard');
                     } else {
-                        // For other roles trying to access restricted areas, redirect to their home or root
-                        // Default fallback
                         navigate('/');
                     }
                     return;

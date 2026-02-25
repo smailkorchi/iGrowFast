@@ -49,12 +49,18 @@ const Auth = () => {
 
             if (error) throw error;
 
-            // Check user role for redirect
+            // Check user role and active status for redirect
             const { data: profile } = await supabase
                 .from('users')
-                .select('role, "DigiCom Business"')
+                .select('role, active, "DigiCom Business"')
                 .eq('id', data.user.id)
                 .single();
+
+            // Block disabled accounts
+            if (profile?.active === false) {
+                await supabase.auth.signOut();
+                throw new Error('Your account has been disabled. Please contact your administrator.');
+            }
 
             if (profile?.['DigiCom Business']) {
                 localStorage.setItem('activeBusinessId', profile['DigiCom Business']);
