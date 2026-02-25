@@ -97,7 +97,6 @@ import {
 import { Check, ChevronsUpDown } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-
 import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
@@ -123,6 +122,7 @@ const orderSchema = z.object({
     items: z.array(orderItemSchema).min(1, "At least one product is required"),
     courier_id: z.string().uuid().optional().nullable(),
     company_id: z.string().uuid().optional().nullable(),
+    history_comment: z.string().optional(),
 });
 
 type OrderFormValues = z.infer<typeof orderSchema>;
@@ -148,6 +148,7 @@ const Orders = () => {
     const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
     const [isAttributionModalOpen, setIsAttributionModalOpen] = useState(false);
     const [isBulkStatusModalOpen, setIsBulkStatusModalOpen] = useState(false);
+    const [bulkStatusComment, setBulkStatusComment] = useState("");
     const [sellerSearchQuery, setSellerSearchQuery] = useState("");
 
     // Dropdown search states
@@ -194,6 +195,8 @@ const Orders = () => {
     }, []);
 
     // --- Queries ---
+
+
     const { data: orders, isLoading } = useQuery({
         queryKey: ['orders', activeBusinessId],
         queryFn: async () => {
@@ -203,11 +206,13 @@ const Orders = () => {
                 .select(`
                     *,
                     status:order_statuses(*),
+                    package_status:package_statuses(*),
                     city:master_cities(id, name),
                     courier:users!orders_courier_id_fkey(id, name, avatar_url),
                     assignee:users!orders_assign_id_fkey(id, name, avatar_url),
                     company:providers(id, name, logo_url),
-                    items:order_items(*, product:products(name, code, image_url))
+                    items:order_items(*, product:products(name, code, image_url)),
+                    history:order_status_history(*, user:users!changed_by(name, avatar_url), status:order_statuses!status_id(*))
                 `)
                 .eq('DigiCom Business', activeBusinessId)
                 .order('created_at', { ascending: false });
@@ -422,6 +427,7 @@ const Orders = () => {
         return [...eligibleCouriers, ...eligibleCompanies];
     }, [selectedCityId, cities, couriers, companies, courierZones, companyZones, courierFees, companyFees]);
 
+    // Derived Data for all providers (used for dropdowns where city is not a factor)
     const allProviders = useMemo(() => {
         const c = couriers?.map((p: any) => ({ ...p, type: 'courier' })) || [];
         const comp = companies?.map((p: any) => ({ ...p, type: 'company' })) || [];
@@ -597,6 +603,23 @@ const Orders = () => {
                 .insert(itemRecords);
 
             if (itemsError) throw itemsError;
+
+            // 3. Track History if Status Changed
+            if (values.order_status_id && values.order_status_id !== selectedOrder.order_status_id) {
+                try {
+                    const userRes = await (supabase as any).auth.getUser();
+                    const userId = userRes.data.user?.id;
+                    await (supabase as any).from('order_status_history').insert({
+                        order_id: selectedOrder.id,
+                        status_id: values.order_status_id,
+                        comment: values.history_comment || '',
+                        changed_by: userId,
+                        'DigiCom Business': activeBusinessId
+                    });
+                } catch (err) {
+                    console.error("History tracking error:", err);
+                }
+            }
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
@@ -635,11 +658,28 @@ const Orders = () => {
                 .in('id', orderIds)
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
+
+            // Track history for bulk
+            try {
+                const userRes = await (supabase as any).auth.getUser();
+                const userId = userRes.data.user?.id;
+                const historyRecords = orderIds.map(oId => ({
+                    order_id: oId,
+                    status_id: statusId,
+                    comment: bulkStatusComment || 'Bulk status update',
+                    changed_by: userId,
+                    'DigiCom Business': activeBusinessId
+                }));
+                await (supabase as any).from('order_status_history').insert(historyRecords);
+            } catch (err) {
+                console.error("Bulk history error", err);
+            }
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
             setSelectedOrders([]);
             setIsBulkStatusModalOpen(false);
+            setBulkStatusComment("");
             toast({ title: "Success", description: "Orders status updated successfully." });
         },
         onError: (error: any) => {
@@ -767,26 +807,30 @@ const Orders = () => {
                     <p className="text-[10px] font-black uppercase tracking-widest text-blue-600/60">Active Orders</p>
                     <h3 className="text-3xl font-black text-brand-navy">{filteredOrders.length}</h3>
                 </Card>
-                <Card className="border-none bg-emerald-50/50 rounded-[24px] p-6 space-y-2">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600/60">Total Revenue</p>
-                    <h3 className="text-3xl font-black text-brand-navy">
-                        {filteredOrders.reduce((acc, o) => acc + (o.price || 0), 0).toFixed(0)} DH
-                    </h3>
-                </Card>
+                <div className="bg-brand-navy rounded-[32px] p-6 text-brand-white shadow-2xl shadow-brand-navy/30 relative overflow-hidden group">
+                    <div className="relative z-10 flex flex-col h-full justify-between">
+                        <span className="text-xs font-black uppercase text-brand-white/60 tracking-widest mb-2 block">Total Sales</span>
+                        <span className="text-3xl md:text-5xl font-black tracking-tight">{filteredOrders.reduce((acc, o) => acc + (o.raw_price || 0), 0).toFixed(0)} DH</span>
+                    </div>
+                    <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-brand-white/5 rounded-full blur-2xl group-hover:bg-brand-white/10 transition-colors duration-500" />
+                </div>
                 <Card className="border-none bg-amber-50/50 rounded-[24px] p-6 space-y-2">
                     <p className="text-[10px] font-black uppercase tracking-widest text-amber-600/60">Exchanges</p>
                     <h3 className="text-3xl font-black text-brand-navy">
                         {filteredOrders.filter(o => o.replace).length}
                     </h3>
                 </Card>
-                <Card className="border-none bg-brand-navy/[0.04] rounded-[24px] p-6 space-y-2">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Avg. Basket</p>
-                    <h3 className="text-3xl font-black text-brand-navy">
-                        {filteredOrders.length > 0
-                            ? (filteredOrders.reduce((acc, o) => acc + (o.price || 0), 0) / filteredOrders.length).toFixed(0)
-                            : 0} DH
-                    </h3>
-                </Card>
+                <div className="bg-white rounded-[32px] p-6 border-2 border-brand-navy/[0.03] hover:border-brand-navy/[0.08] transition-colors shadow-xl shadow-brand-navy/5 relative overflow-hidden group">
+                    <div className="relative z-10 flex flex-col h-full justify-between">
+                        <span className="text-xs font-black text-brand-navy/40 uppercase tracking-widest mb-2 block">Avg Order Value</span>
+                        <span className="text-3xl md:text-4xl font-black text-brand-navy tracking-tight">
+                            {filteredOrders.length > 0
+                                ? (filteredOrders.reduce((acc, o) => acc + (o.raw_price || 0), 0) / filteredOrders.length).toFixed(0)
+                                : '0'} DH
+                        </span>
+                    </div>
+                    <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-brand-navy/[0.02] rounded-full blur-2xl group-hover:bg-brand-navy/[0.04] transition-colors duration-500" />
+                </div>
             </div>
 
             {/* Filters Toolbar */}
@@ -969,13 +1013,22 @@ const Orders = () => {
                                             </div>
 
                                             {/* Package Status */}
-                                            {order.package_status_label && (
-                                                <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-2xl bg-brand-navy/[0.03] border border-brand-navy/[0.05] animate-pulse-subtle">
-                                                    <div className="p-1 rounded-lg bg-brand-navy/10">
-                                                        <Truck className="w-4 h-4 text-brand-navy/60" />
+                                            {(order.package_status || order.package_status_label) && (
+                                                <div
+                                                    className="flex items-center gap-2.5 px-3 py-1.5 rounded-2xl bg-brand-navy/[0.03] border animate-pulse-subtle"
+                                                    style={{
+                                                        borderColor: order.package_status ? `${order.package_status.color}40` : 'rgba(0, 31, 63, 0.05)',
+                                                        backgroundColor: order.package_status ? `${order.package_status.color}10` : 'rgba(0, 31, 63, 0.03)'
+                                                    }}
+                                                >
+                                                    <div className="p-1 rounded-lg" style={{ backgroundColor: order.package_status ? `${order.package_status.color}20` : 'rgba(0, 31, 63, 0.1)' }}>
+                                                        <Truck className="w-4 h-4" style={{ color: order.package_status ? order.package_status.color : 'rgba(0, 31, 63, 0.6)' }} />
                                                     </div>
-                                                    <span className="text-[10px] font-black uppercase tracking-widest text-brand-navy/60">
-                                                        {order.package_status_label}
+                                                    <span
+                                                        className="text-[10px] font-black uppercase tracking-widest"
+                                                        style={{ color: order.package_status ? order.package_status.color : 'rgba(0, 31, 63, 0.6)' }}
+                                                    >
+                                                        {order.package_status ? order.package_status.label : order.package_status_label}
                                                     </span>
                                                 </div>
                                             )}
@@ -983,25 +1036,25 @@ const Orders = () => {
 
                                         {/* Client Info */}
                                         <div className="space-y-3">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-navy to-brand-navy/80 flex items-center justify-center text-white shadow-lg shadow-brand-navy/20 group-hover:scale-110 transition-transform duration-500">
-                                                    <User className="w-6 h-6" />
-                                                </div>
-                                                <div className="flex flex-col min-w-0">
-                                                    <h3 className="text-xl font-black text-brand-navy truncate leading-tight tracking-tight">
-                                                        {order.name}
-                                                    </h3>
-                                                    <div className="flex items-center gap-1.5 text-muted-foreground/70">
-                                                        <Phone className="w-3 h-3" />
-                                                        <span className="text-xs font-bold tracking-wider">{order.phone}</span>
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="flex items-center gap-3 min-w-0">
+                                                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-navy to-brand-navy/80 flex shrink-0 items-center justify-center text-white shadow-lg shadow-brand-navy/20 group-hover:scale-110 transition-transform duration-500">
+                                                        <User className="w-6 h-6" />
+                                                    </div>
+                                                    <div className="flex flex-col min-w-0">
+                                                        <h3 className="text-xl font-black text-brand-navy truncate leading-tight tracking-tight">
+                                                            {order.name}
+                                                        </h3>
+                                                        <div className="flex items-center gap-1.5 text-muted-foreground/70">
+                                                            <Phone className="w-3 h-3" />
+                                                            <span className="text-xs font-bold tracking-wider">{order.phone}</span>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
 
-                                            {/* Assigned Seller Tag */}
-                                            {order.assignee && (
-                                                <div className="absolute top-6 right-6">
-                                                    <div className="flex items-center gap-2 pl-1 pr-3 py-1 rounded-2xl bg-white/80 backdrop-blur-sm border border-brand-navy/[0.03] shadow-sm transform group-hover:scale-105 transition-transform duration-300">
+                                                {/* Assigned Seller Tag */}
+                                                {order.assignee && (
+                                                    <div className="flex shrink-0 items-center gap-2 pl-1 pr-3 py-1 mt-1 rounded-2xl bg-brand-navy/[0.03] border border-brand-navy/[0.05] shadow-sm transform group-hover:scale-105 transition-transform duration-300">
                                                         <Avatar className="w-6 h-6 border-2 border-white shadow-sm">
                                                             <AvatarImage src={order.assignee.avatar_url} />
                                                             <AvatarFallback className="bg-orange-100 text-orange-600 text-[10px] font-black">
@@ -1012,8 +1065,8 @@ const Orders = () => {
                                                             {order.assignee.name}
                                                         </span>
                                                     </div>
-                                                </div>
-                                            )}
+                                                )}
+                                            </div>
 
                                             {(order.company_id || order.courier_id) && (
                                                 <div className="flex items-center gap-2 ml-1">
@@ -1062,7 +1115,7 @@ const Orders = () => {
                                             <div className="flex flex-col">
                                                 <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 leading-none mb-1">Net Balance</span>
                                                 <div className="flex items-baseline gap-1">
-                                                    <span className="text-3xl font-black text-brand-navy">{order.price || 0}</span>
+                                                    <span className="text-3xl font-black text-brand-navy">{order.raw_price || 0}</span>
                                                     <span className="text-xs font-black text-brand-navy/40 uppercase">DH</span>
                                                 </div>
                                             </div>
@@ -1189,11 +1242,21 @@ const Orders = () => {
                                                                 </span>
                                                             </div>
 
-                                                            {order.package_status_label && (
-                                                                <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-brand-navy/[0.03] border border-brand-navy/[0.05] animate-pulse-subtle">
-                                                                    <Truck className="w-3 h-3 text-brand-navy/60" />
-                                                                    <span className="text-[8px] font-bold text-brand-navy/60 uppercase tracking-tight">
-                                                                        {order.package_status_label}
+                                                            {/* Package Status */}
+                                                            {(order.package_status || order.package_status_label) && (
+                                                                <div
+                                                                    className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-brand-navy/[0.03] border animate-pulse-subtle"
+                                                                    style={{
+                                                                        borderColor: order.package_status ? `${order.package_status.color}40` : 'rgba(0, 31, 63, 0.05)',
+                                                                        backgroundColor: order.package_status ? `${order.package_status.color}10` : 'rgba(0, 31, 63, 0.03)'
+                                                                    }}
+                                                                >
+                                                                    <Truck className="w-3 h-3" style={{ color: order.package_status ? order.package_status.color : 'rgba(0, 31, 63, 0.6)' }} />
+                                                                    <span
+                                                                        className="text-[8px] font-bold uppercase tracking-tight"
+                                                                        style={{ color: order.package_status ? order.package_status.color : 'rgba(0, 31, 63, 0.6)' }}
+                                                                    >
+                                                                        {order.package_status ? order.package_status.label : order.package_status_label}
                                                                     </span>
                                                                 </div>
                                                             )}
@@ -1234,9 +1297,7 @@ const Orders = () => {
                                                     </div>
                                                 </td>
                                                 <td className="p-6">
-                                                    <div className="flex flex-col">
-                                                        <span className="text-base font-black text-brand-navy">{order.price || 0} DH</span>
-                                                    </div>
+                                                    <span className="text-base font-black text-brand-navy">{order.raw_price || 0} DH</span>
                                                 </td>
                                                 <td className="p-6 text-right">
                                                     <div className="flex items-center justify-end gap-2">
@@ -1292,20 +1353,20 @@ const Orders = () => {
                     {/* Bulk Edit Bar */}
                     {selectedOrders.length > 0 && (
                         <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-10 duration-500">
-                            <div className="bg-brand-navy text-brand-white px-8 py-4 rounded-[32px] shadow-2xl flex flex-col md:flex-row items-center gap-6 md:gap-8 backdrop-blur-xl bg-brand-navy/90 border border-white/10 mx-4">
-                                <div className="flex items-center gap-3 pr-0 md:pr-8 border-r-0 md:border-r border-white/10">
-                                    <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center font-black text-xs">
+                            <div className="bg-brand-navy text-brand-white px-6 py-4 rounded-[32px] shadow-2xl flex flex-row items-center gap-4 md:gap-6 backdrop-blur-xl bg-brand-navy/90 border border-white/10 mx-4 w-max max-w-[95vw] overflow-x-auto custom-scrollbar">
+                                <div className="flex items-center gap-3 pr-4 md:pr-6 border-r border-white/10 shrink-0">
+                                    <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center font-black text-xs shrink-0">
                                         {selectedOrders.length}
                                     </div>
-                                    <span className="text-sm font-bold whitespace-nowrap">Orders Selected</span>
+                                    <span className="text-sm font-bold whitespace-nowrap shrink-0">Orders Selected</span>
                                 </div>
 
-                                <div className="flex flex-wrap items-center justify-center gap-2">
+                                <div className="flex flex-row items-center justify-center gap-2 shrink-0">
                                     <Button
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => setIsBulkStatusModalOpen(true)}
-                                        className="text-brand-white hover:bg-white/10 rounded-2xl gap-2 font-bold px-4"
+                                        className="text-brand-white hover:bg-white/10 rounded-2xl gap-2 font-bold px-4 shrink-0"
                                     >
                                         <ShieldCheck className="w-4 h-4" /> Change Status
                                     </Button>
@@ -1313,16 +1374,16 @@ const Orders = () => {
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => setIsAttributionModalOpen(true)}
-                                        className="text-brand-white hover:bg-white/10 rounded-2xl gap-2 font-bold px-4"
+                                        className="text-brand-white hover:bg-white/10 rounded-2xl gap-2 font-bold px-4 shrink-0"
                                     >
                                         <User className="w-4 h-4" /> Attribute Seller
                                     </Button>
-                                    <div className="w-[1px] h-4 bg-white/10 mx-2 hidden md:block" />
+                                    <div className="w-[1px] h-4 bg-white/10 mx-1 md:mx-2 shrink-0" />
                                     <Button
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => setSelectedOrders([])}
-                                        className="text-red-400 hover:bg-red-500/10 rounded-2xl gap-2 font-bold px-4"
+                                        className="text-red-400 hover:bg-red-500/10 rounded-2xl gap-2 font-bold px-4 shrink-0"
                                     >
                                         <X className="w-4 h-4" /> Cancel
                                     </Button>
@@ -1331,7 +1392,8 @@ const Orders = () => {
                         </div>
                     )}
                 </>
-            )}
+            )
+            }
 
             {/* Add/Edit Modal */}
             <Dialog
@@ -1341,12 +1403,22 @@ const Orders = () => {
                         setIsAddModalOpen(false);
                         setIsEditModalOpen(false);
                         setSelectedOrder(null);
+                        form.reset();
                     }
                 }}
             >
                 <DialogContent className="max-w-5xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden flex flex-col h-[90vh] md:h-auto md:max-h-[90vh]">
                     <Form {...form}>
-                        <form onSubmit={form.handleSubmit(v => isEditModalOpen ? updateOrderMutation.mutate(v) : createOrderMutation.mutate(v))} className="flex flex-col h-full overflow-hidden">
+                        <form onSubmit={form.handleSubmit((v) => {
+                            if (isEditModalOpen && selectedOrder && v.order_status_id !== selectedOrder.order_status_id) {
+                                if (!v.history_comment?.trim()) {
+                                    form.setError('history_comment', { type: 'manual', message: 'Comment is required when changing status.' });
+                                    toast({ title: "Validation Error", description: "Please provide a reason for the status change.", variant: "destructive" });
+                                    return;
+                                }
+                            }
+                            isEditModalOpen ? updateOrderMutation.mutate(v) : createOrderMutation.mutate(v);
+                        })} className="flex flex-col h-full overflow-hidden">
                             <DialogHeader className="p-8 pb-4">
                                 <DialogTitle className="text-3xl font-black text-brand-navy">
                                     {isEditModalOpen ? 'Update Sales Order' : 'Capture New Order'}
@@ -1647,6 +1719,23 @@ const Orders = () => {
                                             )}
                                         />
 
+                                        {isEditModalOpen && selectedOrder && form.watch('order_status_id') !== selectedOrder.order_status_id && (
+                                            <FormField
+                                                control={form.control}
+                                                name="history_comment"
+                                                render={({ field }) => (
+                                                    <FormItem className="space-y-1 animate-in fade-in slide-in-from-top-2 duration-300">
+                                                        <FormLabel className="text-[10px] font-black uppercase tracking-wider text-brand-navy/60 flex items-center gap-1">
+                                                            <MessageSquare className="w-3 h-3 text-brand-navy/40" /> Status Change Reason
+                                                        </FormLabel>
+                                                        <FormControl>
+                                                            <Textarea placeholder="Why is the status changing? (Optional)" {...field} className="min-h-[80px] resize-none rounded-2xl border-none bg-brand-navy/[0.03] text-sm font-bold text-brand-navy shadow-inner focus-visible:ring-brand-navy/20" />
+                                                        </FormControl>
+                                                    </FormItem>
+                                                )}
+                                            />
+                                        )}
+
                                         <div className="p-4 rounded-2xl bg-brand-navy/[0.02] border border-brand-navy/[0.03] flex items-center justify-between">
                                             <div className="space-y-0.5">
                                                 <FormLabel className="text-sm font-bold text-brand-navy">Exchange Order</FormLabel>
@@ -1876,9 +1965,11 @@ const Orders = () => {
                                         )}
                                     </div>
                                 </div>
-                                <div className="text-right p-6 rounded-[32px] bg-brand-navy/[0.02] border border-brand-navy/[0.05]">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 mb-1">Net Collectable</p>
-                                    <h3 className="text-4xl font-black text-brand-navy">{selectedOrder.price || 0} <span className="text-lg">DH</span></h3>
+                                <div className="p-8 pb-10 flex items-center justify-between border-b-2 border-brand-navy/5 bg-gradient-to-br from-brand-navy/[0.02] to-transparent">
+                                    <div className="space-y-1">
+                                        <p className="text-sm font-black text-brand-navy/40 uppercase tracking-widest">Total Order Value</p>
+                                        <h3 className="text-4xl font-black text-brand-navy">{selectedOrder.raw_price || 0} <span className="text-lg">DH</span></h3>
+                                    </div>
                                     <div className="mt-2 text-[10px] font-bold text-emerald-600 uppercase tracking-tighter">
                                         Includes {selectedOrder.shipping_cost}DH Shipping
                                     </div>
@@ -2010,6 +2101,60 @@ const Orders = () => {
                                         ))}
                                     </div>
                                 </div>
+
+                                {/* Status History Timeline */}
+                                <div className="space-y-6 pb-6">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <ShieldCheck className="w-6 h-6 text-brand-navy/20" />
+                                            <h4 className="text-xl font-black text-brand-navy uppercase tracking-[0.15em]">Status History</h4>
+                                        </div>
+                                    </div>
+
+                                    <div className="px-4">
+                                        {selectedOrder.history && selectedOrder.history.length > 0 ? (
+                                            <div className="space-y-6 relative before:absolute before:inset-0 before:ml-2.5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-brand-navy/10 before:to-transparent">
+                                                {selectedOrder.history.map((record: any, index: number) => (
+                                                    <div key={record.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                                                        <div className="flex items-center justify-center w-6 h-6 rounded-full border-4 border-white bg-brand-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10" style={{ borderColor: record.status?.color || '#eee' }}>
+                                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: record.status?.color || '#ccc' }} />
+                                                        </div>
+                                                        <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-5 rounded-2xl bg-brand-navy/[0.02] border border-brand-navy/[0.05] shadow-sm flex flex-col gap-2">
+                                                            <div className="flex items-center justify-between gap-4">
+                                                                <div className="flex items-center gap-2">
+                                                                    <Avatar className="w-6 h-6 border bg-white">
+                                                                        <AvatarImage src={record.user?.avatar_url} />
+                                                                        <AvatarFallback className="text-[10px] font-bold bg-brand-navy/5 text-brand-navy">
+                                                                            {record.user?.name?.[0] || '?'}
+                                                                        </AvatarFallback>
+                                                                    </Avatar>
+                                                                    <span className="text-xs font-bold text-brand-navy truncate max-w-[120px]">{record.user?.name || 'Unknown'}</span>
+                                                                </div>
+                                                                <span className="text-[10px] font-black text-brand-navy/40 uppercase tracking-widest bg-brand-navy/5 px-2 py-1 rounded-lg">
+                                                                    {format(new Date(record.created_at), 'MMM d, HH:mm')}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2 mt-1">
+                                                                <span className="text-xs font-black uppercase tracking-widest px-2 py-0.5 rounded-md" style={{ color: record.status?.color, backgroundColor: `${record.status?.color}15` }}>
+                                                                    {record.status?.label || 'Unknown Status'}
+                                                                </span>
+                                                            </div>
+                                                            {record.comment && (
+                                                                <p className="text-sm font-medium text-brand-navy/80 mt-2 p-3 bg-white rounded-xl border border-brand-navy/[0.03] italic">
+                                                                    "{record.comment}"
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="text-center p-8 bg-brand-navy/[0.02] rounded-3xl border border-brand-navy/[0.05]">
+                                                <p className="text-sm font-bold text-muted-foreground">No tracking history available yet.</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
 
                             <DialogFooter className="p-8 pb-10 flex gap-4 bg-brand-white border-t border-brand-navy/[0.03]">
@@ -2031,31 +2176,50 @@ const Orders = () => {
                     )}
                 </DialogContent>
             </Dialog>
+
             {/* Bulk Status Update Modal */}
-            <Dialog open={isBulkStatusModalOpen} onOpenChange={setIsBulkStatusModalOpen}>
-                <DialogContent className="max-w-md p-0 border-none bg-brand-white rounded-[32px] shadow-2xl overflow-hidden">
-                    <DialogHeader className="p-8 pb-0">
+            <Dialog open={isBulkStatusModalOpen} onOpenChange={(v) => {
+                setIsBulkStatusModalOpen(v);
+                if (!v) setBulkStatusComment("");
+            }}>
+                <DialogContent className="max-w-4xl p-0 border-none bg-brand-white rounded-[32px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+                    <DialogHeader className="p-8 pb-4 shrink-0 border-b border-brand-navy/[0.05]">
                         <DialogTitle className="text-2xl font-black text-brand-navy">Update Status</DialogTitle>
                         <DialogDescription className="text-sm font-bold text-muted-foreground">
                             Change status for {selectedOrders.length} selected orders
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="p-8 space-y-4">
-                        <div className="grid grid-cols-1 gap-2">
+                    <div className="p-8 overflow-y-auto custom-scrollbar flex-1 space-y-6">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase text-brand-navy/60 tracking-widest">Comment / Reason (Optional)</label>
+                            <Textarea
+                                placeholder="Why are these orders changing status?"
+                                value={bulkStatusComment}
+                                onChange={(e) => setBulkStatusComment(e.target.value)}
+                                className="min-h-[80px] resize-none rounded-2xl border-none bg-brand-navy/[0.04] text-brand-navy shadow-inner focus-visible:ring-1 focus-visible:ring-brand-navy/20 p-4"
+                            />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                             {orderStatuses?.map((status: any) => (
                                 <Button
                                     key={status.id}
                                     variant="outline"
-                                    onClick={() => bulkStatusMutation.mutate({ orderIds: selectedOrders, statusId: status.id })}
+                                    onClick={() => {
+                                        if (!bulkStatusComment.trim()) {
+                                            toast({ title: "Validation Error", description: "Please provide a reason for changing the status.", variant: "destructive" });
+                                            return;
+                                        }
+                                        bulkStatusMutation.mutate({ orderIds: selectedOrders, statusId: status.id })
+                                    }}
                                     disabled={bulkStatusMutation.isPending}
                                     className="h-14 justify-start gap-4 rounded-2xl border-none bg-brand-navy/[0.02] hover:bg-brand-navy/[0.05] text-brand-navy font-bold transition-all group px-4"
                                 >
                                     <div
-                                        className="w-4 h-4 rounded-full shadow-sm group-hover:scale-110 transition-transform"
+                                        className="w-4 h-4 rounded-full shadow-sm group-hover:scale-110 transition-transform shrink-0"
                                         style={{ backgroundColor: status.color }}
                                     />
-                                    <span className="flex-1 text-left">{status.label}</span>
-                                    {bulkStatusMutation.isPending && <Loader2 className="w-4 h-4 animate-spin opacity-50" />}
+                                    <span className="flex-1 text-left truncate">{status.label}</span>
+                                    {bulkStatusMutation.isPending && <Loader2 className="w-4 h-4 animate-spin opacity-50 shrink-0" />}
                                 </Button>
                             ))}
                         </div>
@@ -2065,16 +2229,16 @@ const Orders = () => {
 
             {/* Seller Attribution Modal */}
             <Dialog open={isAttributionModalOpen} onOpenChange={setIsAttributionModalOpen}>
-                <DialogContent className="max-w-md p-8 border-none bg-brand-white rounded-[40px] shadow-2xl">
-                    <DialogHeader className="mb-6">
+                <DialogContent className="max-w-md p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+                    <DialogHeader className="p-8 pb-6 shrink-0 border-b border-brand-navy/[0.05]">
                         <DialogTitle className="text-3xl font-black text-brand-navy tracking-tight">Assign Seller</DialogTitle>
                         <DialogDescription className="text-sm font-bold text-muted-foreground mt-1">
                             Team attribution for {selectedOrders.length} orders
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="space-y-6">
-                        <div className="relative group">
+                    <div className="p-8 pt-6 flex-1 flex flex-col overflow-hidden space-y-6">
+                        <div className="relative group shrink-0">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-navy/20 group-focus-within:text-brand-navy/40 transition-colors" />
                             <Input
                                 placeholder="Search commercial..."
@@ -2084,13 +2248,13 @@ const Orders = () => {
                             />
                         </div>
 
-                        <div className="max-h-[350px] overflow-y-auto pr-2 custom-scrollbar space-y-3">
+                        <div className="overflow-y-auto pr-2 custom-scrollbar space-y-3 flex-1 h-full min-h-0">
                             {/* Unassign Option */}
                             <Button
                                 variant="ghost"
                                 onClick={() => bulkAttributeMutation.mutate({ orderIds: selectedOrders, sellerId: null })}
                                 disabled={bulkAttributeMutation.isPending}
-                                className="w-full h-16 justify-start gap-4 rounded-[24px] hover:bg-red-50 text-red-600 transition-all font-bold px-4 border border-transparent hover:border-red-100"
+                                className="w-full h-16 justify-start gap-4 rounded-[24px] hover:bg-red-50 text-red-600 hover:text-red-700 transition-all font-bold px-4 border border-transparent hover:border-red-100"
                             >
                                 <div className="w-10 h-10 rounded-2xl bg-red-100 flex items-center justify-center text-red-600 shadow-sm shadow-red-500/10">
                                     <X className="w-5 h-5" />
@@ -2112,7 +2276,7 @@ const Orders = () => {
                                         variant="ghost"
                                         onClick={() => bulkAttributeMutation.mutate({ orderIds: selectedOrders, sellerId: seller.id })}
                                         disabled={bulkAttributeMutation.isPending}
-                                        className="w-full h-16 justify-start gap-4 rounded-[24px] hover:bg-brand-navy/[0.03] text-brand-navy transition-all font-bold px-4 border border-transparent hover:border-brand-navy/[0.05]"
+                                        className="w-full h-16 justify-start gap-4 rounded-[24px] hover:bg-brand-navy/[0.03] text-brand-navy hover:text-brand-navy transition-all font-bold px-4 border border-transparent hover:border-brand-navy/[0.05]"
                                     >
                                         <Avatar className="w-10 h-10 border-2 border-white shadow-md">
                                             <AvatarImage src={seller.avatar_url} />
@@ -2124,7 +2288,7 @@ const Orders = () => {
                                             <p className="text-sm font-black uppercase tracking-tight">{seller.name}</p>
                                             <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">{seller.role}</p>
                                         </div>
-                                        {bulkAttributeMutation.isPending && <Loader2 className="w-4 h-4 ml-auto animate-spin opacity-40" />}
+                                        {bulkAttributeMutation.isPending && <Loader2 className="w-4 h-4 ml-auto animate-spin opacity-40 shrink-0" />}
                                     </Button>
                                 ))}
                         </div>

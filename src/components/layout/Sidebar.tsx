@@ -32,6 +32,7 @@ import {
     Zap,
     Building2,
     LogOut,
+    PanelLeftClose,
     User as UserIcon,
     Loader2,
     Calculator,
@@ -130,6 +131,18 @@ const Sidebar = () => {
     const navigate = useNavigate();
     const location = useLocation();
 
+    const [isPinned, setIsPinned] = React.useState(() => {
+        return localStorage.getItem('sidebarPinned') === 'true';
+    });
+
+    const togglePin = () => {
+        setIsPinned(prev => {
+            const next = !prev;
+            localStorage.setItem('sidebarPinned', String(next));
+            return next;
+        });
+    };
+
     // State for expanded section (Accordion behavior)
     const [expandedSection, setExpandedSection] = React.useState<string | null>(() => {
         let activeSection = null;
@@ -201,25 +214,32 @@ const Sidebar = () => {
     };
 
     return (
-        <aside className="relative flex-none transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] group/sidebar w-[92px] hover:w-[276px]">
+        <aside className={cn(
+            "relative flex-none transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] group/sidebar",
+            isPinned ? "w-[276px]" : "w-[92px] hover:w-[276px]"
+        )}>
             {/* 
                 Fixed Container: 
                 We use w-inherit logic manually via classes to ensure the labels and width expand correctly.
                 The pointer-events-none on the fixed wrapper ensures it doesn't block the page, 
                 while the pointer-events-auto on the actual sidebar allows interaction.
             */}
-            <div className="fixed left-0 top-0 bottom-0 flex items-center z-50 transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] w-[92px] group-hover/sidebar:w-[276px] pointer-events-none">
+            <div className={cn(
+                "fixed left-0 top-0 bottom-0 flex items-center z-50 transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] pointer-events-none",
+                isPinned ? "w-[276px]" : "w-[92px] group-hover/sidebar:w-[276px]"
+            )}>
                 <div
                     className={cn(
                         "flex flex-col ml-4 h-[calc(100vh-2rem)] bg-brand-navy rounded-[32px] text-brand-white transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] overflow-hidden shadow-[0_32px_80px_-16px_rgba(0,0,0,0.5)] border border-white/5 pointer-events-auto",
-                        "w-[76px] group-hover/sidebar:w-[260px] group/sidebar-inner"
+                        isPinned ? "w-[260px] group/sidebar-inner" : "w-[76px] group-hover/sidebar:w-[260px] group/sidebar-inner"
                     )}
+                    data-pinned={isPinned}
                 >
                     {/* Top Logo Section */}
                     <div className="flex items-center h-20 shrink-0 px-3">
                         <div className="flex items-center w-full h-12 rounded-2xl relative">
                             <div className="w-[52px] h-12 flex items-center justify-center shrink-0">
-                                <div className="w-9 h-9 rounded-xl bg-brand-white flex items-center justify-center shadow-xl group-hover/sidebar-inner:rotate-[360deg] transition-all duration-1000 overflow-hidden p-1.5">
+                                <div className="w-9 h-9 rounded-xl bg-brand-white flex items-center justify-center shadow-xl group-hover/sidebar-inner:rotate-[360deg] group-data-[pinned=true]/sidebar-inner:rotate-[360deg] transition-all duration-1000 overflow-hidden p-1.5">
                                     <img
                                         src="/Logo/DigiCom Icon Transparent.png"
                                         alt="DigiCom"
@@ -227,7 +247,7 @@ const Sidebar = () => {
                                     />
                                 </div>
                             </div>
-                            <span className="ml-3 font-black text-xl tracking-tighter opacity-0 group-hover/sidebar-inner:opacity-100 transition-all duration-500 delay-100 whitespace-nowrap overflow-hidden text-brand-white">
+                            <span className="ml-3 font-black text-xl tracking-tighter opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100 transition-all duration-500 delay-100 whitespace-nowrap overflow-hidden text-brand-white">
                                 DigiCom<span className="text-white/20">.</span>
                             </span>
                         </div>
@@ -252,7 +272,7 @@ const Sidebar = () => {
                                             <div className="w-[52px] h-11 flex items-center justify-center shrink-0 relative z-10 transition-transform duration-300 group-hover/item:scale-110">
                                                 {section.icon && <section.icon className="w-5 h-5" />}
                                             </div>
-                                            <div className="flex-1 flex items-center justify-between pr-4 opacity-0 group-hover/sidebar-inner:opacity-100 transition-all duration-500 delay-75">
+                                            <div className="flex-1 flex items-center justify-between pr-4 opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100 transition-all duration-500 delay-75">
                                                 <span className="font-bold text-[13px] whitespace-nowrap">
                                                     {section.label}
                                                 </span>
@@ -282,7 +302,7 @@ const Sidebar = () => {
                                                             <div className="w-[48px] h-10 flex items-center justify-center shrink-0 relative z-10 transition-transform duration-300 group-hover/subitem:scale-110">
                                                                 <item.icon className={cn("w-4 h-4", isActive ? "text-brand-white" : "text-brand-white/40 group-hover/subitem:text-brand-white")} />
                                                             </div>
-                                                            <span className="font-bold text-[12px] opacity-0 group-hover/sidebar-inner:opacity-100 transition-all duration-500 delay-75 whitespace-nowrap relative z-10">
+                                                            <span className="font-bold text-[12px] opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100 transition-all duration-500 delay-75 whitespace-nowrap relative z-10">
                                                                 {item.label}
                                                             </span>
                                                         </>
@@ -306,7 +326,7 @@ const Sidebar = () => {
                                                 <div className="w-[52px] h-11 flex items-center justify-center shrink-0 relative z-10 transition-transform duration-300 group-hover/item:scale-110">
                                                     <item.icon className="w-5 h-5" />
                                                 </div>
-                                                <span className="font-bold text-[13px] opacity-0 group-hover/sidebar-inner:opacity-100 transition-all duration-500 delay-75 whitespace-nowrap relative z-10">
+                                                <span className="font-bold text-[13px] opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100 transition-all duration-500 delay-75 whitespace-nowrap relative z-10">
                                                     {item.label}
                                                 </span>
                                             </NavLink>
@@ -324,13 +344,13 @@ const Sidebar = () => {
                             className={({ isActive }) => cn(
                                 "flex items-center h-14 rounded-2xl transition-all duration-500 group/profile relative overflow-hidden",
                                 "hover:bg-white/[0.05]",
-                                "group-hover/sidebar-inner:bg-white/[0.02] group-hover/sidebar-inner:border group-hover/sidebar-inner:border-white/[0.03]",
-                                isActive && "group-hover/sidebar-inner:bg-white/[0.08] group-hover/sidebar-inner:border-white/5"
+                                "group-hover/sidebar-inner:bg-white/[0.02] group-data-[pinned=true]/sidebar-inner:bg-white/[0.02] group-hover/sidebar-inner:border group-data-[pinned=true]/sidebar-inner:border group-hover/sidebar-inner:border-white/[0.03] group-data-[pinned=true]/sidebar-inner:border-white/[0.03]",
+                                isActive && "group-hover/sidebar-inner:bg-white/[0.08] group-data-[pinned=true]/sidebar-inner:bg-white/[0.08] group-hover/sidebar-inner:border-white/5 group-data-[pinned=true]/sidebar-inner:border-white/5"
                             )}
                         >
                             <div className="w-[52px] h-14 flex items-center justify-center shrink-0">
                                 <div className="relative w-8 h-8 group-hover/profile:scale-105 transition-transform duration-500 flex items-center justify-center">
-                                    <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-brand-navy bg-brand-navy-light flex items-center justify-center shadow-lg z-20 transition-all duration-700 group-hover/sidebar-inner:rotate-[-4deg] shrink-0 relative">
+                                    <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-brand-navy bg-brand-navy-light flex items-center justify-center shadow-lg z-20 transition-all duration-700 group-hover/sidebar-inner:rotate-[-4deg] group-data-[pinned=true]/sidebar-inner:rotate-[-4deg] shrink-0 relative">
                                         {isProfileLoading ? (
                                             <Loader2 className="w-4 h-4 animate-spin text-brand-white" />
                                         ) : profile?.avatar_url ? (
@@ -342,7 +362,7 @@ const Sidebar = () => {
                                     <div className={cn(
                                         "absolute top-0 left-0 rounded-full overflow-hidden border-2 border-brand-navy bg-white flex items-center justify-center shadow-lg z-10 transition-all duration-700",
                                         "w-8 h-8 opacity-0 pointer-events-none",
-                                        "group-hover/sidebar-inner:opacity-100 group-hover/sidebar-inner:translate-x-3.5 group-hover/sidebar-inner:pointer-events-auto"
+                                        "group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100 group-hover/sidebar-inner:translate-x-3.5 group-data-[pinned=true]/sidebar-inner:translate-x-3.5 group-hover/sidebar-inner:pointer-events-auto group-data-[pinned=true]/sidebar-inner:pointer-events-auto"
                                     )}>
                                         {business?.logo ? (
                                             <img src={business.logo} className="w-full h-full object-contain" alt="" />
@@ -353,7 +373,7 @@ const Sidebar = () => {
                                 </div>
                             </div>
 
-                            <div className="ml-2 opacity-0 group-hover/sidebar-inner:opacity-100 transition-all duration-500 delay-150 whitespace-nowrap overflow-hidden">
+                            <div className="ml-2 opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100 transition-all duration-500 delay-150 whitespace-nowrap overflow-hidden">
                                 <div className="flex flex-col">
                                     <span className="text-[10px] font-bold text-brand-white tracking-tight truncate max-w-[120px]">
                                         {business?.name || profile?.name}
@@ -369,18 +389,32 @@ const Sidebar = () => {
                         </NavLink>
                     </div>
 
-                    {/* Sign Out */}
-                    <div className="px-3 pb-4">
+                    {/* Sign Out & Pin Toggle */}
+                    <div className="px-3 pb-4 flex items-center gap-2">
                         <button
                             onClick={handleLogout}
-                            className="flex items-center w-full h-11 rounded-2xl text-white/10 hover:text-red-400 hover:bg-red-400/5 transition-all duration-300"
+                            className="flex-1 flex items-center h-11 rounded-2xl text-white/10 hover:text-red-400 hover:bg-red-400/5 transition-all duration-300 overflow-hidden"
+                            title="Logout"
                         >
                             <div className="w-[52px] h-11 flex items-center justify-center shrink-0">
                                 <LogOut className="w-4 h-4" />
                             </div>
-                            <span className="font-bold text-xs opacity-0 group-hover/sidebar-inner:opacity-100 transition-all duration-500 delay-75 whitespace-nowrap">
+                            <span className="font-bold text-[13px] opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100 transition-all duration-500 delay-75 whitespace-nowrap">
                                 Logout
                             </span>
+                        </button>
+
+                        <button
+                            onClick={togglePin}
+                            className={cn(
+                                "w-11 h-11 shrink-0 flex items-center justify-center rounded-2xl transition-all duration-300",
+                                isPinned 
+                                    ? "text-brand-white bg-white/10" 
+                                    : "text-white/30 hover:text-brand-white hover:bg-white/5 opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100"
+                            )}
+                            title={isPinned ? "Unpin Sidebar" : "Pin Sidebar"}
+                        >
+                            <PanelLeftClose className={cn("w-5 h-5 transition-transform duration-300", !isPinned && "rotate-180")} />
                         </button>
                     </div>
                 </div>

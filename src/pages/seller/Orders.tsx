@@ -96,6 +96,7 @@ import {
 } from "@/components/ui/popover";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
 
 // --- Schemas ---
@@ -120,6 +121,7 @@ const orderSchema = z.object({
     items: z.array(orderItemSchema).min(1, "At least one product is required"),
     courier_id: z.string().uuid().optional().nullable(),
     company_id: z.string().uuid().optional().nullable(),
+    history_comment: z.string().optional(),
 });
 
 type OrderFormValues = z.infer<typeof orderSchema>;
@@ -196,6 +198,8 @@ const Orders = () => {
     }, []);
 
     // --- Queries ---
+
+
     const { data: orders, isLoading } = useQuery({
         queryKey: ['orders', activeBusinessId, userId],
         queryFn: async () => {
@@ -205,12 +209,15 @@ const Orders = () => {
                 .select(`
                     *,
                     status:order_statuses(*),
+                    package_status:package_statuses(*),
                     city:master_cities(id, name),
                     courier:users!orders_courier_id_fkey(id, name, avatar_url),
+                    assignee:users!orders_assign_id_fkey(id, name, avatar_url),
                     company:providers(id, name, logo_url),
-                    items:order_items(*, product:products(name, code, image_url))
+                    items:order_items(*, product:products(name, code, image_url)),
+                    history:order_status_history(*, user:users!changed_by(name, avatar_url), status:order_statuses!status_id(*))
                 `)
-                .eq('DigiCom Business', activeBusinessId)
+                .eq('seller_id', userId)
                 .eq('assign_id', userId)
                 .order('created_at', { ascending: false });
 
@@ -587,6 +594,22 @@ const Orders = () => {
                 .insert(itemRecords);
 
             if (itemsError) throw itemsError;
+
+            // 3. Track History if status changed
+            if (selectedOrder.order_status_id !== values.order_status_id) {
+                const { error: historyError } = await (supabase as any)
+                    .from('order_status_history')
+                    .insert({
+                        order_id: selectedOrder.id,
+                        status_id: values.order_status_id,
+                        comment: 'Status updated via order edit',
+                        changed_by: (await (supabase as any).auth.getUser()).data.user?.id,
+                        'DigiCom Business': activeBusinessId
+                    });
+                if (historyError) console.error("History Error", historyError);
+            }
+
+            return { id: selectedOrder.id };
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
@@ -703,26 +726,30 @@ const Orders = () => {
                     <p className="text-[10px] font-black uppercase tracking-widest text-blue-600/60">Active Orders</p>
                     <h3 className="text-3xl font-black text-brand-navy">{filteredOrders.length}</h3>
                 </Card>
-                <Card className="border-none bg-emerald-50/50 rounded-[24px] p-6 space-y-2">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600/60">Total Revenue</p>
-                    <h3 className="text-3xl font-black text-brand-navy">
-                        {filteredOrders.reduce((acc, o) => acc + (o.price || 0), 0).toFixed(0)} DH
-                    </h3>
-                </Card>
+                <div className="bg-brand-navy rounded-[32px] p-6 text-brand-white shadow-2xl shadow-brand-navy/30 relative overflow-hidden group">
+                    <div className="relative z-10 flex flex-col h-full justify-between">
+                        <span className="text-xs font-black uppercase text-brand-white/60 tracking-widest mb-2 block">Total Sales</span>
+                        <span className="text-3xl md:text-5xl font-black tracking-tight">{filteredOrders.reduce((acc, o) => acc + (o.raw_price || 0), 0).toFixed(0)} DH</span>
+                    </div>
+                    <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-brand-white/5 rounded-full blur-2xl group-hover:bg-brand-white/10 transition-colors duration-500" />
+                </div>
                 <Card className="border-none bg-amber-50/50 rounded-[24px] p-6 space-y-2">
                     <p className="text-[10px] font-black uppercase tracking-widest text-amber-600/60">Exchanges</p>
                     <h3 className="text-3xl font-black text-brand-navy">
                         {filteredOrders.filter(o => o.replace).length}
                     </h3>
                 </Card>
-                <Card className="border-none bg-brand-navy/[0.04] rounded-[24px] p-6 space-y-2">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Avg. Basket</p>
-                    <h3 className="text-3xl font-black text-brand-navy">
-                        {filteredOrders.length > 0
-                            ? (filteredOrders.reduce((acc, o) => acc + (o.price || 0), 0) / filteredOrders.length).toFixed(0)
-                            : 0} DH
-                    </h3>
-                </Card>
+                <div className="bg-white rounded-[32px] p-6 border-2 border-brand-navy/[0.03] hover:border-brand-navy/[0.08] transition-colors shadow-xl shadow-brand-navy/5 relative overflow-hidden group">
+                    <div className="relative z-10 flex flex-col h-full justify-between">
+                        <span className="text-xs font-black text-brand-navy/40 uppercase tracking-widest mb-2 block">Avg Order Value</span>
+                        <span className="text-3xl md:text-4xl font-black text-brand-navy tracking-tight">
+                            {filteredOrders.length > 0
+                                ? (filteredOrders.reduce((acc, o) => acc + (o.raw_price || 0), 0) / filteredOrders.length).toFixed(0)
+                                : '0'} DH
+                        </span>
+                    </div>
+                    <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-brand-navy/[0.02] rounded-full blur-2xl group-hover:bg-brand-navy/[0.04] transition-colors duration-500" />
+                </div>
             </div>
 
             {/* Filters Toolbar */}
@@ -895,13 +922,22 @@ const Orders = () => {
                                         </div>
 
                                         {/* Package Status */}
-                                        {order.package_status_label && (
-                                            <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-2xl bg-brand-navy/[0.03] border border-brand-navy/[0.05] animate-pulse-subtle">
-                                                <div className="p-1 rounded-lg bg-brand-navy/10">
-                                                    <Truck className="w-4 h-4 text-brand-navy/60" />
+                                        {(order.package_status || order.package_status_label) && (
+                                            <div
+                                                className="flex items-center gap-2.5 px-3 py-1.5 rounded-2xl bg-brand-navy/[0.03] border animate-pulse-subtle"
+                                                style={{
+                                                    borderColor: order.package_status ? `${order.package_status.color}40` : 'rgba(0, 31, 63, 0.05)',
+                                                    backgroundColor: order.package_status ? `${order.package_status.color}10` : 'rgba(0, 31, 63, 0.03)'
+                                                }}
+                                            >
+                                                <div className="p-1 rounded-lg" style={{ backgroundColor: order.package_status ? `${order.package_status.color}20` : 'rgba(0, 31, 63, 0.1)' }}>
+                                                    <Truck className="w-4 h-4" style={{ color: order.package_status ? order.package_status.color : 'rgba(0, 31, 63, 0.6)' }} />
                                                 </div>
-                                                <span className="text-[10px] font-black uppercase tracking-widest text-brand-navy/60">
-                                                    {order.package_status_label}
+                                                <span
+                                                    className="text-[10px] font-black uppercase tracking-widest"
+                                                    style={{ color: order.package_status ? order.package_status.color : 'rgba(0, 31, 63, 0.6)' }}
+                                                >
+                                                    {order.package_status ? order.package_status.label : order.package_status_label}
                                                 </span>
                                             </div>
                                         )}
@@ -971,7 +1007,7 @@ const Orders = () => {
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 leading-none mb-1">Net Balance</span>
                                             <div className="flex items-baseline gap-1">
-                                                <span className="text-3xl font-black text-brand-navy">{order.price || 0}</span>
+                                                <span className="text-3xl font-black text-brand-navy">{order.raw_price || 0}</span>
                                                 <span className="text-xs font-black text-brand-navy/40 uppercase">DH</span>
                                             </div>
                                         </div>
@@ -1081,11 +1117,21 @@ const Orders = () => {
                                                             </span>
                                                         </div>
 
-                                                        {order.package_status_label && (
-                                                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-brand-navy/[0.03] border border-brand-navy/[0.05] animate-pulse-subtle">
-                                                                <Truck className="w-3 h-3 text-brand-navy/60" />
-                                                                <span className="text-[8px] font-bold text-brand-navy/60 uppercase tracking-tight">
-                                                                    {order.package_status_label}
+                                                        {/* Package Status */}
+                                                        {(order.package_status || order.package_status_label) && (
+                                                            <div
+                                                                className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-brand-navy/[0.03] border animate-pulse-subtle"
+                                                                style={{
+                                                                    borderColor: order.package_status ? `${order.package_status.color}40` : 'rgba(0, 31, 63, 0.05)',
+                                                                    backgroundColor: order.package_status ? `${order.package_status.color}10` : 'rgba(0, 31, 63, 0.03)'
+                                                                }}
+                                                            >
+                                                                <Truck className="w-3 h-3" style={{ color: order.package_status ? order.package_status.color : 'rgba(0, 31, 63, 0.6)' }} />
+                                                                <span
+                                                                    className="text-[8px] font-bold uppercase tracking-tight"
+                                                                    style={{ color: order.package_status ? order.package_status.color : 'rgba(0, 31, 63, 0.6)' }}
+                                                                >
+                                                                    {order.package_status ? order.package_status.label : order.package_status_label}
                                                                 </span>
                                                             </div>
                                                         )}
@@ -1103,7 +1149,7 @@ const Orders = () => {
                                             </td>
                                             <td className="p-6">
                                                 <div className="flex flex-col">
-                                                    <span className="text-base font-black text-brand-navy">{order.price || 0} DH</span>
+                                                    <span className="text-base font-black text-brand-navy">{order.raw_price || 0} DH</span>
                                                 </div>
                                             </td>
                                             <td className="p-6 text-right">
@@ -1167,12 +1213,22 @@ const Orders = () => {
                         setIsAddModalOpen(false);
                         setIsEditModalOpen(false);
                         setSelectedOrder(null);
+                        form.reset();
                     }
                 }}
             >
                 <DialogContent className="max-w-5xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden flex flex-col h-[90vh] md:h-auto md:max-h-[90vh]">
                     <Form {...form}>
-                        <form onSubmit={form.handleSubmit(v => isEditModalOpen ? updateOrderMutation.mutate(v) : createOrderMutation.mutate(v))} className="flex flex-col h-full overflow-hidden">
+                        <form onSubmit={form.handleSubmit((v) => {
+                            if (isEditModalOpen && selectedOrder && v.order_status_id !== selectedOrder.order_status_id) {
+                                if (!v.history_comment?.trim()) {
+                                    form.setError('history_comment', { type: 'manual', message: 'Comment is required when changing status.' });
+                                    toast({ title: "Validation Error", description: "Please provide a reason for the status change.", variant: "destructive" });
+                                    return;
+                                }
+                            }
+                            isEditModalOpen ? updateOrderMutation.mutate(v) : createOrderMutation.mutate(v);
+                        })} className="flex flex-col h-full overflow-hidden">
                             <DialogHeader className="p-8 pb-4">
                                 <DialogTitle className="text-3xl font-black text-brand-navy">
                                     {isEditModalOpen ? 'Update Sales Order' : 'Capture New Order'}
@@ -1473,6 +1529,23 @@ const Orders = () => {
                                             )}
                                         />
 
+                                        {isEditModalOpen && selectedOrder && form.watch('order_status_id') !== selectedOrder.order_status_id && (
+                                            <FormField
+                                                control={form.control}
+                                                name="history_comment"
+                                                render={({ field }) => (
+                                                    <FormItem className="space-y-1 animate-in fade-in slide-in-from-top-2 duration-300">
+                                                        <FormLabel className="text-[10px] font-black uppercase tracking-wider text-brand-navy/60 flex items-center gap-1">
+                                                            <MessageSquare className="w-3 h-3 text-brand-navy/40" /> Status Change Reason
+                                                        </FormLabel>
+                                                        <FormControl>
+                                                            <Textarea placeholder="Why is the status changing? (Optional)" {...field} className="min-h-[80px] resize-none rounded-2xl border-none bg-brand-navy/[0.03] text-sm font-bold text-brand-navy shadow-inner focus-visible:ring-brand-navy/20" />
+                                                        </FormControl>
+                                                    </FormItem>
+                                                )}
+                                            />
+                                        )}
+
                                         <div className="p-4 rounded-2xl bg-brand-navy/[0.02] border border-brand-navy/[0.03] flex items-center justify-between">
                                             <div className="space-y-0.5">
                                                 <FormLabel className="text-sm font-bold text-brand-navy">Exchange Order</FormLabel>
@@ -1702,11 +1775,10 @@ const Orders = () => {
                                         )}
                                     </div>
                                 </div>
-                                <div className="text-right p-6 rounded-[32px] bg-brand-navy/[0.02] border border-brand-navy/[0.05]">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 mb-1">Net Collectable</p>
-                                    <h3 className="text-4xl font-black text-brand-navy">{selectedOrder.price || 0} <span className="text-lg">DH</span></h3>
-                                    <div className="mt-2 text-[10px] font-bold text-emerald-600 uppercase tracking-tighter">
-                                        Includes {selectedOrder.shipping_cost}DH Shipping
+                                <div className="p-8 pb-10 flex items-center justify-between border-b-2 border-brand-navy/5 bg-gradient-to-br from-brand-navy/[0.02] to-transparent">
+                                    <div className="space-y-1">
+                                        <p className="text-sm font-black text-brand-navy/40 uppercase tracking-widest">Total Order Value</p>
+                                        <h3 className="text-4xl font-black text-brand-navy">{selectedOrder.raw_price || 0} <span className="text-lg">DH</span></h3>
                                     </div>
                                 </div>
                             </div>
@@ -1836,6 +1908,60 @@ const Orders = () => {
                                         ))}
                                     </div>
                                 </div>
+
+                                {/* Status History Timeline */}
+                                <div className="space-y-6 pb-6">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <ShieldCheck className="w-6 h-6 text-brand-navy/20" />
+                                            <h4 className="text-xl font-black text-brand-navy uppercase tracking-[0.15em]">Status History</h4>
+                                        </div>
+                                    </div>
+
+                                    <div className="px-4">
+                                        {selectedOrder.history && selectedOrder.history.length > 0 ? (
+                                            <div className="space-y-6 relative before:absolute before:inset-0 before:ml-2.5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-brand-navy/10 before:to-transparent">
+                                                {selectedOrder.history.map((record: any, index: number) => (
+                                                    <div key={record.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                                                        <div className="flex items-center justify-center w-6 h-6 rounded-full border-4 border-white bg-brand-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10" style={{ borderColor: record.status?.color || '#eee' }}>
+                                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: record.status?.color || '#ccc' }} />
+                                                        </div>
+                                                        <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-5 rounded-2xl bg-brand-navy/[0.02] border border-brand-navy/[0.05] shadow-sm flex flex-col gap-2">
+                                                            <div className="flex items-center justify-between gap-4">
+                                                                <div className="flex items-center gap-2">
+                                                                    <Avatar className="w-6 h-6 border bg-white">
+                                                                        <AvatarImage src={record.user?.avatar_url} />
+                                                                        <AvatarFallback className="text-[10px] font-bold bg-brand-navy/5 text-brand-navy">
+                                                                            {record.user?.name?.[0] || '?'}
+                                                                        </AvatarFallback>
+                                                                    </Avatar>
+                                                                    <span className="text-xs font-bold text-brand-navy truncate max-w-[120px]">{record.user?.name || 'Unknown'}</span>
+                                                                </div>
+                                                                <span className="text-[10px] font-black text-brand-navy/40 uppercase tracking-widest bg-brand-navy/5 px-2 py-1 rounded-lg">
+                                                                    {format(new Date(record.created_at), 'MMM d, HH:mm')}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2 mt-1">
+                                                                <span className="text-xs font-black uppercase tracking-widest px-2 py-0.5 rounded-md" style={{ color: record.status?.color, backgroundColor: `${record.status?.color}15` }}>
+                                                                    {record.status?.label || 'Unknown Status'}
+                                                                </span>
+                                                            </div>
+                                                            {record.comment && (
+                                                                <p className="text-sm font-medium text-brand-navy/80 mt-2 p-3 bg-white rounded-xl border border-brand-navy/[0.03] italic">
+                                                                    "{record.comment}"
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="text-center p-8 bg-brand-navy/[0.02] rounded-3xl border border-brand-navy/[0.05]">
+                                                <p className="text-sm font-bold text-muted-foreground">No tracking history available yet.</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
 
                             <DialogFooter className="p-8 pb-10 flex gap-4 bg-brand-white border-t border-brand-navy/[0.03]">
@@ -1857,6 +1983,7 @@ const Orders = () => {
                     )}
                 </DialogContent>
             </Dialog>
+
         </div >
     );
 };
