@@ -608,7 +608,7 @@ function PersonModal({ isOpen, onClose, onSubmit, initialData, loading }: any) {
                                     <FormLabel className="text-xs font-black uppercase tracking-widest text-brand-navy/40">Full Name</FormLabel>
                                     <div className="relative">
                                         <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-navy/30" />
-                                        <FormControl><Input placeholder="John Doe" {...field} className="h-14 pl-12 rounded-2xl border-none bg-brand-navy/5 text-brand-navy font-bold text-base shadow-inner" /></FormControl>
+                                        <FormControl><Input placeholder="John Doe" {...field} className="h-14 pl-12 rounded-2xl border-none bg-brand-navy/5 text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium font-bold text-base shadow-inner" /></FormControl>
                                     </div>
                                     <FormMessage />
                                 </FormItem>
@@ -619,7 +619,7 @@ function PersonModal({ isOpen, onClose, onSubmit, initialData, loading }: any) {
                                         <FormLabel className="text-xs font-black uppercase tracking-widest text-brand-navy/40">Username</FormLabel>
                                         <div className="relative">
                                             <AtSign className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-navy/30" />
-                                            <FormControl><Input placeholder="j_doe" {...field} className="h-14 pl-12 rounded-2xl border-none bg-brand-navy/5 text-brand-navy font-bold shadow-inner" /></FormControl>
+                                            <FormControl><Input placeholder="j_doe" {...field} className="h-14 pl-12 rounded-2xl border-none bg-brand-navy/5 text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium font-bold shadow-inner" /></FormControl>
                                         </div>
                                         <FormMessage />
                                     </FormItem>
@@ -629,7 +629,7 @@ function PersonModal({ isOpen, onClose, onSubmit, initialData, loading }: any) {
                                         <FormLabel className="text-xs font-black uppercase tracking-widest text-brand-navy/40">Password</FormLabel>
                                         <div className="relative">
                                             <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-navy/30" />
-                                            <FormControl><Input type="password" placeholder="••••••••" {...field} className="h-14 pl-12 rounded-2xl border-none bg-brand-navy/5 text-brand-navy font-bold shadow-inner" /></FormControl>
+                                            <FormControl><Input type="password" placeholder="••••••••" {...field} className="h-14 pl-12 rounded-2xl border-none bg-brand-navy/5 text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium font-bold shadow-inner" /></FormControl>
                                         </div>
                                         <FormMessage />
                                     </FormItem>
@@ -640,7 +640,7 @@ function PersonModal({ isOpen, onClose, onSubmit, initialData, loading }: any) {
                                     <FormLabel className="text-xs font-black uppercase tracking-widest text-brand-navy/40">Email Address</FormLabel>
                                     <div className="relative">
                                         <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-navy/30" />
-                                        <FormControl><Input type="email" placeholder="john@company.com" {...field} className="h-14 pl-12 rounded-2xl border-none bg-brand-navy/5 text-brand-navy font-bold shadow-inner" /></FormControl>
+                                        <FormControl><Input type="email" placeholder="john@company.com" {...field} className="h-14 pl-12 rounded-2xl border-none bg-brand-navy/5 text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium font-bold shadow-inner" /></FormControl>
                                     </div>
                                     <FormMessage />
                                 </FormItem>
@@ -779,7 +779,7 @@ function CompanyModal({ isOpen, onClose, onSubmit, initialData, loading }: any) 
                                 <FormField control={form.control} name="name" render={({ field }) => (
                                     <FormItem>
                                         <FormLabel className="text-xs font-black uppercase tracking-widest text-brand-navy/40">Display Name</FormLabel>
-                                        <FormControl><Input placeholder="Internal Name" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/5 text-brand-navy font-bold shadow-inner px-6" value={field.value || ''} /></FormControl>
+                                        <FormControl><Input placeholder="Internal Name" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/5 text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium font-bold shadow-inner px-6" value={field.value || ''} /></FormControl>
                                         <FormMessage />
                                     </FormItem>
                                 )} />
@@ -788,14 +788,14 @@ function CompanyModal({ isOpen, onClose, onSubmit, initialData, loading }: any) 
                                     <FormField control={form.control} name="business_name" render={({ field }) => (
                                         <FormItem>
                                             <FormLabel className="text-xs font-black uppercase tracking-widest text-brand-navy/40">Registered Business Name</FormLabel>
-                                            <FormControl><Input placeholder="Legal Entity" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/5 text-brand-navy font-bold shadow-inner px-6" value={field.value || ''} /></FormControl>
+                                            <FormControl><Input placeholder="Legal Entity" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/5 text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium font-bold shadow-inner px-6" value={field.value || ''} /></FormControl>
                                             <FormMessage />
                                         </FormItem>
                                     )} />
                                     <FormField control={form.control} name="business_id" render={({ field }) => (
                                         <FormItem>
                                             <FormLabel className="text-xs font-black uppercase tracking-widest text-brand-navy/40">Business ID / Tax ID</FormLabel>
-                                            <FormControl><Input placeholder="RC / ICE" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/5 text-brand-navy font-bold shadow-inner px-6" value={field.value || ''} /></FormControl>
+                                            <FormControl><Input placeholder="RC / ICE" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/5 text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium font-bold shadow-inner px-6" value={field.value || ''} /></FormControl>
                                             <FormMessage />
                                         </FormItem>
                                     )} />
@@ -806,7 +806,7 @@ function CompanyModal({ isOpen, onClose, onSubmit, initialData, loading }: any) 
                                         <FormItem>
                                             <FormLabel className="text-xs font-black uppercase tracking-widest text-brand-navy/40">Provider Type (System)</FormLabel>
                                             <FormControl>
-                                                <Input placeholder="e.g. ameex, coliaty, speedaf" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/5 text-brand-navy font-bold shadow-inner px-6" value={field.value || ''} />
+                                                <Input placeholder="e.g. ameex, coliaty, speedaf" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/5 text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium font-bold shadow-inner px-6" value={field.value || ''} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -833,7 +833,7 @@ function CompanyModal({ isOpen, onClose, onSubmit, initialData, loading }: any) 
                                         <FormLabel className="text-xs font-black uppercase tracking-widest text-brand-navy/40 leading-none flex items-center gap-2">
                                             <LinkIcon className="w-3 h-3" /> Base Endpoint
                                         </FormLabel>
-                                        <FormControl><Input placeholder="https://api.provider.com" {...field} className="h-12 bg-transparent border-b-2 border-brand-navy/10 rounded-none focus-visible:ring-0 font-bold px-0 text-brand-navy" /></FormControl>
+                                        <FormControl><Input placeholder="https://api.provider.com" {...field} className="h-12 bg-transparent border-b-2 border-brand-navy/10 rounded-none focus-visible:ring-0 font-bold px-0 text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium" /></FormControl>
                                     </FormItem>
                                 )} />
 
@@ -841,7 +841,7 @@ function CompanyModal({ isOpen, onClose, onSubmit, initialData, loading }: any) 
                                     <FormField control={form.control} name="api_key" render={({ field }) => (
                                         <FormItem>
                                             <FormLabel className="text-xs font-black uppercase tracking-widest text-brand-navy/40">Universal API Key</FormLabel>
-                                            <FormControl><Input placeholder="Bearer or Secret Token" {...field} className="h-12 bg-transparent border-b-2 border-brand-navy/10 rounded-none focus-visible:ring-0 font-bold px-0 text-brand-navy" /></FormControl>
+                                            <FormControl><Input placeholder="Bearer or Secret Token" {...field} className="h-12 bg-transparent border-b-2 border-brand-navy/10 rounded-none focus-visible:ring-0 font-bold px-0 text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium" /></FormControl>
                                         </FormItem>
                                     )} />
 
@@ -849,13 +849,13 @@ function CompanyModal({ isOpen, onClose, onSubmit, initialData, loading }: any) 
                                         <FormField control={form.control} name="api_login" render={({ field }) => (
                                             <FormItem>
                                                 <FormLabel className="text-xs font-black uppercase tracking-widest text-brand-navy/40">API User/Login</FormLabel>
-                                                <FormControl><Input placeholder="Username" {...field} className="h-12 bg-transparent border-b-2 border-brand-navy/10 rounded-none focus-visible:ring-0 font-bold px-0 text-brand-navy" value={field.value || ''} /></FormControl>
+                                                <FormControl><Input placeholder="Username" {...field} className="h-12 bg-transparent border-b-2 border-brand-navy/10 rounded-none focus-visible:ring-0 font-bold px-0 text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium" value={field.value || ''} /></FormControl>
                                             </FormItem>
                                         )} />
                                         <FormField control={form.control} name="api_password" render={({ field }) => (
                                             <FormItem>
                                                 <FormLabel className="text-xs font-black uppercase tracking-widest text-brand-navy/40">API Password</FormLabel>
-                                                <FormControl><Input type="password" placeholder="••••••••" {...field} className="h-12 bg-transparent border-b-2 border-brand-navy/10 rounded-none focus-visible:ring-0 font-bold px-0 text-brand-navy" value={field.value || ''} /></FormControl>
+                                                <FormControl><Input type="password" placeholder="••••••••" {...field} className="h-12 bg-transparent border-b-2 border-brand-navy/10 rounded-none focus-visible:ring-0 font-bold px-0 text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium" value={field.value || ''} /></FormControl>
                                             </FormItem>
                                         )} />
                                     </div>
@@ -864,13 +864,13 @@ function CompanyModal({ isOpen, onClose, onSubmit, initialData, loading }: any) 
                                         <FormField control={form.control} name="api_public_key" render={({ field }) => (
                                             <FormItem>
                                                 <FormLabel className="text-xs font-black uppercase tracking-widest text-brand-navy/40">Public Key</FormLabel>
-                                                <FormControl><Input placeholder="pk_live_..." {...field} className="h-12 bg-transparent border-b-2 border-brand-navy/10 rounded-none focus-visible:ring-0 font-bold px-0 text-brand-navy" value={field.value || ''} /></FormControl>
+                                                <FormControl><Input placeholder="pk_live_..." {...field} className="h-12 bg-transparent border-b-2 border-brand-navy/10 rounded-none focus-visible:ring-0 font-bold px-0 text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium" value={field.value || ''} /></FormControl>
                                             </FormItem>
                                         )} />
                                         <FormField control={form.control} name="api_secret_key" render={({ field }) => (
                                             <FormItem>
                                                 <FormLabel className="text-xs font-black uppercase tracking-widest text-brand-navy/40">Secret Key</FormLabel>
-                                                <FormControl><Input type="password" placeholder="sk_live_..." {...field} className="h-12 bg-transparent border-b-2 border-brand-navy/10 rounded-none focus-visible:ring-0 font-bold px-0 text-brand-navy" value={field.value || ''} /></FormControl>
+                                                <FormControl><Input type="password" placeholder="sk_live_..." {...field} className="h-12 bg-transparent border-b-2 border-brand-navy/10 rounded-none focus-visible:ring-0 font-bold px-0 text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium" value={field.value || ''} /></FormControl>
                                             </FormItem>
                                         )} />
                                     </div>

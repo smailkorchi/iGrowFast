@@ -409,13 +409,13 @@ const Transactions = () => {
             <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
                 <DialogContent className="max-w-4xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
                     <Form {...transactionForm}>
-                        <form onSubmit={transactionForm.handleSubmit(v => createTransactionMutation.mutate(v))} className="flex flex-col h-full">
-                            <DialogHeader className="p-8 pb-4">
+                        <form onSubmit={transactionForm.handleSubmit(v => createTransactionMutation.mutate(v))} className="flex flex-col flex-1 min-h-0">
+                            <DialogHeader className="p-8 pb-4 shrink-0">
                                 <DialogTitle className="text-3xl font-bold text-brand-navy">New Purchase Transaction</DialogTitle>
                                 <DialogDescription className="text-muted-foreground text-lg">Log supplier invoices and update inventory stock instantly.</DialogDescription>
                             </DialogHeader>
 
-                            <div className="overflow-y-auto p-8 pt-4 space-y-8 flex-1">
+                            <div className="overflow-y-auto p-8 pt-4 space-y-8 flex-1 min-h-0 custom-scrollbar">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-6">
                                         <h4 className="text-xs font-black uppercase tracking-widest text-brand-navy/40 border-b border-brand-navy/[0.05] pb-2">Supplier Profile</h4>
@@ -429,7 +429,7 @@ const Transactions = () => {
                                                         <FormControl>
                                                             <div className="relative">
                                                                 <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-navy/30" />
-                                                                <Input placeholder="E.g. Global Supplies Ltd" {...field} className="pl-11 h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner" />
+                                                                <Input placeholder="E.g. Global Supplies Ltd" {...field} className="pl-11 h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
                                                             </div>
                                                         </FormControl>
                                                         <FormMessage />
@@ -444,7 +444,7 @@ const Transactions = () => {
                                                         <FormItem className="space-y-2">
                                                             <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Phone</FormLabel>
                                                             <FormControl>
-                                                                <Input placeholder="+212..." {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner" />
+                                                                <Input placeholder="+212..." {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
                                                             </FormControl>
                                                         </FormItem>
                                                     )}
@@ -475,7 +475,7 @@ const Transactions = () => {
                                                     <FormItem className="space-y-2">
                                                         <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Supplier Address</FormLabel>
                                                         <FormControl>
-                                                            <Input placeholder="Warehouse location..." {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner" />
+                                                            <Input placeholder="Warehouse location..." {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
                                                         </FormControl>
                                                     </FormItem>
                                                 )}
@@ -487,7 +487,7 @@ const Transactions = () => {
                                                     <FormItem className="space-y-2">
                                                         <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Internal Notes</FormLabel>
                                                         <FormControl>
-                                                            <Input placeholder="Extra details about this order..." {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner" />
+                                                            <Input placeholder="Extra details about this order..." {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
                                                         </FormControl>
                                                     </FormItem>
                                                 )}
@@ -743,7 +743,7 @@ const Transactions = () => {
                                 </div>
                             </DialogHeader>
 
-                            <div className="overflow-y-auto p-10 space-y-10 flex-1">
+                            <div className="overflow-y-auto p-10 space-y-10 flex-1 min-h-0 custom-scrollbar">
                                 {/* Dashboard Section */}
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                     <div className="p-8 rounded-[32px] bg-brand-navy/[0.02] border border-brand-navy/[0.03] space-y-1 relative overflow-hidden group">

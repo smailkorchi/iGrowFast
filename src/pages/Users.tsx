@@ -35,7 +35,14 @@ import {
     RefreshCcw,
     BarChart2,
     Megaphone,
-    Users as UsersGroupIcon // Renamed Users to UsersGroupIcon to avoid conflict with the component name 'Users'
+    Users as UsersGroupIcon, // Renamed Users to UsersGroupIcon to avoid conflict with the component name 'Users'
+    Zap,
+    Target,
+    Building2,
+    Calculator,
+    MessageSquare,
+    DollarSign,
+    Store
 } from 'lucide-react';
 import {
     Card,
@@ -114,6 +121,7 @@ const pages = [
     { label: 'Return Note', path: '/return-note', icon: Repeat },
     { label: 'Delivery Services', path: '/delivery-services', icon: Globe },
     { label: 'Payments', path: '/payments', icon: CreditCard },
+    { label: 'Webhooks', path: '/webhooks', icon: Zap },
     { label: 'Transactions', path: '/transactions', icon: ArrowRightLeft },
     { label: 'Products', path: '/products', icon: Box },
     { label: 'Status', path: '/status', icon: RefreshCcw },
@@ -121,12 +129,17 @@ const pages = [
     { label: 'Sales Channels', path: '/sales-channels', icon: Megaphone },
     { label: 'Customers', path: '/customers', icon: UsersGroupIcon },
     { label: 'Users', path: '/users', icon: UserPlus },
+    { label: 'Sellers', path: '/sellers', icon: Store },
+    { label: 'Demands', path: '/demands', icon: MessageSquare },
+    { label: 'Salaries', path: '/salaries', icon: DollarSign },
+    { label: 'Ads History', path: '/ads-history', icon: Target },
     { label: 'Expenses Details', path: '/expenses-details', icon: List },
     { label: 'Expenses Types', path: '/expenses-types', icon: Tag },
+    { label: 'Businesses', path: '/businesses', icon: Building2 },
     { label: 'Cities', path: '/cities', icon: MapPin },
     { label: 'Zones', path: '/zones', icon: Map },
     { label: 'Import Orders', path: '/import-orders', icon: Download },
-    { label: 'Import Status', path: '/import-status', icon: CheckCircle },
+    { label: 'Profit Calculator', path: '/calculator', icon: Calculator },
 ];
 
 const Users = () => {
@@ -565,7 +578,7 @@ const UserModal = ({ isOpen, onClose, onSubmit, initialData, loading, title }: a
                                                     <FormItem className="space-y-2">
                                                         <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Full Name</FormLabel>
                                                         <FormControl>
-                                                            <Input placeholder="E.g. Alexander Pierce" {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy shadow-inner" />
+                                                            <Input placeholder="E.g. Alexander Pierce" {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
                                                         </FormControl>
                                                         <FormMessage />
                                                     </FormItem>
@@ -608,7 +621,7 @@ const UserModal = ({ isOpen, onClose, onSubmit, initialData, loading, title }: a
                                                     <FormControl>
                                                         <div className="relative">
                                                             <span className="absolute left-5 top-1/2 -translate-y-1/2 text-brand-navy/30 font-black text-sm">@</span>
-                                                            <Input placeholder="p_alexander" {...field} className="h-12 pl-10 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy shadow-inner" />
+                                                            <Input placeholder="p_alexander" {...field} className="h-12 pl-10 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
                                                         </div>
                                                     </FormControl>
                                                     <FormMessage />
@@ -624,7 +637,7 @@ const UserModal = ({ isOpen, onClose, onSubmit, initialData, loading, title }: a
                                                     <FormControl>
                                                         <div className="relative">
                                                             <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-navy/30" />
-                                                            <Input type="email" placeholder="alex@digicom.team" {...field} className="h-12 pl-12 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy shadow-inner" />
+                                                            <Input type="email" placeholder="alex@digicom.team" {...field} className="h-12 pl-12 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
                                                         </div>
                                                     </FormControl>
                                                     <FormMessage />
@@ -645,7 +658,7 @@ const UserModal = ({ isOpen, onClose, onSubmit, initialData, loading, title }: a
                                                             type="password"
                                                             placeholder={initialData ? "••••••••" : "Minimum 6 characters"}
                                                             {...field}
-                                                            className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy shadow-inner"
+                                                            className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner"
                                                         />
                                                     </FormControl>
                                                     {initialData && <FormDescription className="text-[10px] uppercase font-bold text-brand-navy/30 px-2">Leave blank to keep current</FormDescription>}
@@ -739,7 +752,7 @@ const UserModal = ({ isOpen, onClose, onSubmit, initialData, loading, title }: a
                                                                 <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Order Attribution</FormLabel>
                                                                 <FormControl>
                                                                     <div className="relative">
-                                                                        <Input type="number" {...field} onChange={e => field.onChange(Number(e.target.value))} className="h-12 rounded-2xl border-none bg-brand-white text-sm font-bold text-brand-navy shadow-sm" />
+                                                                        <Input type="number" placeholder="0" {...field} onChange={e => field.onChange(Number(e.target.value))} className="h-12 rounded-2xl border-none bg-brand-white text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-sm" />
                                                                     </div>
                                                                 </FormControl>
                                                             </FormItem>
@@ -753,7 +766,7 @@ const UserModal = ({ isOpen, onClose, onSubmit, initialData, loading, title }: a
                                                                 <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Comm. Price</FormLabel>
                                                                 <FormControl>
                                                                     <div className="relative">
-                                                                        <Input type="number" {...field} onChange={e => field.onChange(Number(e.target.value))} className="h-12 rounded-2xl border-none bg-brand-white text-sm font-bold text-brand-navy shadow-sm" />
+                                                                        <Input type="number" placeholder="0" {...field} onChange={e => field.onChange(Number(e.target.value))} className="h-12 rounded-2xl border-none bg-brand-white text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-sm" />
                                                                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-brand-navy/20 text-xs">DH</span>
                                                                     </div>
                                                                 </FormControl>
@@ -773,7 +786,7 @@ const UserModal = ({ isOpen, onClose, onSubmit, initialData, loading, title }: a
                                                             placeholder="Search products..."
                                                             value={productSearch}
                                                             onChange={(e) => setProductSearch(e.target.value)}
-                                                            className="h-11 pl-11 rounded-2xl border-none bg-white shadow-sm text-sm"
+                                                            className="h-11 pl-11 rounded-2xl border-none bg-white shadow-sm text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium"
                                                         />
                                                     </div>
                                                     <div className="space-y-2 max-h-[400px]">

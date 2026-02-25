@@ -319,7 +319,7 @@ const SalesChannels = () => {
                                             <FormItem>
                                                 <FormLabel className="text-xs font-black uppercase tracking-wider text-brand-navy/40">Display Name</FormLabel>
                                                 <FormControl>
-                                                    <Input placeholder="e.g. Primary Store" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/5 font-bold text-brand-navy shadow-inner" />
+                                                    <Input placeholder="e.g. Primary Store" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/5 font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>
@@ -357,7 +357,7 @@ const SalesChannels = () => {
                                                 <FormItem>
                                                     <FormLabel className="text-xs font-black uppercase tracking-wider text-brand-navy/40">Store URL</FormLabel>
                                                     <FormControl>
-                                                        <Input placeholder="https://yourstore.com" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/5 font-bold text-brand-navy shadow-inner" />
+                                                        <Input placeholder="https://yourstore.com" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/5 font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
                                                     </FormControl>
                                                     <FormMessage />
                                                 </FormItem>
@@ -371,7 +371,7 @@ const SalesChannels = () => {
                                                     <FormItem>
                                                         <FormLabel className="text-xs font-black uppercase tracking-wider text-brand-navy/40">Consumer Key (ck_...)</FormLabel>
                                                         <FormControl>
-                                                            <Input type="password" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/5 font-bold text-brand-navy shadow-inner" />
+                                                            <Input type="password" placeholder="ck_..." {...field} className="h-14 rounded-2xl border-none bg-brand-navy/5 font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
                                                         </FormControl>
                                                     </FormItem>
                                                 )}
@@ -383,7 +383,7 @@ const SalesChannels = () => {
                                                     <FormItem>
                                                         <FormLabel className="text-xs font-black uppercase tracking-wider text-brand-navy/40">Consumer Secret (cs_...)</FormLabel>
                                                         <FormControl>
-                                                            <Input type="password" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/5 font-bold text-brand-navy shadow-inner" />
+                                                            <Input type="password" placeholder="cs_..." {...field} className="h-14 rounded-2xl border-none bg-brand-navy/5 font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
                                                         </FormControl>
                                                     </FormItem>
                                                 )}
@@ -402,7 +402,7 @@ const SalesChannels = () => {
                                                     <FormItem>
                                                         <FormLabel className="text-xs font-black uppercase tracking-wider text-brand-navy/40">Spreadsheet ID</FormLabel>
                                                         <FormControl>
-                                                            <Input placeholder="Enter ID from URL" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/5 font-bold text-brand-navy shadow-inner" />
+                                                            <Input placeholder="Enter ID from URL" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/5 font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
                                                         </FormControl>
                                                     </FormItem>
                                                 )}
@@ -414,7 +414,7 @@ const SalesChannels = () => {
                                                     <FormItem>
                                                         <FormLabel className="text-xs font-black uppercase tracking-wider text-brand-navy/40">Sheet/Tab Name</FormLabel>
                                                         <FormControl>
-                                                            <Input placeholder="e.g. Sheet1" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/5 font-bold text-brand-navy shadow-inner" />
+                                                            <Input placeholder="e.g. Sheet1" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/5 font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
                                                         </FormControl>
                                                     </FormItem>
                                                 )}
@@ -427,7 +427,7 @@ const SalesChannels = () => {
                                                 <FormItem>
                                                     <FormLabel className="text-xs font-black uppercase tracking-wider text-brand-navy/40">Data Starts At (Row Number)</FormLabel>
                                                     <FormControl>
-                                                        <Input type="number" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/5 font-bold text-brand-navy shadow-inner" />
+                                                        <Input type="number" placeholder="10" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/5 font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
                                                     </FormControl>
                                                     <FormMessage />
                                                 </FormItem>

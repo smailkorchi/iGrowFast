@@ -427,8 +427,8 @@ const Products = () => {
             }}>
                 <DialogContent className="max-w-2xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
                     <Form {...form}>
-                        <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full">
-                            <DialogHeader className="p-8 pb-4">
+                        <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
+                            <DialogHeader className="p-8 pb-4 shrink-0">
                                 <DialogTitle className="text-3xl font-bold text-brand-navy">
                                     {editingProduct ? 'Edit Product' : 'Add New Product'}
                                 </DialogTitle>
@@ -437,7 +437,7 @@ const Products = () => {
                                 </DialogDescription>
                             </DialogHeader>
 
-                            <div className="overflow-y-auto p-8 pt-4 space-y-8 flex-1">
+                            <div className="overflow-y-auto p-8 pt-4 space-y-8 flex-1 min-h-0 custom-scrollbar">
                                 {/* Image Upload & Basic Info Grid */}
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                                     {/* Image Upload Area */}
@@ -496,7 +496,7 @@ const Products = () => {
                                                         <FormLabel className="text-xs font-bold uppercase tracking-wider">Product Name</FormLabel>
                                                     </div>
                                                     <FormControl>
-                                                        <Input placeholder="E.g. Wireless Headphones" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner" />
+                                                        <Input placeholder="E.g. Wireless Headphones" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
                                                     </FormControl>
                                                     <FormMessage />
                                                 </FormItem>
@@ -514,7 +514,7 @@ const Products = () => {
                                                             <FormLabel className="text-xs font-bold uppercase tracking-wider">SKU / Code</FormLabel>
                                                         </div>
                                                         <FormControl>
-                                                            <Input placeholder="PROD-001" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner" />
+                                                            <Input placeholder="PROD-001" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
                                                         </FormControl>
                                                         <FormMessage />
                                                     </FormItem>
@@ -530,7 +530,7 @@ const Products = () => {
                                                             <FormLabel className="text-xs font-bold uppercase tracking-wider">Short Label</FormLabel>
                                                         </div>
                                                         <FormControl>
-                                                            <Input placeholder="Best Seller" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner" />
+                                                            <Input placeholder="Best Seller" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
                                                         </FormControl>
                                                         <FormMessage />
                                                     </FormItem>
@@ -550,7 +550,7 @@ const Products = () => {
                                                 <FormItem className="space-y-2">
                                                     <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Cost Price (DH)</FormLabel>
                                                     <FormControl>
-                                                        <Input type="number" step="0.01" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner" />
+                                                        <Input type="number" step="0.01" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
                                                     </FormControl>
                                                     <FormMessage />
                                                 </FormItem>
@@ -570,7 +570,7 @@ const Products = () => {
                                                         )}
                                                     </div>
                                                     <FormControl>
-                                                        <Input type="number" step="0.01" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner" />
+                                                        <Input type="number" step="0.01" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
                                                     </FormControl>
                                                     <FormMessage />
                                                 </FormItem>
@@ -587,7 +587,7 @@ const Products = () => {
                                                 <FormControl>
                                                     <Textarea
                                                         placeholder="Detailed product specifications, notes, and information..."
-                                                        className="min-h-[120px] rounded-2xl border-none bg-brand-navy/[0.04] text-base font-medium text-brand-navy shadow-inner resize-none p-4"
+                                                        className="min-h-[120px] rounded-2xl border-none bg-brand-navy/[0.04] text-base font-medium text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner resize-none p-4"
                                                         {...field}
                                                     />
                                                 </FormControl>

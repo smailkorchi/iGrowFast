@@ -1279,7 +1279,7 @@ const Orders = () => {
                                                 <FormItem className="space-y-1">
                                                     <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Full Name</FormLabel>
                                                     <FormControl>
-                                                        <Input placeholder="Client Name" {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner" />
+                                                        <Input placeholder="Client Name" {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
                                                     </FormControl>
                                                     <FormMessage />
                                                 </FormItem>
@@ -1293,7 +1293,7 @@ const Orders = () => {
                                                     <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Contact Number</FormLabel>
                                                     <div className="relative">
                                                         <FormControl>
-                                                            <Input placeholder="+212..." {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner pr-12" />
+                                                            <Input placeholder="+212..." {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner pr-12" />
                                                         </FormControl>
                                                         {(field.value?.replace(/[^0-9+]/g, '') || '').length >= 6 && (
                                                             <Popover open={showCustomerInsights} onOpenChange={setShowCustomerInsights}>
@@ -1394,7 +1394,7 @@ const Orders = () => {
                                                 <FormItem className="space-y-1">
                                                     <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Full Address</FormLabel>
                                                     <FormControl>
-                                                        <Textarea placeholder="Street, building, floor..." {...field} className="min-h-[100px] rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner resize-none p-4" />
+                                                        <Textarea placeholder="Street, building, floor..." {...field} className="min-h-[100px] rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner resize-none p-4" />
                                                     </FormControl>
                                                     <FormMessage />
                                                 </FormItem>
@@ -1596,7 +1596,7 @@ const Orders = () => {
                                                             <MessageSquare className="w-3 h-3 text-brand-navy/40" /> Status Change Reason
                                                         </FormLabel>
                                                         <FormControl>
-                                                            <Textarea placeholder="Why is the status changing? (Optional)" {...field} className="min-h-[80px] resize-none rounded-2xl border-none bg-brand-navy/[0.03] text-sm font-bold text-brand-navy shadow-inner focus-visible:ring-brand-navy/20" />
+                                                            <Textarea placeholder="Why is the status changing? (Optional)" {...field} className="min-h-[80px] resize-none rounded-2xl border-none bg-brand-navy/[0.03] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner focus-visible:ring-brand-navy/20" />
                                                         </FormControl>
                                                     </FormItem>
                                                 )}
@@ -1632,7 +1632,7 @@ const Orders = () => {
                                                 <FormItem className="space-y-1">
                                                     <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Order Note (Internal)</FormLabel>
                                                     <FormControl>
-                                                        <Textarea placeholder="Packaging info, special gift..." {...field} className="min-h-[120px] rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner resize-none p-4" />
+                                                        <Textarea placeholder="Packaging info, special gift..." {...field} className="min-h-[120px] rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner resize-none p-4" />
                                                     </FormControl>
                                                 </FormItem>
                                             )}
@@ -1644,7 +1644,7 @@ const Orders = () => {
                                                 <FormItem className="space-y-1">
                                                     <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Courier Note (Public)</FormLabel>
                                                     <FormControl>
-                                                        <Textarea placeholder="Call before delivery, leave at door..." {...field} className="min-h-[120px] rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner resize-none p-4" />
+                                                        <Textarea placeholder="Call before delivery, leave at door..." {...field} className="min-h-[120px] rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner resize-none p-4" />
                                                     </FormControl>
                                                 </FormItem>
                                             )}

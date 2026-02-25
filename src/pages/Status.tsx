@@ -364,7 +364,7 @@ const Status = () => {
                                             <FormItem className="space-y-2">
                                                 <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Display Label</FormLabel>
                                                 <FormControl>
-                                                    <Input placeholder="Confirmed" {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner" />
+                                                    <Input placeholder="Confirmed" {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>
@@ -377,7 +377,7 @@ const Status = () => {
                                             <FormItem className="space-y-2">
                                                 <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Internal Code</FormLabel>
                                                 <FormControl>
-                                                    <Input placeholder="CONFIRMED" {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner uppercase" />
+                                                    <Input placeholder="CONFIRMED" {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner uppercase" />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>
@@ -477,7 +477,7 @@ const Status = () => {
                                                         render={({ field }) => (
                                                             <FormItem className="flex-1">
                                                                 <FormControl>
-                                                                    <Input placeholder="e.g. READY_TO_SHIP" {...field} className="h-10 rounded-xl border-none bg-brand-navy/[0.04] text-xs font-bold text-brand-navy shadow-inner uppercase" />
+                                                                    <Input placeholder="e.g. READY_TO_SHIP" {...field} className="h-10 rounded-xl border-none bg-brand-navy/[0.04] text-xs font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner uppercase" />
                                                                 </FormControl>
                                                             </FormItem>
                                                         )}
