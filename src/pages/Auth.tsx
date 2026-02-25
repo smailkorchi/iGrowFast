@@ -52,16 +52,20 @@ const Auth = () => {
             // Check user role for redirect
             const { data: profile } = await supabase
                 .from('users')
-                .select('role')
+                .select('role, "DigiCom Business"')
                 .eq('id', data.user.id)
                 .single();
+
+            if (profile?.['DigiCom Business']) {
+                localStorage.setItem('activeBusinessId', profile['DigiCom Business']);
+            }
 
             toast({
                 title: "Welcome back!",
                 description: "Successfully signed in to DigiCom.",
             });
 
-            if (profile?.role === 'seller') {
+            if (profile?.role === 'seller' || profile?.role === 'commercial') {
                 navigate('/seller/dashboard');
             } else {
                 navigate('/');

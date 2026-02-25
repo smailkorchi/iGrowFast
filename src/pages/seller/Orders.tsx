@@ -217,8 +217,8 @@ const Orders = () => {
                     items:order_items(*, product:products(name, code, image_url)),
                     history:order_status_history(*, user:users!changed_by(name, avatar_url), status:order_statuses!status_id(*))
                 `)
-                .eq('seller_id', userId)
-                .eq('assign_id', userId)
+                .eq('DigiCom Business', activeBusinessId)
+                .or(`seller_id.eq.${userId},assign_id.eq.${userId}`)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
@@ -602,7 +602,7 @@ const Orders = () => {
                     .insert({
                         order_id: selectedOrder.id,
                         status_id: values.order_status_id,
-                        comment: 'Status updated via order edit',
+                        comment: values.history_comment || '',
                         changed_by: (await (supabase as any).auth.getUser()).data.user?.id,
                         'DigiCom Business': activeBusinessId
                     });
