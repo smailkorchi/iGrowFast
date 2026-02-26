@@ -37,7 +37,8 @@ import {
     Loader2,
     Calculator,
     Store,
-    MessageSquare
+    MessageSquare,
+    Puzzle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
@@ -80,6 +81,7 @@ const navigation: NavSection[] = [
         items: [
             { icon: ArrowRightLeft, label: 'Transactions', path: '/transactions' },
             { icon: Box, label: 'Products', path: '/products' },
+            { icon: Puzzle, label: 'Accessories', path: '/accessories' },
         ]
     },
     {
@@ -408,8 +410,8 @@ const Sidebar = () => {
                             onClick={togglePin}
                             className={cn(
                                 "w-11 h-11 shrink-0 flex items-center justify-center rounded-2xl transition-all duration-300",
-                                isPinned 
-                                    ? "text-brand-white bg-white/10" 
+                                isPinned
+                                    ? "text-brand-white bg-white/10"
                                     : "text-white/30 hover:text-brand-white hover:bg-white/5 opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100"
                             )}
                             title={isPinned ? "Unpin Sidebar" : "Pin Sidebar"}

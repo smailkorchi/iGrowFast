@@ -34,7 +34,8 @@ import {
     List,
     ShoppingBag,
     ShieldCheck,
-    BarChart3
+    BarChart3,
+    Puzzle
 } from 'lucide-react';
 import {
     Card,
@@ -106,6 +107,11 @@ const orderItemSchema = z.object({
     product_id: z.string().uuid("Please select a product"),
     quantity: z.coerce.number().min(1, "Quantity must be at least 1"),
     unit_price: z.coerce.number().min(0, "Price must be positive"),
+    accessories: z.array(z.object({
+        accessory_id: z.string().optional(),
+        accessory_quantity: z.coerce.number().min(0).optional(),
+        accessory_unit_price: z.coerce.number().min(0).optional(),
+    })).optional().default([]),
 });
 
 const orderSchema = z.object({
@@ -217,7 +223,7 @@ const Orders = () => {
                     courier:users!orders_courier_id_fkey(id, name, avatar_url),
                     assignee:users!orders_assign_id_fkey(id, name, avatar_url),
                     company:providers(id, name, logo_url),
-                    items:order_items(*, product:products(name, code, image_url)),
+                    items:order_items(*, product:products(name, code, image_url), accessory:accessories(name, code, image_url)),
                     history:order_status_history(*, user:users!changed_by(name, avatar_url), status:order_statuses!status_id(*))
                 `)
                 .eq('DigiCom Business', activeBusinessId)
@@ -350,6 +356,32 @@ const Orders = () => {
                 .eq('active', true)
                 .eq('DigiCom Business', activeBusinessId)
                 .order('name');
+            if (error) throw error;
+            return data;
+        },
+    });
+
+    const { data: productAccessories } = useQuery({
+        queryKey: ['product-accessories', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return [];
+            const { data, error } = await supabase
+                .from('product_accessories')
+                .select('*');
+            if (error) throw error;
+            return data;
+        },
+    });
+
+    const { data: accessories } = useQuery({
+        queryKey: ['accessories', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return [];
+            const { data, error } = await supabase
+                .from('accessories')
+                .select('*')
+                .eq('active', true)
+                .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data;
         },
@@ -516,14 +548,35 @@ const Orders = () => {
 
             if (orderError) throw orderError;
 
-            // 2. Insert items
-            const itemRecords = values.items.map(item => ({
-                order_id: order.id,
-                product_id: item.product_id,
-                quantity: item.quantity,
-                unit_price: item.unit_price,
-                'DigiCom Business': activeBusinessId
-            }));
+            // 2. Insert items and their accessories
+            const itemRecords: any[] = [];
+            values.items.forEach(item => {
+                // Main product
+                itemRecords.push({
+                    order_id: order.id,
+                    product_id: item.product_id,
+                    quantity: item.quantity,
+                    unit_price: item.unit_price,
+                    'DigiCom Business': activeBusinessId
+                });
+                // Accessories
+                if (item.accessories && item.accessories.length > 0) {
+                    item.accessories.forEach(acc => {
+                        if (acc.accessory_id && acc.accessory_id !== 'none') {
+                            itemRecords.push({
+                                order_id: order.id,
+                                product_id: item.product_id,
+                                accessory_id: acc.accessory_id,
+                                quantity: 0, // 0 means it's an accessory
+                                unit_price: 0,
+                                accessory_quantity: acc.accessory_quantity || 1,
+                                accessory_unit_price: acc.accessory_unit_price || 0,
+                                'DigiCom Business': activeBusinessId
+                            });
+                        }
+                    });
+                }
+            });
 
             const { error: itemsError } = await (supabase as any)
                 .from('order_items')
@@ -610,13 +663,34 @@ const Orders = () => {
 
             if (deleteError) throw deleteError;
 
-            const itemRecords = values.items.map(item => ({
-                order_id: selectedOrder.id,
-                product_id: item.product_id,
-                quantity: item.quantity,
-                unit_price: item.unit_price,
-                'DigiCom Business': activeBusinessId
-            }));
+            const itemRecords: any[] = [];
+            values.items.forEach(item => {
+                // Main product
+                itemRecords.push({
+                    order_id: selectedOrder.id,
+                    product_id: item.product_id,
+                    quantity: item.quantity,
+                    unit_price: item.unit_price,
+                    'DigiCom Business': activeBusinessId
+                });
+                // Accessories
+                if (item.accessories && item.accessories.length > 0) {
+                    item.accessories.forEach(acc => {
+                        if (acc.accessory_id && acc.accessory_id !== 'none') {
+                            itemRecords.push({
+                                order_id: selectedOrder.id,
+                                product_id: item.product_id,
+                                accessory_id: acc.accessory_id,
+                                quantity: 0,
+                                unit_price: 0,
+                                accessory_quantity: acc.accessory_quantity || 1,
+                                accessory_unit_price: acc.accessory_unit_price || 0,
+                                'DigiCom Business': activeBusinessId
+                            });
+                        }
+                    });
+                }
+            });
 
             const { error: itemsError } = await (supabase as any)
                 .from('order_items')
@@ -703,11 +777,44 @@ const Orders = () => {
             order_status_id: order.order_status_id,
             courier_id: order.courier_id,
             company_id: order.company_id,
-            items: order.items.map((item: any) => ({
-                product_id: item.product_id,
-                quantity: Number(item.quantity),
-                unit_price: Number(item.unit_price)
-            }))
+            items: (() => {
+                const groupedItems: any[] = [];
+                order.items?.forEach((item: any) => {
+                    if (item.product_id && Number(item.quantity) > 0) {
+                        groupedItems.push({
+                            product_id: item.product_id || '',
+                            quantity: Number(item.quantity) || 0,
+                            unit_price: Number(item.unit_price) || 0,
+                            accessories: item.accessory_id ? [{
+                                accessory_id: item.accessory_id,
+                                accessory_quantity: Number(item.accessory_quantity) || 0,
+                                accessory_unit_price: Number(item.accessory_unit_price) || 0
+                            }] : []
+                        });
+                    } else if (item.product_id && Number(item.quantity) === 0) {
+                        const parent = groupedItems.find(g => g.product_id === item.product_id);
+                        if (parent && item.accessory_id) {
+                            parent.accessories.push({
+                                accessory_id: item.accessory_id,
+                                accessory_quantity: Number(item.accessory_quantity) || 0,
+                                accessory_unit_price: Number(item.accessory_unit_price) || 0
+                            });
+                        }
+                    } else if (!item.product_id) {
+                        groupedItems.push({
+                            product_id: '',
+                            quantity: 0,
+                            unit_price: 0,
+                            accessories: item.accessory_id ? [{
+                                accessory_id: item.accessory_id,
+                                accessory_quantity: Number(item.accessory_quantity) || 0,
+                                accessory_unit_price: Number(item.accessory_unit_price) || 0
+                            }] : []
+                        });
+                    }
+                });
+                return groupedItems.length > 0 ? groupedItems : [{ product_id: '', quantity: 1, unit_price: 0, accessories: [] }];
+            })()
         });
         setIsEditModalOpen(true);
     };
@@ -1669,89 +1776,241 @@ const Orders = () => {
                                     </div>
 
                                     <div className="space-y-4">
-                                        {fields.map((field, index) => (
-                                            <div key={field.id} className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end bg-brand-navy/[0.01] p-4 rounded-[32px] animate-in slide-in-from-left-2 duration-300">
-                                                <div className="md:col-span-6">
-                                                    <FormField
-                                                        control={form.control}
-                                                        name={`items.${index}.product_id`}
-                                                        render={({ field }) => (
-                                                            <FormItem className="space-y-1">
-                                                                <FormLabel className="text-[10px] uppercase font-black text-muted-foreground/60">Search Product</FormLabel>
-                                                                <Select
-                                                                    onValueChange={(val) => {
-                                                                        field.onChange(val);
-                                                                        const prod = products?.find((p: any) => p.id === val);
-                                                                        if (prod) {
-                                                                            form.setValue(`items.${index}.unit_price`, Number(prod.selling_price));
-                                                                        }
-                                                                    }}
-                                                                    defaultValue={field.value}
-                                                                >
-                                                                    <FormControl>
-                                                                        <SelectTrigger className="h-12 rounded-2xl border-none bg-brand-navy/5 text-base font-bold text-brand-navy shadow-inner pr-4">
-                                                                            <SelectValue placeholder="SKU or Name" />
-                                                                        </SelectTrigger>
-                                                                    </FormControl>
-                                                                    <SelectContent className="rounded-2xl border-none shadow-2xl max-h-[250px] overflow-y-auto custom-scrollbar">
-                                                                        {products?.map((p: any) => (
-                                                                            <SelectItem key={p.id} value={p.id} className="rounded-xl font-bold py-3">
-                                                                                {p.name} <span className="text-[10px] opacity-40 ml-2">({p.code})</span>
-                                                                            </SelectItem>
-                                                                        ))}
-                                                                    </SelectContent>
-                                                                </Select>
-                                                                <FormMessage />
-                                                            </FormItem>
-                                                        )}
-                                                    />
-                                                </div>
-                                                <div className="md:col-span-2">
-                                                    <FormField
-                                                        control={form.control}
-                                                        name={`items.${index}.unit_price`}
-                                                        render={({ field }) => (
-                                                            <FormItem className="space-y-1">
-                                                                <FormLabel className="text-[10px] uppercase font-black text-muted-foreground/60">Unit Price</FormLabel>
-                                                                <Input type="number" {...field} className="h-12 rounded-2xl border-none bg-brand-navy/5 text-base font-bold text-brand-navy shadow-inner text-center" />
-                                                            </FormItem>
-                                                        )}
-                                                    />
-                                                </div>
-                                                <div className="md:col-span-2">
-                                                    <FormField
-                                                        control={form.control}
-                                                        name={`items.${index}.quantity`}
-                                                        render={({ field }) => (
-                                                            <FormItem className="space-y-1">
-                                                                <FormLabel className="text-[10px] uppercase font-black text-muted-foreground/60">Qty</FormLabel>
-                                                                <Input type="number" {...field} className="h-12 rounded-2xl border-none bg-brand-navy/5 text-base font-bold text-brand-navy shadow-inner text-center" />
-                                                            </FormItem>
-                                                        )}
-                                                    />
-                                                </div>
-                                                <div className="md:col-span-1">
-                                                    <div className="h-12 flex flex-col items-center justify-center">
-                                                        <span className="text-[8px] font-black uppercase text-muted-foreground/40 leading-none mb-1">Row Total</span>
-                                                        <span className="text-sm font-black text-brand-navy">
-                                                            {(form.watch(`items.${index}.quantity`) * form.watch(`items.${index}.unit_price`)).toFixed(0)}DH
-                                                        </span>
+                                        {fields.map((field, index) => {
+                                            const hasProduct = !!form.watch(`items.${index}.product_id`) && form.watch(`items.${index}.product_id`) !== 'none';
+                                            const productSubtotal = (form.watch(`items.${index}.quantity`) || 0) * (form.watch(`items.${index}.unit_price`) || 0);
+                                            return (
+                                                <div key={field.id} className="p-5 rounded-[24px] bg-brand-navy/[0.015] border border-brand-navy/[0.04] space-y-4 animate-in slide-in-from-left-2 duration-300">
+                                                    {/* Product Row */}
+                                                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                                                        <div className="md:col-span-5">
+                                                            <FormField
+                                                                control={form.control}
+                                                                name={`items.${index}.product_id`}
+                                                                render={({ field }) => (
+                                                                    <FormItem className="space-y-1">
+                                                                        <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground/60 flex items-center gap-1.5"><Package className="w-3 h-3" /> Product</FormLabel>
+                                                                        <Select
+                                                                            onValueChange={(val) => {
+                                                                                field.onChange(val);
+                                                                                if (val !== 'none') {
+                                                                                    const prod = products?.find((p: any) => p.id === val);
+                                                                                    if (prod) {
+                                                                                        form.setValue(`items.${index}.unit_price`, Number(prod.selling_price || 0));
+                                                                                        if (form.watch(`items.${index}.quantity`) === 0) {
+                                                                                            form.setValue(`items.${index}.quantity`, 1);
+                                                                                        }
+
+                                                                                        // Auto-select accessory if attached
+                                                                                        const attachments = productAccessories?.filter((pa: any) => pa.product_id === val);
+                                                                                        if (attachments && attachments.length > 0) {
+                                                                                            const currentAccessories = form.getValues(`items.${index}.accessories`) || [];
+                                                                                            const newAccessories = [...currentAccessories];
+
+                                                                                            attachments.forEach((attachment: any) => {
+                                                                                                const existingAttached = newAccessories.find((a: any) => a.accessory_id === attachment.accessory_id);
+                                                                                                if (!existingAttached) {
+                                                                                                    const acc = accessories?.find((a: any) => a.id === attachment.accessory_id);
+                                                                                                    newAccessories.push({
+                                                                                                        accessory_id: attachment.accessory_id,
+                                                                                                        accessory_quantity: attachment.default_quantity || 1,
+                                                                                                        accessory_unit_price: acc ? Number(acc.cost_price || 0) : 0
+                                                                                                    });
+                                                                                                }
+                                                                                            });
+
+                                                                                            form.setValue(`items.${index}.accessories`, newAccessories);
+                                                                                        }
+                                                                                    }
+                                                                                } else {
+                                                                                    form.setValue(`items.${index}.unit_price`, 0);
+                                                                                    form.setValue(`items.${index}.quantity`, 0);
+                                                                                }
+                                                                            }}
+                                                                            value={field.value || ''}
+                                                                        >
+                                                                            <FormControl>
+                                                                                <SelectTrigger className="h-12 rounded-2xl border-none bg-white text-base font-bold text-brand-navy shadow-sm">
+                                                                                    <SelectValue placeholder="Select product" />
+                                                                                </SelectTrigger>
+                                                                            </FormControl>
+                                                                            <SelectContent className="rounded-2xl border-none shadow-2xl max-h-[250px] overflow-y-auto custom-scrollbar">
+                                                                                {products?.map((p: any) => (
+                                                                                    <SelectItem key={p.id} value={p.id} className="rounded-xl font-bold py-3">
+                                                                                        {p.name} <span className="text-[10px] opacity-40 ml-2">({p.code})</span>
+                                                                                    </SelectItem>
+                                                                                ))}
+                                                                            </SelectContent>
+                                                                        </Select>
+                                                                        <FormMessage />
+                                                                    </FormItem>
+                                                                )}
+                                                            />
+                                                        </div>
+                                                        <div className="md:col-span-2">
+                                                            <FormField
+                                                                control={form.control}
+                                                                name={`items.${index}.unit_price`}
+                                                                render={({ field }) => (
+                                                                    <FormItem className="space-y-1">
+                                                                        <FormLabel className="text-[10px] uppercase font-black text-muted-foreground/60">Unit Price</FormLabel>
+                                                                        <Input type="number" {...field} disabled={!hasProduct} className="h-12 rounded-2xl border-none bg-white shadow-sm text-base font-bold text-brand-navy text-center" />
+                                                                    </FormItem>
+                                                                )}
+                                                            />
+                                                        </div>
+                                                        <div className="md:col-span-2">
+                                                            <FormField
+                                                                control={form.control}
+                                                                name={`items.${index}.quantity`}
+                                                                render={({ field }) => (
+                                                                    <FormItem className="space-y-1">
+                                                                        <FormLabel className="text-[10px] uppercase font-black text-muted-foreground/60">Qty</FormLabel>
+                                                                        <Input type="number" {...field} disabled={!hasProduct} className="h-12 rounded-2xl border-none bg-white shadow-sm text-base font-bold text-brand-navy text-center" />
+                                                                    </FormItem>
+                                                                )}
+                                                            />
+                                                        </div>
+                                                        <div className="md:col-span-2">
+                                                            <div className="h-12 flex flex-col items-center justify-center">
+                                                                <span className="text-[8px] font-black uppercase text-muted-foreground/40 leading-none mb-1">Product Total</span>
+                                                                <span className="text-sm font-black text-brand-navy">
+                                                                    {productSubtotal.toFixed(2)} DH
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="md:col-span-1 flex justify-end">
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                onClick={() => remove(index)}
+                                                                disabled={fields.length === 1}
+                                                                className="h-12 w-12 rounded-2xl text-red-300 hover:text-red-500 hover:bg-red-50 transition-all"
+                                                            >
+                                                                <Trash2 className="w-5 h-5" />
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Accessories List */}
+                                                    <div className="pt-2 border-t border-brand-navy/[0.04]">
+                                                        {(form.watch(`items.${index}.accessories`) || []).map((acc: any, accIdx: number) => {
+                                                            const accSubtotal = (form.watch(`items.${index}.accessories.${accIdx}.accessory_quantity`) || 0) * (form.watch(`items.${index}.accessories.${accIdx}.accessory_unit_price`) || 0);
+                                                            const hasAccessory = !!form.watch(`items.${index}.accessories.${accIdx}.accessory_id`) && form.watch(`items.${index}.accessories.${accIdx}.accessory_id`) !== 'none';
+
+                                                            return (
+                                                                <div key={accIdx} className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end mb-4 bg-brand-navy/[0.01] p-3 rounded-2xl">
+                                                                    <div className="md:col-span-5">
+                                                                        <FormField
+                                                                            control={form.control}
+                                                                            name={`items.${index}.accessories.${accIdx}.accessory_id`}
+                                                                            render={({ field }) => (
+                                                                                <FormItem className="space-y-1">
+                                                                                    <FormLabel className="text-[10px] uppercase font-bold text-brand-navy/60 flex items-center gap-1.5"><Puzzle className="w-3 h-3" /> Accessory</FormLabel>
+                                                                                    <Select
+                                                                                        onValueChange={(val) => {
+                                                                                            field.onChange(val);
+                                                                                            if (val !== 'none') {
+                                                                                                const accessoryObj = accessories?.find((a: any) => a.id === val);
+                                                                                                if (accessoryObj) {
+                                                                                                    form.setValue(`items.${index}.accessories.${accIdx}.accessory_unit_price`, Number(accessoryObj.cost_price || 0));
+                                                                                                    if (form.watch(`items.${index}.accessories.${accIdx}.accessory_quantity`) === 0) {
+                                                                                                        form.setValue(`items.${index}.accessories.${accIdx}.accessory_quantity`, 1);
+                                                                                                    }
+                                                                                                }
+                                                                                            } else {
+                                                                                                form.setValue(`items.${index}.accessories.${accIdx}.accessory_unit_price`, 0);
+                                                                                                form.setValue(`items.${index}.accessories.${accIdx}.accessory_quantity`, 0);
+                                                                                            }
+                                                                                        }}
+                                                                                        value={field.value || ''}
+                                                                                    >
+                                                                                        <FormControl>
+                                                                                            <SelectTrigger className="h-12 rounded-xl border-none bg-white text-base font-bold text-brand-navy shadow-sm">
+                                                                                                <SelectValue placeholder="Add accessory (optional)" />
+                                                                                            </SelectTrigger>
+                                                                                        </FormControl>
+                                                                                        <SelectContent className="rounded-2xl border-none shadow-2xl max-h-[250px] overflow-y-auto custom-scrollbar">
+                                                                                            <SelectItem value="none" className="rounded-xl font-medium text-muted-foreground">— No accessory —</SelectItem>
+                                                                                            {accessories?.map((a: any) => (
+                                                                                                <SelectItem key={a.id} value={a.id} className="rounded-xl font-medium">
+                                                                                                    {a.name} <span className="text-muted-foreground ml-2 text-xs">({a.code})</span>
+                                                                                                </SelectItem>
+                                                                                            ))}
+                                                                                        </SelectContent>
+                                                                                    </Select>
+                                                                                    <FormMessage />
+                                                                                </FormItem>
+                                                                            )}
+                                                                        />
+                                                                    </div>
+                                                                    <div className="md:col-span-2">
+                                                                        <FormField
+                                                                            control={form.control}
+                                                                            name={`items.${index}.accessories.${accIdx}.accessory_unit_price`}
+                                                                            render={({ field }) => (
+                                                                                <FormItem className="space-y-1">
+                                                                                    <FormLabel className="text-[10px] uppercase font-black text-brand-navy/40">Unit Cost</FormLabel>
+                                                                                    <Input type="number" {...field} disabled={!hasAccessory} className="h-12 rounded-xl border-none bg-white shadow-sm text-base font-bold text-brand-navy text-center" />
+                                                                                </FormItem>
+                                                                            )}
+                                                                        />
+                                                                    </div>
+                                                                    <div className="md:col-span-2">
+                                                                        <FormField
+                                                                            control={form.control}
+                                                                            name={`items.${index}.accessories.${accIdx}.accessory_quantity`}
+                                                                            render={({ field }) => (
+                                                                                <FormItem className="space-y-1">
+                                                                                    <FormLabel className="text-[10px] uppercase font-black text-brand-navy/40">Qty</FormLabel>
+                                                                                    <Input type="number" {...field} disabled={!hasAccessory} className="h-12 rounded-xl border-none bg-white shadow-sm text-base font-bold text-brand-navy text-center" />
+                                                                                </FormItem>
+                                                                            )}
+                                                                        />
+                                                                    </div>
+                                                                    <div className="md:col-span-2">
+                                                                        <div className="h-12 flex flex-col items-center justify-center">
+                                                                            <span className="text-[8px] font-black uppercase text-brand-navy/30 leading-none mb-1">Row Total</span>
+                                                                            <span className="text-sm font-black text-brand-navy/70">
+                                                                                {accSubtotal.toFixed(2)} DH
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="md:col-span-1 flex justify-end">
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="ghost"
+                                                                            size="icon"
+                                                                            onClick={() => {
+                                                                                const current = form.getValues(`items.${index}.accessories`) || [];
+                                                                                current.splice(accIdx, 1);
+                                                                                form.setValue(`items.${index}.accessories`, current);
+                                                                            }}
+                                                                            className="h-12 w-12 rounded-xl text-red-300 hover:text-red-500 hover:bg-red-50 transition-all"
+                                                                        >
+                                                                            <Trash2 className="w-5 h-5" />
+                                                                        </Button>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            onClick={() => {
+                                                                const current = form.getValues(`items.${index}.accessories`) || [];
+                                                                current.push({ accessory_id: 'none', accessory_quantity: 0, accessory_unit_price: 0 });
+                                                                form.setValue(`items.${index}.accessories`, current);
+                                                            }}
+                                                            className="text-[10px] font-black uppercase text-brand-navy hover:bg-brand-navy/[0.05] gap-2 rounded-xl h-8 px-3 mt-2"
+                                                        >
+                                                            <Plus className="w-3 h-3" /> Add Accessory
+                                                        </Button>
                                                     </div>
                                                 </div>
-                                                <div className="md:col-span-1">
-                                                    <Button
-                                                        type="button"
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() => remove(index)}
-                                                        disabled={fields.length === 1}
-                                                        className="h-12 w-12 rounded-2xl text-red-300 hover:text-red-500 hover:bg-red-50 transition-all"
-                                                    >
-                                                        <Trash2 className="w-5 h-5" />
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             </div>
@@ -1930,42 +2189,115 @@ const Orders = () => {
                                         </Badge>
                                     </div>
                                     <div className="grid grid-cols-1 gap-4">
-                                        {selectedOrder.items?.map((item: any) => (
-                                            <div
-                                                key={item.id}
-                                                className="group p-6 rounded-[32px] bg-brand-navy/[0.01] hover:bg-brand-navy/[0.02] border border-brand-navy/[0.03] flex flex-col md:flex-row justify-between items-center gap-4 transition-all"
-                                            >
-                                                <div className="flex items-center gap-5 flex-1">
-                                                    <div className="w-16 h-16 rounded-[20px] bg-brand-navy/5 flex items-center justify-center overflow-hidden shrink-0">
-                                                        {item.product?.image_url ? (
-                                                            <img src={item.product?.image_url} alt="" className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            <Package className="w-8 h-8 text-brand-navy/20" />
+                                        {(() => {
+                                            const displayItems: any[] = [];
+                                            selectedOrder.items?.forEach((item: any) => {
+                                                if (item.product_id && Number(item.quantity) > 0) {
+                                                    displayItems.push({ ...item, accessoriesList: item.accessory_id ? [item] : [] });
+                                                } else if (item.product_id && Number(item.quantity) === 0) {
+                                                    const parent = displayItems.find(l => l.product_id === item.product_id);
+                                                    if (parent) {
+                                                        parent.accessoriesList.push(item);
+                                                    } else {
+                                                        displayItems.push({ ...item, accessoriesList: item.accessory_id ? [item] : [] });
+                                                    }
+                                                } else {
+                                                    displayItems.push({ ...item, accessoriesList: item.accessory_id ? [item] : [] });
+                                                }
+                                            });
+
+                                            return displayItems.map((item: any) => {
+                                                const prodTotal = (item.quantity || 0) * (item.unit_price || 0);
+                                                return (
+                                                    <div
+                                                        key={item.id}
+                                                        className="group p-6 rounded-[32px] bg-brand-navy/[0.01] border border-brand-navy/[0.03] flex flex-col gap-4 animate-in slide-in-from-bottom-2 duration-300"
+                                                    >
+                                                        {/* Product Info */}
+                                                        {item.product && (
+                                                            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                                                                <div className="flex items-center gap-5 flex-1 w-full md:w-auto">
+                                                                    <div className="w-16 h-16 rounded-[20px] bg-brand-navy/5 flex items-center justify-center overflow-hidden shrink-0">
+                                                                        {item.product?.image_url ? (
+                                                                            <img src={item.product?.image_url} alt="" className="w-full h-full object-cover" />
+                                                                        ) : (
+                                                                            <Package className="w-8 h-8 text-brand-navy/20" />
+                                                                        )}
+                                                                    </div>
+                                                                    <div>
+                                                                        <h5 className="text-lg font-black text-brand-navy leading-none mb-1 group-hover:text-blue-600 transition-colors uppercase">{item.product?.name}</h5>
+                                                                        <div className="flex items-center gap-3">
+                                                                            <p className="text-[10px] font-bold text-muted-foreground/60 tracking-widest bg-brand-navy/5 px-2 py-0.5 rounded-md inline-block">{item.product?.code}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="flex items-center justify-between md:justify-end w-full md:w-auto gap-8  md:gap-12 text-right">
+                                                                    <div>
+                                                                        <p className="text-[10px] font-black uppercase text-muted-foreground/40 tracking-widest mb-1">Unit Price</p>
+                                                                        <p className="text-lg font-black text-brand-navy">{item.unit_price} DH</p>
+                                                                    </div>
+                                                                    <div>
+                                                                        <p className="text-[10px] font-black uppercase text-muted-foreground/40 tracking-widest mb-1">Qty</p>
+                                                                        <p className="text-lg font-black text-brand-navy">x{item.quantity}</p>
+                                                                    </div>
+                                                                    <div className="min-w-[80px] md:min-w-[100px]">
+                                                                        <p className="text-[10px] font-black uppercase text-muted-foreground/40 tracking-widest mb-1">Subtotal</p>
+                                                                        <p className="text-xl font-black text-brand-navy">{prodTotal} DH</p>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Accessory Info List */}
+                                                        {item.accessoriesList && item.accessoriesList.length > 0 && item.accessoriesList.map((accItem: any, idx: number) => {
+                                                            const accTotal = (accItem.accessory_quantity || 0) * (accItem.accessory_unit_price || 0);
+                                                            return (
+                                                                <div key={accItem.id || idx} className="flex flex-col md:flex-row justify-between items-center gap-4 pt-4 border-t border-brand-navy/[0.04]">
+                                                                    <div className="flex items-center gap-5 flex-1 w-full md:w-auto">
+                                                                        <div className="w-12 h-12 rounded-[16px] bg-brand-navy/5 flex items-center justify-center overflow-hidden shrink-0 md:ml-4">
+                                                                            {accItem.accessory?.image_url ? (
+                                                                                <img src={accItem.accessory?.image_url} alt="" className="w-full h-full object-cover" />
+                                                                            ) : (
+                                                                                <Puzzle className="w-5 h-5 text-brand-navy/20" />
+                                                                            )}
+                                                                        </div>
+                                                                        <div>
+                                                                            <h5 className="text-sm font-black text-brand-navy/70 leading-none mb-1 uppercase flex items-center gap-2">
+                                                                                <Puzzle className="w-3 h-3" /> {accItem.accessory?.name}
+                                                                            </h5>
+                                                                            <p className="text-[10px] font-bold text-muted-foreground/60 tracking-widest bg-brand-navy/5 px-2 py-0.5 rounded-md inline-block">{accItem.accessory?.code}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex items-center justify-between md:justify-end w-full md:w-auto gap-8 md:gap-12 text-right">
+                                                                        <div>
+                                                                            <p className="text-[10px] font-black uppercase text-muted-foreground/40 tracking-widest mb-1">Unit Cost</p>
+                                                                            <p className="text-sm font-black text-brand-navy/80">{accItem.accessory_unit_price} DH</p>
+                                                                        </div>
+                                                                        <div>
+                                                                            <p className="text-[10px] font-black uppercase text-muted-foreground/40 tracking-widest mb-1">Qty</p>
+                                                                            <p className="text-sm font-black text-brand-navy/80">x{accItem.accessory_quantity}</p>
+                                                                        </div>
+                                                                        <div className="min-w-[80px] md:min-w-[100px]">
+                                                                            <p className="text-[10px] font-black uppercase text-muted-foreground/40 tracking-widest mb-1">Cost Total</p>
+                                                                            <p className="text-sm font-black text-brand-navy/80">{accTotal} DH</p>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+
+                                                        {item.product && (
+                                                            <div className="pt-3 border-t border-brand-navy/[0.04] flex justify-end">
+                                                                <div className="bg-emerald-50 text-emerald-700 px-4 py-2 rounded-2xl flex items-center gap-4">
+                                                                    <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Row Subtotal</span>
+                                                                    <span className="text-xl font-black">{prodTotal} DH</span>
+                                                                </div>
+                                                            </div>
                                                         )}
                                                     </div>
-                                                    <div>
-                                                        <h5 className="text-lg font-black text-brand-navy leading-none mb-1 group-hover:text-blue-600 transition-colors uppercase">{item.product?.name}</h5>
-                                                        <div className="flex items-center gap-3">
-                                                            <p className="text-[10px] font-bold text-muted-foreground/60 tracking-widest bg-brand-navy/5 px-2 py-0.5 rounded-md">{item.product?.code}</p>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-12 text-right">
-                                                    <div>
-                                                        <p className="text-[10px] font-black uppercase text-muted-foreground/40 tracking-widest mb-1">Unit Price</p>
-                                                        <p className="text-lg font-black text-brand-navy">{item.unit_price} DH</p>
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-[10px] font-black uppercase text-muted-foreground/40 tracking-widest mb-1">Quantity</p>
-                                                        <p className="text-lg font-black text-brand-navy">x{item.quantity}</p>
-                                                    </div>
-                                                    <div className="min-w-[100px]">
-                                                        <p className="text-[10px] font-black uppercase text-muted-foreground/40 tracking-widest mb-1">Subtotal</p>
-                                                        <p className="text-2xl font-black text-emerald-600">{item.total_price} DH</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))}
+                                                );
+                                            });
+                                        })()}
                                     </div>
                                 </div>
 

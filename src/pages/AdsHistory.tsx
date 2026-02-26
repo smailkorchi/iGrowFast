@@ -468,7 +468,7 @@ const AdsHistory = () => {
                                             <FormItem>
                                                 <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Total Spend (DH)</FormLabel>
                                                 <FormControl>
-                                                    <Input type="number" step="0.01" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-lg font-black text-brand-navy shadow-inner" />
+                                                    <Input type="number" step="0.01" placeholder="0" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-lg font-black text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>
@@ -481,7 +481,7 @@ const AdsHistory = () => {
                                             <FormItem>
                                                 <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Total Results</FormLabel>
                                                 <FormControl>
-                                                    <Input type="number" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-lg font-black text-brand-navy shadow-inner" />
+                                                    <Input type="number" placeholder="0" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-lg font-black text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>

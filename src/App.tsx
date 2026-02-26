@@ -14,6 +14,7 @@ import DeliveryServices from "./pages/DeliveryServices";
 import Payments from "./pages/Payments";
 import Transactions from "./pages/Transactions";
 import Products from "./pages/Products";
+import Accessories from "./pages/Accessories";
 import Status from "./pages/Status";
 import Analytics from "./pages/Analytics";
 import SalesChannels from "./pages/SalesChannels";
@@ -107,6 +108,7 @@ const App = () => (
                     <Route path="/webhooks" element={<Webhooks />} />
                     <Route path="/transactions" element={<Transactions />} />
                     <Route path="/products" element={<Products />} />
+                    <Route path="/accessories" element={<Accessories />} />
                     <Route path="/status" element={<Status />} />
                     <Route path="/analytics" element={<Analytics />} />
                     <Route path="/sales-channels" element={<SalesChannels />} />

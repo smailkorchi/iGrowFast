@@ -42,7 +42,8 @@ import {
     Calculator,
     MessageSquare,
     DollarSign,
-    Store
+    Store,
+    Puzzle
 } from 'lucide-react';
 import {
     Card,
@@ -124,6 +125,7 @@ const pages = [
     { label: 'Webhooks', path: '/webhooks', icon: Zap },
     { label: 'Transactions', path: '/transactions', icon: ArrowRightLeft },
     { label: 'Products', path: '/products', icon: Box },
+    { label: 'Accessories', path: '/accessories', icon: Puzzle },
     { label: 'Status', path: '/status', icon: RefreshCcw },
     { label: 'Analytics', path: '/analytics', icon: BarChart2 },
     { label: 'Sales Channels', path: '/sales-channels', icon: Megaphone },

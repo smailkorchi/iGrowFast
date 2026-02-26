@@ -20,7 +20,8 @@ import {
     Package,
     PlusCircle,
     X,
-    Eye
+    Eye,
+    Puzzle
 } from 'lucide-react';
 import {
     Card,
@@ -77,9 +78,12 @@ const transactionSchema = z.object({
     note: z.string().optional(),
     date: z.string().default(new Date().toISOString().split('T')[0]),
     items: z.array(z.object({
-        product_id: z.string().uuid("Please select a product"),
+        product_id: z.string().optional().default(''),
+        accessory_id: z.string().optional().default(''),
         quantity: z.coerce.number().min(1, "Quantity must be at least 1"),
         unit_price: z.coerce.number().min(0, "Price must be positive"),
+        accessory_quantity: z.coerce.number().min(0).default(0),
+        accessory_unit_price: z.coerce.number().min(0).default(0),
     })).min(1, "At least one item is required"),
 });
 
@@ -113,7 +117,7 @@ const Transactions = () => {
                 .from('transactions')
                 .select(`
                     *,
-                    items:trns_purchase(*, product:products(name, code)),
+                    items:trns_purchase(*, product:products(name, code), accessory:accessories(name, code)),
                     payments:trns_payment(*)
                 `)
                 .eq('DigiCom Business', activeBusinessId)
@@ -138,6 +142,20 @@ const Transactions = () => {
         },
     });
 
+    const { data: accessories } = useQuery({
+        queryKey: ['accessories-minimal', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return [];
+            const { data, error } = await supabase
+                .from('accessories')
+                .select('id, name, code, cost_price')
+                .eq('DigiCom Business', activeBusinessId)
+                .eq('active', true);
+            if (error) throw error;
+            return data;
+        },
+    });
+
     // --- Forms ---
     const transactionForm = useForm<TransactionFormValues>({
         resolver: zodResolver(transactionSchema),
@@ -148,7 +166,7 @@ const Transactions = () => {
             address: '',
             note: '',
             date: new Date().toISOString().split('T')[0],
-            items: [{ product_id: '', quantity: 1, unit_price: 0 }]
+            items: [{ product_id: '', accessory_id: '', quantity: 1, unit_price: 0, accessory_quantity: 0, accessory_unit_price: 0 }]
         }
     });
 
@@ -189,9 +207,12 @@ const Transactions = () => {
             // 2. Create purchase items
             const items = values.items.map(item => ({
                 transaction_id: tx.id,
-                product_id: item.product_id,
+                product_id: (item.product_id && item.product_id !== 'none') ? item.product_id : null,
+                accessory_id: (item.accessory_id && item.accessory_id !== 'none') ? item.accessory_id : null,
                 quantity: item.quantity,
                 sub_total: item.quantity * item.unit_price,
+                accessory_quantity: item.accessory_quantity || 0,
+                accessory_sub_total: (item.accessory_quantity || 0) * (item.accessory_unit_price || 0),
                 'DigiCom Business': activeBusinessId
             }));
 
@@ -201,11 +222,31 @@ const Transactions = () => {
 
             if (itemsError) throw itemsError;
 
+            // 3. Update accessory stock for each item that has an accessory
+            for (const item of values.items) {
+                if (item.accessory_id && item.accessory_id !== 'none' && item.accessory_quantity > 0) {
+                    // Fetch current stock then increment
+                    const { data: acc } = await supabase
+                        .from('accessories')
+                        .select('stock')
+                        .eq('id', item.accessory_id)
+                        .single();
+                    if (acc) {
+                        await supabase
+                            .from('accessories')
+                            .update({ stock: (acc.stock || 0) + item.accessory_quantity })
+                            .eq('id', item.accessory_id);
+                    }
+                }
+            }
+
             return tx;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['transactions', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['products', activeBusinessId] }); // Stock changed
+            queryClient.invalidateQueries({ queryKey: ['accessories', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['accessories-minimal', activeBusinessId] });
             setIsAddModalOpen(false);
             transactionForm.reset();
             toast({ title: "Transaction Created", description: "Purchases and stock updated successfully." });
@@ -502,7 +543,7 @@ const Transactions = () => {
                                         <Button
                                             type="button"
                                             variant="ghost"
-                                            onClick={() => append({ product_id: '', quantity: 1, unit_price: 0 })}
+                                            onClick={() => append({ product_id: '', accessory_id: '', quantity: 1, unit_price: 0, accessory_quantity: 0, accessory_unit_price: 0 })}
                                             className="text-xs font-bold text-brand-navy hover:bg-brand-navy/[0.05] gap-2 rounded-xl"
                                         >
                                             <Plus className="w-3.5 h-3.5" /> Add Row
@@ -510,77 +551,149 @@ const Transactions = () => {
                                     </div>
 
                                     <div className="space-y-4">
-                                        {fields.map((field, index) => (
-                                            <div key={field.id} className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end animate-in slide-in-from-left-2 duration-300">
-                                                <div className="md:col-span-6">
-                                                    <FormField
-                                                        control={transactionForm.control}
-                                                        name={`items.${index}.product_id`}
-                                                        render={({ field }) => (
-                                                            <FormItem className="space-y-1">
-                                                                <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground/60">Product</FormLabel>
-                                                                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                                    <FormControl>
-                                                                        <SelectTrigger className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner">
-                                                                            <SelectValue placeholder="Select a product" />
-                                                                        </SelectTrigger>
-                                                                    </FormControl>
-                                                                    <SelectContent className="rounded-2xl border-none shadow-2xl">
-                                                                        {products?.map(p => (
-                                                                            <SelectItem key={p.id} value={p.id} className="rounded-xl font-medium">
-                                                                                {p.name} <span className="text-muted-foreground ml-2 text-xs">({p.code})</span>
-                                                                            </SelectItem>
-                                                                        ))}
-                                                                    </SelectContent>
-                                                                </Select>
-                                                                <FormMessage />
-                                                            </FormItem>
-                                                        )}
-                                                    />
+                                        {fields.map((field, index) => {
+                                            const hasProduct = !!transactionForm.watch(`items.${index}.product_id`);
+                                            const hasAccessory = !!transactionForm.watch(`items.${index}.accessory_id`);
+                                            const productSubtotal = (transactionForm.watch(`items.${index}.quantity`) || 0) * (transactionForm.watch(`items.${index}.unit_price`) || 0);
+                                            const accessorySubtotal = (transactionForm.watch(`items.${index}.accessory_quantity`) || 0) * (transactionForm.watch(`items.${index}.accessory_unit_price`) || 0);
+                                            return (
+                                                <div key={field.id} className="p-5 rounded-[24px] bg-brand-navy/[0.015] border border-brand-navy/[0.04] space-y-4 animate-in slide-in-from-left-2 duration-300">
+                                                    {/* Product Row */}
+                                                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                                                        <div className="md:col-span-5">
+                                                            <FormField
+                                                                control={transactionForm.control}
+                                                                name={`items.${index}.product_id`}
+                                                                render={({ field }) => (
+                                                                    <FormItem className="space-y-1">
+                                                                        <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground/60 flex items-center gap-1.5"><Package className="w-3 h-3" /> Product</FormLabel>
+                                                                        <Select onValueChange={field.onChange} value={field.value || ''}>
+                                                                            <FormControl>
+                                                                                <SelectTrigger className="h-12 rounded-2xl border-none bg-white text-base font-bold text-brand-navy shadow-sm">
+                                                                                    <SelectValue placeholder="Select product (optional)" />
+                                                                                </SelectTrigger>
+                                                                            </FormControl>
+                                                                            <SelectContent className="rounded-2xl border-none shadow-2xl">
+                                                                                <SelectItem value="none" className="rounded-xl font-medium text-muted-foreground">— No product —</SelectItem>
+                                                                                {products?.map(p => (
+                                                                                    <SelectItem key={p.id} value={p.id} className="rounded-xl font-medium">
+                                                                                        {p.name} <span className="text-muted-foreground ml-2 text-xs">({p.code})</span>
+                                                                                    </SelectItem>
+                                                                                ))}
+                                                                            </SelectContent>
+                                                                        </Select>
+                                                                        <FormMessage />
+                                                                    </FormItem>
+                                                                )}
+                                                            />
+                                                        </div>
+                                                        <div className="md:col-span-2">
+                                                            <FormField
+                                                                control={transactionForm.control}
+                                                                name={`items.${index}.quantity`}
+                                                                render={({ field }) => (
+                                                                    <FormItem className="space-y-1">
+                                                                        <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground/60">Qty</FormLabel>
+                                                                        <Input type="number" placeholder="0" {...field} className="h-12 rounded-2xl border-none bg-white text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-sm" />
+                                                                    </FormItem>
+                                                                )}
+                                                            />
+                                                        </div>
+                                                        <div className="md:col-span-3">
+                                                            <FormField
+                                                                control={transactionForm.control}
+                                                                name={`items.${index}.unit_price`}
+                                                                render={({ field }) => (
+                                                                    <FormItem className="space-y-1">
+                                                                        <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground/60">Unit Cost (DH)</FormLabel>
+                                                                        <div className="relative">
+                                                                            <Input type="number" step="0.01" placeholder="0" {...field} className="h-12 rounded-2xl border-none bg-white text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-sm" />
+                                                                            {hasProduct && <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-brand-navy/30">{productSubtotal.toFixed(1)} DH</div>}
+                                                                        </div>
+                                                                    </FormItem>
+                                                                )}
+                                                            />
+                                                        </div>
+                                                        <div className="md:col-span-2 flex items-end gap-2">
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                onClick={() => remove(index)}
+                                                                disabled={fields.length === 1}
+                                                                className="h-12 w-12 rounded-2xl text-red-400 hover:text-red-600 hover:bg-red-50"
+                                                            >
+                                                                <X className="w-5 h-5" />
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Accessory Row */}
+                                                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end border-t border-dashed border-brand-navy/[0.06] pt-4">
+                                                        <div className="md:col-span-5">
+                                                            <FormField
+                                                                control={transactionForm.control}
+                                                                name={`items.${index}.accessory_id`}
+                                                                render={({ field }) => (
+                                                                    <FormItem className="space-y-1">
+                                                                        <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground/60 flex items-center gap-1.5"><Puzzle className="w-3 h-3" /> Accessory</FormLabel>
+                                                                        <Select onValueChange={field.onChange} value={field.value || ''}>
+                                                                            <FormControl>
+                                                                                <SelectTrigger className="h-12 rounded-2xl border-none bg-white text-base font-bold text-brand-navy shadow-sm">
+                                                                                    <SelectValue placeholder="Select accessory (optional)" />
+                                                                                </SelectTrigger>
+                                                                            </FormControl>
+                                                                            <SelectContent className="rounded-2xl border-none shadow-2xl">
+                                                                                <SelectItem value="none" className="rounded-xl font-medium text-muted-foreground">— No accessory —</SelectItem>
+                                                                                {accessories?.map(a => (
+                                                                                    <SelectItem key={a.id} value={a.id} className="rounded-xl font-medium">
+                                                                                        {a.name} <span className="text-muted-foreground ml-2 text-xs">({a.code})</span>
+                                                                                    </SelectItem>
+                                                                                ))}
+                                                                            </SelectContent>
+                                                                        </Select>
+                                                                        <FormMessage />
+                                                                    </FormItem>
+                                                                )}
+                                                            />
+                                                        </div>
+                                                        <div className="md:col-span-2">
+                                                            <FormField
+                                                                control={transactionForm.control}
+                                                                name={`items.${index}.accessory_quantity`}
+                                                                render={({ field }) => (
+                                                                    <FormItem className="space-y-1">
+                                                                        <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground/60">Acc. Qty</FormLabel>
+                                                                        <Input type="number" placeholder="0" {...field} className="h-12 rounded-2xl border-none bg-white text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-sm" />
+                                                                    </FormItem>
+                                                                )}
+                                                            />
+                                                        </div>
+                                                        <div className="md:col-span-3">
+                                                            <FormField
+                                                                control={transactionForm.control}
+                                                                name={`items.${index}.accessory_unit_price`}
+                                                                render={({ field }) => (
+                                                                    <FormItem className="space-y-1">
+                                                                        <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground/60">Acc. Cost (DH)</FormLabel>
+                                                                        <div className="relative">
+                                                                            <Input type="number" step="0.01" placeholder="0" {...field} className="h-12 rounded-2xl border-none bg-white text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-sm" />
+                                                                            {hasAccessory && <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-brand-navy/30">{accessorySubtotal.toFixed(1)} DH</div>}
+                                                                        </div>
+                                                                    </FormItem>
+                                                                )}
+                                                            />
+                                                        </div>
+                                                        <div className="md:col-span-2" />
+                                                    </div>
+
+                                                    {/* Line total */}
+                                                    <div className="text-right text-[10px] font-black text-brand-navy/40 uppercase tracking-widest">
+                                                        Line total: {(productSubtotal + accessorySubtotal).toFixed(2)} DH
+                                                    </div>
                                                 </div>
-                                                <div className="md:col-span-2">
-                                                    <FormField
-                                                        control={transactionForm.control}
-                                                        name={`items.${index}.quantity`}
-                                                        render={({ field }) => (
-                                                            <FormItem className="space-y-1">
-                                                                <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground/60">Qty</FormLabel>
-                                                                <Input type="number" {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner" />
-                                                            </FormItem>
-                                                        )}
-                                                    />
-                                                </div>
-                                                <div className="md:col-span-3">
-                                                    <FormField
-                                                        control={transactionForm.control}
-                                                        name={`items.${index}.unit_price`}
-                                                        render={({ field }) => (
-                                                            <FormItem className="space-y-1">
-                                                                <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground/60">Unit Cost (DH)</FormLabel>
-                                                                <div className="relative">
-                                                                    <Input type="number" step="0.01" {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner" />
-                                                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-brand-navy/30">
-                                                                        {(transactionForm.watch(`items.${index}.quantity`) * transactionForm.watch(`items.${index}.unit_price`)).toFixed(1)} DH
-                                                                    </div>
-                                                                </div>
-                                                            </FormItem>
-                                                        )}
-                                                    />
-                                                </div>
-                                                <div className="md:col-span-1">
-                                                    <Button
-                                                        type="button"
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() => remove(index)}
-                                                        disabled={fields.length === 1}
-                                                        className="h-12 w-12 rounded-2xl text-red-400 hover:text-red-600 hover:bg-red-50"
-                                                    >
-                                                        <X className="w-5 h-5" />
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
 
                                     <div className="p-6 rounded-[32px] bg-brand-navy/[0.02] border border-brand-navy/[0.03] flex items-center justify-between">
@@ -591,7 +704,7 @@ const Transactions = () => {
                                             <div>
                                                 <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Grand Total Amount</p>
                                                 <h3 className="text-2xl font-black text-brand-navy">
-                                                    {transactionForm.watch('items').reduce((acc, item) => acc + (item.quantity * item.unit_price), 0).toFixed(2)} DH
+                                                    {transactionForm.watch('items').reduce((acc, item) => acc + (item.quantity * item.unit_price) + ((item.accessory_quantity || 0) * (item.accessory_unit_price || 0)), 0).toFixed(2)} DH
                                                 </h3>
                                             </div>
                                         </div>
@@ -771,19 +884,41 @@ const Transactions = () => {
                                         <div className="flex items-center gap-2">
                                             <Package className="w-5 h-5 text-brand-navy" />
                                             <h4 className="text-lg font-black text-brand-navy uppercase tracking-widest flex-1">Order Items</h4>
-                                            <Badge variant="outline" className="text-[10px] font-black border-brand-navy/10">{selectedTransaction.items?.length || 0} products</Badge>
+                                            <Badge variant="outline" className="text-[10px] font-black border-brand-navy/10">{selectedTransaction.items?.length || 0} items</Badge>
                                         </div>
                                         <div className="space-y-4">
                                             {selectedTransaction.items?.map((item: any) => (
-                                                <div key={item.id} className="p-6 rounded-[24px] bg-brand-navy/[0.02] border border-brand-navy/[0.03] flex justify-between items-center group hover:bg-brand-navy/[0.04] transition-colors">
-                                                    <div>
-                                                        <h5 className="font-bold text-brand-navy">{item.product?.name}</h5>
-                                                        <p className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest">{item.product?.code}</p>
-                                                    </div>
-                                                    <div className="text-right">
-                                                        <p className="text-sm font-black text-brand-navy">{item.quantity} units</p>
-                                                        <p className="text-[10px] font-bold text-emerald-600 uppercase">+{item.sub_total} DH</p>
-                                                    </div>
+                                                <div key={item.id} className="p-6 rounded-[24px] bg-brand-navy/[0.02] border border-brand-navy/[0.03] space-y-3 group hover:bg-brand-navy/[0.04] transition-colors">
+                                                    {item.product && (
+                                                        <div className="flex justify-between items-center">
+                                                            <div>
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <Package className="w-3.5 h-3.5 text-brand-navy/40" />
+                                                                    <h5 className="font-bold text-brand-navy">{item.product.name}</h5>
+                                                                </div>
+                                                                <p className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest ml-5">{item.product.code}</p>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <p className="text-sm font-black text-brand-navy">{item.quantity} units</p>
+                                                                <p className="text-[10px] font-bold text-emerald-600 uppercase">+{item.sub_total} DH</p>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    {item.accessory && (
+                                                        <div className={cn("flex justify-between items-center", item.product && "border-t border-dashed border-brand-navy/[0.06] pt-3")}>
+                                                            <div>
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <Puzzle className="w-3.5 h-3.5 text-brand-navy/40" />
+                                                                    <h5 className="font-bold text-brand-navy text-sm">{item.accessory.name}</h5>
+                                                                </div>
+                                                                <p className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest ml-5">{item.accessory.code}</p>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <p className="text-sm font-black text-brand-navy">{item.accessory_quantity} units</p>
+                                                                <p className="text-[10px] font-bold text-emerald-600 uppercase">+{item.accessory_sub_total} DH</p>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>
