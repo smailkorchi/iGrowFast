@@ -63,6 +63,7 @@ const aiModelSchema = z.object({
 const aiKeySchema = z.object({
     name: z.string().min(1, "Name required"),
     api_key: z.string().min(1, "API Key required"),
+    base_url: z.string().default('https://openrouter.ai/api/v1'),
     models: z.array(aiModelSchema).min(1, "At least one model is required")
 });
 
@@ -103,6 +104,7 @@ const AiKeys = () => {
                     .update({
                         name: values.name,
                         api_key: values.api_key,
+                        base_url: values.base_url,
                         'DigiCom Business': activeBusinessId
                     })
                     .eq('id', id);
@@ -119,6 +121,7 @@ const AiKeys = () => {
                     .insert([{
                         name: values.name,
                         api_key: values.api_key,
+                        base_url: values.base_url,
                         'DigiCom Business': activeBusinessId
                     }])
                     .select()
@@ -302,7 +305,8 @@ const AiKeyForm = ({ initialData, onSubmit, loading }: { initialData: AiKeyData 
         defaultValues: {
             name: initialData?.name || '',
             api_key: initialData?.api_key || '',
-            models: initialData?.models?.length ? initialData.models : [{ name: '', type: 'text', concurrency_limit: 1 }]
+            base_url: initialData?.base_url || 'https://openrouter.ai/api/v1',
+            models: initialData?.models?.length ? initialData.models : [{ name: '', type: 'Language Model', concurrency_limit: 1 }]
         }
     });
 
@@ -344,6 +348,15 @@ const AiKeyForm = ({ initialData, onSubmit, loading }: { initialData: AiKeyData 
                             </FormItem>
                         )} />
                     </div>
+                    <FormField control={form.control} name="base_url" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel className="text-[10px] font-black uppercase tracking-widest text-brand-navy/30">Base URL</FormLabel>
+                            <FormControl>
+                                <Input placeholder="https://openrouter.ai/api/v1" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/5 text-brand-navy font-bold shadow-inner px-5 focus-visible:ring-1 focus-visible:ring-brand-navy text-xs" />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )} />
 
                     <div className="space-y-4 pt-4">
                         <div className="flex items-center justify-between border-b border-brand-navy/5 pb-4">
