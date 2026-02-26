@@ -38,7 +38,8 @@ import {
     Calculator,
     Store,
     MessageSquare,
-    Puzzle
+    Puzzle,
+    Key
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
@@ -118,6 +119,7 @@ const navigation: NavSection[] = [
             { icon: MapPin, label: 'Cities', path: '/cities' },
             { icon: Map, label: 'Zones', path: '/zones' },
             { icon: Download, label: 'Import Orders', path: '/import-orders' },
+            { icon: Key, label: 'AI Keys', path: '/ai-keys' },
         ]
     },
     {

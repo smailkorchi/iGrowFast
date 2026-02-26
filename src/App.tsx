@@ -27,6 +27,7 @@ import Cities from "./pages/Cities";
 import Zones from "./pages/Zones";
 import Profile from "./pages/Profile";
 import Webhooks from "./pages/Webhooks";
+import AiKeys from "./pages/AiKeys";
 import Businesses from "./pages/Businesses";
 import SelectBusiness from "./pages/SelectBusiness";
 import Calculator from "./pages/Calculator";
@@ -106,6 +107,7 @@ const App = () => (
                     <Route path="/delivery-services" element={<DeliveryServices />} />
                     <Route path="/payments" element={<Payments />} />
                     <Route path="/webhooks" element={<Webhooks />} />
+                    <Route path="/ai-keys" element={<AiKeys />} />
                     <Route path="/transactions" element={<Transactions />} />
                     <Route path="/products" element={<Products />} />
                     <Route path="/accessories" element={<Accessories />} />
