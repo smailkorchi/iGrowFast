@@ -41,6 +41,7 @@ const SellerWallet = () => {
         days: 0,
         delivered: 0
     });
+    const [presenceDays, setPresenceDays] = useState(0);
 
     const [currentPage, setCurrentPage] = useState(1);
     const [searchQuery, setSearchQuery] = useState('');
@@ -83,6 +84,18 @@ const SellerWallet = () => {
                 }), { total: 0, commission: 0, days: 0, delivered: 0 });
 
                 setMonthStats(stats);
+            }
+
+            // Fetch actual presence days from seller_presences
+            const { data: presenceData, error: presenceError } = await supabase
+                .from('seller_presences')
+                .select('id, date')
+                .eq('seller_id', session.user.id)
+                .gte('date', format(startOfMonth(new Date()), 'yyyy-MM-dd'))
+                .lte('date', format(endOfMonth(new Date()), 'yyyy-MM-dd'));
+
+            if (!presenceError && presenceData) {
+                setPresenceDays(presenceData.length);
             }
         } catch (error) {
             console.error('Error fetching earnings:', error);
@@ -148,7 +161,7 @@ const SellerWallet = () => {
                             <Badge variant="secondary" className="bg-blue-50 text-blue-600 border-0 font-medium">Presence</Badge>
                         </div>
                         <div className="space-y-1">
-                            <p className="text-3xl font-medium text-gray-900 tracking-tight">{monthStats.days} <span className="text-lg font-light text-gray-400">Days</span></p>
+                            <p className="text-3xl font-medium text-gray-900 tracking-tight">{presenceDays} <span className="text-lg font-light text-gray-400">Days</span></p>
                             <p className="text-sm text-gray-500 font-light">Verified attendance</p>
                         </div>
                     </CardContent>
