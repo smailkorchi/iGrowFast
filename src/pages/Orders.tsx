@@ -36,7 +36,8 @@ import {
     ShieldCheck,
     BarChart3,
     Puzzle,
-    SearchX
+    SearchX,
+    AlertTriangle
 } from 'lucide-react';
 import {
     Card,
@@ -1076,6 +1077,27 @@ const Orders = () => {
     };
 
     // --- Helpers ---
+    const duplicatePhones = useMemo(() => {
+        if (!orders) return new Set();
+        const phoneCounts: Record<string, number> = {};
+        orders.forEach(o => {
+            if (o.phone) {
+                const normalized = (o.phone || '').replace(/[\s-]/g, '');
+                phoneCounts[normalized] = (phoneCounts[normalized] || 0) + 1;
+            }
+        });
+        const duplicates = new Set<string>();
+        orders.forEach(o => {
+            if (o.phone) {
+                const normalized = (o.phone || '').replace(/[\s-]/g, '');
+                if (phoneCounts[normalized] > 1) {
+                    duplicates.add(o.phone);
+                }
+            }
+        });
+        return duplicates;
+    }, [orders]);
+
     const filteredOrders = useMemo(() => {
         if (!orders) return [];
         return orders.filter(o => {
@@ -1794,8 +1816,14 @@ const Orders = () => {
                                                         <User className="w-6 h-6" />
                                                     </div>
                                                     <div className="flex flex-col min-w-0">
-                                                        <h3 className="text-xl font-black text-brand-navy truncate leading-tight tracking-tight">
-                                                            {order.name}
+                                                        <h3 className="text-xl font-black text-brand-navy truncate leading-tight tracking-tight flex items-center gap-2">
+                                                            <span>{order.name}</span>
+                                                            {duplicatePhones.has(order.phone) && (
+                                                                <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-red-100/80 text-red-700 text-[9px] font-black uppercase tracking-widest border border-red-200/50" title="This client has multiple orders">
+                                                                    <AlertTriangle className="w-2.5 h-2.5" />
+                                                                    Double
+                                                                </span>
+                                                            )}
                                                         </h3>
                                                         <div className="flex items-center gap-1.5 text-muted-foreground/70">
                                                             <Phone className="w-3 h-3" />
@@ -1964,9 +1992,15 @@ const Orders = () => {
                                                             <User className="w-5 h-5" />
                                                         </div>
                                                         <div className="flex flex-col min-w-0">
-                                                            <span className="text-sm font-bold text-brand-navy truncate">
-                                                                {order.name}
-                                                                {order.replace && <RefreshCcw className="inline-block w-3 h-3 ml-2 text-red-500" />}
+                                                            <span className="text-sm font-bold text-brand-navy truncate flex items-center gap-2">
+                                                                <span>{order.name}</span>
+                                                                {order.replace && <RefreshCcw className="inline-block w-3 h-3 text-red-500" />}
+                                                                {duplicatePhones.has(order.phone) && (
+                                                                    <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-100/80 text-red-700 text-[8px] font-black uppercase tracking-widest border border-red-200/50" title="This client has multiple orders">
+                                                                        <AlertTriangle className="w-2.5 h-2.5" />
+                                                                        Double
+                                                                    </span>
+                                                                )}
                                                             </span>
                                                             <span className="text-[10px] font-bold text-muted-foreground tracking-wider">{order.phone}</span>
                                                         </div>
