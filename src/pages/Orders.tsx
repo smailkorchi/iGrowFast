@@ -37,7 +37,10 @@ import {
     BarChart3,
     Puzzle,
     SearchX,
-    AlertTriangle
+    AlertTriangle,
+    BarChart2,
+    Users,
+    RefreshCw
 } from 'lucide-react';
 import {
     Card,
@@ -208,6 +211,7 @@ const Orders = () => {
     const [filterAssignedTo, setFilterAssignedTo] = useState<string>('all');
     const [showAllFilters, setShowAllFilters] = useState(false);
     const [showCustomerInsights, setShowCustomerInsights] = useState(false);
+    const [isAttributionOpen, setIsAttributionOpen] = useState(false);
 
     // Add custom scrollbar styles to head
     React.useEffect(() => {
@@ -601,6 +605,56 @@ const Orders = () => {
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data;
+        }
+    });
+
+    // Attribution Progress — live SWRR state from the DB
+    const { data: attributionProgress, refetch: refetchAttribution, isFetching: isAttributionFetching } = useQuery({
+        queryKey: ['attribution-progress', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return [];
+            const { data, error } = await (supabase as any)
+                .rpc('get_daily_attribution_progress', { p_business_id: activeBusinessId });
+            if (error) throw error;
+            return data as Array<{
+                seller_id: string;
+                seller_name: string;
+                assignment: number;
+                orders_today: number;
+                pct_complete: number;
+                is_full: boolean;
+                credit: number;
+            }>;
+        },
+        refetchInterval: 30000, // auto-refresh every 30s
+    });
+
+    // Total attribution stats
+    const attributionTotals = useMemo(() => {
+        if (!attributionProgress?.length) return { totalQuota: 0, totalAssigned: 0, totalPct: 0, unassigned: 0 };
+        const totalQuota = attributionProgress.reduce((a, s) => a + Number(s.assignment), 0);
+        const totalAssigned = attributionProgress.reduce((a, s) => a + Number(s.orders_today), 0);
+        const totalPct = totalQuota > 0 ? Math.round(totalAssigned / totalQuota * 100) : 0;
+        const unassigned = (orders?.filter(o => !o.seller_id).length) || 0;
+        return { totalQuota, totalAssigned, totalPct, unassigned };
+    }, [attributionProgress, orders]);
+
+    // Mutation: manually trigger reattribution of unassigned orders
+    const reattributeMutation = useMutation({
+        mutationFn: async () => {
+            if (!activeBusinessId) throw new Error('No business');
+            const { data, error } = await (supabase as any)
+                .rpc('reattribute_unassigned_orders', { p_business_id: activeBusinessId });
+            if (error) throw error;
+            return data as number;
+        },
+        onSuccess: (count) => {
+            queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
+            refetchAttribution();
+            toast({ title: `${count} orders attributed`, description: 'Unassigned orders have been distributed among sellers.' });
+        },
+        onError: (error: any) => {
+            toast({ title: 'Attribution Error', description: error.message, variant: 'destructive' });
         }
     });
 
@@ -1299,7 +1353,7 @@ const Orders = () => {
                 </div>
             </div>
 
-            {/* Dashboard Stats (Optional Placeholder) */}
+            {/* Dashboard Stats */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Card className="border-none bg-blue-50/50 rounded-[32px] p-6 relative overflow-hidden flex flex-col justify-between min-h-[140px]">
                     <p className="text-[10px] font-black uppercase tracking-widest text-blue-600/60 mb-2">Active Orders</p>
@@ -1340,6 +1394,161 @@ const Orders = () => {
                     <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-brand-navy/[0.02] rounded-full blur-2xl group-hover:bg-brand-navy/[0.04] transition-colors duration-500" />
                 </div>
             </div>
+
+            {/* ── Attribution Progress Widget (collapsible) ── */}
+            {attributionProgress && attributionProgress.length > 0 && (
+                <div className={cn(
+                    'bg-white border border-brand-navy/[0.04] shadow-lg shadow-brand-navy/5 transition-all duration-300 overflow-hidden',
+                    isAttributionOpen ? 'rounded-[28px]' : 'rounded-[100px]'
+                )}>
+                    {/* ── Collapsed bar (always visible, clickable) ── */}
+                    <button
+                        onClick={() => setIsAttributionOpen(o => !o)}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 group"
+                    >
+                        {/* Icon */}
+                        <div className="p-2 bg-indigo-50 rounded-full shrink-0">
+                            <BarChart2 className="w-3.5 h-3.5 text-indigo-500" />
+                        </div>
+
+                        {/* Label */}
+                        <span className="text-xs font-black text-brand-navy/70 shrink-0">Today's Attribution</span>
+
+                        {/* Global slim progress bar */}
+                        <div className="flex-1 h-1.5 bg-brand-navy/[0.06] rounded-full overflow-hidden">
+                            <div
+                                className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all duration-700"
+                                style={{ width: `${Math.min(attributionTotals.totalPct, 100)}%` }}
+                            />
+                        </div>
+
+                        {/* Pct label */}
+                        <span className="text-xs font-black text-brand-navy/50 shrink-0 w-9 text-right">
+                            {attributionTotals.totalPct}%
+                        </span>
+
+                        {/* Seller avatar chips */}
+                        <div className="flex items-center -space-x-1.5 shrink-0">
+                            {attributionProgress.slice(0, 5).map((seller) => (
+                                <div
+                                    key={seller.seller_id}
+                                    title={`${seller.seller_name}: ${seller.orders_today}/${seller.assignment}`}
+                                    className={cn(
+                                        'w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-black',
+                                        seller.is_full ? 'bg-emerald-400 text-white' : 'bg-indigo-100 text-indigo-700'
+                                    )}
+                                >
+                                    {seller.seller_name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                                </div>
+                            ))}
+                            {attributionProgress.length > 5 && (
+                                <div className="w-6 h-6 rounded-full border-2 border-white bg-brand-navy/10 flex items-center justify-center text-[8px] font-black text-brand-navy/50">
+                                    +{attributionProgress.length - 5}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Unassigned warning pill */}
+                        {attributionTotals.unassigned > 0 && (
+                            <span className="shrink-0 text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                                {attributionTotals.unassigned} unassigned
+                            </span>
+                        )}
+
+                        {/* Chevron */}
+                        <div className={cn('shrink-0 text-brand-navy/25 transition-transform duration-300', isAttributionOpen && 'rotate-180')}>
+                            <ChevronDown className="w-4 h-4" />
+                        </div>
+                    </button>
+
+                    {/* ── Expanded panel ── */}
+                    <div className={cn(
+                        'transition-all duration-300 ease-in-out overflow-hidden',
+                        isAttributionOpen ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0'
+                    )}>
+                        {/* Global progress + actions */}
+                        <div className="flex items-center gap-3 px-5 py-3 border-t border-brand-navy/[0.04]">
+                            <div className="flex-1 flex items-center gap-3">
+                                <div className="flex-1 h-2 bg-brand-navy/[0.05] rounded-full overflow-hidden">
+                                    <div
+                                        className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all duration-700"
+                                        style={{ width: `${Math.min(attributionTotals.totalPct, 100)}%` }}
+                                    />
+                                </div>
+                                <span className="text-xs font-black text-brand-navy/50 w-24 shrink-0">
+                                    {attributionTotals.totalAssigned} / {attributionTotals.totalQuota} orders
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                                {attributionTotals.unassigned > 0 && (
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={(e) => { e.stopPropagation(); reattributeMutation.mutate(); }}
+                                        disabled={reattributeMutation.isPending}
+                                        className="h-7 px-2.5 rounded-xl text-[11px] font-bold border-amber-200 text-amber-700 hover:bg-amber-50 gap-1"
+                                    >
+                                        {reattributeMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                                        Assign Unassigned
+                                    </Button>
+                                )}
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); refetchAttribution(); }}
+                                    disabled={isAttributionFetching}
+                                    className="w-7 h-7 flex items-center justify-center rounded-xl text-brand-navy/25 hover:text-brand-navy hover:bg-brand-navy/5 transition-colors"
+                                >
+                                    <RefreshCw className={cn('w-3.5 h-3.5', isAttributionFetching && 'animate-spin')} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Per-seller rows */}
+                        <div className="divide-y divide-brand-navy/[0.03]">
+                            {attributionProgress.map((seller) => {
+                                const pct = Math.min(Number(seller.pct_complete), 100);
+                                const isFull = seller.is_full;
+                                return (
+                                    <div key={seller.seller_id} className="flex items-center gap-4 px-5 py-3 hover:bg-brand-navy/[0.015] transition-colors">
+                                        <div className={cn(
+                                            'w-7 h-7 rounded-xl flex items-center justify-center text-[10px] font-black shrink-0',
+                                            isFull ? 'bg-emerald-100 text-emerald-600' : 'bg-indigo-50 text-indigo-600'
+                                        )}>
+                                            {seller.seller_name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                                        </div>
+                                        <div className="w-28 shrink-0">
+                                            <p className="text-xs font-bold text-brand-navy truncate">{seller.seller_name}</p>
+                                            <p className="text-[10px] text-brand-navy/35 font-medium">Quota: {seller.assignment}/day</p>
+                                        </div>
+                                        <div className="flex-1 flex items-center gap-2.5">
+                                            <div className="flex-1 h-1.5 bg-brand-navy/[0.05] rounded-full overflow-hidden">
+                                                <div
+                                                    className={cn(
+                                                        'h-full rounded-full transition-all duration-700',
+                                                        isFull ? 'bg-gradient-to-r from-emerald-500 to-emerald-400' : 'bg-gradient-to-r from-indigo-500 to-violet-500'
+                                                    )}
+                                                    style={{ width: `${pct}%` }}
+                                                />
+                                            </div>
+                                            <span className="text-[10px] font-black text-brand-navy/40 w-8 text-right shrink-0">{pct}%</span>
+                                        </div>
+                                        <div className="text-right shrink-0">
+                                            <span className={cn('text-xs font-black', isFull ? 'text-emerald-600' : 'text-brand-navy')}>
+                                                {seller.orders_today}
+                                            </span>
+                                            <span className="text-brand-navy/25 text-xs font-medium"> / {seller.assignment}</span>
+                                        </div>
+                                        {isFull && (
+                                            <span className="shrink-0 text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                                                FULL
+                                            </span>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Filters Toolbar */}
             <div className="space-y-3 pb-4">
