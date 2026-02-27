@@ -1431,18 +1431,25 @@ const Orders = () => {
 
                         {/* Seller avatar chips */}
                         <div className="flex items-center -space-x-1.5 shrink-0">
-                            {attributionProgress.slice(0, 5).map((seller) => (
-                                <div
-                                    key={seller.seller_id}
-                                    title={`${seller.seller_name}: ${seller.orders_today}/${seller.assignment}`}
-                                    className={cn(
-                                        'w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-black',
-                                        seller.is_full ? 'bg-emerald-400 text-white' : 'bg-indigo-100 text-indigo-700'
-                                    )}
-                                >
-                                    {seller.seller_name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
-                                </div>
-                            ))}
+                            {attributionProgress.slice(0, 5).map((seller) => {
+                                const sellerData = sellers?.find(s => s.id === seller.seller_id);
+                                return (
+                                    <div
+                                        key={seller.seller_id}
+                                        title={`${seller.seller_name}: ${seller.orders_today}/${seller.assignment}`}
+                                        className={cn(
+                                            'w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-black overflow-hidden',
+                                            seller.is_full ? 'bg-emerald-400 text-white' : 'bg-indigo-100 text-indigo-700'
+                                        )}
+                                    >
+                                        {sellerData?.avatar_url ? (
+                                            <img src={sellerData.avatar_url} alt={seller.seller_name} className="w-full h-full object-cover" />
+                                        ) : (
+                                            seller.seller_name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
+                                        )}
+                                    </div>
+                                );
+                            })}
                             {attributionProgress.length > 5 && (
                                 <div className="w-6 h-6 rounded-full border-2 border-white bg-brand-navy/10 flex items-center justify-center text-[8px] font-black text-brand-navy/50">
                                     +{attributionProgress.length - 5}
@@ -1509,13 +1516,18 @@ const Orders = () => {
                             {attributionProgress.map((seller) => {
                                 const pct = Math.min(Number(seller.pct_complete), 100);
                                 const isFull = seller.is_full;
+                                const sellerData = sellers?.find(s => s.id === seller.seller_id);
                                 return (
                                     <div key={seller.seller_id} className="flex items-center gap-4 px-5 py-3 hover:bg-brand-navy/[0.015] transition-colors">
                                         <div className={cn(
-                                            'w-7 h-7 rounded-xl flex items-center justify-center text-[10px] font-black shrink-0',
+                                            'w-7 h-7 rounded-xl flex items-center justify-center text-[10px] font-black shrink-0 overflow-hidden',
                                             isFull ? 'bg-emerald-100 text-emerald-600' : 'bg-indigo-50 text-indigo-600'
                                         )}>
-                                            {seller.seller_name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                                            {sellerData?.avatar_url ? (
+                                                <img src={sellerData.avatar_url} alt={seller.seller_name} className="w-full h-full object-cover" />
+                                            ) : (
+                                                seller.seller_name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
+                                            )}
                                         </div>
                                         <div className="w-28 shrink-0">
                                             <p className="text-xs font-bold text-brand-navy truncate">{seller.seller_name}</p>
