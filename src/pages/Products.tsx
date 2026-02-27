@@ -15,7 +15,11 @@ import {
     X,
     TrendingUp,
     Tag,
-    Hash
+    Hash,
+    LayoutGrid,
+    List,
+    AlertTriangle,
+    RotateCcw
 } from 'lucide-react';
 import {
     Card,
@@ -84,8 +88,10 @@ const Products = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingProduct, setEditingProduct] = useState<any>(null);
     const [productToDelete, setProductToDelete] = useState<any>(null);
+    const [productToResetStock, setProductToResetStock] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [isUploading, setIsUploading] = useState(false);
+    const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const { toast } = useToast();
@@ -192,12 +198,48 @@ const Products = () => {
                 .eq('id', id)
                 .eq('DigiCom Business', activeBusinessId);
 
+            if (error) {
+                if (error.code === '23503') {
+                    // Soft delete fallback since it's referenced in order_items
+                    const { error: softDeleteError } = await supabase
+                        .from('products')
+                        .update({ active: false })
+                        .eq('id', id);
+                    if (softDeleteError) throw softDeleteError;
+                    return { softDeleted: true };
+                }
+                throw error;
+            }
+            return { softDeleted: false };
+        },
+        onSuccess: (data) => {
+            queryClient.invalidateQueries({ queryKey: ['products', activeBusinessId] });
+            setProductToDelete(null);
+            if (data?.softDeleted) {
+                toast({ title: "Product Deactivated", description: "This product is used in existing orders, so it was deactivated instead of permanently deleted." });
+            } else {
+                toast({ title: "Product deleted", description: "The product was successfully removed." });
+            }
+        },
+        onError: (error: any) => {
+            toast({ title: "Error", description: error.message, variant: "destructive" });
+        }
+    });
+
+    const updateStockMutation = useMutation({
+        mutationFn: async ({ id, stock }: { id: string, stock: number }) => {
+            const { error } = await supabase
+                .from('products')
+                .update({ stock })
+                .eq('id', id)
+                .eq('DigiCom Business', activeBusinessId);
+
             if (error) throw error;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['products', activeBusinessId] });
-            setProductToDelete(null);
-            toast({ title: "Product deleted", description: "The product was successfully removed." });
+            setProductToResetStock(null);
+            toast({ title: "Stock Updated", description: "Product stock has been modified." });
         },
         onError: (error: any) => {
             toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -272,6 +314,8 @@ const Products = () => {
         setIsModalOpen(true);
     };
 
+    const lowStockProducts = products?.filter(p => (p.stock || 0) <= 10) || [];
+
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
             {/* Header Section */}
@@ -282,6 +326,31 @@ const Products = () => {
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3 items-center">
+                    <div className="flex bg-white/50 backdrop-blur-md p-1 rounded-2xl border border-brand-navy/5 shadow-sm">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setViewMode('list')}
+                            className={cn(
+                                "rounded-xl w-10 h-10 transition-all",
+                                viewMode === 'list' ? "bg-white shadow-xl text-brand-navy font-bold" : "text-muted-foreground hover:text-brand-navy"
+                            )}
+                        >
+                            <List className="w-5 h-5" />
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setViewMode('grid')}
+                            className={cn(
+                                "rounded-xl w-10 h-10 transition-all",
+                                viewMode === 'grid' ? "bg-white shadow-xl text-brand-navy font-bold" : "text-muted-foreground hover:text-brand-navy"
+                            )}
+                        >
+                            <LayoutGrid className="w-5 h-5" />
+                        </Button>
+                    </div>
+
                     <div className="relative group sm:w-80">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground transition-colors group-focus-within:text-brand-navy" />
                         <Input
@@ -301,21 +370,66 @@ const Products = () => {
                 </div>
             </div>
 
+            {lowStockProducts.length > 0 && (
+                <div className="bg-red-50 border border-red-100/50 rounded-[32px] p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-sm">
+                    <div className="flex items-start md:items-center gap-4">
+                        <div className="w-14 h-14 bg-red-100 rounded-2xl flex items-center justify-center shrink-0 text-red-500 shadow-inner">
+                            <AlertTriangle className="w-7 h-7" />
+                        </div>
+                        <div className="space-y-1">
+                            <h3 className="text-xl font-bold text-red-600">Low Stock Alert</h3>
+                            <p className="text-red-500/80 font-medium">You have {lowStockProducts.length} product{lowStockProducts.length === 1 ? '' : 's'} running low on inventory (10 items or fewer).</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center -space-x-3 shrink-0">
+                        {lowStockProducts.slice(0, 5).map(p => (
+                            <div key={p.id} className="w-12 h-12 rounded-2xl border-2 border-red-50 bg-white shadow-sm overflow-hidden shrink-0" title={`${p.name} (Stock: ${p.stock || 0})`}>
+                                {p.image_url ?
+                                    <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" /> :
+                                    <div className="w-full h-full bg-brand-navy/5 flex items-center justify-center">
+                                        <Package className="w-5 h-5 text-brand-navy/20" />
+                                    </div>
+                                }
+                            </div>
+                        ))}
+                        {lowStockProducts.length > 5 && (
+                            <div className="w-12 h-12 rounded-2xl border-2 border-red-50 bg-white flex items-center justify-center shadow-sm z-10 text-xs font-black text-red-500 shrink-0">
+                                +{lowStockProducts.length - 5}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {/* Content Section */}
             {isLoading ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <div className={cn(
+                    "grid gap-6",
+                    viewMode === 'grid' ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1"
+                )}>
                     {Array.from({ length: 8 }).map((_, i) => (
-                        <Card key={i} className="border-none bg-white/50 backdrop-blur-sm rounded-[24px] overflow-hidden shadow-sm">
-                            <Skeleton className="h-48 w-full" />
-                            <CardContent className="p-6 space-y-4">
-                                <Skeleton className="h-6 w-3/4" />
-                                <Skeleton className="h-4 w-1/2" />
-                                <div className="flex justify-between pt-4">
-                                    <Skeleton className="h-8 w-20" />
-                                    <Skeleton className="h-8 w-20" />
+                        viewMode === 'grid' ? (
+                            <Card key={i} className="border-none bg-white/50 backdrop-blur-sm rounded-[24px] overflow-hidden shadow-sm">
+                                <Skeleton className="h-48 w-full" />
+                                <CardContent className="p-6 space-y-4">
+                                    <Skeleton className="h-6 w-3/4" />
+                                    <Skeleton className="h-4 w-1/2" />
+                                    <div className="flex justify-between pt-4">
+                                        <Skeleton className="h-8 w-20" />
+                                        <Skeleton className="h-8 w-20" />
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        ) : (
+                            <Card key={i} className="border-none bg-white/50 backdrop-blur-sm rounded-[24px] overflow-hidden shadow-sm flex flex-col sm:flex-row items-center p-4 gap-6">
+                                <Skeleton className="h-32 w-32 rounded-[20px] shrink-0" />
+                                <div className="flex-1 space-y-4 w-full">
+                                    <Skeleton className="h-6 w-1/3" />
+                                    <Skeleton className="h-4 w-1/4" />
+                                    <Skeleton className="h-4 w-1/2" />
                                 </div>
-                            </CardContent>
-                        </Card>
+                            </Card>
+                        )
                     ))}
                 </div>
             ) : filteredProducts?.length === 0 ? (
@@ -332,88 +446,155 @@ const Products = () => {
                     </Button>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <div className={cn(
+                    "grid gap-6",
+                    viewMode === 'grid' ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1"
+                )}>
                     {filteredProducts?.map((product) => (
-                        <Card
-                            key={product.id}
-                            className="group relative overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-2xl transition-all duration-300 rounded-[32px]"
-                        >
-                            {/* Product Image */}
-                            <div className="relative h-48 w-full overflow-hidden bg-brand-navy/[0.02]">
-                                {product.image_url ? (
-                                    <img
-                                        src={product.image_url}
-                                        alt={product.name}
-                                        className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
-                                    />
-                                ) : (
-                                    <div className="flex items-center justify-center h-full w-full text-brand-navy/10">
-                                        <ImageIcon className="w-16 h-16" />
+                        viewMode === 'grid' ? (
+                            <Card
+                                key={product.id}
+                                className="group relative overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-2xl transition-all duration-300 rounded-[32px]"
+                            >
+                                {/* Product Image */}
+                                <div className="relative h-48 w-full overflow-hidden bg-brand-navy/[0.02]">
+                                    {product.image_url ? (
+                                        <img
+                                            src={product.image_url}
+                                            alt={product.name}
+                                            className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
+                                        />
+                                    ) : (
+                                        <div className="flex items-center justify-center h-full w-full text-brand-navy/10">
+                                            <ImageIcon className="w-16 h-16" />
+                                        </div>
+                                    )}
+                                    <div className="absolute top-4 right-4 z-10">
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="secondary" size="icon" className="h-10 w-10 rounded-xl bg-white/80 backdrop-blur-md border-none shadow-lg text-brand-navy hover:bg-white transition-all">
+                                                    <MoreVertical className="h-5 w-5" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[160px]">
+                                                <DropdownMenuItem onClick={() => openModal(product)} className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3">
+                                                    <Edit2 className="w-4 h-4" />
+                                                    <span className="font-bold">Edit Product</span>
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => {
+                                                    setProductToResetStock(product);
+                                                }} className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3">
+                                                    <RotateCcw className="w-4 h-4" />
+                                                    <span className="font-bold">Clear Stock (0)</span>
+                                                </DropdownMenuItem>
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuItem onClick={() => setProductToDelete(product)} className="rounded-xl p-3 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-3">
+                                                    <Trash2 className="w-4 h-4" />
+                                                    <span className="font-bold">Delete</span>
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
                                     </div>
-                                )}
-                                <div className="absolute top-4 right-4 z-10">
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button variant="secondary" size="icon" className="h-10 w-10 rounded-xl bg-white/80 backdrop-blur-md border-none shadow-lg text-brand-navy hover:bg-white transition-all">
-                                                <MoreVertical className="h-5 w-5" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[160px]">
-                                            <DropdownMenuItem onClick={() => openModal(product)} className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3">
-                                                <Edit2 className="w-4 h-4" />
-                                                <span className="font-bold">Edit Product</span>
-                                            </DropdownMenuItem>
-                                            <DropdownMenuSeparator />
-                                            <DropdownMenuItem onClick={() => setProductToDelete(product)} className="rounded-xl p-3 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-3">
-                                                <Trash2 className="w-4 h-4" />
-                                                <span className="font-bold">Delete</span>
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </div>
-                                {!product.active && (
-                                    <div className="absolute inset-0 bg-brand-navy/40 backdrop-blur-[2px] flex items-center justify-center">
-                                        <Badge variant="secondary" className="bg-brand-white text-brand-navy font-bold text-xs px-4 py-1.5 rounded-full shadow-lg">INACTIVE</Badge>
-                                    </div>
-                                )}
-                            </div>
-
-                            <CardContent className="p-6 space-y-4">
-                                <div className="space-y-1">
-                                    <div className="flex items-center justify-between">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">{product.code}</p>
-                                        <Badge variant="outline" className="text-[10px] font-bold border-brand-navy/10 text-brand-navy/60 uppercase">{product.label || 'Regular'}</Badge>
-                                    </div>
-                                    <h3 className="text-xl font-bold text-brand-navy truncate">{product.name}</h3>
+                                    {!product.active && (
+                                        <div className="absolute inset-0 bg-brand-navy/40 backdrop-blur-[2px] flex items-center justify-center">
+                                            <Badge variant="secondary" className="bg-brand-white text-brand-navy font-bold text-xs px-4 py-1.5 rounded-full shadow-lg">INACTIVE</Badge>
+                                        </div>
+                                    )}
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-4">
+                                <CardContent className="p-6 space-y-4">
                                     <div className="space-y-1">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Cost Price</p>
-                                        <p className="text-lg font-bold text-brand-navy/40">{product.cost_price} DH</p>
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">{product.code}</p>
+                                            <Badge variant="outline" className="text-[10px] font-bold border-brand-navy/10 text-brand-navy/60 uppercase">{product.label || 'Regular'}</Badge>
+                                        </div>
+                                        <h3 className="text-xl font-bold text-brand-navy truncate">{product.name}</h3>
                                     </div>
-                                    <div className="space-y-1">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Selling Price</p>
-                                        <p className="text-lg font-bold text-brand-navy">{product.selling_price} DH</p>
-                                    </div>
-                                </div>
 
-                                <div className="pt-2 flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <div className={cn(
-                                            "w-2 h-2 rounded-full",
-                                            (product.stock || 0) > 10 ? "bg-emerald-500" : (product.stock || 0) > 0 ? "bg-amber-500" : "bg-red-500"
-                                        )} />
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Cost Price</p>
+                                            <p className="text-lg font-bold text-brand-navy/40">{product.cost_price} DH</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Selling Price</p>
+                                            <p className="text-lg font-bold text-brand-navy">{product.selling_price} DH</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-2 flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <div className={cn(
+                                                "w-2 h-2 rounded-full",
+                                                (product.stock || 0) > 10 ? "bg-emerald-500" : (product.stock || 0) > 0 ? "bg-amber-500" : "bg-red-500"
+                                            )} />
+                                            <span className="text-[10px] font-black text-brand-navy/60 tracking-wider uppercase">
+                                                {product.stock || 0} in stock
+                                            </span>
+                                        </div>
                                         <span className="text-[10px] font-black text-brand-navy/60 tracking-wider uppercase">
-                                            {product.stock || 0} in stock
+                                            {product.active ? 'Active' : 'Hidden'}
                                         </span>
                                     </div>
-                                    <span className="text-[10px] font-black text-brand-navy/60 tracking-wider uppercase">
-                                        {product.active ? 'Active' : 'Hidden'}
-                                    </span>
+                                </CardContent>
+                            </Card>
+                        ) : (
+                            <Card key={product.id} className="group overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-xl transition-all duration-300 rounded-[24px] flex flex-col sm:flex-row items-center p-4 gap-6 sm:pr-6">
+                                <div className="relative h-32 w-full sm:w-32 shrink-0 rounded-[20px] overflow-hidden bg-brand-navy/[0.02] shadow-inner">
+                                    {product.image_url ? (
+                                        <img src={product.image_url} alt={product.name} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                                    ) : (
+                                        <div className="flex items-center justify-center h-full w-full text-brand-navy/10">
+                                            <ImageIcon className="w-10 h-10" />
+                                        </div>
+                                    )}
+                                    {!product.active && (
+                                        <div className="absolute inset-0 bg-brand-navy/40 backdrop-blur-[2px] flex items-center justify-center">
+                                            <Badge variant="secondary" className="bg-brand-white text-brand-navy font-bold text-[10px] px-3 py-1 rounded-full shadow-sm">INACTIVE</Badge>
+                                        </div>
+                                    )}
                                 </div>
-                            </CardContent>
-                        </Card>
+
+                                <div className="flex-1 min-w-0 space-y-2 w-full">
+                                    <div className="flex items-center gap-3">
+                                        <h3 className="text-xl font-bold text-brand-navy truncate">{product.name}</h3>
+                                        <Badge variant="outline" className="text-[10px] font-bold border-brand-navy/10 text-brand-navy/60 uppercase shrink-0">{product.label || 'Regular'}</Badge>
+                                    </div>
+                                    <p className="text-xs font-black uppercase tracking-widest text-brand-navy/40">{product.code}</p>
+
+                                    <div className="flex flex-wrap items-center gap-4 sm:gap-6 pt-2">
+                                        <div className="flex items-center gap-2">
+                                            <div className={cn("w-2 h-2 rounded-full", (product.stock || 0) > 10 ? "bg-emerald-500" : (product.stock || 0) > 0 ? "bg-amber-500" : "bg-red-500")} />
+                                            <span className="text-[10px] font-black text-brand-navy/60 tracking-wider uppercase">{product.stock || 0} in stock</span>
+                                        </div>
+                                        <div className="hidden sm:block h-4 w-px bg-brand-navy/10"></div>
+                                        <div className="flex gap-4">
+                                            <span className="text-xs font-bold text-muted-foreground/60"><span className="text-[10px] uppercase font-black mr-1 text-brand-navy/40">Cost</span> {product.cost_price} DH</span>
+                                            <span className="text-xs font-bold text-brand-navy"><span className="text-[10px] uppercase font-black mr-1 text-brand-navy/40">Sell</span> {product.selling_price} DH</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="shrink-0 flex items-center gap-2 mt-4 sm:mt-0 w-full sm:w-auto justify-end border-t sm:border-t-0 border-brand-navy/5 sm:pt-0 pt-4">
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => {
+                                            setProductToResetStock(product);
+                                        }}
+                                        title="Clear Stock (0)"
+                                        className="h-12 w-12 rounded-2xl bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy hover:text-white transition-all">
+                                        <RotateCcw className="w-5 h-5" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" onClick={() => openModal(product)} className="h-12 w-12 rounded-2xl bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy hover:text-white transition-all">
+                                        <Edit2 className="w-5 h-5" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" onClick={() => setProductToDelete(product)} className="h-12 w-12 rounded-2xl bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all">
+                                        <Trash2 className="w-5 h-5" />
+                                    </Button>
+                                </div>
+                            </Card>
+                        )
                     ))}
                 </div>
             )}
@@ -667,6 +848,35 @@ const Products = () => {
                             >
                                 {deleteProductMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                                 Confirm Removal
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </div>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Reset Stock Confirmation */}
+            <AlertDialog open={!!productToResetStock} onOpenChange={() => setProductToResetStock(null)}>
+                <AlertDialogContent className="rounded-[40px] border-none p-10 max-w-md">
+                    <div className="flex flex-col items-center text-center space-y-6">
+                        <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center text-amber-500">
+                            <RotateCcw className="w-10 h-10" />
+                        </div>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle className="text-3xl font-bold text-brand-navy">Clear Stock?</AlertDialogTitle>
+                            <AlertDialogDescription className="text-lg text-muted-foreground pt-2">
+                                This will instantly reset the stock for <span className="font-black text-brand-navy italic">"{productToResetStock?.name}"</span> to 0.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter className="w-full flex flex-col sm:flex-row gap-3 mt-4">
+                            <AlertDialogCancel className="w-full rounded-2xl h-14 font-bold border-none bg-brand-navy/[0.04] hover:bg-brand-navy/[0.08] text-brand-navy m-0">
+                                Cancel
+                            </AlertDialogCancel>
+                            <AlertDialogAction
+                                onClick={() => productToResetStock && updateStockMutation.mutate({ id: productToResetStock.id, stock: 0 })}
+                                className="w-full rounded-2xl h-14 font-bold bg-amber-500 hover:bg-amber-600 text-brand-white shadow-xl shadow-amber-500/20 m-0"
+                            >
+                                {updateStockMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                                Yes, Clear Stock
                             </AlertDialogAction>
                         </AlertDialogFooter>
                     </div>

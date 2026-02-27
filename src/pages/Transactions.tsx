@@ -101,6 +101,7 @@ const Transactions = () => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState("");
 
@@ -222,10 +223,25 @@ const Transactions = () => {
 
             if (itemsError) throw itemsError;
 
-            // 3. Update accessory stock for each item that has an accessory
+            // 3. Update stock for products and accessories
             for (const item of values.items) {
+                // Update product stock
+                if (item.product_id && item.product_id !== 'none' && item.quantity > 0) {
+                    const { data: prod } = await supabase
+                        .from('products')
+                        .select('stock')
+                        .eq('id', item.product_id)
+                        .single();
+                    if (prod) {
+                        await supabase
+                            .from('products')
+                            .update({ stock: (prod.stock || 0) + item.quantity })
+                            .eq('id', item.product_id);
+                    }
+                }
+
+                // Update accessory stock
                 if (item.accessory_id && item.accessory_id !== 'none' && item.accessory_quantity > 0) {
-                    // Fetch current stock then increment
                     const { data: acc } = await supabase
                         .from('accessories')
                         .select('stock')
@@ -278,6 +294,27 @@ const Transactions = () => {
             setIsPaymentModalOpen(false);
             paymentForm.reset();
             toast({ title: "Payment Added", description: "Ledger updated successfully." });
+        },
+        onError: (error: any) => {
+            toast({ title: "Error", description: error.message, variant: "destructive" });
+        }
+    });
+
+    const deleteTransactionMutation = useMutation({
+        mutationFn: async (id: string) => {
+            const { error } = await supabase
+                .from('transactions')
+                .delete()
+                .eq('id', id)
+                .eq('DigiCom Business', activeBusinessId);
+
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['transactions', activeBusinessId] });
+            setIsDeleteDialogOpen(false);
+            setSelectedTransaction(null);
+            toast({ title: "Transaction Deleted", description: "Record removed successfully." });
         },
         onError: (error: any) => {
             toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -432,7 +469,13 @@ const Transactions = () => {
                                                     <span className="font-bold">Record Payment</span>
                                                 </DropdownMenuItem>
                                                 <DropdownMenuSeparator />
-                                                <DropdownMenuItem className="rounded-xl p-3 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-3">
+                                                <DropdownMenuItem
+                                                    onClick={() => {
+                                                        setSelectedTransaction(tx);
+                                                        setIsDeleteDialogOpen(true);
+                                                    }}
+                                                    className="rounded-xl p-3 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-3"
+                                                >
                                                     <Trash2 className="w-4 h-4" />
                                                     <span className="font-bold">Delete Record</span>
                                                 </DropdownMenuItem>
@@ -981,6 +1024,37 @@ const Transactions = () => {
                             </DialogFooter>
                         </>
                     )}
+                </DialogContent>
+            </Dialog>
+            <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <DialogContent className="max-w-md p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden flex flex-col">
+                    <DialogHeader className="p-8 pb-4">
+                        <DialogTitle className="text-3xl font-black text-brand-navy">Delete Transaction</DialogTitle>
+                        <DialogDescription className="text-base font-medium">
+                            Are you sure you want to delete this transaction record? This action cannot be undone.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="p-8 pt-0 flex gap-3">
+                        <Button
+                            variant="ghost"
+                            onClick={() => setIsDeleteDialogOpen(false)}
+                            className="w-full rounded-2xl h-14 font-bold text-brand-navy hover:bg-muted"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={() => {
+                                if (selectedTransaction) {
+                                    deleteTransactionMutation.mutate(selectedTransaction.id);
+                                }
+                            }}
+                            disabled={deleteTransactionMutation.isPending}
+                            className="w-full bg-red-500 hover:bg-red-600 text-white rounded-2xl h-14 font-bold shadow-2xl transition-all flex items-center justify-center gap-2"
+                        >
+                            {deleteTransactionMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+                            Yes, Delete
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>

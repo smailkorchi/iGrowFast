@@ -118,7 +118,7 @@ const Customers = () => {
                     shipping_cost,
                     date,
                     created_at,
-                    city:cities(name),
+                    city:master_cities(name),
                     status:order_statuses(label, color)
                 `)
                 .eq('DigiCom Business', activeBusinessId)
@@ -135,7 +135,9 @@ const Customers = () => {
 
                 const orderPrice = Number(order.price) || 0;
                 const orderDate = order.date || order.created_at;
-                const cityName = order.city?.name || 'Unknown';
+
+                // master_cities returns an object or array depending on the relation. It's usually a single object.
+                const cityName = (order.city as any)?.name || 'Unknown';
                 const statusLabel = order.status?.label || 'Unknown';
                 const statusColor = order.status?.color || '#000';
 

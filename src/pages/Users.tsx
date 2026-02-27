@@ -104,7 +104,7 @@ const userSchema = z.object({
     username: z.string().min(3, "Username must be at least 3 characters"),
     email: z.string().email("Invalid email address"),
     password: z.string().min(6, "Password must be at least 6 characters").optional().or(z.literal('')),
-    role: z.enum(['super admin', 'admin', 'mediabuyer', 'commercial']),
+    role: z.enum(['super admin', 'admin', 'commercial']),
     assignment: z.number().default(0),
     commission_price: z.number().default(0),
     products: z.array(z.string()).default([]),
@@ -267,13 +267,15 @@ const Users = () => {
                 </CardContent>
             </Card>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div>
                 {isLoading ? (
-                    Array.from({ length: 6 }).map((_, i) => (
-                        <Card key={i} className="h-[280px] animate-pulse bg-muted rounded-[32px] border-none" />
-                    ))
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+                        {Array.from({ length: 6 }).map((_, i) => (
+                            <Card key={i} className="h-[280px] animate-pulse bg-muted rounded-[32px] border-none" />
+                        ))}
+                    </div>
                 ) : filteredUsers?.length === 0 ? (
-                    <div className="col-span-full text-center py-20">
+                    <div className="col-span-full text-center py-20 bg-white/50 backdrop-blur-sm rounded-[32px] mt-6">
                         <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-muted mb-4">
                             <UserIcon className="w-10 h-10 text-muted-foreground" />
                         </div>
@@ -281,18 +283,49 @@ const Users = () => {
                         <p className="text-muted-foreground">Try adjusting your search or add a new user.</p>
                     </div>
                 ) : (
-                    filteredUsers?.map((user) => (
-                        <UserCard
-                            key={user.id}
-                            user={user}
-                            onEdit={() => setEditingUser(user)}
-                            onDelete={() => {
-                                if (confirm("Are you sure you want to delete this user?")) {
-                                    deleteUserMutation.mutate(user.id);
-                                }
-                            }}
-                        />
-                    ))
+                    <div className="space-y-10 mt-6">
+                        {['super admin', 'admin', 'commercial', 'delivery person', 'others'].map(roleGroup => {
+                            const groupUsers = filteredUsers?.filter(u => {
+                                const r = (u.role || '').toLowerCase();
+                                if (roleGroup === 'super admin') return r === 'super admin';
+                                if (roleGroup === 'admin') return r === 'admin';
+                                if (roleGroup === 'commercial') return r === 'commercial';
+                                if (roleGroup === 'delivery person') return r === 'delivery person' || r === 'courier';
+                                if (roleGroup === 'others') return r !== 'super admin' && r !== 'admin' && r !== 'commercial' && r !== 'delivery person' && r !== 'courier';
+                                return false;
+                            });
+
+                            if (!groupUsers || groupUsers.length === 0) return null;
+
+                            const title = roleGroup === 'super admin' ? 'Super Admins' :
+                                roleGroup === 'admin' ? 'Admins' :
+                                    roleGroup === 'commercial' ? 'Commercials' :
+                                        roleGroup === 'delivery person' ? 'Couriers' : 'Others';
+
+                            return (
+                                <div key={roleGroup} className="space-y-4">
+                                    <div className="flex items-center gap-3">
+                                        <h3 className="text-2xl font-black text-brand-navy">{title}</h3>
+                                        <Badge variant="secondary" className="bg-brand-navy/10 text-brand-navy rounded-full px-2 py-0.5">{groupUsers.length}</Badge>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        {groupUsers.map((user) => (
+                                            <UserCard
+                                                key={user.id}
+                                                user={user}
+                                                onEdit={() => setEditingUser(user)}
+                                                onDelete={() => {
+                                                    if (confirm("Are you sure you want to delete this user?")) {
+                                                        deleteUserMutation.mutate(user.id);
+                                                    }
+                                                }}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
                 )}
             </div>
 
@@ -336,7 +369,8 @@ const UserCard = ({ user, onEdit, onDelete }: { user: any, onEdit: () => void, o
                                 "rounded-lg text-[10px] uppercase font-bold px-2 py-0.5",
                                 user.role === 'super admin' ? "bg-brand-red/10 text-brand-red" :
                                     user.role === 'admin' ? "bg-brand-navy/10 text-brand-navy" :
-                                        "bg-brand-blue/10 text-brand-blue"
+                                        user.role === 'commercial' ? "bg-brand-blue/10 text-brand-blue" :
+                                            "bg-emerald-500/10 text-emerald-600"
                             )}>
                                 {user.role}
                             </Badge>
@@ -363,15 +397,17 @@ const UserCard = ({ user, onEdit, onDelete }: { user: any, onEdit: () => void, o
                 </DropdownMenu>
             </CardHeader>
             <CardContent className="space-y-4 pt-2">
-                <div className="grid grid-cols-2 gap-2 text-sm">
+                <div className={cn("grid gap-2 text-sm", user.role === 'commercial' ? "grid-cols-2" : "grid-cols-1")}>
                     <div className="flex flex-col p-3 rounded-2xl bg-muted/30">
                         <span className="text-muted-foreground text-[10px] font-bold uppercase tracking-wider">Username</span>
                         <span className="font-semibold text-brand-navy truncate">@{user.username}</span>
                     </div>
-                    <div className="flex flex-col p-3 rounded-2xl bg-muted/30">
-                        <span className="text-muted-foreground text-[10px] font-bold uppercase tracking-wider">Assignment</span>
-                        <span className="font-semibold text-brand-navy">{user.assignment}</span>
-                    </div>
+                    {user.role === 'commercial' && (
+                        <div className="flex flex-col p-3 rounded-2xl bg-muted/30">
+                            <span className="text-muted-foreground text-[10px] font-bold uppercase tracking-wider">Assignment</span>
+                            <span className="font-semibold text-brand-navy">{user.assignment}</span>
+                        </div>
+                    )}
                 </div>
                 {user.role === 'commercial' && (
                     <div className="flex flex-col p-3 rounded-2xl bg-brand-blue/5 border border-brand-blue/10">
@@ -599,7 +635,7 @@ const UserModal = ({ isOpen, onClose, onSubmit, initialData, loading, title }: a
                                                                 </SelectTrigger>
                                                             </FormControl>
                                                             <SelectContent className="rounded-2xl border-none shadow-2xl p-2 bg-brand-white/95 backdrop-blur-xl">
-                                                                {['super admin', 'admin', 'mediabuyer', 'commercial'].map((role) => (
+                                                                {['super admin', 'admin', 'commercial'].map((role) => (
                                                                     <SelectItem key={role} value={role} className="rounded-xl p-3 capitalize font-bold text-brand-navy focus:bg-brand-navy focus:text-brand-white transition-colors cursor-pointer">
                                                                         {role}
                                                                     </SelectItem>
@@ -690,7 +726,7 @@ const UserModal = ({ isOpen, onClose, onSubmit, initialData, loading, title }: a
                             </ScrollArea>
 
                             {/* Side Section - Role Specific Details */}
-                            {form.watch('role') !== 'super admin' && form.watch('role') !== 'mediabuyer' && (
+                            {form.watch('role') !== 'super admin' && (
                                 <div className="w-full lg:w-[450px] bg-muted/20 border-l border-brand-navy/5 flex flex-col overflow-hidden">
                                     <div className="p-8 pb-4">
                                         <h4 className="text-xl font-bold text-brand-navy">

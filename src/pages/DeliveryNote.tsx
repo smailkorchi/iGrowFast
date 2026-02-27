@@ -78,7 +78,7 @@ const DeliveryNote = () => {
     const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
     const [isTrackingLoading, setIsTrackingLoading] = useState(false);
     const [trackingParcel, setTrackingParcel] = useState<any>(null);
-    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+    const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
     const [wizardZoneId, setWizardZoneId] = useState<string | undefined>(undefined);
     const [wizardProviderId, setWizardProviderId] = useState<string | undefined>(undefined);
     const activeBusinessId = localStorage.getItem('activeBusinessId');

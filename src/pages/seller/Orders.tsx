@@ -152,7 +152,7 @@ const Orders = () => {
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [selectedOrder, setSelectedOrder] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState("");
-    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+    const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
 
     // Dropdown search states
     const [citySearchOpen, setCitySearchOpen] = useState(false);
@@ -1333,18 +1333,6 @@ const Orders = () => {
                                                         <Edit2 className="w-4 h-4" />
                                                         <span className="font-bold">Modify Details</span>
                                                     </DropdownMenuItem>
-                                                    <DropdownMenuSeparator />
-                                                    <DropdownMenuItem
-                                                        onClick={() => {
-                                                            if (confirm("Delete this order? This action is permanent.")) {
-                                                                deleteOrderMutation.mutate(order.id);
-                                                            }
-                                                        }}
-                                                        className="rounded-xl p-3 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-3 transition-colors"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                        <span className="font-bold">Delete Order</span>
-                                                    </DropdownMenuItem>
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
                                         </div>
@@ -1473,18 +1461,6 @@ const Orders = () => {
                                                             >
                                                                 <Edit2 className="w-4 h-4" />
                                                                 <span className="font-bold">Edit Details</span>
-                                                            </DropdownMenuItem>
-                                                            <DropdownMenuSeparator />
-                                                            <DropdownMenuItem
-                                                                onClick={() => {
-                                                                    if (confirm("Delete this order?")) {
-                                                                        deleteOrderMutation.mutate(order.id);
-                                                                    }
-                                                                }}
-                                                                className="rounded-xl p-3 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-3"
-                                                            >
-                                                                <Trash2 className="w-4 h-4" />
-                                                                <span className="font-bold">Delete Order</span>
                                                             </DropdownMenuItem>
                                                         </DropdownMenuContent>
                                                     </DropdownMenu>

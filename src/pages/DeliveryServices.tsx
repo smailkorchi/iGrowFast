@@ -116,7 +116,7 @@ type DeliveryPersonValues = z.infer<typeof deliveryPersonSchema>;
 type DeliveryCompanyValues = z.infer<typeof deliveryCompanySchema>;
 
 const DeliveryServices = () => {
-    const [activeTab, setActiveTab] = useState<'person' | 'company'>('person');
+    const [activeTab, setActiveTab] = useState<'person' | 'company'>('company');
     const [isPersonModalOpen, setIsPersonModalOpen] = useState(false);
     const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
     const [isZonesModalOpen, setIsZonesModalOpen] = useState(false);
@@ -304,16 +304,16 @@ const DeliveryServices = () => {
                 <div className="flex flex-col md:flex-row items-center justify-between gap-4">
                     <TabsList className="bg-white/50 backdrop-blur-md p-1.5 h-16 rounded-[24px] border border-brand-navy/5 shadow-sm inline-flex">
                         <TabsTrigger
-                            value="person"
-                            className="rounded-[18px] px-8 h-full data-[state=active]:bg-brand-navy data-[state=active]:text-white data-[state=active]:shadow-xl font-bold transition-all text-base gap-2"
-                        >
-                            <User className="w-4 h-4" /> Couriers
-                        </TabsTrigger>
-                        <TabsTrigger
                             value="company"
                             className="rounded-[18px] px-8 h-full data-[state=active]:bg-brand-navy data-[state=active]:text-white data-[state=active]:shadow-xl font-bold transition-all text-base gap-2"
                         >
                             <Building2 className="w-4 h-4" /> Partners
+                        </TabsTrigger>
+                        <TabsTrigger
+                            value="person"
+                            className="rounded-[18px] px-8 h-full data-[state=active]:bg-brand-navy data-[state=active]:text-white data-[state=active]:shadow-xl font-bold transition-all text-base gap-2"
+                        >
+                            <User className="w-4 h-4" /> Couriers
                         </TabsTrigger>
                     </TabsList>
 
@@ -328,23 +328,6 @@ const DeliveryServices = () => {
                     </div>
                 </div>
 
-                <TabsContent value="person" className="mt-0">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {isLoadingPeople ? <SkeletonCards /> : filteredPeople?.map(person => (
-                            <CourierCard
-                                key={person.id}
-                                person={person}
-                                onEdit={() => handleEdit(person, 'person')}
-                                onZones={() => { setSelectedCourier(person); setIsZonesModalOpen(true); }}
-                                onFees={() => { setSelectedCourier(person); setIsFeesModalOpen(true); }}
-                                onDelete={() => {
-                                    if (confirm('Delete courier account?')) deleteMutation.mutate({ id: person.id, type: 'person' });
-                                }}
-                            />
-                        ))}
-                    </div>
-                </TabsContent>
-
                 <TabsContent value="company" className="mt-0">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {isLoadingCompanies ? <SkeletonCards /> : filteredCompanies?.map(company => (
@@ -356,6 +339,23 @@ const DeliveryServices = () => {
                                 onFees={() => { setSelectedCompany(company); setIsCompanyFeesModalOpen(true); }}
                                 onDelete={() => {
                                     if (confirm('Delete provider connection?')) deleteMutation.mutate({ id: company.id, type: 'company' });
+                                }}
+                            />
+                        ))}
+                    </div>
+                </TabsContent>
+
+                <TabsContent value="person" className="mt-0">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {isLoadingPeople ? <SkeletonCards /> : filteredPeople?.map(person => (
+                            <CourierCard
+                                key={person.id}
+                                person={person}
+                                onEdit={() => handleEdit(person, 'person')}
+                                onZones={() => { setSelectedCourier(person); setIsZonesModalOpen(true); }}
+                                onFees={() => { setSelectedCourier(person); setIsFeesModalOpen(true); }}
+                                onDelete={() => {
+                                    if (confirm('Delete courier account?')) deleteMutation.mutate({ id: person.id, type: 'person' });
                                 }}
                             />
                         ))}

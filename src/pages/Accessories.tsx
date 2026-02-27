@@ -242,12 +242,29 @@ const Accessories = () => {
                 .eq('id', id)
                 .eq('DigiCom Business', activeBusinessId);
 
-            if (error) throw error;
+            if (error) {
+                if (error.code === '23503') {
+                    // Foreign key constraint violation (e.g., used in orders)
+                    // Fall back to soft delete
+                    const { error: softDeleteError } = await supabase
+                        .from('accessories')
+                        .update({ active: false })
+                        .eq('id', id);
+                    if (softDeleteError) throw softDeleteError;
+                    return { softDeleted: true };
+                }
+                throw error;
+            }
+            return { softDeleted: false };
         },
-        onSuccess: () => {
+        onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: ['accessories', activeBusinessId] });
             setAccessoryToDelete(null);
-            toast({ title: "Accessory deleted", description: "The accessory was successfully removed." });
+            if (data?.softDeleted) {
+                toast({ title: "Accessory Deactivated", description: "This accessory is used in existing orders, so it was deactivated instead of permanently deleted." });
+            } else {
+                toast({ title: "Accessory deleted", description: "The accessory was successfully removed." });
+            }
         },
         onError: (error: any) => {
             toast({ title: "Error", description: error.message, variant: "destructive" });
