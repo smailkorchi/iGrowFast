@@ -149,25 +149,26 @@ const SellerDashboard = () => {
             // Get orders attributed to this seller
             const { data: ordersData } = await supabase
                 .from('orders')
-                .select('id, price, created_at, name, order_statuses(code), order_items(product_id, products(name, image_url))')
+                .select('id, price, created_at, name, package_status_label, order_statuses(code), order_items(product_id, products(name, image_url))')
                 .eq('seller_id', userId)
                 .order('created_at', { ascending: false });
 
             const orders = (ordersData || []).map(o => ({
                 ...o,
-                status: (o.order_statuses as any)?.code?.toLowerCase() || 'unknown'
+                status: (o.order_statuses as any)?.code?.toLowerCase() || 'unknown',
+                packageStatus: ((o as any).package_status_label || '').toLowerCase()
             }));
 
-            // Status code helpers matching actual order_statuses.code values
-            const isDelivered = (s: string) => ['paid', 'unpaid'].includes(s);
-            const isPending = (s: string) => ['new', 'relaunch_new'].includes(s);
-            const isConfirmed = (s: string) => ['confirmed', 'processed', 'paid', 'unpaid'].includes(s);
+            // Delivered = package_status is "Livré" (physically delivered by courier)
+            const isDelivered = (o: any) => o.packageStatus === 'livré';
+            const isPending = (o: any) => ['new', 'relaunch_new'].includes(o.status);
+            const isConfirmed = (o: any) => ['confirmed', 'processed', 'paid', 'unpaid'].includes(o.status);
 
             const todayOrders = orders.filter(o => new Date(o.created_at) >= today);
             const todayRevenue = todayOrders.reduce((sum, o) => sum + (Number((o as any).price) || 0), 0);
 
-            const delivered = orders.filter(o => isDelivered(o.status)).length;
-            const confirmed = orders.filter(o => isConfirmed(o.status)).length;
+            const delivered = orders.filter(o => isDelivered(o)).length;
+            const confirmed = orders.filter(o => isConfirmed(o)).length;
             const successRate = orders.length > 0 ? (delivered / orders.length) * 100 : 0;
             const confirmRate = orders.length > 0 ? (confirmed / orders.length) * 100 : 0;
             const liveCommission = delivered * commissionRate;
@@ -175,7 +176,7 @@ const SellerDashboard = () => {
             setStats({
                 todayOrders: todayOrders.length,
                 todayRevenue,
-                pendingOrders: orders.filter(o => isPending(o.status)).length,
+                pendingOrders: orders.filter(o => isPending(o)).length,
                 confirmedOrders: confirmed,
                 deliveredOrders: delivered,
                 totalOrders: orders.length,
@@ -211,7 +212,7 @@ const SellerDashboard = () => {
                     productMap[pName] = { name: pName, image: item.products?.image_url || null, delivered: 0, total: 0, revenue: 0 };
                 }
                 productMap[pName].total++;
-                if (isDelivered(o.status)) {
+                if (isDelivered(o)) {
                     productMap[pName].delivered++;
                     productMap[pName].revenue += Number(o.price) || 0;
                 }

@@ -145,18 +145,19 @@ const SellerStatistics = () => {
             // 1. Fetch Orders with Items & Product Images for Granular Analysis
             const { data: ordersData, error: ordersError } = await supabase
                 .from('orders')
-                .select('city_id, master_cities(name), order_statuses(code), order_items(unit_price, quantity, products(name, image_url))')
+                .select('city_id, package_status_label, master_cities(name), order_statuses(code), order_items(unit_price, quantity, products(name, image_url))')
                 .eq('seller_id', user.id);
 
             const orders = (ordersData || []).map(o => ({
                 ...o,
-                status: (o.order_statuses as any)?.code?.toLowerCase() || 'unknown'
+                status: (o.order_statuses as any)?.code?.toLowerCase() || 'unknown',
+                packageStatus: ((o as any).package_status_label || '').toLowerCase()
             }));
 
-            // Status code helpers matching actual order_statuses.code values
-            const isDelivered = (s: string) => ['paid', 'unpaid'].includes(s);
-            const isConfirmedOrBeyond = (s: string) => ['confirmed', 'processed', 'paid', 'unpaid'].includes(s);
-            const isFake = (s: string) => ['faux commande', 'commandedouble'].includes(s);
+            // Delivered = package_status is "Livré" (physically delivered by courier)
+            const isDelivered = (o: any) => o.packageStatus === 'livré';
+            const isConfirmedOrBeyond = (o: any) => ['confirmed', 'processed', 'paid', 'unpaid'].includes(o.status);
+            const isFake = (o: any) => ['faux commande', 'commandedouble'].includes(o.status);
 
             if (ordersError) throw ordersError;
 
@@ -188,7 +189,7 @@ const SellerStatistics = () => {
 
             // Calculate Regional Data
             const cityMap: Record<string, number> = {};
-            orders?.filter(o => isDelivered(o.status)).forEach(o => {
+            orders?.filter(o => isDelivered(o)).forEach(o => {
                 const cityName = (o.master_cities as any)?.name || 'Unknown';
                 cityMap[cityName] = (cityMap[cityName] || 0) + 1;
             });
@@ -206,6 +207,8 @@ const SellerStatistics = () => {
             const prodMap: Record<string, ProductPerformance> = {};
             orders?.forEach((o: any) => {
                 const items = o.order_items || [];
+                const seenProducts = new Set<string>();
+
                 items.forEach((item: any) => {
                     const product = item.products;
                     const pName = product?.name || 'Generic Item';
@@ -213,9 +216,16 @@ const SellerStatistics = () => {
                     if (!prodMap[pName]) {
                         prodMap[pName] = { name: pName, image: pImage, attributed: 0, delivered: 0, successRate: 0, revenue: 0 };
                     }
-                    prodMap[pName].attributed += 1;
-                    if (isDelivered(o.status)) {
-                        prodMap[pName].delivered += 1;
+
+                    if (!seenProducts.has(pName)) {
+                        seenProducts.add(pName);
+                        prodMap[pName].attributed += 1;
+                        if (isDelivered(o)) {
+                            prodMap[pName].delivered += 1;
+                        }
+                    }
+
+                    if (isDelivered(o)) {
                         prodMap[pName].revenue += Number(item.unit_price) * Number(item.quantity);
                     }
                 });
@@ -268,7 +278,7 @@ const SellerStatistics = () => {
 
             // Calculate Final KPIs
             const totalAttributed = orders?.length || 0;
-            const deliveredOrders = orders?.filter(o => isDelivered(o.status)).length || 0;
+            const deliveredOrders = orders?.filter(o => isDelivered(o)).length || 0;
             const successRate = totalAttributed > 0 ? (deliveredOrders / totalAttributed) * 100 : 0;
             const efficiency = (presenceCount || 0) > 0 ? deliveredOrders / (presenceCount || 0) : 0;
 
@@ -303,9 +313,9 @@ const SellerStatistics = () => {
 
             // Calculate Detailed Ratios
             const totalOrdersCount = orders?.length || 0;
-            const confirmedOrders = orders?.filter(o => isConfirmedOrBeyond(o.status)).length || 0;
-            const deliveredOrdersCount = orders?.filter(o => isDelivered(o.status)).length || 0;
-            const fakeOrders = orders?.filter(o => isFake(o.status)).length || 0;
+            const confirmedOrders = orders?.filter(o => isConfirmedOrBeyond(o)).length || 0;
+            const deliveredOrdersCount = orders?.filter(o => isDelivered(o)).length || 0;
+            const fakeOrders = orders?.filter(o => isFake(o)).length || 0;
 
             const confirmRate = totalOrdersCount > 0 ? (confirmedOrders / totalOrdersCount) * 100 : 0;
             const deliveryEff = confirmedOrders > 0 ? (deliveredOrdersCount / confirmedOrders) * 100 : 0;

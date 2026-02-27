@@ -1015,6 +1015,7 @@ const Orders = () => {
         mutationFn: async ({ orderIds, sellerId }: { orderIds: string[], sellerId: string | null }) => {
             const updatePayload: any = {
                 assign_id: sellerId,
+                seller_id: sellerId,
                 updated_at: new Date().toISOString(),
                 assignment_date: sellerId ? new Date().toISOString() : null
             };

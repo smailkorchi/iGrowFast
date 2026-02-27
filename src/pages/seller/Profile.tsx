@@ -97,17 +97,18 @@ const SellerProfile = () => {
                 // Fetch real performance stats
                 const { data: ordersData, error: ordersError } = await supabase
                     .from('orders')
-                    .select('order_statuses(code)')
+                    .select('package_status_label, order_statuses(code)')
                     .eq('seller_id', session.user.id);
 
                 const orders = (ordersData || []).map(o => ({
-                    status: (o.order_statuses as any)?.code?.toLowerCase() || 'unknown'
+                    status: (o.order_statuses as any)?.code?.toLowerCase() || 'unknown',
+                    packageStatus: ((o as any).package_status_label || '').toLowerCase()
                 }));
 
                 if (!ordersError && orders) {
                     const total = orders.length;
                     const confirmed = orders.filter(o => ['confirmed', 'processed', 'paid', 'unpaid'].includes(o.status)).length;
-                    const delivered = orders.filter(o => ['paid', 'unpaid'].includes(o.status)).length;
+                    const delivered = orders.filter(o => o.packageStatus === 'livré').length;
 
                     const cRate = total > 0 ? (confirmed / total) * 100 : 0;
                     const dRate = confirmed > 0 ? (delivered / confirmed) * 100 : 0;
@@ -137,31 +138,43 @@ const SellerProfile = () => {
 
                     const { data: orderItemsData } = await supabase
                         .from('order_items')
-                        .select('product_id, orders!inner(seller_id, order_statuses(code))')
+                        .select('order_id, product_id, orders!inner(seller_id, package_status_label, order_statuses(code))')
                         .eq('orders.seller_id', session.user.id);
 
                     const orderItems = (orderItemsData || []).map(oi => ({
                         ...oi,
                         orders: {
-                            status: (oi.orders as any)?.order_statuses?.code?.toLowerCase() || 'unknown'
+                            status: (oi.orders as any)?.order_statuses?.code?.toLowerCase() || 'unknown',
+                            packageStatus: ((oi.orders as any)?.package_status_label || '').toLowerCase()
                         }
                     }));
 
                     if (productsData) {
                         const calculatedProductStats = productsData.map(p => {
                             const items = orderItems?.filter(oi => oi.product_id === p.id) || [];
+
+                            // Extract unique orders for this product to prevent double counting
+                            const uniqueOrdersMap = new Map();
+                            items.forEach(i => {
+                                if (i.order_id && !uniqueOrdersMap.has(i.order_id)) {
+                                    uniqueOrdersMap.set(i.order_id, i.orders);
+                                }
+                            });
+
+                            const uniqueOrders = Array.from(uniqueOrdersMap.values());
+
                             return {
                                 id: p.id,
                                 name: p.name,
                                 image_url: p.image_url,
-                                total: items.length,
-                                confirmed: items.filter(i => {
-                                    const status = Array.isArray(i.orders) ? i.orders[0]?.status : (i.orders as any)?.status;
+                                total: uniqueOrders.length,
+                                confirmed: uniqueOrders.filter(o => {
+                                    const status = Array.isArray(o) ? o[0]?.status : (o as any)?.status;
                                     return ['confirmed', 'processed', 'paid', 'unpaid'].includes(status);
                                 }).length,
-                                delivered: items.filter(i => {
-                                    const status = Array.isArray(i.orders) ? i.orders[0]?.status : (i.orders as any)?.status;
-                                    return ['paid', 'unpaid'].includes(status);
+                                delivered: uniqueOrders.filter(o => {
+                                    const pkgStatus = Array.isArray(o) ? o[0]?.packageStatus : (o as any)?.packageStatus;
+                                    return pkgStatus === 'livré';
                                 }).length
                             };
                         });
@@ -513,19 +526,6 @@ const SellerProfile = () => {
                             <CardTitle className="text-xl font-light text-gray-900">Financial Earnings</CardTitle>
                         </CardHeader>
                         <CardContent className="p-6 space-y-6">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center">
-                                        <DollarSign className="w-5 h-5 text-green-600" />
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-gray-500 font-light">Base Salary</p>
-                                        <p className="text-lg font-medium text-gray-900">0 MAD</p>
-                                    </div>
-                                </div>
-                                <Badge className="bg-green-100 text-green-700 border-0 rounded-lg">Monthly</Badge>
-                            </div>
-
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">

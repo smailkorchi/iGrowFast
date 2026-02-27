@@ -154,6 +154,7 @@ const Orders = () => {
     const [selectedOrder, setSelectedOrder] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
+    const [activeTab, setActiveTab] = useState<'new' | 'confirmation' | 'suivi' | 'reported'>('new');
 
     // Dropdown search states
     const [citySearchOpen, setCitySearchOpen] = useState(false);
@@ -915,7 +916,46 @@ const Orders = () => {
         return duplicates;
     }, [orders]);
 
-    const filteredOrders = useMemo(() => {
+    const isOrderInTab = (o: any, tab: string) => {
+        // PLACEHOLDER: The user will provide the specific logic for each tab.
+        // For now, we will use some simple dummy keyword checks for demonstration.
+        const statusLabel = o.order_statuses?.label?.toLowerCase() || '';
+        const statusCode = o.order_statuses?.code?.toLowerCase() || '';
+        const combined = statusLabel + ' ' + statusCode;
+
+        switch (tab) {
+            case 'new':
+                return o.order_status_id === 'deb5c74e-95f3-41a8-8446-c9b831792cca'; // 'Nouvel commande'
+            case 'confirmation':
+                const excludedFromConfirmation = [
+                    '2ab2ec36-3514-4082-bc98-4c0c70fc704b', // Retour de Produit
+                    '6e630c78-e048-4406-8aa7-cf1bc2a71fde', // Annuler apres confirmation
+                    'b3772ee3-9910-4c5a-85dd-13dfc9f9ff73', // INTERESSER
+                    '9ceb7b82-a081-4362-9820-f1d9fa70d2c9', // Client pas sérieux
+                    '5c514555-0728-40c7-b6c5-2a006ed21d37', // CONFIRMER
+                    '171119c0-5999-4e4b-adb9-3a1a32a7cecd', // UNPAID
+                    '964ffaa1-8ca0-4a1f-b3a7-466a66fa046d', // PAID
+                    '6b1d31d9-051a-4cf1-8a44-9d5ec4614412', // SUIVI
+                    'd1e28bff-36d9-46e5-a2d9-9d9405159364', // PROCESSED
+                    'dbb3ae2c-abbf-4c96-93af-ed82319c8b68', // RETURN
+                    'b5b9f007-dee5-4873-9424-70cfd9231368', // Black liste
+                    'ac63ac02-04e9-4b9e-a917-737107d7fb60', // Relancer vers un nouveau client
+                    '5561c4b1-aed4-4988-816b-4e18fe5e775f', // Fausse commande
+                    '4d622f19-cf11-4d31-b908-5829ce0c57c7', // ANNULER
+                    '31428d13-bf1f-4b23-b297-b3c112a549e7', // COMMANDE DOUBLE
+                    'deb5c74e-95f3-41a8-8446-c9b831792cca'  // NOUVELLE COMMANDE (already in 'new')
+                ];
+                return !excludedFromConfirmation.includes(o.order_status_id);
+            case 'suivi':
+                return o.package_status?.recheck === true;
+            case 'reported':
+                return combined.includes('report') || combined.includes('annul') || combined.includes('refus');
+            default:
+                return false;
+        }
+    };
+
+    const baseFilteredOrders = useMemo(() => {
         if (!orders) return [];
         return orders.filter(o => {
             const matchesSearch =
@@ -931,6 +971,21 @@ const Orders = () => {
             return matchesSearch && matchesStatus && matchesCity && matchesSource && matchesProvider;
         });
     }, [orders, searchQuery, filterStatus, filterCity, filterSource, filterProvider]);
+
+    const tabCounts = useMemo(() => {
+        const counts = { new: 0, confirmation: 0, suivi: 0, reported: 0 };
+        baseFilteredOrders.forEach(o => {
+            if (isOrderInTab(o, 'new')) counts.new++;
+            if (isOrderInTab(o, 'confirmation')) counts.confirmation++;
+            if (isOrderInTab(o, 'suivi')) counts.suivi++;
+            if (isOrderInTab(o, 'reported')) counts.reported++;
+        });
+        return counts;
+    }, [baseFilteredOrders]);
+
+    const filteredOrders = useMemo(() => {
+        return baseFilteredOrders.filter(o => isOrderInTab(o, activeTab));
+    }, [baseFilteredOrders, activeTab]);
 
     const handleEdit = (order: any) => {
         setSelectedOrder(order);
@@ -1067,6 +1122,43 @@ const Orders = () => {
                     </div>
                     <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-brand-navy/[0.02] rounded-full blur-2xl group-hover:bg-brand-navy/[0.04] transition-colors duration-500" />
                 </div>
+            </div>
+
+            {/* Tabs View */}
+            <div className="flex bg-white/50 backdrop-blur-md p-1.5 rounded-2xl shadow-sm border border-brand-navy/5 w-full overflow-x-auto hide-scrollbar snap-x">
+                {[
+                    { id: 'new', label: 'Nouveau', count: tabCounts.new, icon: Package },
+                    { id: 'confirmation', label: 'Confirmation', count: tabCounts.confirmation, icon: Phone },
+                    { id: 'suivi', label: 'Suivi', count: tabCounts.suivi, icon: Truck },
+                    { id: 'reported', label: 'Reported', count: tabCounts.reported, icon: AlertTriangle }
+                ].map((tab) => {
+                    const Icon = tab.icon;
+                    const isActive = activeTab === tab.id;
+                    return (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id as any)}
+                            className={cn(
+                                "flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-[11px] md:text-xs font-black uppercase tracking-widest transition-all snap-start whitespace-nowrap",
+                                isActive
+                                    ? "bg-brand-navy text-white shadow-md shadow-brand-navy/10 transform scale-100"
+                                    : "text-brand-navy/60 hover:text-brand-navy hover:bg-brand-navy/5"
+                            )}
+                        >
+                            <Icon className={cn("w-4 h-4", isActive ? "opacity-100" : "opacity-50")} />
+                            <span>{tab.label}</span>
+                            <Badge
+                                variant="secondary"
+                                className={cn(
+                                    "ml-1 font-bold",
+                                    isActive ? "bg-white/20 text-white" : "bg-brand-navy/5 text-brand-navy/60"
+                                )}
+                            >
+                                {tab.count}
+                            </Badge>
+                        </button>
+                    )
+                })}
             </div>
 
             {/* Filters Toolbar */}

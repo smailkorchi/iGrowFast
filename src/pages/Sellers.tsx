@@ -109,7 +109,7 @@ const Sellers = () => {
       // 2. Fetch all orders for all sellers (using correct schema)
       const { data: ordersData } = await supabase
         .from('orders')
-        .select('id, seller_id, order_status_id, price, created_at, date_livraison, master_city_id, status:order_statuses(code, label), city:master_cities(name)')
+        .select('id, seller_id, order_status_id, price, created_at, date_livraison, master_city_id, package_status_label, status:order_statuses(code, label), city:master_cities(name)')
         .in('seller_id', sellerIds);
 
       const orders = (ordersData || []) as any[];
@@ -176,7 +176,7 @@ const Sellers = () => {
         const total = sellerOrders.length;
         const pending = sellerOrders.filter(o => NEW_CODES.includes(getStatusCode(o))).length;
         const confirmed = sellerOrders.filter(o => CONFIRMED_CODES.includes(getStatusCode(o))).length;
-        const delivered = sellerOrders.filter(o => DELIVERED_CODES.includes(getStatusCode(o))).length;
+        const delivered = sellerOrders.filter(o => (o.package_status_label || '').toLowerCase() === 'livré').length;
         const cancelled = sellerOrders.filter(o => CANCELLED_CODES.includes(getStatusCode(o))).length;
         const fake = sellerOrders.filter(o => FAKE_CODES.includes(getStatusCode(o))).length;
         const shipped = sellerOrders.filter(o => SHIPPED_CODES.includes(getStatusCode(o))).length;
@@ -189,7 +189,7 @@ const Sellers = () => {
         const liveCommission = delivered * (Number(seller.commission_price) || 0);
 
         const totalRevenue = sellerOrders
-          .filter(o => DELIVERED_CODES.includes(getStatusCode(o)))
+          .filter(o => (o.package_status_label || '').toLowerCase() === 'livré')
           .reduce((sum, o) => sum + (Number(o.price) || 0), 0);
 
         const totalCommissionEarned = sellerEarnings.reduce((sum, e) => sum + (Number(e.commission_earned) || 0), 0);
@@ -209,7 +209,7 @@ const Sellers = () => {
 
         // Top city from delivered orders
         const cityMap: Record<string, number> = {};
-        sellerOrders.filter(o => DELIVERED_CODES.includes(getStatusCode(o))).forEach(o => {
+        sellerOrders.filter(o => (o.package_status_label || '').toLowerCase() === 'livré').forEach(o => {
           const cityName = (o.city as any)?.name || 'Unknown';
           cityMap[cityName] = (cityMap[cityName] || 0) + 1;
         });
