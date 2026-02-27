@@ -265,7 +265,6 @@ const ImportOrders = () => {
                     name: order.name,
                     phone: order.phone,
                     address: order.address,
-                    city_id: order.city_id,
                     master_city_id: order.city_id,
                     price: order.price + (finalShippingFee > 0 ? finalShippingFee : 0),
                     raw_price: order.price,
