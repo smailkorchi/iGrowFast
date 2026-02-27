@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import {
@@ -35,7 +35,8 @@ import {
     ShoppingBag,
     ShieldCheck,
     BarChart3,
-    Puzzle
+    Puzzle,
+    SearchX
 } from 'lucide-react';
 import {
     Card,
@@ -158,6 +159,14 @@ const Orders = () => {
     const [statusSearchOpen, setStatusSearchOpen] = useState(false);
     const [showCustomerInsights, setShowCustomerInsights] = useState(false);
 
+    // Parcel Tracking States
+    const [orderParcel, setOrderParcel] = useState<any>(null);
+    const [trackingHistory, setTrackingHistory] = useState<any>(null);
+    const [isTrackingLoading, setIsTrackingLoading] = useState(false);
+    const [isParcelLoading, setIsParcelLoading] = useState(false);
+
+    const EDGE_FUNCTION_URL = "https://zjkqprrfbibjoslvlmxf.supabase.co/functions/v1/provider-integration";
+
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const activeBusinessId = localStorage.getItem('activeBusinessId');
@@ -205,6 +214,146 @@ const Orders = () => {
         document.head.appendChild(style);
         return () => { document.head.removeChild(style); };
     }, []);
+
+    // Fetch parcel data and tracking when view modal opens
+    useEffect(() => {
+        if (!isViewModalOpen || !selectedOrder) {
+            setOrderParcel(null);
+            setTrackingHistory(null);
+            return;
+        }
+
+        const fetchParcelAndTrack = async () => {
+            setIsParcelLoading(true);
+            setOrderParcel(null);
+            setTrackingHistory(null);
+
+            try {
+                const { data: parcel } = await supabase
+                    .from('company_parcels')
+                    .select('*, provider:providers(id, name, provider_type, logo_url)')
+                    .eq('order_id', selectedOrder.id)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+
+                if (parcel) {
+                    setOrderParcel(parcel);
+                    if (parcel.tracking_code && parcel.provider_id) {
+                        await handleTrackParcel(parcel);
+                    }
+                }
+            } catch (err) {
+                console.error('Error fetching parcel:', err);
+            } finally {
+                setIsParcelLoading(false);
+            }
+        };
+
+        fetchParcelAndTrack();
+    }, [isViewModalOpen, selectedOrder?.id]);
+
+    // Track parcel via edge function
+    const handleTrackParcel = async (parcel: any) => {
+        setIsTrackingLoading(true);
+        setTrackingHistory(null);
+
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            let response = await fetch(EDGE_FUNCTION_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session?.access_token}`
+                },
+                body: JSON.stringify({
+                    action: 'track_parcel',
+                    provider_id: parcel.provider_id,
+                    data: {
+                        tracking_code: parcel.tracking_code,
+                        external_id: parcel.external_id
+                    }
+                })
+            });
+
+            let isError = !response.ok;
+            let result = isError ? null : await response.json();
+
+            // Fallback to get_parcel_info if track_parcel fails (e.g. Coliaty 404 for history)
+            if (isError || !result?.success) {
+                console.log("track_parcel failed, attempting get_parcel_info fallback...");
+                response = await fetch(EDGE_FUNCTION_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${session?.access_token}`
+                    },
+                    body: JSON.stringify({
+                        action: 'get_parcel_info',
+                        provider_id: parcel.provider_id,
+                        data: {
+                            tracking_code: parcel.tracking_code
+                        }
+                    })
+                });
+
+                if (!response.ok) {
+                    const errData = await response.json().catch(() => ({ error: 'Failed to fetch tracking data' }));
+                    throw new Error(errData.error || `Error ${response.status}`);
+                }
+
+                result = await response.json();
+
+                // Process fallback result into expected history format
+                if (result.success && result.data && !result.data.history && !Array.isArray(result.data)) {
+                    result.data.history = [{
+                        status: result.data.status,
+                        statusLabel: result.data.statusLabel || result.data.status,
+                        date: result.data.date || new Date().toISOString(),
+                        comment: result.data.comment || 'Statut actuel (historique indisponible)',
+                        user: 'Synchronisation Coliaty/Provider'
+                    }];
+                }
+            }
+
+            if (result && result.success) {
+                setTrackingHistory(result.data);
+
+                const providerStatus = result.data?.statusLabel || result.data?.status || result.data?.current_status;
+                const providerColor = result.data?.statusColor || result.data?.color;
+
+                if (providerStatus) {
+                    const { data: matchedStatus } = await supabase
+                        .from('package_statuses')
+                        .select('id')
+                        .ilike('label', providerStatus)
+                        .maybeSingle();
+
+                    await supabase
+                        .from('company_parcels')
+                        .update({
+                            status_id: matchedStatus?.id || null,
+                            status_label: providerStatus,
+                            status_color: providerColor
+                        })
+                        .eq('id', parcel.id);
+                }
+
+                queryClient.invalidateQueries({ queryKey: ['orders'] });
+            } else {
+                throw new Error(result?.error || 'Unknown error');
+            }
+        } catch (error: any) {
+            console.error('handleTrackParcel error:', error);
+            toast({
+                title: "Tracking Error",
+                description: error.message,
+                variant: "destructive"
+            });
+        } finally {
+            setIsTrackingLoading(false);
+        }
+    };
 
     // --- Queries ---
 
@@ -858,31 +1007,41 @@ const Orders = () => {
 
             {/* Dashboard Stats (Optional Placeholder) */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card className="border-none bg-blue-50/50 rounded-[24px] p-6 space-y-2">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-blue-600/60">Active Orders</p>
-                    <h3 className="text-3xl font-black text-brand-navy">{filteredOrders.length}</h3>
+                <Card className="border-none bg-blue-50/50 rounded-[32px] p-6 relative overflow-hidden flex flex-col justify-between min-h-[140px]">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-blue-600/60 mb-2">Active Orders</p>
+                    <h3 className="text-3xl lg:text-4xl xl:text-5xl font-black text-brand-navy tracking-tight truncate w-full">
+                        {new Intl.NumberFormat('fr-FR').format(filteredOrders.length)}
+                    </h3>
                 </Card>
-                <div className="bg-brand-navy rounded-[32px] p-6 text-brand-white shadow-2xl shadow-brand-navy/30 relative overflow-hidden group">
+                <div className="bg-brand-navy rounded-[32px] p-6 text-brand-white shadow-2xl shadow-brand-navy/30 relative overflow-hidden group flex flex-col justify-between min-h-[140px]">
                     <div className="relative z-10 flex flex-col h-full justify-between">
-                        <span className="text-xs font-black uppercase text-brand-white/60 tracking-widest mb-2 block">Total Sales</span>
-                        <span className="text-3xl md:text-5xl font-black tracking-tight">{filteredOrders.reduce((acc, o) => acc + (o.raw_price || 0), 0).toFixed(0)} DH</span>
+                        <span className="text-[10px] font-black uppercase text-brand-white/60 tracking-widest mb-2 block">Total Sales</span>
+                        <div className="flex items-baseline gap-1.5 w-full">
+                            <span className="text-3xl lg:text-4xl xl:text-5xl font-black tracking-tight truncate">
+                                {new Intl.NumberFormat('fr-FR').format(Math.round(filteredOrders.reduce((acc, o) => acc + (o.raw_price || 0), 0)))}
+                            </span>
+                            <span className="text-lg font-bold opacity-60 shrink-0">DH</span>
+                        </div>
                     </div>
                     <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-brand-white/5 rounded-full blur-2xl group-hover:bg-brand-white/10 transition-colors duration-500" />
                 </div>
-                <Card className="border-none bg-amber-50/50 rounded-[24px] p-6 space-y-2">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-600/60">Exchanges</p>
-                    <h3 className="text-3xl font-black text-brand-navy">
-                        {filteredOrders.filter(o => o.replace).length}
+                <Card className="border-none bg-amber-50/50 rounded-[32px] p-6 relative overflow-hidden flex flex-col justify-between min-h-[140px]">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-600/60 mb-2">Exchanges</p>
+                    <h3 className="text-3xl lg:text-4xl xl:text-5xl font-black text-brand-navy tracking-tight truncate w-full">
+                        {new Intl.NumberFormat('fr-FR').format(filteredOrders.filter(o => o.replace).length)}
                     </h3>
                 </Card>
-                <div className="bg-white rounded-[32px] p-6 border-2 border-brand-navy/[0.03] hover:border-brand-navy/[0.08] transition-colors shadow-xl shadow-brand-navy/5 relative overflow-hidden group">
+                <div className="bg-white rounded-[32px] p-6 border-2 border-brand-navy/[0.03] hover:border-brand-navy/[0.08] transition-colors shadow-xl shadow-brand-navy/5 relative overflow-hidden group flex flex-col justify-between min-h-[140px]">
                     <div className="relative z-10 flex flex-col h-full justify-between">
-                        <span className="text-xs font-black text-brand-navy/40 uppercase tracking-widest mb-2 block">Avg Order Value</span>
-                        <span className="text-3xl md:text-4xl font-black text-brand-navy tracking-tight">
-                            {filteredOrders.length > 0
-                                ? (filteredOrders.reduce((acc, o) => acc + (o.raw_price || 0), 0) / filteredOrders.length).toFixed(0)
-                                : '0'} DH
-                        </span>
+                        <span className="text-[10px] font-black text-brand-navy/40 uppercase tracking-widest mb-2 block">Avg Order Value</span>
+                        <div className="flex items-baseline gap-1.5 w-full">
+                            <span className="text-3xl lg:text-4xl xl:text-5xl font-black text-brand-navy tracking-tight truncate">
+                                {filteredOrders.length > 0
+                                    ? new Intl.NumberFormat('fr-FR').format(Math.round(filteredOrders.reduce((acc, o) => acc + (o.raw_price || 0), 0) / filteredOrders.length))
+                                    : '0'}
+                            </span>
+                            <span className="text-lg font-bold text-brand-navy/40 shrink-0">DH</span>
+                        </div>
                     </div>
                     <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-brand-navy/[0.02] rounded-full blur-2xl group-hover:bg-brand-navy/[0.04] transition-colors duration-500" />
                 </div>
@@ -2089,6 +2248,14 @@ const Orders = () => {
                                                 Exchange
                                             </Badge>
                                         )}
+                                        {orderParcel?.tracking_code && (
+                                            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-50 border border-indigo-100">
+                                                <Package className="w-4 h-4 text-indigo-500" />
+                                                <span className="text-xs font-black uppercase tracking-widest text-indigo-600">
+                                                    {orderParcel.tracking_code}
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                                 <div className="p-8 pb-10 flex items-center justify-between border-b-2 border-brand-navy/5 bg-gradient-to-br from-brand-navy/[0.02] to-transparent">
@@ -2300,6 +2467,122 @@ const Orders = () => {
                                         })()}
                                     </div>
                                 </div>
+
+                                {/* Parcel Tracking History */}
+                                <div className="space-y-6 pb-6">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <Truck className="w-6 h-6 text-brand-navy/20" />
+                                            <h4 className="text-xl font-black text-brand-navy uppercase tracking-[0.15em]">Suivi du Colis</h4>
+                                        </div>
+                                        {orderParcel?.tracking_code && (
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => orderParcel && handleTrackParcel(orderParcel)}
+                                                disabled={isTrackingLoading}
+                                                className="text-xs font-bold text-brand-navy hover:bg-brand-navy/5 gap-2 rounded-xl h-9 px-4"
+                                            >
+                                                {isTrackingLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCcw className="w-3 h-3" />}
+                                                Rafraîchir
+                                            </Button>
+                                        )}
+                                    </div>
+
+                                    {isParcelLoading ? (
+                                        <div className="flex flex-col items-center justify-center py-12 gap-4">
+                                            <Loader2 className="w-10 h-10 text-brand-navy animate-spin" />
+                                            <p className="font-bold text-muted-foreground animate-pulse">Chargement du colis...</p>
+                                        </div>
+                                    ) : !orderParcel ? (
+                                        <div className="text-center p-8 bg-brand-navy/[0.02] rounded-3xl border border-brand-navy/[0.05]">
+                                            <p className="text-sm font-bold text-muted-foreground">Aucun colis créé pour cette commande.</p>
+                                        </div>
+                                    ) : !orderParcel.tracking_code ? (
+                                        <div className="text-center p-8 bg-amber-50/50 rounded-3xl border border-amber-100">
+                                            <p className="text-sm font-bold text-amber-600">Colis créé mais pas encore de code de suivi.</p>
+                                        </div>
+                                    ) : isTrackingLoading ? (
+                                        <div className="flex flex-col items-center justify-center py-12 gap-4">
+                                            <Loader2 className="w-10 h-10 text-brand-navy animate-spin" />
+                                            <p className="font-bold text-muted-foreground animate-pulse">Récupération des données...</p>
+                                        </div>
+                                    ) : trackingHistory ? (
+                                        <div className="space-y-8 relative before:absolute before:left-[17px] before:top-2 before:bottom-2 before:w-0.5 before:bg-brand-navy/5">
+                                            {(() => {
+                                                const events = Array.isArray(trackingHistory)
+                                                    ? trackingHistory
+                                                    : (trackingHistory?.history || []);
+                                                return events;
+                                            })().map((event: any, idx: number) => {
+                                                const statusMap: any = {
+                                                    'NEW_PARCEL': 'Nouveau',
+                                                    'WAITING_PICKUP': 'En attente de ramassage',
+                                                    'DISTRIBUTION': 'En cours de distribution',
+                                                    'DELIVERED': 'Livré',
+                                                    'REFUSED': 'Refusé',
+                                                    'REFUSE': 'Refusé',
+                                                    'ANNULE': 'Annulé',
+                                                    'CANCELLED': 'Annulé',
+                                                    'RETURNED': 'Retourné',
+                                                    'RETOUR': 'Retourné',
+                                                    'POSTPONED': 'Reporté',
+                                                    'WAITING_PREPARATION': 'En préparation',
+                                                    'PICKED_UP': 'Ramassé',
+                                                    'READY_FOR_PICKUP': 'Prêt pour ramassage'
+                                                };
+
+                                                const rawStatus = event.status || "Nouveau";
+                                                const statusLabel = event.statusLabel;
+                                                const status = statusLabel || statusMap[rawStatus] || rawStatus;
+                                                const date = event.date;
+                                                const comment = event.comment || "";
+                                                const user = (typeof event.user === 'object' ? event.user?.name : event.user) || "";
+
+                                                return (
+                                                    <div key={idx} className="relative pl-12 group">
+                                                        <div className={`absolute left-0 top-1 w-9 h-9 rounded-full border-4 border-white shadow-sm flex items-center justify-center transition-all group-hover:scale-110 z-10 ${idx === 0 ? 'bg-brand-navy text-white shadow-brand-navy/20' : 'bg-slate-50 text-brand-navy/40'
+                                                            }`}>
+                                                            <div className="w-2 h-2 rounded-full bg-current" />
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <div className="flex items-center justify-between">
+                                                                <span className={`text-sm font-black tracking-tight ${idx === 0 ? 'text-brand-navy' : 'text-muted-foreground'}`}>
+                                                                    {status}
+                                                                </span>
+                                                                <span className="text-[10px] font-bold text-muted-foreground opacity-60">
+                                                                    {date ? format(new Date(date), 'dd/MM/yyyy HH:mm') : ''}
+                                                                </span>
+                                                            </div>
+                                                            {comment && (
+                                                                <p className="text-[11px] font-medium text-muted-foreground leading-relaxed italic">
+                                                                    "{comment}"
+                                                                </p>
+                                                            )}
+                                                            {user && (
+                                                                <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground">
+                                                                    <div className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center">
+                                                                        <Hash className="w-2 h-2" />
+                                                                    </div>
+                                                                    Par {user}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col items-center justify-center py-12 text-center space-y-3">
+                                            <div className="p-4 bg-slate-50 rounded-full">
+                                                <SearchX className="w-8 h-8 text-muted-foreground/40" />
+                                            </div>
+                                            <p className="font-bold text-muted-foreground">Aucun historique disponible pour ce colis.</p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <Separator className="bg-brand-navy/[0.05]" />
 
                                 {/* Status History Timeline */}
                                 <div className="space-y-6 pb-6">
