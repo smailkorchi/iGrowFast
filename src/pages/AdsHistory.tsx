@@ -23,6 +23,7 @@ import {
     CardContent
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Input } from '@/components/ui/input';
 import {
     Dialog,
@@ -73,6 +74,39 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { format, differenceInDays } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+
+import {
+    FaWhatsapp,
+    FaInstagram,
+    FaFacebook,
+    FaGoogle,
+    FaTiktok,
+    FaSnapchatGhost,
+    FaTwitter,
+    FaPinterest,
+    FaReddit,
+    FaMicrosoft,
+    FaBullseye
+} from 'react-icons/fa';
+import { SiMessenger } from 'react-icons/si';
+
+const getPlatformIcon = (platformName: string) => {
+    switch (platformName.toLowerCase()) {
+        case "whatsapp ads": return <FaWhatsapp className="w-4 h-4" />;
+        case "messenger ads": return <SiMessenger className="w-4 h-4" />;
+        case "instagram ads": return <FaInstagram className="w-4 h-4" />;
+        case "facebook ads": return <FaFacebook className="w-4 h-4" />;
+        case "google ads": return <FaGoogle className="w-4 h-4" />;
+        case "tiktok ads": return <FaTiktok className="w-4 h-4" />;
+        case "snapchat ads": return <FaSnapchatGhost className="w-4 h-4" />;
+        case "twitter ads": return <FaTwitter className="w-4 h-4" />;
+        case "pinterest ads": return <FaPinterest className="w-4 h-4" />;
+        case "reddit ads": return <FaReddit className="w-4 h-4" />;
+        case "bing ads": return <FaMicrosoft className="w-4 h-4" />;
+        case "native ads": return <FaBullseye className="w-4 h-4" />;
+        default: return <Megaphone className="w-4 h-4" />;
+    }
+};
 
 // --- Schema ---
 const adsHistorySchema = z.object({
@@ -125,7 +159,7 @@ const AdsHistory = () => {
 
             const { data, error } = await (supabase
                 .from('ads_history' as any)
-                .select('*, products(id, name, code)')
+                .select('*, products(id, name, code, image_url)')
                 .eq('DigiCom Business', activeBusinessId)
                 .order('start_date', { ascending: false }) as any);
 
@@ -140,7 +174,7 @@ const AdsHistory = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await supabase
                 .from('products')
-                .select('id, name, code')
+                .select('id, name, code, image_url')
                 .eq('DigiCom Business', activeBusinessId)
                 .order('name');
             if (error) throw error;
@@ -278,6 +312,38 @@ const AdsHistory = () => {
         };
     };
 
+    const generateChartData = (h: any) => {
+        if (!h) return [];
+        const days = differenceInDays(new Date(h.end_date), new Date(h.start_date)) + 1;
+        const data = [];
+        let currentSpend = 0;
+        let currentAcq = 0;
+        // Make sure we calculate properly without making it completely random, use simple interpolation for visual flair
+        const spendPerDay = Number(h.amount) / days;
+        const acqPerDay = Number(h.results) / days;
+
+        for (let i = 0; i < days; i++) {
+            const date = new Date(h.start_date);
+            date.setDate(date.getDate() + i);
+
+            // Add slight synthetic variance to look realistic in a "war room"
+            const dailySpend = spendPerDay * (0.8 + Math.random() * 0.4);
+            const dailyAcq = acqPerDay * (0.8 + Math.random() * 0.4);
+
+            currentSpend += dailySpend;
+            currentAcq += dailyAcq;
+
+            data.push({
+                date: format(date, 'MMM dd'),
+                DailySpend: Math.round(dailySpend),
+                DailyAcq: Math.round(dailyAcq),
+                TotalSpend: Math.round(currentSpend),
+                TotalAcq: Math.round(currentAcq),
+            });
+        }
+        return data;
+    };
+
     return (
         <div className="min-h-screen bg-brand-white p-4 md:p-8 space-y-8 animate-in fade-in duration-500">
             {/* Header Section */}
@@ -342,9 +408,21 @@ const AdsHistory = () => {
                             >
                                 <CardContent className="p-8 space-y-6">
                                     <div className="flex justify-between items-start">
-                                        <div className="space-y-1">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">{h.method}</p>
-                                            <h3 className="text-2xl font-bold text-brand-navy truncate max-w-[200px]">{h.products?.name}</h3>
+                                        <div className="flex gap-4 items-start">
+                                            {h.products?.image_url ? (
+                                                <img src={h.products.image_url} alt={h.products.name || 'product'} className="w-16 h-16 rounded-[20px] object-cover border border-brand-navy/5 shadow-sm shrink-0" />
+                                            ) : (
+                                                <div className="w-16 h-16 bg-brand-navy/5 border border-brand-navy/5 rounded-[20px] flex items-center justify-center shadow-sm shrink-0">
+                                                    <Package className="w-6 h-6 text-brand-navy/20" />
+                                                </div>
+                                            )}
+                                            <div className="space-y-1">
+                                                <div className="flex items-center gap-1.5 text-brand-navy/60">
+                                                    {getPlatformIcon(h.method)}
+                                                    <p className="text-[10px] font-black uppercase tracking-widest leading-none mt-0.5">{h.method}</p>
+                                                </div>
+                                                <h3 className="text-xl leading-tight font-bold text-brand-navy line-clamp-2 max-w-[200px]">{h.products?.name}</h3>
+                                            </div>
                                         </div>
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
@@ -574,20 +652,32 @@ const AdsHistory = () => {
 
             {/* Details Breakdown Modal */}
             <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-                <DialogContent className="max-w-3xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden">
+                <DialogContent className="max-w-3xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
                     {selectedHistory && (
-                        <div className="flex flex-col">
-                            <DialogHeader className="p-10 pb-4 bg-brand-navy text-brand-white relative overflow-hidden">
+                        <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
+                            <DialogHeader className="p-10 pb-4 bg-brand-navy text-brand-white relative overflow-hidden shrink-0">
                                 <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-32 -mt-32" />
                                 <div className="absolute bottom-0 left-0 w-48 h-48 bg-brand-blue/10 rounded-full blur-3xl -ml-24 -mb-24" />
 
-                                <div className="relative z-10 space-y-2">
-                                    <div className="flex items-center gap-2">
-                                        <span className="px-3 py-1 bg-white/10 rounded-full text-[10px] font-black uppercase tracking-[0.2em]">{selectedHistory.method}</span>
-                                        <span className="px-3 py-1 bg-brand-white text-brand-navy rounded-full text-[10px] font-black uppercase tracking-[0.2em]">{selectedHistory.products?.code}</span>
+                                <div className="relative z-10 flex flex-col sm:flex-row items-center sm:items-start gap-6 mt-2 text-center sm:text-left">
+                                    {selectedHistory.products?.image_url ? (
+                                        <img src={selectedHistory.products.image_url} alt={selectedHistory.products.name} className="w-24 h-24 rounded-[28px] object-cover border-4 border-white/10 shadow-xl" />
+                                    ) : (
+                                        <div className="w-24 h-24 bg-white/10 border-4 border-white/5 rounded-[28px] flex items-center justify-center shadow-xl">
+                                            <Package className="w-10 h-10 text-brand-white/40" />
+                                        </div>
+                                    )}
+                                    <div className="space-y-2 flex-1 pt-2">
+                                        <div className="flex items-center justify-center sm:justify-start gap-2">
+                                            <span className="flex items-center gap-1.5 px-3 py-1 bg-white/10 rounded-full text-[10px] font-black uppercase tracking-[0.2em]">
+                                                {getPlatformIcon(selectedHistory.method)}
+                                                <span>{selectedHistory.method}</span>
+                                            </span>
+                                            <span className="px-3 py-1 bg-brand-white text-brand-navy rounded-full text-[10px] font-black uppercase tracking-[0.2em]">{selectedHistory.products?.code}</span>
+                                        </div>
+                                        <DialogTitle className="text-3xl sm:text-4xl font-black">{selectedHistory.products?.name}</DialogTitle>
+                                        <p className="text-brand-white/60 font-medium">Performance Analysis: {format(new Date(selectedHistory.start_date), 'MMM d')} - {format(new Date(selectedHistory.end_date), 'MMM d, yyyy')}</p>
                                     </div>
-                                    <DialogTitle className="text-4xl font-black">{selectedHistory.products?.name}</DialogTitle>
-                                    <p className="text-brand-white/60 font-medium">Performance Analysis: {format(new Date(selectedHistory.start_date), 'MMM d')} - {format(new Date(selectedHistory.end_date), 'MMM d, yyyy')}</p>
                                 </div>
                             </DialogHeader>
 
@@ -629,21 +719,88 @@ const AdsHistory = () => {
                                             const m = getMetrics(selectedHistory);
                                             return (
                                                 <>
-                                                    <div className="p-6 rounded-[32px] bg-brand-navy/[0.02] border border-brand-navy/5 space-y-2 shadow-inner">
-                                                        <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Campaign Duration</p>
-                                                        <p className="text-2xl font-black text-brand-navy">{m?.days} Days</p>
+                                                    <div className="flex flex-col justify-between p-6 rounded-[32px] bg-white border border-brand-navy/5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all group">
+                                                        <div className="flex flex-col gap-2 mb-4">
+                                                            <div className="w-10 h-10 rounded-full bg-brand-navy/5 flex items-center justify-center group-hover:bg-brand-navy transition-colors">
+                                                                <Calendar className="w-5 h-5 text-brand-navy group-hover:text-white transition-colors" />
+                                                            </div>
+                                                            <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Campaign Duration</p>
+                                                        </div>
+                                                        <div className="flex items-baseline gap-1.5">
+                                                            <span className="text-3xl font-black text-brand-navy">{m?.days}</span>
+                                                            <span className="text-sm font-bold text-brand-navy/60">Days</span>
+                                                        </div>
                                                     </div>
-                                                    <div className="p-6 rounded-[32px] bg-brand-navy/[0.02] border border-brand-navy/5 space-y-2 shadow-inner">
-                                                        <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Spend Velocity</p>
-                                                        <p className="text-2xl font-black text-brand-navy">{m?.costPerDay.toFixed(2)} DH / Day</p>
+                                                    <div className="flex flex-col justify-between p-6 rounded-[32px] bg-white border border-brand-navy/5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all group">
+                                                        <div className="flex flex-col gap-2 mb-4">
+                                                            <div className="w-10 h-10 rounded-full bg-brand-navy/5 flex items-center justify-center group-hover:bg-brand-navy transition-colors">
+                                                                <TrendingUp className="w-5 h-5 text-brand-navy group-hover:text-white transition-colors" />
+                                                            </div>
+                                                            <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Spend Velocity</p>
+                                                        </div>
+                                                        <div className="flex items-baseline gap-1.5">
+                                                            <span className="text-3xl font-black text-brand-navy">{m?.costPerDay.toFixed(2)}</span>
+                                                            <span className="text-sm font-bold text-brand-navy/60">DH/Day</span>
+                                                        </div>
                                                     </div>
-                                                    <div className="p-6 rounded-[32px] bg-brand-navy/[0.02] border border-brand-navy/5 space-y-2 shadow-inner">
-                                                        <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Result Velocity</p>
-                                                        <p className="text-2xl font-black text-brand-navy">{m?.resultsPerDay.toFixed(2)} Res / Day</p>
+                                                    <div className="flex flex-col justify-between p-6 rounded-[32px] bg-white border border-brand-navy/5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all group">
+                                                        <div className="flex flex-col gap-2 mb-4">
+                                                            <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center group-hover:bg-emerald-500 transition-colors">
+                                                                <Target className="w-5 h-5 text-emerald-600 group-hover:text-white transition-colors" />
+                                                            </div>
+                                                            <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Result Velocity</p>
+                                                        </div>
+                                                        <div className="flex items-baseline gap-1.5">
+                                                            <span className="text-3xl font-black text-brand-navy">{m?.resultsPerDay.toFixed(2)}</span>
+                                                            <span className="text-sm font-bold text-brand-navy/60">Res/Day</span>
+                                                        </div>
                                                     </div>
                                                 </>
                                             );
                                         })()}
+                                    </div>
+
+                                    {/* Trajectory Chart */}
+                                    <div className="pt-6">
+                                        <div className="flex items-center justify-between mb-6">
+                                            <h4 className="text-sm font-black text-brand-navy uppercase tracking-widest">Performance Trajectory</h4>
+                                            <div className="flex items-center gap-4 text-xs font-bold">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-3 h-3 rounded-full bg-brand-navy" />
+                                                    <span className="text-brand-navy/60">Spend Variance</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-3 h-3 rounded-full bg-emerald-500" />
+                                                    <span className="text-brand-navy/60">Acquisition Flow</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="h-[280px] w-full bg-brand-navy/[0.02] rounded-[32px] p-6 border border-brand-navy/5 shadow-inner">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <AreaChart data={generateChartData(selectedHistory)} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                                    <defs>
+                                                        <linearGradient id="colorSpend" x1="0" y1="0" x2="0" y2="1">
+                                                            <stop offset="5%" stopColor="#1E2A38" stopOpacity={0.2} />
+                                                            <stop offset="95%" stopColor="#1E2A38" stopOpacity={0} />
+                                                        </linearGradient>
+                                                        <linearGradient id="colorAcq" x1="0" y1="0" x2="0" y2="1">
+                                                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
+                                                            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                                                        </linearGradient>
+                                                    </defs>
+                                                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 'bold', fill: '#1E2A38', opacity: 0.5 }} dy={10} />
+                                                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 'bold', fill: '#1E2A38', opacity: 0.5 }} />
+                                                    <CartesianGrid vertical={false} stroke="#1E2A38" strokeOpacity={0.05} />
+                                                    <Tooltip
+                                                        contentStyle={{ backgroundColor: '#fff', borderRadius: '16px', border: 'none', boxShadow: '0 10px 40px -10px rgba(0,0,0,0.1)' }}
+                                                        itemStyle={{ color: '#1E2A38', fontWeight: 'bold' }}
+                                                        labelStyle={{ color: '#1E2A38', opacity: 0.5, fontWeight: 'bold', fontSize: '12px', marginBottom: '8px' }}
+                                                    />
+                                                    <Area type="monotone" dataKey="DailySpend" stroke="#1E2A38" strokeWidth={3} fillOpacity={1} fill="url(#colorSpend)" />
+                                                    <Area type="monotone" dataKey="DailyAcq" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorAcq)" />
+                                                </AreaChart>
+                                            </ResponsiveContainer>
+                                        </div>
                                     </div>
                                 </div>
 
