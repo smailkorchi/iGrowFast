@@ -71,8 +71,8 @@ const navigation: NavSection[] = [
         items: [
             { icon: FileText, label: 'Delivery Note', path: '/delivery-note' },
             { icon: Repeat, label: 'Return Note', path: '/return-note' },
-            { icon: Globe, label: 'Delivery Services', path: '/delivery-services' },
             { icon: CreditCard, label: 'Payment', path: '/payments' },
+            { icon: Globe, label: 'Delivery Services', path: '/delivery-services' },
             { icon: Zap, label: 'Webhooks', path: '/webhooks' },
         ]
     },
