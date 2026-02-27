@@ -138,6 +138,7 @@ const orderSchema = z.object({
     courier_id: z.string().uuid().optional().nullable(),
     company_id: z.string().uuid().optional().nullable(),
     history_comment: z.string().optional(),
+    _reportedDate: z.string().optional(),
 });
 
 type OrderFormValues = z.infer<typeof orderSchema>;
@@ -165,6 +166,12 @@ const Orders = () => {
     const [isBulkStatusModalOpen, setIsBulkStatusModalOpen] = useState(false);
     const [bulkStatusComment, setBulkStatusComment] = useState("");
     const [sellerSearchQuery, setSellerSearchQuery] = useState("");
+
+    // Reported Modal States
+    const [isReportedModalOpen, setIsReportedModalOpen] = useState(false);
+    const [reportedData, setReportedData] = useState<{ date: Date | undefined, time: string, comment: string }>({ date: undefined, time: "12:00", comment: "" });
+    const [pendingReportedAction, setPendingReportedAction] = useState<((date: Date, time: string, comment: string) => void) | null>(null);
+    const REPORTED_STATUS_ID = '713cf400-b800-4bea-b27a-8c40241e0ae2';
 
     // Parcel Tracking States
     const [orderParcel, setOrderParcel] = useState<any>(null);
@@ -851,7 +858,8 @@ const Orders = () => {
                     updatePayload.date_livraison = new Date().toISOString();
                 }
                 if (newStatus?.code === 'POSTPONED') {
-                    updatePayload.reported_date = new Date().toISOString();
+                    // Use explicitly passed reported_date, falling back to current time
+                    updatePayload.reported_date = (values as any)._reportedDate || new Date().toISOString();
                 }
             }
 
@@ -909,11 +917,22 @@ const Orders = () => {
 
             // 3. Track History if Status Changed
             if (values.order_status_id && values.order_status_id !== selectedOrder.order_status_id) {
+                const newStatus = orderStatuses?.find(s => s.id === values.order_status_id);
+                let finalComment = values.history_comment || '';
+
+                if (newStatus?.code === 'POSTPONED' || values.order_status_id === REPORTED_STATUS_ID) {
+                    const rDate = (values as any)._reportedDate;
+                    if (rDate) {
+                        const formattedDate = format(new Date(rDate), 'dd/MM/yyyy HH:mm');
+                        finalComment = `[Reporté pour: ${formattedDate}] ${finalComment}`;
+                    }
+                }
+
                 try {
                     await (supabase as any).from('order_status_history').insert({
                         order_id: selectedOrder.id,
                         status_id: values.order_status_id,
-                        comment: values.history_comment || '',
+                        comment: finalComment,
                         changed_by: userId,
                         'DigiCom Business': activeBusinessId
                     });
@@ -952,7 +971,7 @@ const Orders = () => {
     });
 
     const bulkStatusMutation = useMutation({
-        mutationFn: async ({ orderIds, statusId }: { orderIds: string[], statusId: string }) => {
+        mutationFn: async ({ orderIds, statusId, reportedDate, commentOverride }: { orderIds: string[], statusId: string, reportedDate?: string, commentOverride?: string }) => {
             const userRes = await (supabase as any).auth.getUser();
             const userId = userRes.data.user?.id;
 
@@ -975,7 +994,7 @@ const Orders = () => {
                 updatePayload.date_livraison = new Date().toISOString();
             }
             if (newStatus?.code === 'POSTPONED') {
-                updatePayload.reported_date = new Date().toISOString();
+                updatePayload.reported_date = reportedDate || new Date().toISOString();
             }
 
             const { error } = await (supabase as any)
@@ -987,10 +1006,17 @@ const Orders = () => {
 
             // Track history for bulk
             try {
+                let finalCommentTemplate = commentOverride || bulkStatusComment || 'Bulk status update';
+
+                if ((newStatus?.code === 'POSTPONED' || statusId === REPORTED_STATUS_ID) && reportedDate) {
+                    const formattedDate = format(new Date(reportedDate), 'dd/MM/yyyy HH:mm');
+                    finalCommentTemplate = `[Reporté pour: ${formattedDate}] ${finalCommentTemplate}`;
+                }
+
                 const historyRecords = orderIds.map(oId => ({
                     order_id: oId,
                     status_id: statusId,
-                    comment: bulkStatusComment || 'Bulk status update',
+                    comment: finalCommentTemplate,
                     changed_by: userId,
                     'DigiCom Business': activeBusinessId
                 }));
@@ -1889,6 +1915,24 @@ const Orders = () => {
                                             </div>
                                         </div>
 
+                                        {/* Reported Information */}
+                                        {(order.status?.code === 'POSTPONED' || order.order_status_id === REPORTED_STATUS_ID) && order.reported_date && (
+                                            <div className="p-5 rounded-[24px] bg-amber-500/10 border border-amber-500/20 space-y-3">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <Calendar className="w-4 h-4 text-amber-600" />
+                                                        <span className="text-[10px] font-black uppercase tracking-widest text-amber-700">Scheduled Recall</span>
+                                                    </div>
+                                                    <Badge className="bg-amber-500 text-white border-none font-bold">
+                                                        {format(new Date(order.reported_date), 'HH:mm')}
+                                                    </Badge>
+                                                </div>
+                                                <p className="text-lg font-black text-amber-900 tracking-tight">
+                                                    {format(new Date(order.reported_date), 'EEEE, d MMMM')}
+                                                </p>
+                                            </div>
+                                        )}
+
                                         <Separator className="bg-brand-navy/[0.05]" />
 
                                         {/* Footer */}
@@ -2057,6 +2101,16 @@ const Orders = () => {
                                                                 </span>
                                                             </div>
                                                         )}
+
+                                                        {/* List View Reported Info */}
+                                                        {(order.status?.code === 'POSTPONED' || order.order_status_id === REPORTED_STATUS_ID) && order.reported_date && (
+                                                            <div className="mt-1 flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20 w-fit">
+                                                                <Calendar className="w-2.5 h-2.5 text-amber-600" />
+                                                                <span className="text-[8px] font-black text-amber-700 uppercase tracking-tight">
+                                                                    {format(new Date(order.reported_date), 'dd/MM HH:mm')}
+                                                                </span>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </td>
                                                 <td className="p-6">
@@ -2196,15 +2250,38 @@ const Orders = () => {
             >
                 <DialogContent className="max-w-5xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden flex flex-col h-[90vh] md:h-auto md:max-h-[90vh]">
                     <Form {...form}>
-                        <form onSubmit={form.handleSubmit((v) => {
-                            if (isEditModalOpen && selectedOrder && v.order_status_id !== selectedOrder.order_status_id) {
-                                if (!v.history_comment?.trim()) {
+                        <form onSubmit={form.handleSubmit((values) => {
+                            const targetStatusId = values.order_status_id;
+                            const REPORTED_STATUS_ID = orderStatuses?.find(s => s.code === 'POSTPONED')?.id;
+
+                            if (isEditModalOpen && selectedOrder && targetStatusId !== selectedOrder.order_status_id) {
+                                if (!values.history_comment?.trim()) {
                                     form.setError('history_comment', { type: 'manual', message: 'Comment is required when changing status.' });
                                     toast({ title: "Validation Error", description: "Please provide a reason for the status change.", variant: "destructive" });
                                     return;
                                 }
                             }
-                            isEditModalOpen ? updateOrderMutation.mutate(v) : createOrderMutation.mutate(v);
+
+                            if (targetStatusId === REPORTED_STATUS_ID && selectedOrder?.order_status_id !== REPORTED_STATUS_ID) {
+                                setIsReportedModalOpen(true);
+                                setReportedData({ date: undefined, time: "12:00", comment: values.history_comment || "" });
+                                setPendingReportedAction(() => (date: Date, time: string, comment: string) => {
+                                    const [hours, minutes] = time.split(':');
+                                    const dateTime = new Date(date);
+                                    dateTime.setHours(Number(hours), Number(minutes), 0, 0);
+
+                                    const updatedValues = { ...values, _reportedDate: dateTime.toISOString(), history_comment: comment };
+                                    isEditModalOpen ? updateOrderMutation.mutate(updatedValues) : createOrderMutation.mutate(updatedValues);
+
+                                    setIsReportedModalOpen(false);
+                                    setPendingReportedAction(null);
+                                    setIsEditModalOpen(false);
+                                    setIsAddModalOpen(false);
+                                });
+                                return;
+                            }
+
+                            isEditModalOpen ? updateOrderMutation.mutate(values) : createOrderMutation.mutate(values);
                         })} className="flex flex-col h-full overflow-hidden">
                             <DialogHeader className="p-8 pb-4">
                                 <DialogTitle className="text-3xl font-black text-brand-navy">
@@ -3307,9 +3384,28 @@ const Orders = () => {
                                                                 </span>
                                                             </div>
                                                             {record.comment && (
-                                                                <p className="text-sm font-medium text-brand-navy/80 mt-2 p-3 bg-white rounded-xl border border-brand-navy/[0.03] italic">
-                                                                    "{record.comment}"
-                                                                </p>
+                                                                <div className="space-y-2">
+                                                                    {(record.status?.code === 'POSTPONED' || record.status_id === REPORTED_STATUS_ID) ? (
+                                                                        <div className="flex flex-col gap-1 p-3 bg-amber-50 rounded-xl border border-amber-100">
+                                                                            <div className="flex items-center gap-2">
+                                                                                <Calendar className="w-3 h-3 text-amber-600" />
+                                                                                <span className="text-[10px] font-black uppercase text-amber-700">Rappel Programmé</span>
+                                                                            </div>
+                                                                            <p className="text-xs font-bold text-amber-900">
+                                                                                {record.comment.includes('[Reporté pour:')
+                                                                                    ? record.comment.match(/\[Reporté pour: (.*?)\]/)?.[1]
+                                                                                    : selectedOrder.reported_date ? format(new Date(selectedOrder.reported_date), 'dd/MM/yyyy HH:mm') : 'Date non spécifiée'}
+                                                                            </p>
+                                                                            <p className="text-sm font-medium text-amber-800 italic mt-1 border-t border-amber-500/10 pt-1">
+                                                                                "{record.comment.replace(/\[Reporté pour:.*?\]/, '').trim()}"
+                                                                            </p>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <p className="text-sm font-medium text-brand-navy/80 mt-2 p-3 bg-white rounded-xl border border-brand-navy/[0.03] italic">
+                                                                            "{record.comment}"
+                                                                        </p>
+                                                                    )}
+                                                                </div>
                                                             )}
                                                         </div>
                                                     </div>
@@ -3372,10 +3468,32 @@ const Orders = () => {
                                     key={status.id}
                                     variant="outline"
                                     onClick={() => {
-                                        if (!bulkStatusComment.trim()) {
+                                        if (!bulkStatusComment.trim() && status.id !== REPORTED_STATUS_ID) {
                                             toast({ title: "Validation Error", description: "Please provide a reason for changing the status.", variant: "destructive" });
                                             return;
                                         }
+
+                                        if (status.id === REPORTED_STATUS_ID) {
+                                            setIsReportedModalOpen(true);
+                                            setReportedData({ date: undefined, time: "12:00", comment: bulkStatusComment });
+                                            setPendingReportedAction(() => (date: Date, time: string, comment: string) => {
+                                                const [hours, minutes] = time.split(':');
+                                                const dateTime = new Date(date);
+                                                dateTime.setHours(Number(hours), Number(minutes), 0, 0);
+
+                                                bulkStatusMutation.mutate({
+                                                    orderIds: selectedOrders,
+                                                    statusId: status.id,
+                                                    reportedDate: dateTime.toISOString(),
+                                                    commentOverride: comment
+                                                });
+
+                                                setIsReportedModalOpen(false);
+                                                setPendingReportedAction(null);
+                                            });
+                                            return;
+                                        }
+
                                         bulkStatusMutation.mutate({ orderIds: selectedOrders, statusId: status.id })
                                     }}
                                     disabled={bulkStatusMutation.isPending}
@@ -3460,6 +3578,78 @@ const Orders = () => {
                                 ))}
                         </div>
                     </div>
+                </DialogContent>
+            </Dialog>
+            {/* Reported Status Data Collection Modal */}
+            <Dialog open={isReportedModalOpen} onOpenChange={(v) => {
+                if (!v) {
+                    setIsReportedModalOpen(false);
+                    setPendingReportedAction(null);
+                }
+            }}>
+                <DialogContent className="max-w-md p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden flex flex-col">
+                    <DialogHeader className="p-8 pb-4 shrink-0 border-b border-brand-navy/[0.05]">
+                        <DialogTitle className="text-2xl font-black text-brand-navy">Reported Action</DialogTitle>
+                        <DialogDescription className="text-sm font-bold text-muted-foreground">
+                            Please provide the scheduled date and time.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="p-8 space-y-6">
+                        <div className="space-y-2 flex flex-col items-center">
+                            <label className="text-[10px] items-start w-full font-black uppercase tracking-wider text-muted-foreground/70">Date</label>
+                            <CalendarComponent
+                                mode="single"
+                                selected={reportedData.date}
+                                onSelect={(d) => setReportedData(prev => ({ ...prev, date: d }))}
+                                initialFocus
+                                className="rounded-2xl border-none shadow-inner bg-brand-navy/[0.02]"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] items-start w-full flex font-black uppercase tracking-wider text-muted-foreground/70">Time</label>
+                            <div className="relative">
+                                <Clock className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-brand-navy/30" />
+                                <Input
+                                    type="time"
+                                    value={reportedData.time}
+                                    onChange={(e) => setReportedData(prev => ({ ...prev, time: e.target.value }))}
+                                    className="h-14 pl-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner"
+                                />
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] items-start w-full flex font-black uppercase tracking-wider text-muted-foreground/70">Comment (Optional)</label>
+                            <Textarea
+                                value={reportedData.comment}
+                                onChange={(e) => setReportedData(prev => ({ ...prev, comment: e.target.value }))}
+                                placeholder="Add a note why it was reported..."
+                                className="resize-none rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner min-h-[80px]"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter className="p-8 pt-4 border-t border-brand-navy/[0.05] bg-brand-navy/[0.01]">
+                        <Button
+                            variant="ghost"
+                            onClick={() => {
+                                setIsReportedModalOpen(false);
+                                setPendingReportedAction(null);
+                            }}
+                            className="h-12 rounded-2xl font-bold uppercase tracking-widest text-[10px]"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            disabled={!reportedData.date}
+                            onClick={() => {
+                                if (reportedData.date && pendingReportedAction) {
+                                    pendingReportedAction(reportedData.date, reportedData.time, reportedData.comment);
+                                }
+                            }}
+                            className="bg-brand-navy text-white hover:bg-brand-navy/90 h-12 rounded-2xl font-bold px-8 shadow-xl shadow-brand-navy/20"
+                        >
+                            Confirm Action
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div >
