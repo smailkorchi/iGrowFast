@@ -342,7 +342,7 @@ const Orders = () => {
                 if (providerStatus) {
                     const { data: matchedStatus } = await supabase
                         .from('package_statuses')
-                        .select('id')
+                        .select('id, label')
                         .ilike('label', providerStatus)
                         .maybeSingle();
 
