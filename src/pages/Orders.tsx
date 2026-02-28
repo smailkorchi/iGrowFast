@@ -209,6 +209,7 @@ const Orders = () => {
     const [filterPackageStatus, setFilterPackageStatus] = useState<string>('all');
     const [filterConfirmedBy, setFilterConfirmedBy] = useState<string>('all');
     const [filterAssignedTo, setFilterAssignedTo] = useState<string>('all');
+    const [filterExchange, setFilterExchange] = useState<string>('all');
     const [showAllFilters, setShowAllFilters] = useState(false);
     const [showCustomerInsights, setShowCustomerInsights] = useState(false);
     const [isAttributionOpen, setIsAttributionOpen] = useState(false);
@@ -1224,9 +1225,12 @@ const Orders = () => {
             // Assigned to
             const matchesAssignedTo = filterAssignedTo === 'all' || o.assign_id === filterAssignedTo;
 
-            return matchesSearch && matchesStatus && matchesCity && matchesSource && matchesProvider && matchesDate && matchesCustomerName && matchesPhone && matchesProduct && matchesPackageStatus && matchesConfirmedBy && matchesAssignedTo;
+            // Exchange
+            const matchesExchange = filterExchange === 'all' || (filterExchange === 'yes' && o.replace) || (filterExchange === 'no' && !o.replace);
+
+            return matchesSearch && matchesStatus && matchesCity && matchesSource && matchesProvider && matchesDate && matchesCustomerName && matchesPhone && matchesProduct && matchesPackageStatus && matchesConfirmedBy && matchesAssignedTo && matchesExchange;
         });
-    }, [orders, searchQuery, filterStatus, filterCity, filterSource, filterProvider, getDateRange, filterDateField, filterCustomerName, filterPhone, filterProduct, filterPackageStatus, filterConfirmedBy, filterAssignedTo]);
+    }, [orders, searchQuery, filterStatus, filterCity, filterSource, filterProvider, getDateRange, filterDateField, filterCustomerName, filterPhone, filterProduct, filterPackageStatus, filterConfirmedBy, filterAssignedTo, filterExchange]);
 
     const activeFilterCount = useMemo(() => {
         let count = 0;
@@ -1241,8 +1245,9 @@ const Orders = () => {
         if (filterPackageStatus !== 'all') count++;
         if (filterConfirmedBy !== 'all') count++;
         if (filterAssignedTo !== 'all') count++;
+        if (filterExchange !== 'all') count++;
         return count;
-    }, [filterStatus, filterCity, filterSource, filterProvider, filterTimeRange, filterCustomerName, filterPhone, filterProduct, filterPackageStatus, filterConfirmedBy, filterAssignedTo]);
+    }, [filterStatus, filterCity, filterSource, filterProvider, filterTimeRange, filterCustomerName, filterPhone, filterProduct, filterPackageStatus, filterConfirmedBy, filterAssignedTo, filterExchange]);
 
     const clearAllFilters = () => {
         setFilterStatus('all');
@@ -1258,6 +1263,7 @@ const Orders = () => {
         setFilterPackageStatus('all');
         setFilterConfirmedBy('all');
         setFilterAssignedTo('all');
+        setFilterExchange('all');
     };
 
     const handleEdit = (order: any) => {
@@ -1678,6 +1684,13 @@ const Orders = () => {
                                         <button onClick={() => setFilterProvider('all')} className="ml-0.5 hover:bg-amber-100 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
                                     </span>
                                 )}
+                                {filterExchange !== 'all' && (
+                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-red-50 text-red-700 text-[10px] font-bold border border-red-100">
+                                        <RefreshCcw className="w-3 h-3" />
+                                        {filterExchange === 'yes' ? 'Exchange: Yes' : 'Exchange: No'}
+                                        <button onClick={() => setFilterExchange('all')} className="ml-0.5 hover:bg-red-100 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
+                                    </span>
+                                )}
 
                                 <button onClick={clearAllFilters} className="h-7 px-2 rounded-full text-[10px] font-bold text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors">
                                     Clear all
@@ -1976,6 +1989,23 @@ const Orders = () => {
                                                     </div>
                                                 </SelectItem>
                                             ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {/* Exchange Filter */}
+                                <div className="space-y-1.5">
+                                    <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider flex items-center gap-1">
+                                        <RefreshCcw className="w-3 h-3" /> Exchange
+                                    </span>
+                                    <Select value={filterExchange} onValueChange={setFilterExchange}>
+                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterExchange !== 'all' ? "border-red-200 bg-red-50/50 text-red-700" : "border-brand-navy/[0.06] bg-brand-navy/[0.02] text-brand-navy")}>
+                                            <SelectValue placeholder="All" />
+                                        </SelectTrigger>
+                                        <SelectContent className="rounded-2xl border-none shadow-2xl shadow-brand-navy/10">
+                                            <SelectItem value="all" className="font-bold text-xs rounded-xl">All Orders</SelectItem>
+                                            <SelectItem value="yes" className="font-bold text-xs rounded-xl">Yes (Exchange)</SelectItem>
+                                            <SelectItem value="no" className="font-bold text-xs rounded-xl">No (Normal)</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
