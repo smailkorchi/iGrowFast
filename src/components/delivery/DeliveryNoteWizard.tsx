@@ -243,15 +243,18 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                     const providerColor = result.data?.statusColor || result.data?.color;
                     let mappedStatusId = null;
 
-                    // Try to find matching status in package_statuses table for internal mapping
-                    const { data: matchedStatus } = await supabase
-                        .from('package_statuses')
-                        .select('id')
-                        .ilike('label', providerStatus)
-                        .maybeSingle();
-
-                    if (matchedStatus) {
-                        mappedStatusId = matchedStatus.id;
+                    // Try to find matching status in package_statuses table (non-blocking)
+                    try {
+                        const { data: matchedStatus } = await supabase
+                            .from('package_statuses')
+                            .select('id')
+                            .ilike('label', providerStatus)
+                            .maybeSingle();
+                        if (matchedStatus) {
+                            mappedStatusId = matchedStatus.id;
+                        }
+                    } catch (e) {
+                        console.warn('Could not map package status, continuing without:', e);
                     }
 
                     // Save to database with mapped status_id and native color
