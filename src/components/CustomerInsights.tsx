@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import {
     ShoppingBag,
+    Truck,
     CheckCircle2,
     XCircle,
     DollarSign,
@@ -36,6 +37,7 @@ interface OrderRecord {
     status_code: string;
     status_label: string;
     status_color: string;
+    package_status_code: string;
 }
 
 interface MonthData {
@@ -44,7 +46,7 @@ interface MonthData {
     revenue: number;
 }
 
-const CONFIRMED_CODES = ['CONFIRMED', 'PAID', 'PROCESSED', 'UNPAID'];
+const DELIVERED_CODES = ['P_DELIVERED'];
 const CANCELLED_CODES = ['CANCELED', 'RETURN', 'Black liste', 'faux commande'];
 
 const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className }) => {
@@ -72,7 +74,8 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
                         date,
                         created_at,
                         raw_price,
-                        status:order_statuses(code, label, color)
+                        status:order_statuses(code, label, color),
+                        package_status:package_statuses(code, label)
                     `)
                     .eq('DigiCom Business', activeBusinessId)
                     .ilike('phone', `%${cleaned}%`)
@@ -88,6 +91,7 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
                     status_code: o.status?.code || '',
                     status_label: o.status?.label || '',
                     status_color: o.status?.color || '#999',
+                    package_status_code: o.package_status?.code || '',
                 }));
 
                 setOrders(mapped);
@@ -107,11 +111,11 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
     // Stats
     const stats = useMemo(() => {
         const total = orders.length;
-        const confirmed = orders.filter(o => CONFIRMED_CODES.includes(o.status_code)).length;
+        const delivered = orders.filter(o => DELIVERED_CODES.includes(o.package_status_code)).length;
         const cancelled = orders.filter(o => CANCELLED_CODES.includes(o.status_code)).length;
         const totalSpent = orders.reduce((acc, o) => acc + o.raw_price, 0);
-        const confirmRate = total > 0 ? Math.round((confirmed / total) * 100) : 0;
-        return { total, confirmed, cancelled, totalSpent, confirmRate };
+        const deliveryRate = total > 0 ? Math.round((delivered / total) * 100) : 0;
+        return { total, delivered, cancelled, totalSpent, deliveryRate };
     }, [orders]);
 
     // Chart data: last 6 months
@@ -205,10 +209,10 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
                         <div className="relative overflow-hidden rounded-2xl bg-emerald-50 border border-emerald-100 p-3">
                             <div className="relative z-10">
                                 <div className="flex items-center gap-1 mb-1">
-                                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                                    <span className="text-[9px] font-black uppercase tracking-widest text-emerald-500/60">Confirmed</span>
+                                    <Truck className="w-3 h-3 text-emerald-400" />
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-emerald-500/60">Delivered</span>
                                 </div>
-                                <span className="text-2xl font-black text-emerald-700 leading-none">{stats.confirmed}</span>
+                                <span className="text-2xl font-black text-emerald-700 leading-none">{stats.delivered}</span>
                             </div>
                         </div>
 
@@ -233,24 +237,24 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
                         </div>
                     </div>
 
-                    {/* Confirmation Rate Bar */}
+                    {/* Delivery Rate Bar */}
                     <div className="rounded-xl bg-white border border-brand-navy/[0.04] p-3">
                         <div className="flex items-center justify-between mb-2">
-                            <span className="text-[10px] font-bold text-brand-navy/40 uppercase tracking-wider">Confirmation Rate</span>
+                            <span className="text-[10px] font-bold text-brand-navy/40 uppercase tracking-wider">Delivery Rate</span>
                             <span className={cn(
                                 "text-sm font-black",
-                                stats.confirmRate >= 60 ? "text-emerald-600" : stats.confirmRate >= 30 ? "text-amber-600" : "text-red-600"
-                            )}>{stats.confirmRate}%</span>
+                                stats.deliveryRate >= 60 ? "text-emerald-600" : stats.deliveryRate >= 30 ? "text-amber-600" : "text-red-600"
+                            )}>{stats.deliveryRate}%</span>
                         </div>
                         <div className="w-full h-2 bg-brand-navy/[0.04] rounded-full overflow-hidden">
                             <div
                                 className={cn(
                                     "h-full rounded-full transition-all duration-700 ease-out",
-                                    stats.confirmRate >= 60 ? "bg-gradient-to-r from-emerald-400 to-emerald-500" :
-                                        stats.confirmRate >= 30 ? "bg-gradient-to-r from-amber-400 to-amber-500" :
+                                    stats.deliveryRate >= 60 ? "bg-gradient-to-r from-emerald-400 to-emerald-500" :
+                                        stats.deliveryRate >= 30 ? "bg-gradient-to-r from-amber-400 to-amber-500" :
                                             "bg-gradient-to-r from-red-400 to-red-500"
                                 )}
-                                style={{ width: `${stats.confirmRate}%` }}
+                                style={{ width: `${stats.deliveryRate}%` }}
                             />
                         </div>
                     </div>

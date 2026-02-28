@@ -829,15 +829,15 @@ const UserModal = ({ isOpen, onClose, onSubmit, initialData, loading, title }: a
                                                     </div>
                                                     <div className="space-y-2 max-h-[400px]">
                                                         {filteredProducts?.map((product) => {
-                                                            const isSelected = form.watch('products')?.includes(product.code);
+                                                            const isSelected = form.watch('products')?.includes(product.id);
                                                             return (
                                                                 <div
                                                                     key={product.id}
                                                                     onClick={() => {
                                                                         const current = form.getValues('products') || [];
                                                                         const next = isSelected
-                                                                            ? current.filter(id => id !== product.code)
-                                                                            : [...current, product.code];
+                                                                            ? current.filter(id => id !== product.id)
+                                                                            : [...current, product.id];
                                                                         form.setValue('products', next, { shouldDirty: true });
                                                                     }}
                                                                     className={cn(

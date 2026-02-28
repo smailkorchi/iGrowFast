@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import {
     User, Mail, ShieldCheck, DollarSign, TrendingUp,
     Calendar, LogOut, Loader2, CreditCard, Building2,
     Fingerprint, MapPin, Zap, CheckCircle2, Target,
-    Search, ChevronLeft, ChevronRight, Package
+    Search, ChevronLeft, ChevronRight, Package, X
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,12 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 
 interface SellerProfileData {
     id: string;
@@ -34,6 +40,12 @@ interface ProductStat {
     id: string;
     name: { [key: string]: string };
     image_url: string | null;
+    code: string;
+    label: string | null;
+    description: string | null;
+    selling_price: number;
+    cost_price: number;
+    stock: number;
     total: number;
     confirmed: number;
     delivered: number;
@@ -64,6 +76,7 @@ const SellerProfile = () => {
 
     const [productStats, setProductStats] = useState<ProductStat[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
+    const [selectedProduct, setSelectedProduct] = useState<ProductStat | null>(null);
     const carouselRef = React.useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -133,7 +146,7 @@ const SellerProfile = () => {
                 if (productIds.length > 0) {
                     const { data: productsData } = await supabase
                         .from('products')
-                        .select('id, name, image_url')
+                        .select('id, name, image_url, code, label, description, selling_price, cost_price, stock')
                         .in('id', productIds);
 
                     const { data: orderItemsData } = await supabase
@@ -167,6 +180,12 @@ const SellerProfile = () => {
                                 id: p.id,
                                 name: p.name,
                                 image_url: p.image_url,
+                                code: p.code || '',
+                                label: p.label,
+                                description: p.description,
+                                selling_price: Number(p.selling_price) || 0,
+                                cost_price: Number(p.cost_price) || 0,
+                                stock: Number(p.stock) || 0,
                                 total: uniqueOrders.length,
                                 confirmed: uniqueOrders.filter(o => {
                                     const status = Array.isArray(o) ? o[0]?.status : (o as any)?.status;
@@ -626,7 +645,8 @@ const SellerProfile = () => {
                                 filteredProducts.map((p) => (
                                     <div
                                         key={p.id}
-                                        className="min-w-[320px] max-w-[320px] snap-start group"
+                                        className="min-w-[320px] max-w-[320px] snap-start group cursor-pointer"
+                                        onClick={() => setSelectedProduct(p)}
                                     >
                                         <div className="bg-gray-50/50 rounded-3xl p-6 border border-transparent group-hover:border-primary/10 group-hover:bg-white group-hover:shadow-xl transition-all duration-500">
                                             <div className="flex gap-4 mb-6">
@@ -689,6 +709,107 @@ const SellerProfile = () => {
                     </CardContent>
                 </Card>
             </div>
+            {/* Product Detail Modal */}
+            <Dialog open={!!selectedProduct} onOpenChange={(open) => !open && setSelectedProduct(null)}>
+                <DialogContent className="max-w-lg p-0 border-none bg-white rounded-[32px] shadow-2xl overflow-hidden">
+                    {selectedProduct && (() => {
+                        const p = selectedProduct;
+                        const displayName = p.name?.en || Object.values(p.name || {})[0] || 'Unknown Product';
+                        const confirmRate = p.total > 0 ? Math.round((p.confirmed / p.total) * 100) : 0;
+                        const deliveryRate = p.total > 0 ? Math.round((p.delivered / p.total) * 100) : 0;
+                        return (
+                            <>
+                                {/* Hero Image */}
+                                <div className="relative w-full h-56 bg-gradient-to-br from-gray-100 to-gray-50 overflow-hidden">
+                                    {p.image_url ? (
+                                        <img src={p.image_url} alt={displayName} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center">
+                                            <Package className="w-16 h-16 text-gray-200" />
+                                        </div>
+                                    )}
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+                                    <div className="absolute bottom-4 left-6 right-6">
+                                        <h2 className="text-2xl font-bold text-white drop-shadow-lg leading-tight">{displayName}</h2>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <Badge className="bg-white/20 backdrop-blur-md text-white border-none text-[10px] font-bold">{p.code}</Badge>
+                                            {p.label && <Badge className="bg-white/20 backdrop-blur-md text-white border-none text-[10px] font-bold">{p.label}</Badge>}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Content */}
+                                <div className="p-6 space-y-6">
+                                    {/* Description */}
+                                    {p.description && (
+                                        <p className="text-sm text-gray-500 font-light leading-relaxed">{p.description}</p>
+                                    )}
+
+                                    {/* Price & Stock */}
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="p-4 rounded-2xl bg-gray-50 text-center">
+                                            <p className="text-[10px] text-gray-400 uppercase tracking-widest font-medium mb-1">Selling</p>
+                                            <p className="text-lg font-bold text-gray-900">{p.selling_price}<span className="text-xs font-normal text-gray-400 ml-0.5">DH</span></p>
+                                        </div>
+                                        <div className="p-4 rounded-2xl bg-gray-50 text-center">
+                                            <p className="text-[10px] text-gray-400 uppercase tracking-widest font-medium mb-1">Stock</p>
+                                            <p className="text-lg font-bold text-gray-900">{p.stock}</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Performance Stats */}
+                                    <div className="space-y-4">
+                                        <h4 className="text-xs font-bold uppercase tracking-widest text-gray-400">Performance</h4>
+
+                                        <div className="grid grid-cols-3 gap-3">
+                                            <div className="p-4 rounded-2xl bg-gradient-to-br from-gray-900 to-gray-800 text-center text-white">
+                                                <p className="text-[10px] uppercase tracking-widest font-medium opacity-60 mb-1">Attributed</p>
+                                                <p className="text-2xl font-bold">{p.total}</p>
+                                            </div>
+                                            <div className="p-4 rounded-2xl bg-blue-50 border border-blue-100 text-center">
+                                                <p className="text-[10px] text-blue-500 uppercase tracking-widest font-medium mb-1">Confirmed</p>
+                                                <p className="text-2xl font-bold text-blue-700">{p.confirmed}</p>
+                                            </div>
+                                            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-100 text-center">
+                                                <p className="text-[10px] text-emerald-500 uppercase tracking-widest font-medium mb-1">Delivered</p>
+                                                <p className="text-2xl font-bold text-emerald-700">{p.delivered}</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Confirmation Rate */}
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-xs font-medium text-gray-500">Confirmation Rate</span>
+                                                <span className={`text-sm font-bold ${confirmRate >= 60 ? 'text-emerald-600' : confirmRate >= 30 ? 'text-amber-600' : 'text-red-600'}`}>{confirmRate}%</span>
+                                            </div>
+                                            <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+                                                <div
+                                                    className={`h-full rounded-full transition-all duration-700 ease-out ${confirmRate >= 60 ? 'bg-emerald-500' : confirmRate >= 30 ? 'bg-amber-500' : 'bg-red-500'}`}
+                                                    style={{ width: `${confirmRate}%` }}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Delivery Rate */}
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-xs font-medium text-gray-500">Delivery Rate</span>
+                                                <span className={`text-sm font-bold ${deliveryRate >= 60 ? 'text-emerald-600' : deliveryRate >= 30 ? 'text-amber-600' : 'text-red-600'}`}>{deliveryRate}%</span>
+                                            </div>
+                                            <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+                                                <div
+                                                    className={`h-full rounded-full transition-all duration-700 ease-out ${deliveryRate >= 60 ? 'bg-emerald-500' : deliveryRate >= 30 ? 'bg-amber-500' : 'bg-red-500'}`}
+                                                    style={{ width: `${deliveryRate}%` }}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </>
+                        );
+                    })()}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };

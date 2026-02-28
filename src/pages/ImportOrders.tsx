@@ -362,7 +362,7 @@ const ImportOrders = () => {
                         const accData = accessoriesList?.find((a: any) => a.id === acc.accessory_id);
                         await (supabase as any).from('order_items').insert({
                             order_id: orderData.id,
-                            product_id: null,
+                            product_id: order.product_id,
                             quantity: 0,
                             unit_price: 0,
                             accessory_id: acc.accessory_id,
