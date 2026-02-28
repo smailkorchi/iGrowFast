@@ -661,6 +661,40 @@ const Orders = () => {
         }
     });
 
+    // Mutation: sync imported orders (accessories + providers)
+    const syncImportedMutation = useMutation({
+        mutationFn: async () => {
+            if (!activeBusinessId) throw new Error('No business');
+            const { data, error } = await (supabase as any)
+                .rpc('sync_imported_orders', { p_business_id: activeBusinessId });
+            if (error) throw error;
+            return data as { accessories_synced: number; providers_synced: number };
+        },
+        onSuccess: (result) => {
+            queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
+            toast({
+                title: 'Sync Complete',
+                description: `${result.accessories_synced} accessories synced, ${result.providers_synced} providers assigned.`
+            });
+        },
+        onError: (error: any) => {
+            toast({ title: 'Sync Error', description: error.message, variant: 'destructive' });
+        }
+    });
+
+    // Count orders needing sync
+    const syncNeededCount = useMemo(() => {
+        if (!orders) return 0;
+        return orders.filter((o: any) => {
+            const noProvider = !o.company_id && !o.courier_id && o.master_city_id;
+            const missingAccessories = o.items?.some((item: any) =>
+                item.product_id && !item.accessory_id &&
+                productAccessories?.some((pa: any) => pa.product_id === item.product_id)
+            );
+            return noProvider || missingAccessories;
+        }).length;
+    }, [orders, productAccessories]);
+
     // --- Form ---
     const form = useForm<OrderFormValues>({
         resolver: zodResolver(orderSchema),
@@ -1372,6 +1406,21 @@ const Orders = () => {
                             className="pl-11 h-12 bg-white/50 border-none shadow-sm rounded-2xl focus-visible:ring-1 focus-visible:ring-brand-navy/20 transition-all font-medium"
                         />
                     </div>
+                    {syncNeededCount > 0 && (
+                        <Button
+                            onClick={() => syncImportedMutation.mutate()}
+                            disabled={syncImportedMutation.isPending}
+                            variant="outline"
+                            className="rounded-2xl h-12 px-5 font-bold border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 shadow-sm transition-all active:scale-95 flex items-center gap-2 w-full sm:w-auto"
+                        >
+                            {syncImportedMutation.isPending
+                                ? <Loader2 className="w-4 h-4 animate-spin" />
+                                : <RefreshCcw className="w-4 h-4" />
+                            }
+                            Sync Imported
+                            <Badge className="bg-amber-500 text-white rounded-full h-6 min-w-6 px-1.5 text-xs font-black">{syncNeededCount}</Badge>
+                        </Button>
+                    )}
                     <Button
                         onClick={() => {
                             form.reset();

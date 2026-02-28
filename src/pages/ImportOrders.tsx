@@ -208,51 +208,101 @@ const ImportOrders = () => {
         }
     });
 
+    const { data: productAccessories } = useQuery({
+        queryKey: ['product-accessories-import', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return [];
+            const { data, error } = await (supabase as any)
+                .from('product_accessories')
+                .select('product_id, accessory_id, default_quantity')
+                .eq('DigiCom Business', activeBusinessId);
+            if (error) throw error;
+            return data;
+        }
+    });
+
+    const { data: accessoriesList } = useQuery({
+        queryKey: ['accessories-import', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return [];
+            const { data, error } = await (supabase as any)
+                .from('accessories')
+                .select('id, name, code, cost_price')
+                .eq('active', true)
+                .eq('DigiCom Business', activeBusinessId);
+            if (error) throw error;
+            return data;
+        }
+    });
+
     const uploadMutation = useMutation({
         mutationFn: async (orders: MappedOrder[]) => {
-            // We need to insert one by one or carefully batch to handle relations (orders -> order_items)
-            // Given Supabase restrictions, a loop with error handling is safest for complex relations
-
             let completed = 0;
             const validOrders = orders.filter(o => o.status === 'valid');
             const total = validOrders.length;
 
+            // Helper: find fee for a provider + city, with zone fallback
+            const findFee = (type: 'courier' | 'company', providerId: string, masterCityId: string): number | null => {
+                const fees = type === 'courier' ? courierFees : companyFees;
+                const idField = type === 'courier' ? 'courier_id' : 'company_id';
+                if (!fees?.length) return null;
+
+                // 1. Direct match on master_city_id
+                const direct = fees.find((f: any) => f[idField] === providerId && f.master_city_id === masterCityId);
+                if (direct) return Number(direct.fee);
+
+                // 2. Zone fallback
+                const city = cities?.find((c: any) => c.id === masterCityId);
+                if (city?.zone_id) {
+                    const samezone = cities?.filter((c: any) => c.zone_id === city.zone_id).map((c: any) => c.id) || [];
+                    const zoneFee = fees.find((f: any) => f[idField] === providerId && samezone.includes(f.master_city_id));
+                    if (zoneFee) return Number(zoneFee.fee);
+                }
+                return null;
+            };
+
             for (const order of validOrders) {
-                // Determine best provider for this order's city automatically
+                // --- Provider resolution ---
                 let bestProviderId: string | null = null;
                 let bestProviderType: 'courier' | 'company' | null = null;
                 let finalShippingFee = order.shipping_fee;
 
-                const cityData = cities?.find(c => c.id === order.city_id);
-                if (cityData && cityData.zone_id) {
+                const cityData = cities?.find((c: any) => c.id === order.city_id);
+                if (cityData) {
                     const zoneId = cityData.zone_id;
 
-                    const eligibleCouriers = couriers?.filter((c: any) =>
+                    // Collect eligible providers via zone assignment
+                    const zoneCouriers = zoneId ? couriers?.filter((c: any) =>
                         courierZones?.some((cz: any) => cz.courier_id === c.id && cz.zone_id === zoneId)
-                    ).map((c: any) => ({ ...c, type: 'courier' })) || [];
+                    ).map((c: any) => ({ ...c, type: 'courier' as const })) || [] : [];
 
-                    const eligibleCompanies = companies?.filter((c: any) =>
+                    const zoneCompanies = zoneId ? companies?.filter((c: any) =>
                         companyZones?.some((cz: any) => cz.company_id === c.id && cz.zone_id === zoneId)
-                    ).map((c: any) => ({ ...c, type: 'company' })) || [];
+                    ).map((c: any) => ({ ...c, type: 'company' as const })) || [] : [];
 
-                    const availableProviders = [...eligibleCouriers, ...eligibleCompanies];
+                    // Also collect providers that have a direct fee for this city (fallback)
+                    const feeCouriers = couriers?.filter((c: any) =>
+                        courierFees?.some((f: any) => f.courier_id === c.id && f.master_city_id === order.city_id)
+                    ).map((c: any) => ({ ...c, type: 'courier' as const })) || [];
 
-                    if (availableProviders.length > 0) {
-                        const providersWithFees = availableProviders.map(p => {
-                            let fee = Infinity;
-                            if (p.type === 'courier') {
-                                fee = courierFees?.find((f: any) => f.courier_id === p.id && (f.master_city_id === order.city_id || f.city_id === order.city_id))?.fee || Infinity;
-                            } else {
-                                fee = companyFees?.find((f: any) => f.company_id === p.id && (f.master_city_id === order.city_id || f.city_id === order.city_id))?.fee || Infinity;
-                            }
-                            return { ...p, fee: Number(fee) };
+                    const feeCompanies = companies?.filter((c: any) =>
+                        companyFees?.some((f: any) => f.company_id === c.id && f.master_city_id === order.city_id)
+                    ).map((c: any) => ({ ...c, type: 'company' as const })) || [];
+
+                    // Combine, deduplicate
+                    const allProviders = [...zoneCouriers, ...zoneCompanies, ...feeCouriers, ...feeCompanies]
+                        .filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
+
+                    if (allProviders.length > 0) {
+                        const providersWithFees = allProviders.map(p => {
+                            const fee = findFee(p.type, p.id, order.city_id!) ?? Infinity;
+                            return { ...p, fee };
                         });
 
                         const best = providersWithFees.sort((a, b) => a.fee - b.fee)[0];
                         if (best) {
                             bestProviderId = best.id;
-                            bestProviderType = best.type as any;
-                            // Only override if the Excel didn't specify a shipping fee or if we want the system choice
+                            bestProviderType = best.type;
                             if (finalShippingFee === 0 && best.fee !== Infinity) {
                                 finalShippingFee = best.fee;
                             }
@@ -282,19 +332,45 @@ const ImportOrders = () => {
 
                 if (orderError) {
                     console.error("Failed to import order", order, orderError);
-                    continue; // Skip this one
+                    continue;
                 }
 
-                // 2. Create Order Item if Product Found
+                // 2. Create Order Item + default accessories
                 if (order.product_id && orderData) {
+                    // Look up default accessories for this product
+                    const defaultAccs = productAccessories?.filter((pa: any) => pa.product_id === order.product_id) || [];
+
+                    // Build the main item row with the first accessory inline (if any)
+                    const firstAcc = defaultAccs[0];
+                    const firstAccData = firstAcc ? accessoriesList?.find((a: any) => a.id === firstAcc.accessory_id) : null;
+
                     const { error: itemError } = await (supabase as any).from('order_items').insert({
                         order_id: orderData.id,
                         product_id: order.product_id,
                         quantity: order.quantity,
                         unit_price: order.price,
+                        accessory_id: firstAcc?.accessory_id || null,
+                        accessory_quantity: firstAcc?.default_quantity || 0,
+                        accessory_unit_price: firstAccData?.cost_price || 0,
                         'DigiCom Business': activeBusinessId
                     });
-                    if (itemError) console.error("Failed to add items to order", orderData.id, itemError);
+                    if (itemError) console.error("Failed to add item to order", orderData.id, itemError);
+
+                    // Insert additional accessory rows (2nd, 3rd, etc.) as separate order_items
+                    for (let i = 1; i < defaultAccs.length; i++) {
+                        const acc = defaultAccs[i];
+                        const accData = accessoriesList?.find((a: any) => a.id === acc.accessory_id);
+                        await (supabase as any).from('order_items').insert({
+                            order_id: orderData.id,
+                            product_id: null,
+                            quantity: 0,
+                            unit_price: 0,
+                            accessory_id: acc.accessory_id,
+                            accessory_quantity: acc.default_quantity,
+                            accessory_unit_price: accData?.cost_price || 0,
+                            'DigiCom Business': activeBusinessId
+                        });
+                    }
                 }
 
                 completed++;
