@@ -96,6 +96,21 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
         enabled: open
     });
 
+    // Fetch company_zones for provider resolution
+    const { data: companyZonesData } = useQuery({
+        queryKey: ['company-zones-all', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return [];
+            const { data, error } = await supabase
+                .from('company_zones')
+                .select('*, provider:providers(id, name, provider_type)')
+                .eq('DigiCom Business', activeBusinessId);
+            if (error) throw error;
+            return data || [];
+        },
+        enabled: open
+    });
+
     // Fetch confirmed orders for selected zone grouped by provider
     const { data: ordersGrouped } = useQuery({
         queryKey: ['confirmed-orders-by-zone', selectedZoneId],
@@ -108,6 +123,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                 .eq('label', 'CONFIRMER')
                 .single();
 
+            // Fetch ALL confirmed orders in this zone (including those without company_id)
             const { data, error } = await supabase
                 .from('orders')
                 .select(`
@@ -121,14 +137,28 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                 `)
                 .eq('order_status_id', confirmedStatus.id)
                 .eq('city.zone_id', selectedZoneId)
-                .eq('DigiCom Business', activeBusinessId)
-                .not('company_id', 'is', null);
+                .eq('DigiCom Business', activeBusinessId);
 
             if (error) throw error;
 
+            // For orders without company_id, resolve provider from company_zones
+            const zoneProviders = companyZonesData?.filter(cz => cz.zone_id === selectedZoneId) || [];
+
             // Group by provider
             const grouped = (data || []).reduce((acc: any, order: any) => {
-                const providerId = order.company_id;
+                let providerId = order.company_id;
+                let provider = order.company;
+
+                // If no company assigned, resolve from zone mapping
+                if (!providerId && zoneProviders.length > 0) {
+                    const zoneProvider = zoneProviders[0]; // Pick the first provider for this zone
+                    providerId = zoneProvider.company_id;
+                    provider = zoneProvider.provider;
+                    // Mark that this order needs company_id update
+                    order._resolvedCompanyId = providerId;
+                }
+
+                if (!providerId) return acc; // Skip if still no provider
 
                 // If a provider is locked, only include that provider
                 if (lockProviderId && providerId !== lockProviderId) {
@@ -137,7 +167,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
 
                 if (!acc[providerId]) {
                     acc[providerId] = {
-                        provider: order.company,
+                        provider,
                         orders: []
                     };
                 }
@@ -147,7 +177,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
 
             return grouped;
         },
-        enabled: !!selectedZoneId && step === 'zone'
+        enabled: !!selectedZoneId && step === 'zone' && !!companyZonesData
     });
 
     // Create parcels for a provider
@@ -165,6 +195,14 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
 
             for (const order of orders) {
                 try {
+                    // If company_id was resolved from zone, update the order first
+                    if (order._resolvedCompanyId) {
+                        await supabase
+                            .from('orders')
+                            .update({ company_id: order._resolvedCompanyId })
+                            .eq('id', order.id);
+                        order.company_id = order._resolvedCompanyId;
+                    }
                     // Prepare parcel data
                     const parcelData = {
                         customer_name: order.name,
