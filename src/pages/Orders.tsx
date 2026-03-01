@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import {
@@ -158,6 +159,8 @@ const SALES_SOURCES = [
 ];
 
 const Orders = () => {
+    const location = useLocation();
+    const navState = (location.state || {}) as Record<string, string>;
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -192,11 +195,11 @@ const Orders = () => {
     const queryClient = useQueryClient();
     const activeBusinessId = localStorage.getItem('activeBusinessId');
 
-    // Filter states
-    const [filterStatus, setFilterStatus] = useState<string>("all");
-    const [filterCity, setFilterCity] = useState<string>("all");
-    const [filterSource, setFilterSource] = useState<string>("all");
-    const [filterProvider, setFilterProvider] = useState<string>("all");
+    // Filter states (initialized from navigation state if present)
+    const [filterStatus, setFilterStatus] = useState<string>(navState.filterStatus || "all");
+    const [filterCity, setFilterCity] = useState<string>(navState.filterCity || "all");
+    const [filterSource, setFilterSource] = useState<string>(navState.filterSource || "all");
+    const [filterProvider, setFilterProvider] = useState<string>(navState.filterProvider || "all");
 
     // Advanced filter states
     const [filterDateField, setFilterDateField] = useState<string>('date');
@@ -206,7 +209,7 @@ const Orders = () => {
     const [filterCustomerName, setFilterCustomerName] = useState('');
     const [filterPhone, setFilterPhone] = useState('');
     const [filterProduct, setFilterProduct] = useState<string>('all');
-    const [filterPackageStatus, setFilterPackageStatus] = useState<string>('all');
+    const [filterPackageStatus, setFilterPackageStatus] = useState<string>(navState.filterPackageStatus || 'all');
     const [filterConfirmedBy, setFilterConfirmedBy] = useState<string>('all');
     const [filterAssignedTo, setFilterAssignedTo] = useState<string>('all');
     const [filterExchange, setFilterExchange] = useState<string>('all');
