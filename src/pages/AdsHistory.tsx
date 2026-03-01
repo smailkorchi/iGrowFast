@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import {
@@ -8,7 +8,6 @@ import {
     Edit2,
     Trash2,
     Loader2,
-    X,
     Calendar,
     Megaphone,
     ArrowUpRight,
@@ -16,14 +15,20 @@ import {
     Target,
     BarChart3,
     Package,
-    Layout
+    Layout,
+    CheckCircle2,
+    Truck,
+    XCircle,
+    AlertTriangle,
+    DollarSign,
+    ShieldCheck,
+    Zap
 } from 'lucide-react';
 import {
     Card,
     CardContent
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Input } from '@/components/ui/input';
 import {
     Dialog,
@@ -108,12 +113,29 @@ const getPlatformIcon = (platformName: string) => {
     }
 };
 
-// --- Schema ---
+const PLATFORM_SOURCE_MAP: Record<string, string> = {
+    "whatsapp ads": "whatsapp",
+    "messenger ads": "messenger",
+    "instagram ads": "instagram",
+    "facebook ads": "facebook",
+    "google ads": "google",
+    "tiktok ads": "tiktok",
+    "native ads": "native",
+    "snapchat ads": "snapchat",
+    "twitter ads": "twitter",
+    "bing ads": "bing",
+    "pinterest ads": "pinterest",
+    "reddit ads": "reddit",
+};
+
+const CONFIRMED_CODES = ['confirmed', 'processed', 'paid', 'unpaid'];
+const CANCELLED_CODES = ['canceled'];
+const FAKE_CODES = ['faux commande', 'commandedouble'];
+
 const adsHistorySchema = z.object({
     product_id: z.string().uuid("Please select a product"),
     method: z.string().min(1, "Please select a platform"),
     amount: z.coerce.number().min(0.01, "Amount must be greater than 0"),
-    results: z.coerce.number().min(0, "Results cannot be negative"),
     start_date: z.date(),
     end_date: z.date(),
 }).refine(data => data.end_date >= data.start_date, {
@@ -138,6 +160,34 @@ const PLATFORMS = [
     "Reddit ads"
 ];
 
+interface CampaignMetrics {
+    days: number;
+    dailySpend: number;
+    totalOrders: number;
+    confirmedOrders: number;
+    deliveredOrders: number;
+    cancelledOrders: number;
+    fakeOrders: number;
+    confirmRate: number;
+    deliveryRate: number;
+    fulfillmentRate: number;
+    cpa: number;
+    cpc: number;
+    cpd: number;
+    grossRevenue: number;
+    cogs: number;
+    shippingCosts: number;
+    netRevenue: number;
+    profit: number;
+    roas: number;
+    trueRoas: number;
+    profitMargin: number;
+    cancelRate: number;
+    fakeRate: number;
+    wastedSpend: number;
+    qualityScore: number;
+}
+
 const AdsHistory = () => {
     const [isUpsertOpen, setIsUpsertOpen] = useState(false);
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
@@ -149,20 +199,17 @@ const AdsHistory = () => {
     const { toast } = useToast();
     const queryClient = useQueryClient();
 
-    // --- Queries ---
     const activeBusinessId = localStorage.getItem('activeBusinessId');
 
     const { data: adsHistory, isLoading } = useQuery({
         queryKey: ['ads_history', activeBusinessId],
         queryFn: async () => {
             if (!activeBusinessId) return [];
-
             const { data, error } = await (supabase
                 .from('ads_history' as any)
                 .select('*, products(id, name, code, image_url)')
                 .eq('DigiCom Business', activeBusinessId)
                 .order('start_date', { ascending: false }) as any);
-
             if (error) throw error;
             return data;
         },
@@ -182,24 +229,131 @@ const AdsHistory = () => {
         }
     });
 
-    // --- Form Setup ---
+    const { data: allOrders } = useQuery({
+        queryKey: ['orders-for-ads', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return [];
+            const { data, error } = await (supabase as any)
+                .from('orders')
+                .select('id, date, source_name, price, shipping_cost, package_status_label, order_statuses(code), order_items(product_id, unit_price, quantity)')
+                .eq('DigiCom Business', activeBusinessId);
+            if (error) throw error;
+            return data;
+        }
+    });
+
+    const { data: productCosts } = useQuery({
+        queryKey: ['product-costs', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return [];
+            const { data, error } = await supabase
+                .from('products')
+                .select('id, cost_price, selling_price')
+                .eq('DigiCom Business', activeBusinessId);
+            if (error) throw error;
+            return data;
+        }
+    });
+
+    const getCampaignMetrics = useMemo(() => {
+        return (campaign: any): CampaignMetrics | null => {
+            if (!campaign || !allOrders) return null;
+
+            const adSpend = Number(campaign.amount);
+            const days = differenceInDays(new Date(campaign.end_date), new Date(campaign.start_date)) + 1;
+            const sourceName = PLATFORM_SOURCE_MAP[campaign.method.toLowerCase()] || '';
+            const startDate = new Date(campaign.start_date);
+            const endDate = new Date(campaign.end_date);
+            endDate.setHours(23, 59, 59, 999);
+
+            const matchedOrders = allOrders.filter((o: any) => {
+                const orderDate = new Date(o.date);
+                const inDateRange = orderDate >= startDate && orderDate <= endDate;
+                const matchesSource = sourceName && (o.source_name || '').toLowerCase() === sourceName;
+                const hasProduct = o.order_items?.some((item: any) => item.product_id === campaign.product_id);
+                return inDateRange && matchesSource && hasProduct;
+            });
+
+            const totalOrders = matchedOrders.length;
+            let confirmedOrders = 0;
+            let deliveredOrders = 0;
+            let cancelledOrders = 0;
+            let fakeOrders = 0;
+            let grossRevenue = 0;
+            let shippingCosts = 0;
+
+            matchedOrders.forEach((o: any) => {
+                const statusCode = ((o.order_statuses as any)?.code || '').toLowerCase();
+                const packageLabel = (o.package_status_label || '').toLowerCase();
+
+                if (packageLabel === 'livré') {
+                    deliveredOrders++;
+                    confirmedOrders++;
+                    grossRevenue += Number(o.price) || 0;
+                    shippingCosts += Number(o.shipping_cost) || 0;
+                } else if (CONFIRMED_CODES.includes(statusCode)) {
+                    confirmedOrders++;
+                } else if (CANCELLED_CODES.includes(statusCode)) {
+                    cancelledOrders++;
+                } else if (FAKE_CODES.includes(statusCode)) {
+                    fakeOrders++;
+                }
+            });
+
+            const productCost = productCosts?.find((p: any) => p.id === campaign.product_id);
+            const costPrice = Number(productCost?.cost_price || 0);
+            const cogs = deliveredOrders * costPrice;
+            const netRevenue = grossRevenue - cogs - shippingCosts;
+            const profit = netRevenue - adSpend;
+
+            return {
+                days,
+                dailySpend: days > 0 ? adSpend / days : 0,
+                totalOrders,
+                confirmedOrders,
+                deliveredOrders,
+                cancelledOrders,
+                fakeOrders,
+                confirmRate: totalOrders > 0 ? (confirmedOrders / totalOrders) * 100 : 0,
+                deliveryRate: confirmedOrders > 0 ? (deliveredOrders / confirmedOrders) * 100 : 0,
+                fulfillmentRate: totalOrders > 0 ? (deliveredOrders / totalOrders) * 100 : 0,
+                cpa: totalOrders > 0 ? adSpend / totalOrders : 0,
+                cpc: confirmedOrders > 0 ? adSpend / confirmedOrders : 0,
+                cpd: deliveredOrders > 0 ? adSpend / deliveredOrders : 0,
+                grossRevenue,
+                cogs,
+                shippingCosts,
+                netRevenue,
+                profit,
+                roas: adSpend > 0 ? grossRevenue / adSpend : 0,
+                trueRoas: adSpend > 0 ? netRevenue / adSpend : 0,
+                profitMargin: grossRevenue > 0 ? (profit / grossRevenue) * 100 : 0,
+                cancelRate: totalOrders > 0 ? (cancelledOrders / totalOrders) * 100 : 0,
+                fakeRate: totalOrders > 0 ? (fakeOrders / totalOrders) * 100 : 0,
+                wastedSpend: totalOrders > 0 ? adSpend * (1 - (deliveredOrders / totalOrders)) : adSpend,
+                qualityScore: totalOrders > 0 ? (deliveredOrders / totalOrders) * 100 : 0,
+            };
+        };
+    }, [allOrders, productCosts]);
+
     const form = useForm<AdsHistoryValues>({
         resolver: zodResolver(adsHistorySchema),
         defaultValues: {
             product_id: '',
             method: '',
             amount: 0,
-            results: 0,
             start_date: new Date(),
             end_date: new Date(),
         }
     });
 
-    // --- Mutations ---
     const upsertMutation = useMutation({
         mutationFn: async (values: AdsHistoryValues) => {
             const payload = {
-                ...values,
+                product_id: values.product_id,
+                method: values.method,
+                amount: values.amount,
+                results: 0,
                 'DigiCom Business': activeBusinessId,
                 start_date: format(values.start_date, 'yyyy-MM-dd'),
                 end_date: format(values.end_date, 'yyyy-MM-dd'),
@@ -229,8 +383,8 @@ const AdsHistory = () => {
             setIsUpsertOpen(false);
             setEditingHistory(null);
             toast({
-                title: editingHistory ? "History updated" : "History created",
-                description: "The ads performance data has been synchronized."
+                title: editingHistory ? "Campaign updated" : "Campaign logged",
+                description: "Metrics will auto-calculate from your order data."
             });
         },
         onError: (error: any) => {
@@ -267,7 +421,6 @@ const AdsHistory = () => {
                 product_id: history.product_id,
                 method: history.method,
                 amount: history.amount,
-                results: history.results,
                 start_date: new Date(history.start_date),
                 end_date: new Date(history.end_date),
             });
@@ -277,7 +430,6 @@ const AdsHistory = () => {
                 product_id: '',
                 method: '',
                 amount: 0,
-                results: 0,
                 start_date: new Date(),
                 end_date: new Date(),
             });
@@ -295,65 +447,31 @@ const AdsHistory = () => {
         h.method.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    // --- Calculations for metrics ---
-    const getMetrics = (h: any) => {
-        if (!h) return null;
-        const days = differenceInDays(new Date(h.end_date), new Date(h.start_date)) + 1;
-        const totalSpend = Number(h.amount);
-        const totalResults = Number(h.results);
+    const fmtNum = (n: number) => new Intl.NumberFormat('fr-FR').format(Math.round(n));
+    const fmtDec = (n: number) => new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 
-        return {
-            days,
-            costPerDay: totalSpend / days,
-            costPerResult: totalResults > 0 ? totalSpend / totalResults : 0,
-            resultsPerDay: totalResults / days,
-            totalSpend,
-            totalResults
-        };
+    const getHealthColor = (value: number, thresholds: { green: number; amber: number }) => {
+        if (value >= thresholds.green) return 'text-emerald-600';
+        if (value >= thresholds.amber) return 'text-amber-600';
+        return 'text-red-500';
     };
 
-    const generateChartData = (h: any) => {
-        if (!h) return [];
-        const days = differenceInDays(new Date(h.end_date), new Date(h.start_date)) + 1;
-        const data = [];
-        let currentSpend = 0;
-        let currentAcq = 0;
-        // Make sure we calculate properly without making it completely random, use simple interpolation for visual flair
-        const spendPerDay = Number(h.amount) / days;
-        const acqPerDay = Number(h.results) / days;
-
-        for (let i = 0; i < days; i++) {
-            const date = new Date(h.start_date);
-            date.setDate(date.getDate() + i);
-
-            // Add slight synthetic variance to look realistic in a "war room"
-            const dailySpend = spendPerDay * (0.8 + Math.random() * 0.4);
-            const dailyAcq = acqPerDay * (0.8 + Math.random() * 0.4);
-
-            currentSpend += dailySpend;
-            currentAcq += dailyAcq;
-
-            data.push({
-                date: format(date, 'MMM dd'),
-                DailySpend: Math.round(dailySpend),
-                DailyAcq: Math.round(dailyAcq),
-                TotalSpend: Math.round(currentSpend),
-                TotalAcq: Math.round(currentAcq),
-            });
-        }
-        return data;
+    const getHealthBg = (value: number, thresholds: { green: number; amber: number }) => {
+        if (value >= thresholds.green) return 'bg-emerald-50 border-emerald-200';
+        if (value >= thresholds.amber) return 'bg-amber-50 border-amber-200';
+        return 'bg-red-50 border-red-200';
     };
 
     return (
         <div className="min-h-screen bg-brand-white p-4 md:p-8 space-y-8 animate-in fade-in duration-500">
-            {/* Header Section */}
+            {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div className="space-y-2">
                     <h1 className="text-4xl font-black tracking-tight text-brand-navy uppercase flex items-center gap-3">
                         <Megaphone className="w-10 h-10 text-brand-navy" />
                         Ads Performance
                     </h1>
-                    <p className="text-brand-navy/60 text-lg font-medium">Analyze your marketing spend and campaign efficiency.</p>
+                    <p className="text-brand-navy/60 text-lg font-medium">Auto-calculated metrics from real order data.</p>
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3 items-center">
@@ -376,11 +494,11 @@ const AdsHistory = () => {
                 </div>
             </div>
 
-            {/* Grid Display */}
+            {/* Grid */}
             {isLoading ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     {Array.from({ length: 6 }).map((_, i) => (
-                        <Skeleton key={i} className="h-[200px] rounded-[32px] bg-brand-navy/5" />
+                        <Skeleton key={i} className="h-[240px] rounded-[32px] bg-brand-navy/5" />
                     ))}
                 </div>
             ) : filteredHistory?.length === 0 ? (
@@ -389,8 +507,8 @@ const AdsHistory = () => {
                         <Megaphone className="w-12 h-12" />
                     </div>
                     <div className="text-center">
-                        <h3 className="text-2xl font-bold text-brand-navy text-center">No campaigns logged</h3>
-                        <p className="text-muted-foreground max-w-xs mx-auto">Start tracking your ads performances to optimize your marketing spend.</p>
+                        <h3 className="text-2xl font-bold text-brand-navy">No campaigns logged</h3>
+                        <p className="text-muted-foreground max-w-xs mx-auto">Start tracking your ads to see auto-calculated performance metrics.</p>
                     </div>
                     <Button variant="outline" onClick={() => openUpsert()} className="rounded-xl font-bold hover:bg-brand-navy hover:text-brand-white transition-all">
                         Log Your First Campaign
@@ -399,21 +517,21 @@ const AdsHistory = () => {
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     {filteredHistory?.map((h: any) => {
-                        const metrics = getMetrics(h);
+                        const m = getCampaignMetrics(h);
                         return (
                             <Card
                                 key={h.id}
                                 className="group relative overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-2xl transition-all duration-300 rounded-[32px] cursor-pointer"
                                 onClick={() => openDetails(h)}
                             >
-                                <CardContent className="p-8 space-y-6">
+                                <CardContent className="p-8 space-y-5">
                                     <div className="flex justify-between items-start">
                                         <div className="flex gap-4 items-start">
                                             {h.products?.image_url ? (
-                                                <img src={h.products.image_url} alt={h.products.name || 'product'} className="w-16 h-16 rounded-[20px] object-cover border border-brand-navy/5 shadow-sm shrink-0" />
+                                                <img src={h.products.image_url} alt={h.products.name || 'product'} className="w-14 h-14 rounded-[18px] object-cover border border-brand-navy/5 shadow-sm shrink-0" />
                                             ) : (
-                                                <div className="w-16 h-16 bg-brand-navy/5 border border-brand-navy/5 rounded-[20px] flex items-center justify-center shadow-sm shrink-0">
-                                                    <Package className="w-6 h-6 text-brand-navy/20" />
+                                                <div className="w-14 h-14 bg-brand-navy/5 border border-brand-navy/5 rounded-[18px] flex items-center justify-center shadow-sm shrink-0">
+                                                    <Package className="w-5 h-5 text-brand-navy/20" />
                                                 </div>
                                             )}
                                             <div className="space-y-1">
@@ -421,7 +539,7 @@ const AdsHistory = () => {
                                                     {getPlatformIcon(h.method)}
                                                     <p className="text-[10px] font-black uppercase tracking-widest leading-none mt-0.5">{h.method}</p>
                                                 </div>
-                                                <h3 className="text-xl leading-tight font-bold text-brand-navy line-clamp-2 max-w-[200px]">{h.products?.name}</h3>
+                                                <h3 className="text-lg leading-tight font-bold text-brand-navy line-clamp-1 max-w-[180px]">{h.products?.name}</h3>
                                             </div>
                                         </div>
                                         <DropdownMenu>
@@ -433,37 +551,62 @@ const AdsHistory = () => {
                                             <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[160px]">
                                                 <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openUpsert(h); }} className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3">
                                                     <Edit2 className="w-4 h-4" />
-                                                    <span className="font-bold">Edit Details</span>
+                                                    <span className="font-bold">Edit</span>
                                                 </DropdownMenuItem>
                                                 <DropdownMenuSeparator />
                                                 <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setHistoryToDelete(h); }} className="rounded-xl p-3 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-3">
                                                     <Trash2 className="w-4 h-4" />
-                                                    <span className="font-bold">Delete Record</span>
+                                                    <span className="font-bold">Delete</span>
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-6">
-                                        <div className="space-y-1">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Total Amount</p>
-                                            <p className="text-2xl font-black text-brand-navy">{Number(h.amount).toLocaleString()} DH</p>
+                                    <div className="grid grid-cols-4 gap-3">
+                                        <div className="space-y-0.5">
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-brand-navy/40">Spend</p>
+                                            <p className="text-lg font-black text-brand-navy">{fmtNum(Number(h.amount))}</p>
                                         </div>
-                                        <div className="space-y-1">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Results</p>
-                                            <p className="text-2xl font-black text-brand-navy">{Number(h.results).toLocaleString()}</p>
+                                        <div className="space-y-0.5">
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-brand-navy/40">Orders</p>
+                                            <p className="text-lg font-black text-brand-navy">{m?.totalOrders ?? '—'}</p>
+                                        </div>
+                                        <div className="space-y-0.5">
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-emerald-600/60">Delivered</p>
+                                            <p className="text-lg font-black text-emerald-600">{m?.deliveredOrders ?? '—'}</p>
+                                        </div>
+                                        <div className="space-y-0.5">
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-brand-navy/40">CPD</p>
+                                            <p className={cn("text-lg font-black", m && m.cpd > 0 ? getHealthColor(m.roas, { green: 1, amber: 0.5 }) : 'text-brand-navy/30')}>
+                                                {m && m.cpd > 0 ? fmtDec(m.cpd) : '—'}
+                                            </p>
                                         </div>
                                     </div>
 
-                                    <div className="flex items-center justify-between pt-4 border-t border-brand-navy/5">
+                                    {m && m.totalOrders > 0 && (
+                                        <div className="space-y-1.5">
+                                            <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest text-brand-navy/40">
+                                                <span>Funnel</span>
+                                                <span>{m.fulfillmentRate.toFixed(0)}% fulfilled</span>
+                                            </div>
+                                            <div className="h-1.5 bg-brand-navy/5 rounded-full overflow-hidden flex">
+                                                <div className="bg-emerald-500 rounded-full transition-all" style={{ width: `${m.fulfillmentRate}%` }} />
+                                                <div className="bg-blue-400 rounded-full transition-all" style={{ width: `${Math.max(0, m.confirmRate - m.fulfillmentRate)}%` }} />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="flex items-center justify-between pt-3 border-t border-brand-navy/5">
                                         <div className="flex items-center gap-2 text-brand-navy/60">
                                             <Calendar className="w-3.5 h-3.5" />
-                                            <span className="text-xs font-bold">{format(new Date(h.start_date), 'MMM d')} - {format(new Date(h.end_date), 'MMM d')}</span>
+                                            <span className="text-xs font-bold">{format(new Date(h.start_date), 'MMM d')} – {format(new Date(h.end_date), 'MMM d')}</span>
                                         </div>
-                                        <div className="flex items-center gap-1.5 px-3 py-1 bg-brand-navy/5 rounded-full">
-                                            <Target className="w-3 h-3 text-brand-navy" />
-                                            <span className="text-[10px] font-black text-brand-navy uppercase">{metrics?.costPerResult.toFixed(2)} DH / Re</span>
-                                        </div>
+                                        {m && m.profit !== 0 && (
+                                            <div className={cn("flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase", m.profit > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500')}>
+                                                {m.profit > 0 ? <ArrowUpRight className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+                                                {m.profit > 0 ? '+' : ''}{fmtNum(m.profit)} DH
+                                            </div>
+                                        )}
                                     </div>
                                 </CardContent>
                             </Card>
@@ -482,7 +625,7 @@ const AdsHistory = () => {
                                     {editingHistory ? 'Update Campaign' : 'Log New Campaign'}
                                 </DialogTitle>
                                 <DialogDescription className="text-muted-foreground text-lg">
-                                    Enter your advertising performance data.
+                                    Enter platform, product, date range and spend. Metrics auto-calculate from orders.
                                 </DialogDescription>
                             </DialogHeader>
 
@@ -538,34 +681,19 @@ const AdsHistory = () => {
                                     />
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-6">
-                                    <FormField
-                                        control={form.control}
-                                        name="amount"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Total Spend (DH)</FormLabel>
-                                                <FormControl>
-                                                    <Input type="number" step="0.01" placeholder="0" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-lg font-black text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="results"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Total Results</FormLabel>
-                                                <FormControl>
-                                                    <Input type="number" placeholder="0" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-lg font-black text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                </div>
+                                <FormField
+                                    control={form.control}
+                                    name="amount"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Total Ad Spend (DH)</FormLabel>
+                                            <FormControl>
+                                                <Input type="number" step="0.01" placeholder="0" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-lg font-black text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
 
                                 <div className="grid grid-cols-2 gap-6">
                                     <FormField
@@ -590,12 +718,7 @@ const AdsHistory = () => {
                                                         </FormControl>
                                                     </PopoverTrigger>
                                                     <PopoverContent className="w-auto p-0 rounded-3xl overflow-hidden shadow-2xl border-none" align="start">
-                                                        <CalendarComponent
-                                                            mode="single"
-                                                            selected={field.value}
-                                                            onSelect={field.onChange}
-                                                            initialFocus
-                                                        />
+                                                        <CalendarComponent mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
                                                     </PopoverContent>
                                                 </Popover>
                                                 <FormMessage />
@@ -624,12 +747,7 @@ const AdsHistory = () => {
                                                         </FormControl>
                                                     </PopoverTrigger>
                                                     <PopoverContent className="w-auto p-0 rounded-3xl overflow-hidden shadow-2xl border-none" align="start">
-                                                        <CalendarComponent
-                                                            mode="single"
-                                                            selected={field.value}
-                                                            onSelect={field.onChange}
-                                                            initialFocus
-                                                        />
+                                                        <CalendarComponent mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
                                                     </PopoverContent>
                                                 </Popover>
                                                 <FormMessage />
@@ -642,7 +760,7 @@ const AdsHistory = () => {
                             <DialogFooter className="p-8 pt-4">
                                 <Button type="submit" disabled={upsertMutation.isPending} className="bg-brand-navy text-brand-white rounded-2xl h-14 w-full font-bold text-lg shadow-xl shadow-brand-navy/30 transition-all hover:scale-[1.02]">
                                     {upsertMutation.isPending && <Loader2 className="w-5 h-5 mr-2 animate-spin" />}
-                                    {editingHistory ? 'Update Record' : 'Save Campaign Performance'}
+                                    {editingHistory ? 'Update Record' : 'Save Campaign'}
                                 </Button>
                             </DialogFooter>
                         </form>
@@ -650,175 +768,204 @@ const AdsHistory = () => {
                 </DialogContent>
             </Dialog>
 
-            {/* Details Breakdown Modal */}
+            {/* Details Modal */}
             <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-                <DialogContent className="max-w-3xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-                    {selectedHistory && (
-                        <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-                            <DialogHeader className="p-10 pb-4 bg-brand-navy text-brand-white relative overflow-hidden shrink-0">
-                                <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-32 -mt-32" />
-                                <div className="absolute bottom-0 left-0 w-48 h-48 bg-brand-blue/10 rounded-full blur-3xl -ml-24 -mb-24" />
+                <DialogContent className="max-w-4xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+                    {selectedHistory && (() => {
+                        const m = getCampaignMetrics(selectedHistory);
+                        return (
+                            <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
+                                {/* Header */}
+                                <DialogHeader className="p-10 pb-6 bg-brand-navy text-brand-white relative overflow-hidden shrink-0">
+                                    <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-32 -mt-32" />
+                                    <div className="absolute bottom-0 left-0 w-48 h-48 bg-brand-blue/10 rounded-full blur-3xl -ml-24 -mb-24" />
 
-                                <div className="relative z-10 flex flex-col sm:flex-row items-center sm:items-start gap-6 mt-2 text-center sm:text-left">
-                                    {selectedHistory.products?.image_url ? (
-                                        <img src={selectedHistory.products.image_url} alt={selectedHistory.products.name} className="w-24 h-24 rounded-[28px] object-cover border-4 border-white/10 shadow-xl" />
-                                    ) : (
-                                        <div className="w-24 h-24 bg-white/10 border-4 border-white/5 rounded-[28px] flex items-center justify-center shadow-xl">
-                                            <Package className="w-10 h-10 text-brand-white/40" />
+                                    <div className="relative z-10 flex flex-col sm:flex-row items-center sm:items-start gap-6 mt-2 text-center sm:text-left">
+                                        {selectedHistory.products?.image_url ? (
+                                            <img src={selectedHistory.products.image_url} alt={selectedHistory.products.name} className="w-20 h-20 rounded-[24px] object-cover border-4 border-white/10 shadow-xl" />
+                                        ) : (
+                                            <div className="w-20 h-20 bg-white/10 border-4 border-white/5 rounded-[24px] flex items-center justify-center shadow-xl">
+                                                <Package className="w-8 h-8 text-brand-white/40" />
+                                            </div>
+                                        )}
+                                        <div className="space-y-2 flex-1 pt-1">
+                                            <div className="flex items-center justify-center sm:justify-start gap-2">
+                                                <span className="flex items-center gap-1.5 px-3 py-1 bg-white/10 rounded-full text-[10px] font-black uppercase tracking-[0.2em]">
+                                                    {getPlatformIcon(selectedHistory.method)}
+                                                    <span>{selectedHistory.method}</span>
+                                                </span>
+                                                <span className="px-3 py-1 bg-brand-white text-brand-navy rounded-full text-[10px] font-black uppercase tracking-[0.2em]">{selectedHistory.products?.code}</span>
+                                            </div>
+                                            <DialogTitle className="text-3xl font-black">{selectedHistory.products?.name}</DialogTitle>
+                                            <p className="text-brand-white/60 font-medium text-sm">{format(new Date(selectedHistory.start_date), 'MMM d')} – {format(new Date(selectedHistory.end_date), 'MMM d, yyyy')} ({m?.days} days)</p>
                                         </div>
-                                    )}
-                                    <div className="space-y-2 flex-1 pt-2">
-                                        <div className="flex items-center justify-center sm:justify-start gap-2">
-                                            <span className="flex items-center gap-1.5 px-3 py-1 bg-white/10 rounded-full text-[10px] font-black uppercase tracking-[0.2em]">
-                                                {getPlatformIcon(selectedHistory.method)}
-                                                <span>{selectedHistory.method}</span>
-                                            </span>
-                                            <span className="px-3 py-1 bg-brand-white text-brand-navy rounded-full text-[10px] font-black uppercase tracking-[0.2em]">{selectedHistory.products?.code}</span>
-                                        </div>
-                                        <DialogTitle className="text-3xl sm:text-4xl font-black">{selectedHistory.products?.name}</DialogTitle>
-                                        <p className="text-brand-white/60 font-medium">Performance Analysis: {format(new Date(selectedHistory.start_date), 'MMM d')} - {format(new Date(selectedHistory.end_date), 'MMM d, yyyy')}</p>
                                     </div>
-                                </div>
-                            </DialogHeader>
+                                </DialogHeader>
 
-                            <div className="p-10 space-y-12 bg-brand-white">
-                                {/* Top Metrics Row */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                                    <div className="space-y-2">
-                                        <div className="flex items-center gap-2 text-brand-navy/40">
-                                            <TrendingUp className="w-4 h-4" />
-                                            <span className="text-xs font-black uppercase tracking-widest">Total Investment</span>
+                                <div className="p-8 space-y-8 bg-brand-white">
+                                    {/* Top Row: 4 Big Numbers */}
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        <div className="p-5 rounded-[24px] bg-brand-navy/[0.03] space-y-1">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Ad Spend</p>
+                                            <p className="text-3xl font-black text-brand-navy">{fmtNum(Number(selectedHistory.amount))}<span className="text-sm ml-1 font-bold text-brand-navy/40">DH</span></p>
                                         </div>
-                                        <p className="text-4xl font-black text-brand-navy">{Number(selectedHistory.amount).toLocaleString()} <span className="text-sm">DH</span></p>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <div className="flex items-center gap-2 text-brand-navy/40">
-                                            <Target className="w-4 h-4" />
-                                            <span className="text-xs font-black uppercase tracking-widest">Acquisitions</span>
+                                        <div className="p-5 rounded-[24px] bg-brand-navy/[0.03] space-y-1">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Orders</p>
+                                            <p className="text-3xl font-black text-brand-navy">{m?.totalOrders ?? 0}</p>
                                         </div>
-                                        <p className="text-4xl font-black text-brand-navy">{Number(selectedHistory.results).toLocaleString()}</p>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <div className="flex items-center gap-2 text-brand-navy/40">
-                                            <ArrowUpRight className="w-4 h-4" />
-                                            <span className="text-xs font-black uppercase tracking-widest">CPA (Cost per Res)</span>
+                                        <div className="p-5 rounded-[24px] bg-blue-50 space-y-1">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-blue-600/60">Confirmed</p>
+                                            <p className="text-3xl font-black text-blue-600">{m?.confirmedOrders ?? 0}</p>
                                         </div>
-                                        <p className="text-4xl font-black text-emerald-600">{(Number(selectedHistory.amount) / (Number(selectedHistory.results) || 1)).toFixed(2)} <span className="text-sm">DH</span></p>
-                                    </div>
-                                </div>
-
-                                {/* Detailed Breakdown Section */}
-                                <div className="space-y-6">
-                                    <div className="flex items-center gap-3">
-                                        <BarChart3 className="w-5 h-5 text-brand-navy" />
-                                        <h4 className="text-xl font-black text-brand-navy tracking-tight uppercase">Daily Dynamics</h4>
+                                        <div className="p-5 rounded-[24px] bg-emerald-50 space-y-1">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600/60">Delivered</p>
+                                            <p className="text-3xl font-black text-emerald-600">{m?.deliveredOrders ?? 0}</p>
+                                        </div>
                                     </div>
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                                        {(() => {
-                                            const m = getMetrics(selectedHistory);
-                                            return (
-                                                <>
-                                                    <div className="flex flex-col justify-between p-6 rounded-[32px] bg-white border border-brand-navy/5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all group">
-                                                        <div className="flex flex-col gap-2 mb-4">
-                                                            <div className="w-10 h-10 rounded-full bg-brand-navy/5 flex items-center justify-center group-hover:bg-brand-navy transition-colors">
-                                                                <Calendar className="w-5 h-5 text-brand-navy group-hover:text-white transition-colors" />
-                                                            </div>
-                                                            <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Campaign Duration</p>
-                                                        </div>
-                                                        <div className="flex items-baseline gap-1.5">
-                                                            <span className="text-3xl font-black text-brand-navy">{m?.days}</span>
-                                                            <span className="text-sm font-bold text-brand-navy/60">Days</span>
-                                                        </div>
+                                    {/* Funnel Progress */}
+                                    {m && m.totalOrders > 0 && (
+                                        <div className="space-y-3">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40 flex items-center gap-2">
+                                                <BarChart3 className="w-3.5 h-3.5" /> Conversion Funnel
+                                            </p>
+                                            <div className="flex items-center gap-2">
+                                                <div className="flex-1 space-y-1">
+                                                    <div className="flex justify-between text-[10px] font-bold">
+                                                        <span className="text-brand-navy/60">Orders → Confirmed</span>
+                                                        <span className={getHealthColor(m.confirmRate, { green: 60, amber: 30 })}>{m.confirmRate.toFixed(1)}%</span>
                                                     </div>
-                                                    <div className="flex flex-col justify-between p-6 rounded-[32px] bg-white border border-brand-navy/5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all group">
-                                                        <div className="flex flex-col gap-2 mb-4">
-                                                            <div className="w-10 h-10 rounded-full bg-brand-navy/5 flex items-center justify-center group-hover:bg-brand-navy transition-colors">
-                                                                <TrendingUp className="w-5 h-5 text-brand-navy group-hover:text-white transition-colors" />
-                                                            </div>
-                                                            <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Spend Velocity</p>
-                                                        </div>
-                                                        <div className="flex items-baseline gap-1.5">
-                                                            <span className="text-3xl font-black text-brand-navy">{m?.costPerDay.toFixed(2)}</span>
-                                                            <span className="text-sm font-bold text-brand-navy/60">DH/Day</span>
-                                                        </div>
+                                                    <div className="h-2 bg-brand-navy/5 rounded-full overflow-hidden">
+                                                        <div className="h-full bg-blue-500 rounded-full transition-all duration-700" style={{ width: `${m.confirmRate}%` }} />
                                                     </div>
-                                                    <div className="flex flex-col justify-between p-6 rounded-[32px] bg-white border border-brand-navy/5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all group">
-                                                        <div className="flex flex-col gap-2 mb-4">
-                                                            <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center group-hover:bg-emerald-500 transition-colors">
-                                                                <Target className="w-5 h-5 text-emerald-600 group-hover:text-white transition-colors" />
-                                                            </div>
-                                                            <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Result Velocity</p>
-                                                        </div>
-                                                        <div className="flex items-baseline gap-1.5">
-                                                            <span className="text-3xl font-black text-brand-navy">{m?.resultsPerDay.toFixed(2)}</span>
-                                                            <span className="text-sm font-bold text-brand-navy/60">Res/Day</span>
-                                                        </div>
-                                                    </div>
-                                                </>
-                                            );
-                                        })()}
-                                    </div>
-
-                                    {/* Trajectory Chart */}
-                                    <div className="pt-6">
-                                        <div className="flex items-center justify-between mb-6">
-                                            <h4 className="text-sm font-black text-brand-navy uppercase tracking-widest">Performance Trajectory</h4>
-                                            <div className="flex items-center gap-4 text-xs font-bold">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-3 h-3 rounded-full bg-brand-navy" />
-                                                    <span className="text-brand-navy/60">Spend Variance</span>
                                                 </div>
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-3 h-3 rounded-full bg-emerald-500" />
-                                                    <span className="text-brand-navy/60">Acquisition Flow</span>
+                                                <div className="text-brand-navy/20 font-black">→</div>
+                                                <div className="flex-1 space-y-1">
+                                                    <div className="flex justify-between text-[10px] font-bold">
+                                                        <span className="text-brand-navy/60">Confirmed → Delivered</span>
+                                                        <span className={getHealthColor(m.deliveryRate, { green: 70, amber: 40 })}>{m.deliveryRate.toFixed(1)}%</span>
+                                                    </div>
+                                                    <div className="h-2 bg-brand-navy/5 rounded-full overflow-hidden">
+                                                        <div className="h-full bg-emerald-500 rounded-full transition-all duration-700" style={{ width: `${m.deliveryRate}%` }} />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex justify-center">
+                                                <div className={cn("px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wide border", getHealthBg(m.fulfillmentRate, { green: 40, amber: 20 }))}>
+                                                    Overall: {m.fulfillmentRate.toFixed(1)}% fulfilled
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className="h-[280px] w-full bg-brand-navy/[0.02] rounded-[32px] p-6 border border-brand-navy/5 shadow-inner">
-                                            <ResponsiveContainer width="100%" height="100%">
-                                                <AreaChart data={generateChartData(selectedHistory)} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                                                    <defs>
-                                                        <linearGradient id="colorSpend" x1="0" y1="0" x2="0" y2="1">
-                                                            <stop offset="5%" stopColor="#1E2A38" stopOpacity={0.2} />
-                                                            <stop offset="95%" stopColor="#1E2A38" stopOpacity={0} />
-                                                        </linearGradient>
-                                                        <linearGradient id="colorAcq" x1="0" y1="0" x2="0" y2="1">
-                                                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
-                                                            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                                                        </linearGradient>
-                                                    </defs>
-                                                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 'bold', fill: '#1E2A38', opacity: 0.5 }} dy={10} />
-                                                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 'bold', fill: '#1E2A38', opacity: 0.5 }} />
-                                                    <CartesianGrid vertical={false} stroke="#1E2A38" strokeOpacity={0.05} />
-                                                    <Tooltip
-                                                        contentStyle={{ backgroundColor: '#fff', borderRadius: '16px', border: 'none', boxShadow: '0 10px 40px -10px rgba(0,0,0,0.1)' }}
-                                                        itemStyle={{ color: '#1E2A38', fontWeight: 'bold' }}
-                                                        labelStyle={{ color: '#1E2A38', opacity: 0.5, fontWeight: 'bold', fontSize: '12px', marginBottom: '8px' }}
-                                                    />
-                                                    <Area type="monotone" dataKey="DailySpend" stroke="#1E2A38" strokeWidth={3} fillOpacity={1} fill="url(#colorSpend)" />
-                                                    <Area type="monotone" dataKey="DailyAcq" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorAcq)" />
-                                                </AreaChart>
-                                            </ResponsiveContainer>
-                                        </div>
-                                    </div>
-                                </div>
+                                    )}
 
-                                {/* Footer Action */}
-                                <div className="pt-6 border-t border-brand-navy/5 flex items-center justify-between font-bold">
-                                    <div className="flex items-center gap-4 text-brand-navy/60">
-                                        <div className="flex items-center gap-2">
-                                            <Layout className="w-4 h-4" />
-                                            <span>SKU: {selectedHistory.products?.code}</span>
+                                    {/* Cost Efficiency */}
+                                    <div className="space-y-3">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40 flex items-center gap-2">
+                                            <Target className="w-3.5 h-3.5" /> Cost Efficiency
+                                        </p>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                            <div className="p-4 rounded-[20px] bg-white border border-brand-navy/5 shadow-sm space-y-2">
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-brand-navy/40">CPA</p>
+                                                <p className="text-2xl font-black text-brand-navy">{m && m.cpa > 0 ? fmtDec(m.cpa) : '—'}<span className="text-xs ml-1 text-brand-navy/40">DH</span></p>
+                                                <p className="text-[9px] text-brand-navy/40 font-bold">Cost per order</p>
+                                            </div>
+                                            <div className="p-4 rounded-[20px] bg-white border border-brand-navy/5 shadow-sm space-y-2">
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-blue-600/60">CPC</p>
+                                                <p className="text-2xl font-black text-blue-600">{m && m.cpc > 0 ? fmtDec(m.cpc) : '—'}<span className="text-xs ml-1 text-blue-600/40">DH</span></p>
+                                                <p className="text-[9px] text-brand-navy/40 font-bold">Cost per confirmation</p>
+                                            </div>
+                                            <div className="p-4 rounded-[20px] bg-white border border-brand-navy/5 shadow-sm space-y-2">
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-emerald-600/60">CPD</p>
+                                                <p className="text-2xl font-black text-emerald-600">{m && m.cpd > 0 ? fmtDec(m.cpd) : '—'}<span className="text-xs ml-1 text-emerald-600/40">DH</span></p>
+                                                <p className="text-[9px] text-brand-navy/40 font-bold">Cost per delivery</p>
+                                            </div>
+                                            <div className="p-4 rounded-[20px] bg-white border border-brand-navy/5 shadow-sm space-y-2">
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-brand-navy/40">Daily Spend</p>
+                                                <p className="text-2xl font-black text-brand-navy">{m ? fmtDec(m.dailySpend) : '—'}<span className="text-xs ml-1 text-brand-navy/40">DH</span></p>
+                                                <p className="text-[9px] text-brand-navy/40 font-bold">Average per day</p>
+                                            </div>
                                         </div>
                                     </div>
-                                    <Button onClick={() => setIsDetailsOpen(false)} variant="secondary" className="rounded-2xl px-8 h-12 bg-brand-navy text-brand-white font-bold hover:bg-brand-navy/90">
-                                        Analyze Next Campaign
-                                    </Button>
+
+                                    {/* Revenue & Profit */}
+                                    <div className="space-y-3">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40 flex items-center gap-2">
+                                            <DollarSign className="w-3.5 h-3.5" /> Revenue & Profit
+                                        </p>
+                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                            <div className="p-4 rounded-[20px] bg-white border border-brand-navy/5 shadow-sm space-y-2">
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-brand-navy/40">Gross Revenue</p>
+                                                <p className="text-2xl font-black text-brand-navy">{m ? fmtNum(m.grossRevenue) : '0'}<span className="text-xs ml-1 text-brand-navy/40">DH</span></p>
+                                            </div>
+                                            <div className="p-4 rounded-[20px] bg-white border border-brand-navy/5 shadow-sm space-y-2">
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-brand-navy/40">COGS</p>
+                                                <p className="text-2xl font-black text-brand-navy/60">{m ? fmtNum(m.cogs) : '0'}<span className="text-xs ml-1 text-brand-navy/40">DH</span></p>
+                                            </div>
+                                            <div className="p-4 rounded-[20px] bg-white border border-brand-navy/5 shadow-sm space-y-2">
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-brand-navy/40">Shipping</p>
+                                                <p className="text-2xl font-black text-brand-navy/60">{m ? fmtNum(m.shippingCosts) : '0'}<span className="text-xs ml-1 text-brand-navy/40">DH</span></p>
+                                            </div>
+                                            <div className={cn("p-4 rounded-[20px] border shadow-sm space-y-2", m && m.profit >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200')}>
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-brand-navy/40">Net Profit</p>
+                                                <p className={cn("text-2xl font-black", m && m.profit >= 0 ? 'text-emerald-600' : 'text-red-500')}>{m ? (m.profit >= 0 ? '+' : '') + fmtNum(m.profit) : '0'}<span className="text-xs ml-1 opacity-60">DH</span></p>
+                                            </div>
+                                            <div className={cn("p-4 rounded-[20px] border shadow-sm space-y-2", m && m.roas >= 1 ? 'bg-emerald-50 border-emerald-200' : m && m.roas >= 0.5 ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200')}>
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-brand-navy/40">ROAS</p>
+                                                <p className={cn("text-2xl font-black", m ? getHealthColor(m.roas, { green: 1, amber: 0.5 }) : 'text-brand-navy')}>{m ? fmtDec(m.roas) : '0'}<span className="text-xs ml-1 opacity-60">x</span></p>
+                                                <p className="text-[9px] text-brand-navy/40 font-bold">Gross return</p>
+                                            </div>
+                                            <div className="p-4 rounded-[20px] bg-white border border-brand-navy/5 shadow-sm space-y-2">
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-brand-navy/40">Margin</p>
+                                                <p className={cn("text-2xl font-black", m && m.profitMargin > 0 ? 'text-emerald-600' : 'text-red-500')}>{m ? fmtDec(m.profitMargin) : '0'}<span className="text-xs ml-1 opacity-60">%</span></p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Waste & Quality */}
+                                    <div className="space-y-3">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40 flex items-center gap-2">
+                                            <ShieldCheck className="w-3.5 h-3.5" /> Quality & Waste
+                                        </p>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                            <div className="p-4 rounded-[20px] bg-white border border-brand-navy/5 shadow-sm space-y-2">
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-red-500/60">Cancelled</p>
+                                                <p className="text-2xl font-black text-red-500">{m?.cancelledOrders ?? 0}</p>
+                                                <p className="text-[9px] text-brand-navy/40 font-bold">{m ? m.cancelRate.toFixed(1) : 0}% of orders</p>
+                                            </div>
+                                            <div className="p-4 rounded-[20px] bg-white border border-brand-navy/5 shadow-sm space-y-2">
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Fake</p>
+                                                <p className="text-2xl font-black text-gray-500">{m?.fakeOrders ?? 0}</p>
+                                                <p className="text-[9px] text-brand-navy/40 font-bold">{m ? m.fakeRate.toFixed(1) : 0}% of orders</p>
+                                            </div>
+                                            <div className="p-4 rounded-[20px] bg-white border border-brand-navy/5 shadow-sm space-y-2">
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-amber-600/60">Wasted Spend</p>
+                                                <p className="text-2xl font-black text-amber-600">{m ? fmtNum(m.wastedSpend) : '0'}<span className="text-xs ml-1 opacity-60">DH</span></p>
+                                                <p className="text-[9px] text-brand-navy/40 font-bold">Ads that didn't convert</p>
+                                            </div>
+                                            <div className={cn("p-4 rounded-[20px] border shadow-sm space-y-2", m ? getHealthBg(m.qualityScore, { green: 40, amber: 20 }) : 'bg-white border-brand-navy/5')}>
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-brand-navy/40">Quality Score</p>
+                                                <p className={cn("text-2xl font-black", m ? getHealthColor(m.qualityScore, { green: 40, amber: 20 }) : 'text-brand-navy')}>{m ? m.qualityScore.toFixed(0) : 0}<span className="text-xs ml-1 opacity-60">%</span></p>
+                                                <p className="text-[9px] text-brand-navy/40 font-bold">Orders → Delivered</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Footer */}
+                                    <div className="pt-6 border-t border-brand-navy/5 flex items-center justify-between font-bold">
+                                        <div className="flex items-center gap-4 text-brand-navy/60 text-sm">
+                                            <div className="flex items-center gap-2">
+                                                <Layout className="w-4 h-4" />
+                                                <span>SKU: {selectedHistory.products?.code}</span>
+                                            </div>
+                                        </div>
+                                        <Button onClick={() => setIsDetailsOpen(false)} variant="secondary" className="rounded-2xl px-8 h-12 bg-brand-navy text-brand-white font-bold hover:bg-brand-navy/90">
+                                            Close
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    )}
+                        );
+                    })()}
                 </DialogContent>
             </Dialog>
 
@@ -832,19 +979,19 @@ const AdsHistory = () => {
                         <AlertDialogHeader>
                             <AlertDialogTitle className="text-3xl font-bold text-brand-navy">Permanently Delete?</AlertDialogTitle>
                             <AlertDialogDescription className="text-lg text-muted-foreground pt-2">
-                                You are about to remove this campaign record. This action cannot be reversed.
+                                This campaign record will be permanently removed.
                             </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter className="w-full flex flex-col sm:flex-row gap-3 mt-4">
                             <AlertDialogCancel className="w-full rounded-2xl h-14 font-bold border-none bg-brand-navy/[0.04] hover:bg-brand-navy/[0.08] text-brand-navy m-0">
-                                Back to Safety
+                                Cancel
                             </AlertDialogCancel>
                             <AlertDialogAction
                                 onClick={() => deleteMutation.mutate(historyToDelete.id)}
                                 className="w-full rounded-2xl h-14 font-bold bg-red-500 hover:bg-red-600 text-brand-white shadow-xl shadow-red-500/20 m-0"
                             >
                                 {deleteMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                                Confirm Removal
+                                Delete
                             </AlertDialogAction>
                         </AlertDialogFooter>
                     </div>

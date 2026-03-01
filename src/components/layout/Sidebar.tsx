@@ -87,7 +87,11 @@ const navigation: NavSection[] = [
     },
     {
         items: [
-            { icon: RefreshCcw, label: 'Status', path: '/status' },
+            { icon: Target, label: 'Ads History', path: '/ads-history' },
+        ]
+    },
+    {
+        items: [
             { icon: Megaphone, label: 'Sales Channels', path: '/sales-channels' },
             { icon: Users, label: 'Customers', path: '/customers' },
             { icon: UserPlus, label: 'Users', path: '/users' },
@@ -106,7 +110,6 @@ const navigation: NavSection[] = [
         label: 'Expenses',
         icon: Wallet,
         items: [
-            { icon: Target, label: 'Ads History', path: '/ads-history' },
             { icon: List, label: 'Expenses Details', path: '/expenses-details' },
             { icon: Tag, label: 'Expenses Types', path: '/expenses-types' },
         ]
@@ -115,7 +118,7 @@ const navigation: NavSection[] = [
         label: 'Settings',
         icon: Settings,
         items: [
-            { icon: Building2, label: 'Businesses', path: '/businesses' },
+            { icon: RefreshCcw, label: 'Status', path: '/status' },
             { icon: MapPin, label: 'Cities', path: '/cities' },
             { icon: Map, label: 'Zones', path: '/zones' },
             { icon: Download, label: 'Import Orders', path: '/import-orders' },
@@ -127,6 +130,11 @@ const navigation: NavSection[] = [
         icon: Calculator,
         items: [
             { icon: Calculator, label: 'Profit Calculator', path: '/calculator' },
+        ]
+    },
+    {
+        items: [
+            { icon: Building2, label: 'Businesses', path: '/businesses' },
         ]
     }
 ];
