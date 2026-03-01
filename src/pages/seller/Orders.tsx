@@ -157,6 +157,13 @@ const Orders = () => {
     const [searchQuery, setSearchQuery] = useState("");
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
     const [activeTab, setActiveTab] = useState<'new' | 'confirmation' | 'suivi' | 'reported'>('new');
+    const [sellerStats, setSellerStats] = useState({
+        confirmRate: 0,
+        deliveryRate: 0,
+        unpaidCommission: 0,
+        totalDelivered: 0,
+        commissionRate: 0
+    });
 
     // Reported Modal States
     const [isReportedModalOpen, setIsReportedModalOpen] = useState(false);
@@ -513,7 +520,7 @@ const Orders = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('products')
-                .select('id, name, code, selling_price')
+                .select('id, name, code, selling_price, stock')
                 .eq('active', true)
                 .eq('DigiCom Business', activeBusinessId)
                 .order('name');
@@ -750,7 +757,24 @@ const Orders = () => {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
             setIsAddModalOpen(false);
-            form.reset();
+            form.reset({
+                name: '',
+                phone: '',
+                city_id: '',
+                address: '',
+                source_name: 'facebook',
+                shipping_cost: 0,
+                replace: false,
+                note: '',
+                delivery_note: '',
+                delivery_type: 'Home Delivery',
+                order_status_id: '',
+                items: [{ product_id: '', quantity: 1, unit_price: 0, accessories: [] }],
+                courier_id: null,
+                company_id: null,
+                history_comment: '',
+                _reportedDate: ''
+            });
             toast({ title: "Order Created", description: "Successfully logged new order." });
         },
         onError: (error: any) => {
@@ -1025,6 +1049,60 @@ const Orders = () => {
         return baseFilteredOrders.filter(o => isOrderInTab(o, activeTab));
     }, [baseFilteredOrders, activeTab]);
 
+    // Calculate seller-specific statistics
+    useEffect(() => {
+        const calculateSellerStats = async () => {
+            if (!orders || !userId) return;
+
+            const allOrders = orders || [];
+            const total = allOrders.length;
+
+            // Count confirmed orders (CONFIRMED, PROCESSED, PAID, UNPAID statuses)
+            const confirmed = allOrders.filter(o => 
+                ['confirmed', 'processed', 'paid', 'unpaid'].includes((o.status?.code || '').toLowerCase())
+            ).length;
+
+            // Count delivered orders (package_status_label = 'Livré')
+            const delivered = allOrders.filter(o => 
+                (o.package_status_label || '').toLowerCase() === 'livré'
+            ).length;
+
+            // Rates
+            const confirmRate = total > 0 ? (confirmed / total) * 100 : 0;
+            const deliveryRate = total > 0 ? (delivered / total) * 100 : 0;
+
+            // Get commission rate and calculate unpaid commission
+            const { data: userData } = await supabase
+                .from('users')
+                .select('commission_price')
+                .eq('id', userId)
+                .single();
+
+            const commissionRate = userData?.commission_price || 0;
+
+            // Get already paid deliveries
+            const { data: paymentsData } = await supabase
+                .from('seller_payments')
+                .select('delivered_orders')
+                .eq('seller_id', userId)
+                .eq('status', 'paid');
+
+            const alreadyPaid = (paymentsData || []).reduce((sum, p) => sum + (Number(p.delivered_orders) || 0), 0);
+            const unpaidDeliveries = Math.max(0, delivered - alreadyPaid);
+            const unpaidCommission = unpaidDeliveries * commissionRate;
+
+            setSellerStats({
+                confirmRate,
+                deliveryRate,
+                unpaidCommission,
+                totalDelivered: delivered,
+                commissionRate
+            });
+        };
+
+        calculateSellerStats();
+    }, [orders, userId]);
+
     const handleEdit = (order: any) => {
         setSelectedOrder(order);
         form.reset({
@@ -1109,7 +1187,24 @@ const Orders = () => {
                     </div>
                     <Button
                         onClick={() => {
-                            form.reset();
+                            form.reset({
+                                name: '',
+                                phone: '',
+                                city_id: '',
+                                address: '',
+                                source_name: 'facebook',
+                                shipping_cost: 0,
+                                replace: false,
+                                note: '',
+                                delivery_note: '',
+                                delivery_type: 'Home Delivery',
+                                order_status_id: '',
+                                items: [{ product_id: '', quantity: 1, unit_price: 0, accessories: [] }],
+                                courier_id: null,
+                                company_id: null,
+                                history_comment: '',
+                                _reportedDate: ''
+                            });
                             setIsAddModalOpen(true);
                         }}
                         className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-12 px-6 font-bold shadow-lg shadow-brand-navy/10 transition-all active:scale-95 flex items-center gap-2 w-full sm:w-auto"
@@ -1120,46 +1215,48 @@ const Orders = () => {
                 </div>
             </div>
 
-            {/* Dashboard Stats (Optional Placeholder) */}
+            {/* Seller Performance Stats */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card className="border-none bg-emerald-50/50 rounded-[32px] p-6 relative overflow-hidden flex flex-col justify-between min-h-[140px]">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600/60 mb-2">Delivery Rate</p>
+                    <div className="flex items-baseline gap-2">
+                        <h3 className="text-3xl lg:text-4xl xl:text-5xl font-black text-brand-navy tracking-tight">
+                            {sellerStats.deliveryRate.toFixed(0)}
+                        </h3>
+                        <span className="text-2xl font-bold text-emerald-600">%</span>
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-2">{sellerStats.totalDelivered} delivered</p>
+                </Card>
                 <Card className="border-none bg-blue-50/50 rounded-[32px] p-6 relative overflow-hidden flex flex-col justify-between min-h-[140px]">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-blue-600/60 mb-2">Active Orders</p>
-                    <h3 className="text-3xl lg:text-4xl xl:text-5xl font-black text-brand-navy tracking-tight truncate w-full">
-                        {new Intl.NumberFormat('fr-FR').format(filteredOrders.length)}
-                    </h3>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-blue-600/60 mb-2">Confirm Rate</p>
+                    <div className="flex items-baseline gap-2">
+                        <h3 className="text-3xl lg:text-4xl xl:text-5xl font-black text-brand-navy tracking-tight">
+                            {sellerStats.confirmRate.toFixed(0)}
+                        </h3>
+                        <span className="text-2xl font-bold text-blue-600">%</span>
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-2">Your success rate</p>
                 </Card>
                 <div className="bg-brand-navy rounded-[32px] p-6 text-brand-white shadow-2xl shadow-brand-navy/30 relative overflow-hidden group flex flex-col justify-between min-h-[140px]">
                     <div className="relative z-10 flex flex-col h-full justify-between">
-                        <span className="text-[10px] font-black uppercase text-brand-white/60 tracking-widest mb-2 block">Total Sales</span>
+                        <span className="text-[10px] font-black uppercase text-brand-white/60 tracking-widest mb-2 block">Unpaid Commission</span>
                         <div className="flex items-baseline gap-1.5 w-full">
                             <span className="text-3xl lg:text-4xl xl:text-5xl font-black tracking-tight truncate">
-                                {new Intl.NumberFormat('fr-FR').format(Math.round(filteredOrders.reduce((acc, o) => acc + (o.raw_price || 0), 0)))}
+                                {new Intl.NumberFormat('fr-FR').format(Math.round(sellerStats.unpaidCommission))}
                             </span>
-                            <span className="text-lg font-bold opacity-60 shrink-0">DH</span>
+                            <span className="text-lg font-bold opacity-60 shrink-0">MAD</span>
                         </div>
+                        <p className="text-[10px] text-white/60 mt-2">{sellerStats.commissionRate} MAD per delivery</p>
                     </div>
                     <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-brand-white/5 rounded-full blur-2xl group-hover:bg-brand-white/10 transition-colors duration-500" />
                 </div>
-                <Card className="border-none bg-amber-50/50 rounded-[32px] p-6 relative overflow-hidden flex flex-col justify-between min-h-[140px]">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-600/60 mb-2">Exchanges</p>
+                <Card className="border-none bg-purple-50/50 rounded-[32px] p-6 relative overflow-hidden flex flex-col justify-between min-h-[140px]">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-purple-600/60 mb-2">My Orders</p>
                     <h3 className="text-3xl lg:text-4xl xl:text-5xl font-black text-brand-navy tracking-tight truncate w-full">
-                        {new Intl.NumberFormat('fr-FR').format(filteredOrders.filter(o => o.replace).length)}
+                        {new Intl.NumberFormat('fr-FR').format(filteredOrders.length)}
                     </h3>
+                    <p className="text-[10px] text-gray-400 mt-2">Current view</p>
                 </Card>
-                <div className="bg-white rounded-[32px] p-6 border-2 border-brand-navy/[0.03] hover:border-brand-navy/[0.08] transition-colors shadow-xl shadow-brand-navy/5 relative overflow-hidden group flex flex-col justify-between min-h-[140px]">
-                    <div className="relative z-10 flex flex-col h-full justify-between">
-                        <span className="text-[10px] font-black text-brand-navy/40 uppercase tracking-widest mb-2 block">Avg Order Value</span>
-                        <div className="flex items-baseline gap-1.5 w-full">
-                            <span className="text-3xl lg:text-4xl xl:text-5xl font-black text-brand-navy tracking-tight truncate">
-                                {filteredOrders.length > 0
-                                    ? new Intl.NumberFormat('fr-FR').format(Math.round(filteredOrders.reduce((acc, o) => acc + (o.raw_price || 0), 0) / filteredOrders.length))
-                                    : '0'}
-                            </span>
-                            <span className="text-lg font-bold text-brand-navy/40 shrink-0">DH</span>
-                        </div>
-                    </div>
-                    <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-brand-navy/[0.02] rounded-full blur-2xl group-hover:bg-brand-navy/[0.04] transition-colors duration-500" />
-                </div>
             </div>
 
             {/* Tabs View */}
@@ -1640,7 +1737,24 @@ const Orders = () => {
                         setIsAddModalOpen(false);
                         setIsEditModalOpen(false);
                         setSelectedOrder(null);
-                        form.reset();
+                        form.reset({
+                            name: '',
+                            phone: '',
+                            city_id: '',
+                            address: '',
+                            source_name: 'facebook',
+                            shipping_cost: 0,
+                            replace: false,
+                            note: '',
+                            delivery_note: '',
+                            delivery_type: 'Home Delivery',
+                            order_status_id: '',
+                            items: [{ product_id: '', quantity: 1, unit_price: 0, accessories: [] }],
+                            courier_id: null,
+                            company_id: null,
+                            history_comment: '',
+                            _reportedDate: ''
+                        });
                     }
                 }}
             >
@@ -1833,7 +1947,7 @@ const Orders = () => {
                                             render={({ field }) => (
                                                 <FormItem className="space-y-1">
                                                     <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Sales Channel</FormLabel>
-                                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isEditModalOpen}>
                                                         <FormControl>
                                                             <SelectTrigger className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner">
                                                                 <SelectValue placeholder="Select source" />
@@ -1872,6 +1986,7 @@ const Orders = () => {
                                                                     }
                                                                 }}
                                                                 value={field.value || selectedCompanyId || ''}
+                                                                disabled={isEditModalOpen}
                                                             >
                                                                 <FormControl>
                                                                     <SelectTrigger className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner">
@@ -1902,7 +2017,7 @@ const Orders = () => {
                                                         <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Shipping Fee</FormLabel>
                                                         <FormControl>
                                                             <div className="relative">
-                                                                <Input type="number" {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner pl-4 pr-10" />
+                                                                <Input type="number" {...field} disabled={isEditModalOpen} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner pl-4 pr-10" />
                                                                 <div className="absolute right-4 top-1/2 -translate-y-1/2">
                                                                     <Button
                                                                         type="button"
@@ -1911,7 +2026,7 @@ const Orders = () => {
                                                                         onClick={calculateShippingFee}
                                                                         className="h-6 w-6 text-brand-navy/30 hover:text-brand-navy"
                                                                         title="Calculate Fees"
-                                                                        disabled={!selectedCityId || (!selectedCourierId && !selectedCompanyId)}
+                                                                        disabled={isEditModalOpen || !selectedCityId || (!selectedCourierId && !selectedCompanyId)}
                                                                     >
                                                                         <RefreshCcw className="w-3 h-3" />
                                                                     </Button>
@@ -2156,22 +2271,40 @@ const Orders = () => {
                                                                             </SelectContent>
                                                                         </Select>
                                                                         <FormMessage />
+                                                                        {/* Low Stock Alert */}
+                                                                        {(() => {
+                                                                            const selectedProduct = products?.find((p: any) => p.id === field.value);
+                                                                            if (selectedProduct && selectedProduct.stock !== null && selectedProduct.stock !== undefined) {
+                                                                                if (selectedProduct.stock === 0) {
+                                                                                    return (
+                                                                                        <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-red-50 border border-red-200">
+                                                                                            <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                                                                                            <span className="text-[10px] font-bold text-red-600 uppercase tracking-wide">Out of Stock</span>
+                                                                                        </div>
+                                                                                    );
+                                                                                } else if (selectedProduct.stock < 10) {
+                                                                                    return (
+                                                                                        <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200">
+                                                                                            <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                                                                            <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wide">Low Stock: {selectedProduct.stock} left</span>
+                                                                                        </div>
+                                                                                    );
+                                                                                }
+                                                                            }
+                                                                            return null;
+                                                                        })()}
                                                                     </FormItem>
                                                                 )}
                                                             />
                                                         </div>
-                                                        <div className="md:col-span-2">
-                                                            <FormField
-                                                                control={form.control}
-                                                                name={`items.${index}.unit_price`}
-                                                                render={({ field }) => (
-                                                                    <FormItem className="space-y-1">
-                                                                        <FormLabel className="text-[10px] uppercase font-black text-muted-foreground/60">Unit Price</FormLabel>
-                                                                        <Input type="number" {...field} disabled={!hasProduct} className="h-12 rounded-2xl border-none bg-white shadow-sm text-base font-bold text-brand-navy text-center" />
-                                                                    </FormItem>
-                                                                )}
-                                                            />
-                                                        </div>
+                                                        {/* Hidden unit price field */}
+                                                        <FormField
+                                                            control={form.control}
+                                                            name={`items.${index}.unit_price`}
+                                                            render={({ field }) => (
+                                                                <input type="hidden" {...field} />
+                                                            )}
+                                                        />
                                                         <div className="md:col-span-2">
                                                             <FormField
                                                                 control={form.control}
@@ -2184,7 +2317,7 @@ const Orders = () => {
                                                                 )}
                                                             />
                                                         </div>
-                                                        <div className="md:col-span-2">
+                                                        <div className="md:col-span-4">
                                                             <div className="h-12 flex flex-col items-center justify-center">
                                                                 <span className="text-[8px] font-black uppercase text-muted-foreground/40 leading-none mb-1">Product Total</span>
                                                                 <span className="text-sm font-black text-brand-navy">
@@ -2254,22 +2387,40 @@ const Orders = () => {
                                                                                         </SelectContent>
                                                                                     </Select>
                                                                                     <FormMessage />
+                                                                                    {/* Low Stock Alert for Accessory */}
+                                                                                    {(() => {
+                                                                                        const selectedAccessory = accessories?.find((a: any) => a.id === field.value);
+                                                                                        if (selectedAccessory && selectedAccessory.stock !== null && selectedAccessory.stock !== undefined) {
+                                                                                            if (selectedAccessory.stock === 0) {
+                                                                                                return (
+                                                                                                    <div className="mt-2 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-50 border border-red-200">
+                                                                                                        <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                                                                                                        <span className="text-[9px] font-bold text-red-600 uppercase tracking-wide">Out of Stock</span>
+                                                                                                    </div>
+                                                                                                );
+                                                                                            } else if (selectedAccessory.stock < 10) {
+                                                                                                return (
+                                                                                                    <div className="mt-2 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200">
+                                                                                                        <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                                                                                        <span className="text-[9px] font-bold text-amber-600 uppercase tracking-wide">Low Stock: {selectedAccessory.stock} left</span>
+                                                                                                    </div>
+                                                                                                );
+                                                                                            }
+                                                                                        }
+                                                                                        return null;
+                                                                                    })()}
                                                                                 </FormItem>
                                                                             )}
                                                                         />
                                                                     </div>
-                                                                    <div className="md:col-span-2">
-                                                                        <FormField
-                                                                            control={form.control}
-                                                                            name={`items.${index}.accessories.${accIdx}.accessory_unit_price`}
-                                                                            render={({ field }) => (
-                                                                                <FormItem className="space-y-1">
-                                                                                    <FormLabel className="text-[10px] uppercase font-black text-brand-navy/40">Unit Cost</FormLabel>
-                                                                                    <Input type="number" {...field} disabled={!hasAccessory} className="h-12 rounded-xl border-none bg-white shadow-sm text-base font-bold text-brand-navy text-center" />
-                                                                                </FormItem>
-                                                                            )}
-                                                                        />
-                                                                    </div>
+                                                                    {/* Hidden accessory unit price field */}
+                                                                    <FormField
+                                                                        control={form.control}
+                                                                        name={`items.${index}.accessories.${accIdx}.accessory_unit_price`}
+                                                                        render={({ field }) => (
+                                                                            <input type="hidden" {...field} />
+                                                                        )}
+                                                                    />
                                                                     <div className="md:col-span-2">
                                                                         <FormField
                                                                             control={form.control}
@@ -2282,7 +2433,7 @@ const Orders = () => {
                                                                             )}
                                                                         />
                                                                     </div>
-                                                                    <div className="md:col-span-2">
+                                                                    <div className="md:col-span-4">
                                                                         <div className="h-12 flex flex-col items-center justify-center">
                                                                             <span className="text-[8px] font-black uppercase text-brand-navy/30 leading-none mb-1">Row Total</span>
                                                                             <span className="text-sm font-black text-brand-navy/70">

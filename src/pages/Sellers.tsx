@@ -174,19 +174,46 @@ const Sellers = () => {
         const sellerPayments = payments.filter(p => p.seller_id === seller.id);
 
         const total = sellerOrders.length;
-        const pending = sellerOrders.filter(o => NEW_CODES.includes(getStatusCode(o))).length;
-        const confirmed = sellerOrders.filter(o => CONFIRMED_CODES.includes(getStatusCode(o))).length;
-        const delivered = sellerOrders.filter(o => (o.package_status_label || '').toLowerCase() === 'livré').length;
-        const cancelled = sellerOrders.filter(o => CANCELLED_CODES.includes(getStatusCode(o))).length;
-        const fake = sellerOrders.filter(o => FAKE_CODES.includes(getStatusCode(o))).length;
-        const shipped = sellerOrders.filter(o => SHIPPED_CODES.includes(getStatusCode(o))).length;
+        
+        // Mutually exclusive status counts with hierarchy
+        let delivered = 0, shipped = 0, confirmed = 0, pending = 0, cancelled = 0, fake = 0;
+        
+        sellerOrders.forEach(o => {
+          const statusCode = getStatusCode(o);
+          const packageLabel = (o.package_status_label || '').toLowerCase();
+          
+          // Priority: delivered > shipped > confirmed > cancelled/fake > pending
+          if (packageLabel === 'livré') {
+            delivered++;
+          } else if (SHIPPED_CODES.includes(statusCode)) {
+            shipped++;
+          } else if (CONFIRMED_CODES.includes(statusCode)) {
+            confirmed++;
+          } else if (CANCELLED_CODES.includes(statusCode)) {
+            cancelled++;
+          } else if (FAKE_CODES.includes(statusCode)) {
+            fake++;
+          } else if (NEW_CODES.includes(statusCode)) {
+            pending++;
+          } else {
+            // Other statuses go to pending
+            pending++;
+          }
+        });
 
         const totalConfirmedAndDelivered = confirmed + delivered + shipped;
         const confirmRate = total > 0 ? (totalConfirmedAndDelivered / total) * 100 : 0;
         const deliveryRate = total > 0 ? (delivered / total) * 100 : 0;
         const cancellationRate = total > 0 ? ((cancelled + fake) / total) * 100 : 0;
 
-        const liveCommission = delivered * (Number(seller.commission_price) || 0);
+        // Calculate already paid deliveries for this seller
+        const alreadyPaidDeliveries = sellerPayments
+          .filter(p => p.status === 'paid')
+          .reduce((sum, p) => sum + (Number(p.delivered_orders) || 0), 0);
+        
+        // Live commission should only count unpaid deliveries
+        const unpaidDeliveries = Math.max(0, delivered - alreadyPaidDeliveries);
+        const liveCommission = unpaidDeliveries * (Number(seller.commission_price) || 0);
 
         const totalRevenue = sellerOrders
           .filter(o => (o.package_status_label || '').toLowerCase() === 'livré')
@@ -374,7 +401,7 @@ const Sellers = () => {
             {/* Bottom: Earnings + CTA */}
             <div className="flex items-center justify-between pt-3 border-t border-gray-50">
               <div>
-                <p className="text-xs text-gray-400">Commission earned</p>
+                <p className="text-xs text-gray-400">Unpaid commission</p>
                 <p className="text-sm font-semibold text-gray-900">{k.liveCommission.toLocaleString()} <span className="text-[10px] text-gray-400 font-normal">MAD</span></p>
               </div>
               <div className="text-right">
@@ -397,8 +424,8 @@ const Sellers = () => {
 
     const statusDistribution = [
       { label: 'Delivered', count: k.deliveredOrders, color: 'bg-emerald-500' },
-      { label: 'Confirmed', count: k.confirmedOrders - k.deliveredOrders - k.shippedOrders, color: 'bg-blue-500' },
       { label: 'Shipped', count: k.shippedOrders, color: 'bg-indigo-500' },
+      { label: 'Confirmed', count: k.confirmedOrders, color: 'bg-blue-500' },
       { label: 'Pending', count: k.pendingOrders, color: 'bg-orange-500' },
       { label: 'Cancelled', count: k.cancelledOrders, color: 'bg-red-500' },
       { label: 'Fake', count: k.fakeOrders, color: 'bg-gray-400' },
@@ -530,7 +557,7 @@ const Sellers = () => {
                   </div>
                   <div className="bg-amber-50/60 rounded-xl p-4">
                     <p className="text-xl font-light text-gray-900">{k.liveCommission.toLocaleString()}</p>
-                    <p className="text-[8px] uppercase tracking-widest font-bold text-amber-600">Live Commission (MAD)</p>
+                    <p className="text-[8px] uppercase tracking-widest font-bold text-amber-600">Unpaid Commission (MAD)</p>
                   </div>
                   <div className="bg-blue-50/60 rounded-xl p-4">
                     <p className="text-xl font-light text-gray-900">{k.totalEarnings.toLocaleString()}</p>

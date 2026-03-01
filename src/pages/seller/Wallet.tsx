@@ -19,7 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
-import { format, startOfMonth, endOfMonth } from 'date-fns';
+import { format, startOfMonth, endOfMonth, addMonths } from 'date-fns';
 
 interface DailyEarning {
     id: string;
@@ -384,15 +384,11 @@ const SellerWallet = () => {
                         </div>
                         <div className="relative">
                             <h4 className="text-white/80 text-sm font-light uppercase tracking-widest mb-2">Next Payout</h4>
-                            <p className="text-white text-3xl font-medium tracking-tight">March 1, 2026</p>
+                            <p className="text-white text-3xl font-medium tracking-tight">{format(startOfMonth(addMonths(new Date(), 1)), 'MMMM d, yyyy')}</p>
                             <p className="text-white/60 text-xs font-light mt-4 leading-relaxed">
                                 Your balance will be automatically finalized at the end of the month.
                             </p>
                         </div>
-                        <Button className="w-full bg-white text-primary hover:bg-white/90 rounded-2xl h-12 shadow-lg mt-8 group">
-                            View Schedule
-                            <ChevronRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
-                        </Button>
                     </CardContent>
                 </Card>
             </div>

@@ -27,6 +27,7 @@ interface SellerStats {
     pendingOrders: number;
     confirmedOrders: number;
     deliveredOrders: number;
+    unpaidDeliveries: number;
     totalOrders: number;
     totalProducts: number;
     liveCommission: number;
@@ -72,6 +73,7 @@ const SellerDashboard = () => {
         pendingOrders: 0,
         confirmedOrders: 0,
         deliveredOrders: 0,
+        unpaidDeliveries: 0,
         totalOrders: 0,
         totalProducts: 0,
         liveCommission: 0,
@@ -171,7 +173,19 @@ const SellerDashboard = () => {
             const confirmed = orders.filter(o => isConfirmed(o)).length;
             const successRate = orders.length > 0 ? (delivered / orders.length) * 100 : 0;
             const confirmRate = orders.length > 0 ? (confirmed / orders.length) * 100 : 0;
-            const liveCommission = delivered * commissionRate;
+            
+            // Get already paid deliveries from seller_payments
+            const { data: paymentsData } = await supabase
+                .from('seller_payments')
+                .select('delivered_orders, status')
+                .eq('seller_id', userId)
+                .eq('status', 'paid');
+
+            const alreadyPaidDeliveries = (paymentsData || []).reduce((sum, p) => sum + (Number(p.delivered_orders) || 0), 0);
+            
+            // Live commission should only count unpaid deliveries
+            const unpaidDeliveries = Math.max(0, delivered - alreadyPaidDeliveries);
+            const liveCommission = unpaidDeliveries * commissionRate;
 
             setStats({
                 todayOrders: todayOrders.length,
@@ -179,6 +193,7 @@ const SellerDashboard = () => {
                 pendingOrders: orders.filter(o => isPending(o)).length,
                 confirmedOrders: confirmed,
                 deliveredOrders: delivered,
+                unpaidDeliveries,
                 totalOrders: orders.length,
                 totalProducts: attributedProducts.length,
                 liveCommission,
@@ -393,9 +408,9 @@ const SellerDashboard = () => {
                             gradient: 'from-emerald-50 to-white',
                         },
                         {
-                            label: 'Live Commission',
+                            label: 'Live Commission (Unpaid)',
                             value: `${stats.liveCommission.toLocaleString()} MAD`,
-                            sub: `${stats.commissionRate} MAD × ${stats.deliveredOrders} delivered`,
+                            sub: `${stats.commissionRate} MAD × ${stats.unpaidDeliveries} unpaid deliveries`,
                             icon: Receipt,
                             color: 'text-amber-600',
                             bg: 'bg-amber-50',
@@ -481,7 +496,7 @@ const SellerDashboard = () => {
                                 <Receipt className="w-5 h-5 text-amber-500" />
                                 <div>
                                     <p className="text-lg font-light text-gray-900">{stats.liveCommission.toLocaleString()} <span className="text-xs text-gray-400 font-bold">MAD</span></p>
-                                    <p className="text-[9px] uppercase tracking-widest font-bold text-amber-600">Earned Commission</p>
+                                    <p className="text-[9px] uppercase tracking-widest font-bold text-amber-600">Unpaid Commission</p>
                                 </div>
                             </div>
                         </div>
@@ -574,18 +589,7 @@ const SellerDashboard = () => {
                     {/* Activity Feed */}
                     <Card className="border-0 shadow-xl rounded-3xl overflow-hidden lg:col-span-2">
                         <CardHeader className="border-b border-gray-50 bg-gradient-to-r from-gray-50 to-transparent p-6">
-                            <div className="flex items-center justify-between">
-                                <CardTitle className="text-lg font-light text-gray-900">Activity Feed</CardTitle>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="rounded-xl text-xs"
-                                    onClick={() => navigate('/seller/orders')}
-                                >
-                                    View All
-                                    <ChevronRight className="w-3 h-3 ml-1" />
-                                </Button>
-                            </div>
+                            <CardTitle className="text-lg font-light text-gray-900">Activity Feed</CardTitle>
                         </CardHeader>
                         <CardContent className="p-0 max-h-[440px] overflow-y-auto">
                             {loading ? (
@@ -630,12 +634,9 @@ const SellerDashboard = () => {
                                                             <Badge className={`border-0 text-[10px] rounded-lg ${getStatusColor(order.status)}`}>
                                                                 {order.status.replace('_', ' ')}
                                                             </Badge>
-                                                            <div className="text-right">
-                                                                <p className="text-sm font-semibold text-gray-900">{order.total_amount} MAD</p>
-                                                                <p className="text-[10px] text-gray-400">
-                                                                    {formatDistanceToNow(new Date(order.created_at), { addSuffix: true })}
-                                                                </p>
-                                                            </div>
+                                                            <p className="text-[10px] text-gray-400">
+                                                                {formatDistanceToNow(new Date(order.created_at), { addSuffix: true })}
+                                                            </p>
                                                         </div>
                                                     </div>
                                                 ))}
@@ -708,14 +709,10 @@ const SellerDashboard = () => {
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-medium text-gray-900 truncate mb-3">{topProduct.name}</p>
-                                        <div className="grid grid-cols-3 gap-3">
+                                        <div className="grid grid-cols-2 gap-3">
                                             <div className="p-2 bg-green-50/60 rounded-xl text-center">
                                                 <p className="text-sm font-bold text-gray-900">{topProduct.delivered}</p>
                                                 <p className="text-[9px] text-gray-400 font-bold uppercase">Delivered</p>
-                                            </div>
-                                            <div className="p-2 bg-blue-50/60 rounded-xl text-center">
-                                                <p className="text-sm font-bold text-gray-900">{topProduct.revenue.toLocaleString()}</p>
-                                                <p className="text-[9px] text-gray-400 font-bold uppercase">Revenue</p>
                                             </div>
                                             <div className="p-2 bg-amber-50/60 rounded-xl text-center">
                                                 <p className="text-sm font-bold text-gray-900">{topProduct.successRate.toFixed(0)}%</p>

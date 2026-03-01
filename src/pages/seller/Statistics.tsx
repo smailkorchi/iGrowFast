@@ -142,16 +142,17 @@ const SellerStatistics = () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            // 1. Fetch Orders with Items & Product Images for Granular Analysis
+            // 1. Fetch Orders with Items & Product Images for Granular Analysis + City Coordinates
             const { data: ordersData, error: ordersError } = await supabase
                 .from('orders')
-                .select('city_id, package_status_label, master_cities(name), order_statuses(code), order_items(unit_price, quantity, products(name, image_url))')
+                .select('city_id, package_status_label, master_cities(name, ameex_cities(lat, lng)), order_statuses(code), order_items(unit_price, quantity, products(name, image_url))')
                 .eq('seller_id', user.id);
 
             const orders = (ordersData || []).map(o => ({
                 ...o,
                 status: (o.order_statuses as any)?.code?.toLowerCase() || 'unknown',
-                packageStatus: ((o as any).package_status_label || '').toLowerCase()
+                packageStatus: ((o as any).package_status_label || '').toLowerCase(),
+                cityData: (o.master_cities as any) // Preserve city data with coordinates
             }));
 
             // Delivered = package_status is "Livré" (physically delivered by courier)
@@ -187,19 +188,32 @@ const SellerStatistics = () => {
             })).sort((a, b) => b.value - a.value);
             setOrderDistribution(formattedDist);
 
-            // Calculate Regional Data
-            const cityMap: Record<string, number> = {};
+            // Calculate Regional Data with actual coordinates from database
+            const cityMap: Record<string, { count: number; lat: string | null; lng: string | null }> = {};
             orders?.filter(o => isDelivered(o)).forEach(o => {
-                const cityName = (o.master_cities as any)?.name || 'Unknown';
-                cityMap[cityName] = (cityMap[cityName] || 0) + 1;
+                const cityData = (o.master_cities as any);
+                const cityName = cityData?.name || 'Unknown';
+                const ameexData = cityData?.ameex_cities;
+                
+                if (!cityMap[cityName]) {
+                    cityMap[cityName] = { 
+                        count: 0, 
+                        lat: ameexData?.lat || null, 
+                        lng: ameexData?.lng || null 
+                    };
+                }
+                cityMap[cityName].count++;
             });
+            
+            // Convert to array and filter out cities without coordinates
             const formattedRegional = Object.entries(cityMap)
-                .map(([city, count]) => ({
+                .map(([city, data]) => ({
                     city,
-                    delivered: count,
-                    lat: CITY_COORDS[city]?.[0] || 33.57, // Default to Casa
-                    lng: CITY_COORDS[city]?.[1] || -7.58
+                    delivered: data.count,
+                    lat: data.lat ? parseFloat(data.lat) : (CITY_COORDS[city]?.[0] || 33.57),
+                    lng: data.lng ? parseFloat(data.lng) : (CITY_COORDS[city]?.[1] || -7.58)
                 }))
+                .filter(r => !isNaN(r.lat) && !isNaN(r.lng)) // Only include valid coordinates
                 .sort((a, b) => b.delivered - a.delivered);
             setRegionalData(formattedRegional);
 
@@ -321,9 +335,18 @@ const SellerStatistics = () => {
             const deliveryEff = confirmedOrders > 0 ? (deliveredOrdersCount / confirmedOrders) * 100 : 0;
             const integrityScore = totalOrdersCount > 0 ? (1 - (fakeOrders / totalOrdersCount)) * 100 : 100;
 
-            // Live Commission is usually (Delivered Orders * Commission per delivery)
-            // If the commission field is treated as MAD per delivery
-            const liveCommission = deliveredOrdersCount * commissionRate;
+            // Get already paid deliveries from seller_payments
+            const { data: paymentsData } = await supabase
+                .from('seller_payments')
+                .select('delivered_orders, status')
+                .eq('seller_id', user.id)
+                .eq('status', 'paid');
+
+            const alreadyPaidDeliveries = (paymentsData || []).reduce((sum, p) => sum + (Number(p.delivered_orders) || 0), 0);
+            
+            // Live Commission should only count unpaid deliveries
+            const unpaidDeliveries = Math.max(0, deliveredOrdersCount - alreadyPaidDeliveries);
+            const liveCommission = unpaidDeliveries * commissionRate;
 
             setStats({
                 successRate,
@@ -432,13 +455,13 @@ const SellerStatistics = () => {
                         trend: 'Active Supply'
                     },
                     {
-                        label: 'Live Commission',
+                        label: 'Live Commission (Unpaid)',
                         value: `${stats.liveCommission.toLocaleString()} MAD`,
-                        sub: 'Estimate for Current Shipments',
+                        sub: 'Unpaid Deliveries Only',
                         icon: Receipt,
                         color: 'text-amber-600',
                         bg: 'bg-amber-50',
-                        trend: 'Unbilled Earnings'
+                        trend: 'Pending Payment'
                     }
                 ].map((stat, i) => (
                     <Card key={i} className="border-0 shadow-sm rounded-3xl overflow-hidden group hover:shadow-xl transition-all duration-500 flex flex-col justify-between">

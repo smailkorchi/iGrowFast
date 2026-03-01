@@ -530,7 +530,7 @@ const Orders = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('products')
-                .select('id, name, code, selling_price')
+                .select('id, name, code, selling_price, stock')
                 .eq('active', true)
                 .eq('DigiCom Business', activeBusinessId)
                 .order('name');
@@ -920,7 +920,24 @@ const Orders = () => {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
             setIsAddModalOpen(false);
-            form.reset();
+            form.reset({
+                name: '',
+                phone: '',
+                city_id: '',
+                address: '',
+                source_name: 'facebook',
+                shipping_cost: 0,
+                replace: false,
+                note: '',
+                delivery_note: '',
+                delivery_type: 'Home Delivery',
+                order_status_id: '',
+                items: [{ product_id: '', quantity: 1, unit_price: 0, accessories: [] }],
+                courier_id: null,
+                company_id: null,
+                history_comment: '',
+                _reportedDate: ''
+            });
             toast({ title: "Order Created", description: "Successfully logged new order." });
         },
         onError: (error: any) => {
@@ -1423,7 +1440,24 @@ const Orders = () => {
                     )}
                     <Button
                         onClick={() => {
-                            form.reset();
+                            form.reset({
+                                name: '',
+                                phone: '',
+                                city_id: '',
+                                address: '',
+                                source_name: 'facebook',
+                                shipping_cost: 0,
+                                replace: false,
+                                note: '',
+                                delivery_note: '',
+                                delivery_type: 'Home Delivery',
+                                order_status_id: '',
+                                items: [{ product_id: '', quantity: 1, unit_price: 0, accessories: [] }],
+                                courier_id: null,
+                                company_id: null,
+                                history_comment: '',
+                                _reportedDate: ''
+                            });
                             setIsAddModalOpen(true);
                         }}
                         className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-12 px-6 font-bold shadow-lg shadow-brand-navy/10 transition-all active:scale-95 flex items-center gap-2 w-full sm:w-auto"
@@ -2511,7 +2545,24 @@ const Orders = () => {
                         setIsAddModalOpen(false);
                         setIsEditModalOpen(false);
                         setSelectedOrder(null);
-                        form.reset();
+                        form.reset({
+                            name: '',
+                            phone: '',
+                            city_id: '',
+                            address: '',
+                            source_name: 'facebook',
+                            shipping_cost: 0,
+                            replace: false,
+                            note: '',
+                            delivery_note: '',
+                            delivery_type: 'Home Delivery',
+                            order_status_id: '',
+                            items: [{ product_id: '', quantity: 1, unit_price: 0, accessories: [] }],
+                            courier_id: null,
+                            company_id: null,
+                            history_comment: '',
+                            _reportedDate: ''
+                        });
                     }
                 }}
             >
@@ -3028,6 +3079,28 @@ const Orders = () => {
                                                                             </SelectContent>
                                                                         </Select>
                                                                         <FormMessage />
+                                                                        {/* Low Stock Alert */}
+                                                                        {(() => {
+                                                                            const selectedProduct = products?.find((p: any) => p.id === field.value);
+                                                                            if (selectedProduct && selectedProduct.stock !== null && selectedProduct.stock !== undefined) {
+                                                                                if (selectedProduct.stock === 0) {
+                                                                                    return (
+                                                                                        <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-red-50 border border-red-200">
+                                                                                            <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                                                                                            <span className="text-[10px] font-bold text-red-600 uppercase tracking-wide">Out of Stock</span>
+                                                                                        </div>
+                                                                                    );
+                                                                                } else if (selectedProduct.stock < 10) {
+                                                                                    return (
+                                                                                        <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200">
+                                                                                            <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                                                                            <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wide">Low Stock: {selectedProduct.stock} left</span>
+                                                                                        </div>
+                                                                                    );
+                                                                                }
+                                                                            }
+                                                                            return null;
+                                                                        })()}
                                                                     </FormItem>
                                                                 )}
                                                             />
@@ -3126,6 +3199,28 @@ const Orders = () => {
                                                                                         </SelectContent>
                                                                                     </Select>
                                                                                     <FormMessage />
+                                                                                    {/* Low Stock Alert for Accessory */}
+                                                                                    {(() => {
+                                                                                        const selectedAccessory = accessories?.find((a: any) => a.id === field.value);
+                                                                                        if (selectedAccessory && selectedAccessory.stock !== null && selectedAccessory.stock !== undefined) {
+                                                                                            if (selectedAccessory.stock === 0) {
+                                                                                                return (
+                                                                                                    <div className="mt-2 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-50 border border-red-200">
+                                                                                                        <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                                                                                                        <span className="text-[9px] font-bold text-red-600 uppercase tracking-wide">Out of Stock</span>
+                                                                                                    </div>
+                                                                                                );
+                                                                                            } else if (selectedAccessory.stock < 10) {
+                                                                                                return (
+                                                                                                    <div className="mt-2 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200">
+                                                                                                        <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                                                                                        <span className="text-[9px] font-bold text-amber-600 uppercase tracking-wide">Low Stock: {selectedAccessory.stock} left</span>
+                                                                                                    </div>
+                                                                                                );
+                                                                                            }
+                                                                                        }
+                                                                                        return null;
+                                                                                    })()}
                                                                                 </FormItem>
                                                                             )}
                                                                         />

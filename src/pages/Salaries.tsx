@@ -180,21 +180,46 @@ const AdminSalaries = () => {
       const start = format(startOfMonth(new Date(selectedMonth)), 'yyyy-MM-dd');
       const end = format(endOfMonth(new Date(selectedMonth)), 'yyyy-MM-dd');
 
+      // Check for existing payouts in this month for this seller
+      const { data: existingPayouts } = await supabase
+        .from('seller_payments')
+        .select('created_at, delivered_orders, commission_earned')
+        .eq('seller_id', selectedSellerId)
+        .eq('payout_month', selectedMonth)
+        .order('created_at', { ascending: true });
+
+      // Get the latest payout's creation date (if any)
+      const lastPayoutDate = existingPayouts && existingPayouts.length > 0
+        ? format(new Date(existingPayouts[existingPayouts.length - 1].created_at), 'yyyy-MM-dd')
+        : null;
+
       // Get daily earnings for this seller in this month
-      const { data, error } = await supabase
+      // If there's a previous payout, only include earnings AFTER that payout was created
+      let query = supabase
         .from('seller_daily_earnings')
         .select('*')
         .eq('seller_id', selectedSellerId)
         .gte('date', start)
         .lte('date', end);
 
+      // Only include earnings from dates after the last payout was created
+      if (lastPayoutDate) {
+        query = query.gt('date', lastPayoutDate);
+      }
+
+      const { data, error } = await query;
+
       if (error) throw error;
 
+      // Calculate totals from unpaid earnings only
       const calc = (data || []).reduce((acc, curr) => ({
         commission: acc.commission + Number(curr.commission_earned),
         days: acc.days + (Number(curr.commission_earned) > 0 ? 1 : 0),
         orders: acc.orders + Number(curr.delivered_count)
       }), { commission: 0, days: 0, orders: 0 });
+
+      // Add warning if there are existing payouts
+      const existingTotal = existingPayouts?.reduce((sum, p) => sum + Number(p.delivered_orders || 0), 0) || 0;
 
       setPayoutPreview({
         ...calc,
@@ -205,11 +230,19 @@ const AdminSalaries = () => {
           rib: seller.bank_rib,
           holder: seller.bank_account_holder,
           cin: seller.cin_number
-        }
+        },
+        // Track existing payouts for display
+        existingPayouts: existingPayouts?.length || 0,
+        existingOrdersCount: existingTotal
       });
 
     } catch (error) {
       console.error('Error generating preview:', error);
+      toast({
+        title: "Error",
+        description: "Failed to calculate payout preview.",
+        variant: "destructive"
+      });
     } finally {
       setPreviewLoading(false);
     }
@@ -223,6 +256,16 @@ const AdminSalaries = () => {
 
   const handleCreatePayout = async () => {
     if (!payoutPreview || !selectedSellerId) return;
+
+    // Prevent creating payout with no new orders
+    if (payoutPreview.orders === 0) {
+      toast({
+        title: "Cannot Create Payout",
+        description: "No new delivered orders found for this period.",
+        variant: "destructive"
+      });
+      return;
+    }
 
     try {
       const { error } = await supabase
@@ -243,9 +286,11 @@ const AdminSalaries = () => {
 
       toast({
         title: "Success",
-        description: "Draft payout generated successfully.",
+        description: `Draft payout generated: ${payoutPreview.orders} orders, ${payoutPreview.commission.toLocaleString()} MAD`,
       });
       setIsCreateModalOpen(false);
+      setSelectedSellerId('');
+      setPayoutPreview(null);
       fetchData();
     } catch (error) {
       toast({
@@ -623,8 +668,20 @@ const AdminSalaries = () => {
               </div>
             ) : payoutPreview ? (
               <div className="space-y-6 animate-in fade-in zoom-in-95 duration-500">
+                {payoutPreview.existingPayouts > 0 && (
+                  <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200 flex items-start gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-blue-900">Existing payouts detected</p>
+                      <p className="text-xs text-blue-700 mt-1">
+                        {payoutPreview.existingPayouts} payout(s) already generated for this month ({payoutPreview.existingOrdersCount} orders paid).
+                        Showing only <strong>new unpaid deliveries</strong>.
+                      </p>
+                    </div>
+                  </div>
+                )}
                 <div className="p-6 rounded-3xl bg-purple-50/50 border border-purple-100/50">
-                  <p className="text-[10px] uppercase font-bold text-purple-400 mb-1">Commission Earned</p>
+                  <p className="text-[10px] uppercase font-bold text-purple-400 mb-1">Commission Earned {payoutPreview.existingPayouts > 0 ? '(New Orders Only)' : ''}</p>
                   <p className="text-2xl font-medium text-purple-900">{payoutPreview.commission.toLocaleString()} <span className="text-sm font-light">MAD</span></p>
                   <p className="text-xs text-purple-600/60 mt-2">{payoutPreview.orders} delivered units • {payoutPreview.days} active days</p>
                 </div>
@@ -655,13 +712,17 @@ const AdminSalaries = () => {
           </div>
 
           <DialogFooter className="p-8 bg-gray-50 border-t border-gray-100 sm:justify-end gap-3">
-            <Button variant="outline" onClick={() => setIsCreateModalOpen(false)} className="h-12 rounded-2xl border-gray-200">Cancel</Button>
+            <Button variant="outline" onClick={() => {
+              setIsCreateModalOpen(false);
+              setSelectedSellerId('');
+              setPayoutPreview(null);
+            }} className="h-12 rounded-2xl border-gray-200">Cancel</Button>
             <Button
-              disabled={!payoutPreview || previewLoading}
+              disabled={!payoutPreview || previewLoading || payoutPreview?.orders === 0}
               onClick={handleCreatePayout}
-              className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-8 rounded-2xl"
+              className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-8 rounded-2xl disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Generate Draft Settlement
+              {payoutPreview?.orders === 0 ? 'No New Orders to Pay' : 'Generate Draft Settlement'}
             </Button>
           </DialogFooter>
         </DialogContent>
