@@ -139,7 +139,7 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
         const months = eachMonthOfInterval({ start: rangeStart, end: rangeEnd });
         const trendData = months.map(month => {
             const mStart = startOfMonth(month);
-            const mEnd = new Date(mStart.getFullYear(), mStart.getMonth() + 1, 0);
+            const mEnd = endOfDay(new Date(mStart.getFullYear(), mStart.getMonth() + 1, 0));
             const monthOrders = filtered.filter(o => o.date && isWithinInterval(new Date(o.date), { start: mStart, end: mEnd }));
             const monthCommissions = (sellerPayments || [])
                 .filter(sp => sp.created_at && isWithinInterval(new Date(sp.created_at), { start: mStart, end: mEnd }))

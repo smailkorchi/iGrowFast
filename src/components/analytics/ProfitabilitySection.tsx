@@ -83,7 +83,7 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
     const { data: sellerPayments } = useQuery({
         queryKey: ['analytics-seller-payments', businessId],
         queryFn: async () => {
-            const { data } = await supabase.from('seller_payments').select('id, total_amount, payout_month, created_at').eq('DigiCom Business', businessId);
+            const { data } = await supabase.from('seller_payments').select('id, seller_id, total_amount, salary_earned, commission_earned, delivered_orders, days_present, status, payout_month, created_at').eq('DigiCom Business', businessId);
             return data || [];
         },
         enabled: !!businessId,
