@@ -72,6 +72,7 @@ interface EnrichedSeller extends SellerProfile {
 // ============ MAIN COMPONENT ============
 
 const Sellers = () => {
+  const activeBusinessId = localStorage.getItem('activeBusinessId');
   const [sellers, setSellers] = useState<EnrichedSeller[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedSeller, setSelectedSeller] = useState<EnrichedSeller | null>(null);
@@ -95,6 +96,7 @@ const Sellers = () => {
         .from('users')
         .select('id, name, email, avatar_url, products, assignment, commission_price, created_at, bank_account_holder, bank_name, bank_rib, cin_number, address, phone')
         .eq('role', 'commercial')
+        .eq('DigiCom Business', activeBusinessId)
         .order('created_at', { ascending: true });
 
       if (sellersErr) throw sellersErr;
@@ -121,7 +123,7 @@ const Sellers = () => {
       const { data: earningsData } = await supabase
         .from('seller_daily_earnings')
         .select('*')
-        .in('seller_id', sellerIds);
+        .eq('DigiCom Business', activeBusinessId);
 
       const earnings = earningsData || [];
 
@@ -129,7 +131,7 @@ const Sellers = () => {
       const { data: presencesData } = await supabase
         .from('seller_presences')
         .select('*')
-        .in('seller_id', sellerIds);
+        .eq('DigiCom Business', activeBusinessId);
 
       const presences = presencesData || [];
 
@@ -137,7 +139,7 @@ const Sellers = () => {
       const { data: paymentsData } = await supabase
         .from('seller_payments')
         .select('*')
-        .in('seller_id', sellerIds)
+        .eq('DigiCom Business', activeBusinessId)
         .order('payout_month', { ascending: false });
 
       const payments = paymentsData || [];

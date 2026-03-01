@@ -84,6 +84,7 @@ interface SellerUser {
 
 const AdminSalaries = () => {
   const { toast } = useToast();
+  const activeBusinessId = localStorage.getItem('activeBusinessId');
   const [loading, setLoading] = useState(true);
   const [payments, setPayments] = useState<Payout[]>([]);
   const [sellers, setSellers] = useState<SellerUser[]>([]);
@@ -122,6 +123,7 @@ const AdminSalaries = () => {
       const { data: paymentsData, error: pError } = await supabase
         .from('seller_payments')
         .select('*, seller:users(name, email, avatar_url)')
+        .eq('DigiCom Business', activeBusinessId)
         .order('created_at', { ascending: false });
 
       if (pError) throw pError;
@@ -131,7 +133,8 @@ const AdminSalaries = () => {
       const { data: sellersData, error: sError } = await supabase
         .from('users')
         .select('id, name, email, avatar_url, commission_price, bank_name, bank_rib, bank_account_holder, cin_number')
-        .eq('role', 'commercial');
+        .eq('role', 'commercial')
+        .eq('DigiCom Business', activeBusinessId);
 
       if (sError) throw sError;
       setSellers(sellersData || []);
@@ -279,7 +282,8 @@ const AdminSalaries = () => {
           days_present: payoutPreview.days,
           delivered_orders: payoutPreview.orders,
           bank_snapshot: payoutPreview.bank,
-          status: 'pending'
+          status: 'pending',
+          'DigiCom Business': activeBusinessId,
         });
 
       if (error) throw error;
