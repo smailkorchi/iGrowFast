@@ -46,6 +46,8 @@ const defaultInputs: CalculatorInputs = {
 const Calculator = () => {
     const [inputs, setInputs] = useState<CalculatorInputs>(defaultInputs);
     const [targetProfit, setTargetProfit] = useState(50000);
+    const [scalingSteps, setScalingSteps] = useState(5);
+    const [scalingTarget, setScalingTarget] = useState(100000);
 
     // Core calculation logic
     const metrics = useMemo(() => {
@@ -197,6 +199,114 @@ const Calculator = () => {
         return { monthly, daily, weekly };
     }, [targetProfit, inputs, metrics]);
 
+    // ROI Timeline data
+    const roiTimelineData = useMemo(() => {
+        const periods = [1, 7, 14, 28, 60, 90];
+        return periods.map(days => {
+            const cumulativeProfit = metrics.netProfit * days;
+            const roi = metrics.initialInvestment > 0 ? (cumulativeProfit / metrics.initialInvestment) * 100 : 0;
+            let badge: 'excellent' | 'good' | 'moderate' | 'poor' = 'poor';
+            if (roi >= 300) badge = 'excellent';
+            else if (roi >= 150) badge = 'good';
+            else if (roi >= 50) badge = 'moderate';
+            return { days, cumulativeProfit, roi, badge };
+        });
+    }, [metrics]);
+
+    // Recommendations
+    const recommendations = useMemo(() => {
+        const recs: { text: string; type: 'success' | 'warning' | 'danger' | 'info' }[] = [];
+        const grossMargin = inputs.salePrice > 0 ? (metrics.profitPerDelivered / inputs.salePrice) * 100 : 0;
+
+        if (metrics.roi < 100) {
+            recs.push({ text: 'Low ROI: Your return on investment is below 100%. Consider optimizing ad campaigns or increasing your sale price.', type: 'danger' });
+        } else if (metrics.roi < 300) {
+            recs.push({ text: 'Moderate ROI: Your business is profitable but there is room for improvement. Test improving conversion rates.', type: 'warning' });
+        } else {
+            recs.push({ text: 'Excellent ROI! Your business is highly profitable. Focus on scaling now.', type: 'success' });
+        }
+
+        if (grossMargin < 30) {
+            recs.push({ text: 'Low margin: Your gross margin is below 30%. Negotiate better supplier prices or increase your sale price.', type: 'danger' });
+        } else if (grossMargin > 50) {
+            recs.push({ text: 'Excellent margin! You have a healthy margin to invest in growth.', type: 'success' });
+        }
+
+        if (metrics.breakEvenDays > 7 && metrics.breakEvenDays !== Infinity) {
+            recs.push({ text: 'Slow break-even: It takes more than a week to recover your investment. Reduce acquisition costs.', type: 'warning' });
+        } else if (metrics.breakEvenDays <= 3) {
+            recs.push({ text: 'Fast break-even! You recover your investment very quickly.', type: 'success' });
+        }
+
+        if (metrics.overallConversionRate < 30) {
+            recs.push({ text: `Low conversion: Only ${metrics.overallConversionRate.toFixed(1)}% of leads convert to sales. Improve your confirmation and delivery process.`, type: 'warning' });
+        }
+
+        if (metrics.roas < 2) {
+            recs.push({ text: `ROAS is ${metrics.roas.toFixed(2)}x. Aim for at least 3x to ensure sustainable growth.`, type: 'warning' });
+        } else if (metrics.roas >= 5) {
+            recs.push({ text: `Strong ROAS of ${metrics.roas.toFixed(2)}x. Your ad spend is very efficient.`, type: 'success' });
+        }
+
+        return recs;
+    }, [metrics, inputs.salePrice]);
+
+    // Scaling plan data
+    const scalingPlanData = useMemo(() => {
+        if (metrics.profitPerDelivered <= 0) return [];
+
+        const conversionRate = (inputs.confirmationRate / 100) * (inputs.deliveryRate / 100);
+        const currentMonthlyProfit = metrics.netProfit * 28;
+        const profitIncrement = (scalingTarget - currentMonthlyProfit) / scalingSteps;
+
+        const steps = [];
+        for (let i = 0; i <= scalingSteps; i++) {
+            const stepProfit = currentMonthlyProfit + (profitIncrement * i);
+            const salesPerMonth = stepProfit / metrics.profitPerDelivered;
+            const salesPerDay = salesPerMonth / 28;
+            const leadsPerMonth = salesPerMonth / conversionRate;
+            const leadsPerDay = leadsPerMonth / 28;
+            const adBudgetPerMonth = leadsPerMonth * inputs.costPerLead;
+            const adBudgetPerDay = adBudgetPerMonth / 28;
+            const revenuePerDay = salesPerDay * inputs.salePrice;
+
+            steps.push({
+                step: i,
+                label: i === 0 ? 'Baseline' : `Step ${i}`,
+                month: i === 0 ? 'Current' : `Month ${i}`,
+                monthlyProfit: stepProfit,
+                dailySales: Math.ceil(salesPerDay),
+                dailyLeads: Math.ceil(leadsPerDay),
+                dailyAdBudget: Math.round(adBudgetPerDay),
+                dailyRevenue: Math.round(revenuePerDay),
+            });
+        }
+        return steps;
+    }, [scalingTarget, scalingSteps, metrics, inputs]);
+
+    // Optimization impact calculations
+    const optimizationImpact = useMemo(() => {
+        const { confirmationRate, deliveryRate, costPerLead, salePrice } = inputs;
+        const { profitPerDelivered } = metrics;
+
+        const newConfRate = Math.min(confirmationRate + 10, 100);
+        const newDelRate = Math.min(deliveryRate + 10, 100);
+        const oldConv = (confirmationRate / 100) * (deliveryRate / 100);
+        const confImpactConv = (newConfRate / 100) * (deliveryRate / 100);
+        const delImpactConv = (confirmationRate / 100) * (newDelRate / 100);
+
+        const confImpact = oldConv > 0 ? ((confImpactConv - oldConv) / oldConv * 100).toFixed(0) : '0';
+        const delImpact = oldConv > 0 ? ((delImpactConv - oldConv) / oldConv * 100).toFixed(0) : '0';
+
+        const cpl15 = profitPerDelivered > 0 ? (((profitPerDelivered + (costPerLead * (1 / oldConv) - 15 * (1 / oldConv))) / profitPerDelivered - 1) * 100).toFixed(0) : '0';
+        const cpl10 = profitPerDelivered > 0 ? (((profitPerDelivered + (costPerLead * (1 / oldConv) - 10 * (1 / oldConv))) / profitPerDelivered - 1) * 100).toFixed(0) : '0';
+
+        const price249 = salePrice > 0 ? (((249 - (salePrice - profitPerDelivered)) / profitPerDelivered - 1) * 100).toFixed(0) : '0';
+        const price299 = salePrice > 0 ? (((299 - (salePrice - profitPerDelivered)) / profitPerDelivered - 1) * 100).toFixed(0) : '0';
+
+        return { confImpact, delImpact, cpl15, cpl10, price249, price299 };
+    }, [inputs, metrics]);
+
     const handleInputChange = (field: keyof CalculatorInputs, value: string) => {
         setInputs(prev => ({ ...prev, [field]: parseFloat(value) || 0 }));
     };
@@ -297,14 +407,22 @@ const Calculator = () => {
             </div>
 
             <Tabs defaultValue="calculator" className="space-y-6">
-                <TabsList className="bg-white border border-gray-200 p-1 rounded-xl shadow-sm">
-                    <TabsTrigger value="calculator" className="rounded-lg data-[state=active]:bg-gray-900 data-[state=active]:text-white px-6 py-2.5">
+                <TabsList className="flex h-auto w-full bg-white border border-gray-200 p-1 rounded-xl shadow-sm gap-1">
+                    <TabsTrigger value="calculator" className="flex-1 rounded-lg data-[state=active]:bg-gray-900 data-[state=active]:text-white px-4 py-2.5">
                         <CalculatorIcon className="w-4 h-4 mr-2" />
                         Main Calculator
                     </TabsTrigger>
-                    <TabsTrigger value="target" className="rounded-lg data-[state=active]:bg-gray-900 data-[state=active]:text-white px-6 py-2.5">
+                    <TabsTrigger value="target" className="flex-1 rounded-lg data-[state=active]:bg-gray-900 data-[state=active]:text-white px-4 py-2.5">
                         <Target className="w-4 h-4 mr-2" />
                         Profit Target
+                    </TabsTrigger>
+                    <TabsTrigger value="investment" className="flex-1 rounded-lg data-[state=active]:bg-gray-900 data-[state=active]:text-white px-4 py-2.5">
+                        <BarChart3 className="w-4 h-4 mr-2" />
+                        Investment & ROI
+                    </TabsTrigger>
+                    <TabsTrigger value="scaling" className="flex-1 rounded-lg data-[state=active]:bg-gray-900 data-[state=active]:text-white px-4 py-2.5">
+                        <Zap className="w-4 h-4 mr-2" />
+                        Scaling Plan
                     </TabsTrigger>
                 </TabsList>
 
@@ -922,6 +1040,364 @@ const Calculator = () => {
                                                 </span>
                                             </div>
                                             <p className="text-xs text-gray-400 mt-2">{metrics.totalAdSpend.toFixed(0)} → {reverseCalc.daily.adBudget} MAD</p>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </>
+                    )}
+                </TabsContent>
+
+                {/* ==================== TAB 3: INVESTMENT & ROI ==================== */}
+                <TabsContent value="investment" className="space-y-6 mt-0">
+
+                    {/* Summary Banner */}
+                    <Card className="border-0 shadow-md rounded-2xl bg-gradient-to-br from-gray-900 to-gray-800 text-white">
+                        <CardContent className="p-6">
+                            <p className="text-xs uppercase tracking-wider opacity-60 mb-4">Investment Overview</p>
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                                <div>
+                                    <p className="text-3xl font-light">{metrics.initialInvestment.toLocaleString()}</p>
+                                    <p className="text-sm opacity-50 mt-1">Total Investment <span className="text-[10px]">MAD</span></p>
+                                </div>
+                                <div>
+                                    <p className="text-3xl font-light">{metrics.monthlyRevenue.toLocaleString()}</p>
+                                    <p className="text-sm opacity-50 mt-1">Monthly Revenue <span className="text-[10px]">MAD</span></p>
+                                </div>
+                                <div>
+                                    <p className={`text-3xl font-light ${metrics.roi >= 100 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                        {metrics.roi.toFixed(1)}%
+                                    </p>
+                                    <p className="text-sm opacity-50 mt-1">ROI</p>
+                                </div>
+                                <div>
+                                    <p className="text-3xl font-light">
+                                        {metrics.breakEvenDays === Infinity ? '∞' : metrics.breakEvenDays.toFixed(1)}
+                                    </p>
+                                    <p className="text-sm opacity-50 mt-1">Break-Even Days</p>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Investment Breakdown */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        <StatBox
+                            label="Ad Cost"
+                            value={`${metrics.monthlyAdSpend.toLocaleString()} MAD`}
+                            subValue={`${((metrics.monthlyAdSpend / (metrics.initialInvestment || 1)) * 100).toFixed(0)}% of investment`}
+                            type="info"
+                        />
+                        <StatBox
+                            label="Product Cost (per batch)"
+                            value={`${(inputs.productCost * metrics.deliveredOrders).toLocaleString()} MAD`}
+                            subValue={`${inputs.productCost} MAD × ${metrics.deliveredOrders} units`}
+                            type="default"
+                        />
+                        <StatBox
+                            label="Other Costs"
+                            value={`${((inputs.callCenterFee + inputs.packagingCost + inputs.riskBuffer) * metrics.confirmedOrders).toLocaleString()} MAD`}
+                            subValue="Call center + packaging + risk"
+                            type="warning"
+                        />
+                        <StatBox
+                            label="Gross Margin"
+                            value={`${(inputs.salePrice > 0 ? (metrics.profitPerDelivered / inputs.salePrice * 100) : 0).toFixed(1)}%`}
+                            subValue={`${metrics.profitPerDelivered.toFixed(0)} MAD per sale`}
+                            type={metrics.profitPerDelivered > 0 ? 'success' : 'danger'}
+                        />
+                    </div>
+
+                    {/* ROI Timeline */}
+                    <Card className="border border-gray-100 shadow-sm rounded-2xl">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-lg font-medium text-gray-900 flex items-center gap-2">
+                                <Activity className="w-5 h-5 text-gray-500" />
+                                ROI Timeline
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-6 pt-2">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="border-b border-gray-100">
+                                            <th className="text-left py-3 px-4 text-xs uppercase tracking-wider text-gray-500">Period</th>
+                                            <th className="text-right py-3 px-4 text-xs uppercase tracking-wider text-gray-500">Cumulative Profit</th>
+                                            <th className="text-right py-3 px-4 text-xs uppercase tracking-wider text-gray-500">ROI</th>
+                                            <th className="text-center py-3 px-4 text-xs uppercase tracking-wider text-gray-500">Rating</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {roiTimelineData.map((row, i) => (
+                                            <tr key={row.days} className={`border-b border-gray-50 ${i % 2 === 0 ? 'bg-gray-50/50' : ''}`}>
+                                                <td className="py-3 px-4 font-medium text-gray-900">
+                                                    {row.days === 1 ? 'Day 1' : `${row.days} Days`}
+                                                </td>
+                                                <td className={`py-3 px-4 text-right font-semibold ${row.cumulativeProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                                                    {row.cumulativeProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })} MAD
+                                                </td>
+                                                <td className={`py-3 px-4 text-right font-semibold ${row.roi >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                                                    {row.roi.toFixed(1)}%
+                                                </td>
+                                                <td className="py-3 px-4 text-center">
+                                                    <Badge className={`text-[10px] ${
+                                                        row.badge === 'excellent' ? 'bg-emerald-100 text-emerald-700' :
+                                                        row.badge === 'good' ? 'bg-blue-100 text-blue-700' :
+                                                        row.badge === 'moderate' ? 'bg-amber-100 text-amber-700' :
+                                                        'bg-red-100 text-red-700'
+                                                    }`}>
+                                                        {row.badge}
+                                                    </Badge>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Recommendations */}
+                    <Card className="border border-gray-100 shadow-sm rounded-2xl">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-lg font-medium text-gray-900 flex items-center gap-2">
+                                <Sparkles className="w-5 h-5 text-amber-500" />
+                                Recommendations
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-6 pt-2 space-y-3">
+                            {recommendations.map((rec, i) => (
+                                <div key={i} className={`p-4 rounded-xl border flex items-start gap-3 ${
+                                    rec.type === 'success' ? 'bg-emerald-50 border-emerald-100' :
+                                    rec.type === 'warning' ? 'bg-amber-50 border-amber-100' :
+                                    rec.type === 'danger' ? 'bg-red-50 border-red-100' :
+                                    'bg-blue-50 border-blue-100'
+                                }`}>
+                                    {rec.type === 'success' ? <CheckCircle className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" /> :
+                                     rec.type === 'warning' ? <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" /> :
+                                     rec.type === 'danger' ? <XCircle className="w-5 h-5 text-red-600 mt-0.5 shrink-0" /> :
+                                     <Info className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />}
+                                    <p className={`text-sm ${
+                                        rec.type === 'success' ? 'text-emerald-800' :
+                                        rec.type === 'warning' ? 'text-amber-800' :
+                                        rec.type === 'danger' ? 'text-red-800' :
+                                        'text-blue-800'
+                                    }`}>{rec.text}</p>
+                                </div>
+                            ))}
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                {/* ==================== TAB 4: SCALING PLAN ==================== */}
+                <TabsContent value="scaling" className="space-y-6 mt-0">
+
+                    {/* Config Card */}
+                    <Card className="border border-gray-100 shadow-sm rounded-2xl">
+                        <CardContent className="p-6">
+                            <div className="flex flex-col lg:flex-row lg:items-end gap-6">
+                                <div className="flex-1">
+                                    <Label className="text-sm font-medium text-gray-700 mb-2 block">Target Monthly Profit</Label>
+                                    <div className="relative">
+                                        <Input
+                                            type="number"
+                                            value={scalingTarget}
+                                            onChange={(e) => setScalingTarget(parseFloat(e.target.value) || 0)}
+                                            className="h-14 text-3xl font-light pl-4 pr-16 rounded-xl border-gray-200"
+                                        />
+                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">MAD</span>
+                                    </div>
+                                </div>
+                                <div className="flex-1">
+                                    <Label className="text-sm font-medium text-gray-700 mb-2 block">Number of Steps</Label>
+                                    <div className="relative">
+                                        <Input
+                                            type="number"
+                                            min={2}
+                                            max={10}
+                                            value={scalingSteps}
+                                            onChange={(e) => setScalingSteps(Math.min(10, Math.max(2, parseInt(e.target.value) || 2)))}
+                                            className="h-14 text-3xl font-light pl-4 pr-16 rounded-xl border-gray-200"
+                                        />
+                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">steps</span>
+                                    </div>
+                                </div>
+                                <div className="flex gap-2">
+                                    {[50000, 100000, 200000, 500000].map(val => (
+                                        <button
+                                            key={val}
+                                            onClick={() => setScalingTarget(val)}
+                                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${scalingTarget === val
+                                                    ? 'bg-gray-900 text-white'
+                                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                                }`}
+                                        >
+                                            {(val / 1000)}K
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {metrics.profitPerDelivered <= 0 ? (
+                        <Card className="border-2 border-red-200 bg-red-50 rounded-2xl">
+                            <CardContent className="p-6 text-center">
+                                <XCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
+                                <h3 className="text-lg font-medium text-red-700 mb-2">Cannot Generate Scaling Plan</h3>
+                                <p className="text-red-600">Your profit per sale is negative. Adjust your costs or pricing first.</p>
+                            </CardContent>
+                        </Card>
+                    ) : scalingPlanData.length > 0 && (
+                        <>
+                            {/* Current vs Target Summary */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <Card className="border-0 shadow-md rounded-2xl bg-gradient-to-br from-gray-900 to-gray-800 text-white">
+                                    <CardContent className="p-6">
+                                        <p className="text-xs uppercase tracking-wider opacity-60 mb-2">Current State</p>
+                                        <div className="grid grid-cols-2 gap-4 mt-3">
+                                            <div>
+                                                <p className="text-2xl font-light">{(metrics.netProfit * 28).toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                                                <p className="text-xs opacity-50 mt-1">Monthly Profit <span className="text-[9px]">MAD</span></p>
+                                            </div>
+                                            <div>
+                                                <p className="text-2xl font-light">{scalingPlanData[0]?.dailySales || 0}</p>
+                                                <p className="text-xs opacity-50 mt-1">Daily Sales</p>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                                <Card className="border-0 shadow-md rounded-2xl bg-gradient-to-br from-emerald-700 to-emerald-600 text-white">
+                                    <CardContent className="p-6">
+                                        <p className="text-xs uppercase tracking-wider opacity-60 mb-2">Target State</p>
+                                        <div className="grid grid-cols-2 gap-4 mt-3">
+                                            <div>
+                                                <p className="text-2xl font-light">{scalingTarget.toLocaleString()}</p>
+                                                <p className="text-xs opacity-50 mt-1">Monthly Profit <span className="text-[9px]">MAD</span></p>
+                                            </div>
+                                            <div>
+                                                <p className="text-2xl font-light">{scalingPlanData[scalingPlanData.length - 1]?.dailySales || 0}</p>
+                                                <p className="text-xs opacity-50 mt-1">Daily Sales</p>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            </div>
+
+                            {/* Growth Timeline Table */}
+                            <Card className="border border-gray-100 shadow-sm rounded-2xl">
+                                <CardHeader className="pb-2">
+                                    <CardTitle className="text-lg font-medium text-gray-900 flex items-center gap-2">
+                                        <TrendingUp className="w-5 h-5 text-gray-500" />
+                                        Growth Timeline
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="p-6 pt-2">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-sm">
+                                            <thead>
+                                                <tr className="border-b border-gray-100">
+                                                    <th className="text-left py-3 px-3 text-xs uppercase tracking-wider text-gray-500">Step</th>
+                                                    <th className="text-left py-3 px-3 text-xs uppercase tracking-wider text-gray-500">Month</th>
+                                                    <th className="text-right py-3 px-3 text-xs uppercase tracking-wider text-gray-500">Profit/Mo</th>
+                                                    <th className="text-right py-3 px-3 text-xs uppercase tracking-wider text-gray-500">Sales/Day</th>
+                                                    <th className="text-right py-3 px-3 text-xs uppercase tracking-wider text-gray-500">Leads/Day</th>
+                                                    <th className="text-right py-3 px-3 text-xs uppercase tracking-wider text-gray-500">Ad Budget/Day</th>
+                                                    <th className="text-right py-3 px-3 text-xs uppercase tracking-wider text-gray-500">Revenue/Day</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {scalingPlanData.map((row, i) => (
+                                                    <tr key={row.step} className={`border-b border-gray-50 ${i === 0 ? 'bg-gray-50/80' : i === scalingPlanData.length - 1 ? 'bg-emerald-50/50' : i % 2 === 0 ? 'bg-gray-50/30' : ''}`}>
+                                                        <td className="py-3 px-3 font-medium text-gray-900">{row.label}</td>
+                                                        <td className="py-3 px-3 text-gray-600">{row.month}</td>
+                                                        <td className="py-3 px-3 text-right font-semibold text-gray-900">{row.monthlyProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })} <span className="text-[10px] text-gray-400">MAD</span></td>
+                                                        <td className="py-3 px-3 text-right text-gray-700">{row.dailySales}</td>
+                                                        <td className="py-3 px-3 text-right text-gray-700">{row.dailyLeads}</td>
+                                                        <td className="py-3 px-3 text-right text-gray-700">{row.dailyAdBudget.toLocaleString()} <span className="text-[10px] text-gray-400">MAD</span></td>
+                                                        <td className="py-3 px-3 text-right text-gray-700">{row.dailyRevenue.toLocaleString()} <span className="text-[10px] text-gray-400">MAD</span></td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            {/* Scaling Step Cards */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {scalingPlanData.filter(s => s.step > 0).map((step) => (
+                                    <Card key={step.step} className="border border-gray-100 shadow-sm rounded-2xl hover:shadow-md transition-shadow">
+                                        <CardContent className="p-5">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <Badge className="bg-gray-900 text-white text-xs">{step.label}</Badge>
+                                                <span className="text-xs text-gray-500">{step.month}</span>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="p-3 rounded-lg bg-emerald-50">
+                                                    <p className="text-[10px] uppercase tracking-wider text-emerald-600 opacity-70">Profit/Mo</p>
+                                                    <p className="text-lg font-semibold text-emerald-700">{(step.monthlyProfit / 1000).toFixed(1)}K</p>
+                                                </div>
+                                                <div className="p-3 rounded-lg bg-blue-50">
+                                                    <p className="text-[10px] uppercase tracking-wider text-blue-600 opacity-70">Sales/Day</p>
+                                                    <p className="text-lg font-semibold text-blue-700">{step.dailySales}</p>
+                                                </div>
+                                                <div className="p-3 rounded-lg bg-amber-50">
+                                                    <p className="text-[10px] uppercase tracking-wider text-amber-600 opacity-70">Leads/Day</p>
+                                                    <p className="text-lg font-semibold text-amber-700">{step.dailyLeads}</p>
+                                                </div>
+                                                <div className="p-3 rounded-lg bg-gray-50">
+                                                    <p className="text-[10px] uppercase tracking-wider text-gray-600 opacity-70">Ad Budget/Day</p>
+                                                    <p className="text-lg font-semibold text-gray-700">{step.dailyAdBudget.toLocaleString()}</p>
+                                                </div>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                ))}
+                            </div>
+
+                            {/* Optimization Strategies */}
+                            <Card className="border border-gray-100 shadow-sm rounded-2xl">
+                                <CardHeader className="pb-2">
+                                    <CardTitle className="text-lg font-medium text-gray-900 flex items-center gap-2">
+                                        <Zap className="w-5 h-5 text-amber-500" />
+                                        Optimization Strategies
+                                    </CardTitle>
+                                    <p className="text-sm text-gray-500">Impact of improving key metrics on your profit</p>
+                                </CardHeader>
+                                <CardContent className="p-6 pt-2">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="p-4 rounded-xl border border-emerald-100 bg-emerald-50/50">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <Phone className="w-4 h-4 text-emerald-600" />
+                                                <p className="text-sm font-medium text-emerald-800">+10% Confirmation Rate</p>
+                                            </div>
+                                            <p className="text-2xl font-semibold text-emerald-700">+{optimizationImpact.confImpact}%</p>
+                                            <p className="text-xs text-emerald-600 opacity-70 mt-1">Profit increase from {inputs.confirmationRate}% → {Math.min(inputs.confirmationRate + 10, 100)}%</p>
+                                        </div>
+                                        <div className="p-4 rounded-xl border border-blue-100 bg-blue-50/50">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <Truck className="w-4 h-4 text-blue-600" />
+                                                <p className="text-sm font-medium text-blue-800">+10% Delivery Rate</p>
+                                            </div>
+                                            <p className="text-2xl font-semibold text-blue-700">+{optimizationImpact.delImpact}%</p>
+                                            <p className="text-xs text-blue-600 opacity-70 mt-1">Profit increase from {inputs.deliveryRate}% → {Math.min(inputs.deliveryRate + 10, 100)}%</p>
+                                        </div>
+                                        <div className="p-4 rounded-xl border border-amber-100 bg-amber-50/50">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <TrendingDown className="w-4 h-4 text-amber-600" />
+                                                <p className="text-sm font-medium text-amber-800">Reduce CPL to 15 MAD</p>
+                                            </div>
+                                            <p className="text-2xl font-semibold text-amber-700">+{optimizationImpact.cpl15}%</p>
+                                            <p className="text-xs text-amber-600 opacity-70 mt-1">Current CPL: {inputs.costPerLead} MAD → 15 MAD</p>
+                                        </div>
+                                        <div className="p-4 rounded-xl border border-purple-100 bg-purple-50/50">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <DollarSign className="w-4 h-4 text-purple-600" />
+                                                <p className="text-sm font-medium text-purple-800">Increase Price to 299 MAD</p>
+                                            </div>
+                                            <p className="text-2xl font-semibold text-purple-700">+{optimizationImpact.price299}%</p>
+                                            <p className="text-xs text-purple-600 opacity-70 mt-1">Current price: {inputs.salePrice} MAD → 299 MAD</p>
                                         </div>
                                     </div>
                                 </CardContent>
