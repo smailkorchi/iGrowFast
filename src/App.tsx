@@ -28,8 +28,9 @@ import Zones from "./pages/Zones";
 import Profile from "./pages/Profile";
 import Webhooks from "./pages/Webhooks";
 import AiKeys from "./pages/AiKeys";
-import Businesses from "./pages/Businesses";
-import SelectBusiness from "./pages/SelectBusiness";
+import OwnerBusinesses from "./pages/owner/Businesses";
+import OwnerSelectBusiness from "./pages/owner/SelectBusiness";
+import OwnerLayout from "./components/layout/OwnerLayout";
 import Calculator from "./pages/Calculator";
 import AdminDemands from "./pages/Demands";
 import AdminSalaries from "./pages/Salaries";
@@ -44,15 +45,42 @@ import SellerDemands from "./pages/seller/Demands";
 import AppLayout from "./components/layout/AppLayout";
 import SellerLayout from "./components/layout/SellerLayout";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
-import { Navigate, useLocation } from "react-router-dom";
+import { Navigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { supabase } from "./lib/supabase";
+import { Loader2 } from "lucide-react";
 
-// A small guard to ensure business is selected
 const BusinessGuard = ({ children }: { children: React.ReactNode }) => {
-  const activeBusinessId = localStorage.getItem('activeBusinessId');
-  const location = useLocation();
+  const [ready, setReady] = useState(() => !!localStorage.getItem('activeBusinessId'));
 
-  if (!activeBusinessId && location.pathname !== '/select-business') {
-    return <Navigate to="/select-business" replace />;
+  useEffect(() => {
+    if (ready) return;
+
+    const resolve = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: profile } = await supabase
+        .from('users')
+        .select('"DigiCom Business"')
+        .eq('id', user.id)
+        .single();
+
+      if (profile?.['DigiCom Business']) {
+        localStorage.setItem('activeBusinessId', profile['DigiCom Business']);
+      }
+      setReady(true);
+    };
+
+    resolve();
+  }, [ready]);
+
+  if (!ready) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-brand-white">
+        <Loader2 className="w-10 h-10 animate-spin text-brand-navy" />
+      </div>
+    );
   }
 
   return <>{children}</>;
@@ -68,9 +96,20 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/auth" element={<Auth />} />
-          <Route path="/select-business" element={
-            <ProtectedRoute>
-              <SelectBusiness />
+          {/* Owner Routes */}
+          <Route path="/owner/select-business" element={
+            <ProtectedRoute allowedRoles={['owner']}>
+              <OwnerSelectBusiness />
+            </ProtectedRoute>
+          } />
+          <Route path="/owner/*" element={
+            <ProtectedRoute allowedRoles={['owner']}>
+              <OwnerLayout>
+                <Routes>
+                  <Route path="businesses" element={<OwnerBusinesses />} />
+                  <Route path="" element={<Navigate to="businesses" replace />} />
+                </Routes>
+              </OwnerLayout>
             </ProtectedRoute>
           } />
 
@@ -119,7 +158,6 @@ const App = () => (
                     <Route path="/ads-history" element={<AdsHistory />} />
                     <Route path="/expenses-details" element={<ExpensesDetails />} />
                     <Route path="/expenses-types" element={<ExpensesTypes />} />
-                    <Route path="/businesses" element={<Businesses />} />
                     <Route path="/cities" element={<Cities />} />
                     <Route path="/zones" element={<Zones />} />
                     <Route path="/calculator" element={<Calculator />} />

@@ -78,7 +78,7 @@ const SelectBusiness = () => {
         // Trigger a custom event so other components (like Sidebar) can react
         window.dispatchEvent(new Event('businessSelected'));
 
-        navigate('/');
+        navigate('/owner/businesses');
     };
 
     const handleLogout = async () => {

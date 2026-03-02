@@ -30,7 +30,6 @@ import {
     ChevronRight,
     Target,
     Zap,
-    Building2,
     LogOut,
     PanelLeftClose,
     User as UserIcon,
@@ -132,11 +131,6 @@ const navigation: NavSection[] = [
             { icon: Calculator, label: 'Profit Calculator', path: '/calculator' },
         ]
     },
-    {
-        items: [
-            { icon: Building2, label: 'Businesses', path: '/businesses' },
-        ]
-    }
 ];
 
 const Sidebar = () => {
@@ -195,29 +189,6 @@ const Sidebar = () => {
             return data;
         }
     });
-
-    const { data: business, isLoading: isBusinessLoading, refetch: refetchBusiness } = useQuery({
-        queryKey: ['current-business'],
-        queryFn: async () => {
-            const activeId = localStorage.getItem('activeBusinessId');
-            if (!activeId) return null;
-
-            const { data, error } = await supabase
-                .from('businesses')
-                .select('*')
-                .eq('id', activeId)
-                .single();
-
-            if (error) return null;
-            return data;
-        }
-    });
-
-    React.useEffect(() => {
-        const handleRefresh = () => refetchBusiness();
-        window.addEventListener('businessSelected', handleRefresh);
-        return () => window.removeEventListener('businessSelected', handleRefresh);
-    }, [refetchBusiness]);
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -352,7 +323,7 @@ const Sidebar = () => {
                     {/* Profile Section */}
                     <div className="px-3 pt-4 pb-2 border-t border-white/[0.03]">
                         <NavLink
-                            to="/select-business"
+                            to="/profile"
                             className={({ isActive }) => cn(
                                 "flex items-center h-14 rounded-2xl transition-all duration-500 group/profile relative overflow-hidden",
                                 "hover:bg-white/[0.05]",
@@ -361,34 +332,21 @@ const Sidebar = () => {
                             )}
                         >
                             <div className="w-[52px] h-14 flex items-center justify-center shrink-0">
-                                <div className="relative w-8 h-8 group-hover/profile:scale-105 transition-transform duration-500 flex items-center justify-center">
-                                    <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-brand-navy bg-brand-navy-light flex items-center justify-center shadow-lg z-20 transition-all duration-700 group-hover/sidebar-inner:rotate-[-4deg] group-data-[pinned=true]/sidebar-inner:rotate-[-4deg] shrink-0 relative">
-                                        {isProfileLoading ? (
-                                            <Loader2 className="w-4 h-4 animate-spin text-brand-white" />
-                                        ) : profile?.avatar_url ? (
-                                            <img src={profile.avatar_url} className="w-full h-full object-cover" alt="" />
-                                        ) : (
-                                            <UserIcon className="w-4 h-4 text-brand-white" />
-                                        )}
-                                    </div>
-                                    <div className={cn(
-                                        "absolute top-0 left-0 rounded-full overflow-hidden border-2 border-brand-navy bg-white flex items-center justify-center shadow-lg z-10 transition-all duration-700",
-                                        "w-8 h-8 opacity-0 pointer-events-none",
-                                        "group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100 group-hover/sidebar-inner:translate-x-3.5 group-data-[pinned=true]/sidebar-inner:translate-x-3.5 group-hover/sidebar-inner:pointer-events-auto group-data-[pinned=true]/sidebar-inner:pointer-events-auto"
-                                    )}>
-                                        {business?.logo ? (
-                                            <img src={business.logo} className="w-full h-full object-contain" alt="" />
-                                        ) : (
-                                            <Building2 className="w-3 h-3 text-brand-navy/20" />
-                                        )}
-                                    </div>
+                                <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-white/10 bg-brand-navy-light flex items-center justify-center shadow-lg group-hover/profile:scale-105 transition-transform duration-500">
+                                    {isProfileLoading ? (
+                                        <Loader2 className="w-4 h-4 animate-spin text-brand-white" />
+                                    ) : profile?.avatar_url ? (
+                                        <img src={profile.avatar_url} className="w-full h-full object-cover" alt="" />
+                                    ) : (
+                                        <UserIcon className="w-4 h-4 text-brand-white" />
+                                    )}
                                 </div>
                             </div>
 
                             <div className="ml-2 opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100 transition-all duration-500 delay-150 whitespace-nowrap overflow-hidden">
                                 <div className="flex flex-col">
                                     <span className="text-[10px] font-bold text-brand-white tracking-tight truncate max-w-[120px]">
-                                        {business?.name || profile?.name}
+                                        {profile?.name || 'User'}
                                     </span>
                                     <div className="flex items-center gap-1 mt-0.5">
                                         <div className="w-1 h-1 rounded-full bg-emerald-500" />

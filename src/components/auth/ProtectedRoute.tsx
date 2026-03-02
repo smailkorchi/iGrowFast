@@ -49,9 +49,10 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
 
             if (allowedRoles && allowedRoles.length > 0) {
                 if (!allowedRoles.includes(userProfile.role)) {
-                    // Redirect based on role
                     if (userProfile.role === 'seller' || userProfile.role === 'commercial') {
                         navigate('/seller/dashboard');
+                    } else if (userProfile.role === 'owner') {
+                        navigate('/owner/businesses');
                     } else {
                         navigate('/');
                     }
