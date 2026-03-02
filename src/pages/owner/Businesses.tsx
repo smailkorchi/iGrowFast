@@ -81,6 +81,11 @@ function computeLicenseEnd(type: string, from?: Date): string | null {
     return new Date(start.getTime() + days * 86400000).toISOString();
 }
 
+async function fetchPlanById(planId: string) {
+    const { data } = await supabase.from('plans').select('*').eq('id', planId).single();
+    return data;
+}
+
 const Businesses = () => {
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [searchQuery, setSearchQuery] = useState("");
@@ -104,7 +109,8 @@ const Businesses = () => {
                 .from('businesses')
                 .select(`
                     *,
-                    creator:users!businesses_creator_id_fkey(id, name, avatar_url, role)
+                    creator:users!businesses_creator_id_fkey(id, name, avatar_url, role),
+                    plan:plans(id, name, license_type, price, currency)
                 `)
                 .order('created_at', { ascending: false });
 
@@ -129,23 +135,46 @@ const Businesses = () => {
             const { id, status, ...values } = payload;
             const now = new Date();
 
+            const plan = await fetchPlanById(values.plan_id);
+            if (!plan) throw new Error("Selected plan not found");
+
             const dataToSubmit: any = {
                 name: values.name,
                 active: values.active,
                 logo: values.logo,
-                license_type: values.license_type,
-                creator_id: user.id,
+                plan_id: values.plan_id,
+                license_type: plan.license_type,
                 updated_at: now.toISOString(),
             };
 
             if (id) {
+                const { data: existing } = await supabase
+                    .from('businesses')
+                    .select('plan_id, license_type, status')
+                    .eq('id', id)
+                    .single();
+
+                const planChanged = existing && existing.plan_id !== values.plan_id;
+
+                if (planChanged) {
+                    dataToSubmit.license_start = now.toISOString();
+                    dataToSubmit.license_end = computeLicenseEnd(plan.license_type, now);
+                    dataToSubmit.paid = true;
+                    if (existing.status === 'suspended' || existing.status === 'deactivated') {
+                        dataToSubmit.status = 'active';
+                        dataToSubmit.active = true;
+                    }
+                }
+
                 const { error } = await supabase.from('businesses').update(dataToSubmit).eq('id', id);
                 if (error) throw error;
                 return { isNew: false };
             } else {
+                dataToSubmit.creator_id = user.id;
                 dataToSubmit.license_start = now.toISOString();
-                dataToSubmit.license_end = computeLicenseEnd(values.license_type, now);
+                dataToSubmit.license_end = computeLicenseEnd(plan.license_type, now);
                 dataToSubmit.status = 'active';
+                dataToSubmit.paid = true;
                 const { data, error } = await supabase.from('businesses').insert([dataToSubmit]).select('id').single();
                 if (error) throw error;
                 return { isNew: true, businessId: data.id };
@@ -183,11 +212,13 @@ const Businesses = () => {
                     updates.license_end = computeLicenseEnd(target.license_type, base);
                     updates.status = 'active';
                     updates.active = true;
+                    updates.paid = true;
                     break;
                 }
                 case 'suspend':
                     updates.status = 'suspended';
                     updates.active = false;
+                    updates.paid = false;
                     break;
                 case 'deactivate':
                     updates.status = 'deactivated';
@@ -197,6 +228,7 @@ const Businesses = () => {
                     const now = new Date();
                     updates.status = 'active';
                     updates.active = true;
+                    updates.paid = true;
                     updates.license_start = now.toISOString();
                     updates.license_end = computeLicenseEnd(target.license_type, now);
                     break;
@@ -420,13 +452,15 @@ const LicenseMeta = ({ business }: { business: any }) => {
     const isExpired = end && end < new Date();
     const daysLeft = end ? Math.ceil((end.getTime() - Date.now()) / 86400000) : null;
     const status = business.status || 'active';
+    const paid = business.paid ?? false;
+    const planName = business.plan?.name;
 
     return (
         <div className="flex items-center gap-2 text-xs text-slate-500">
             <StatusDot status={status} />
             <span className="capitalize">{status}</span>
             <span className="text-slate-300">·</span>
-            <span className="capitalize">{type}</span>
+            <span>{planName || type}</span>
             {type !== 'lifetime' && daysLeft !== null && (
                 <>
                     <span className="text-slate-300">·</span>
@@ -435,6 +469,10 @@ const LicenseMeta = ({ business }: { business: any }) => {
                     </span>
                 </>
             )}
+            <span className="text-slate-300">·</span>
+            <span className={cn('font-medium', paid ? 'text-emerald-600' : 'text-red-500')}>
+                {paid ? 'Paid' : 'Unpaid'}
+            </span>
         </div>
     );
 };

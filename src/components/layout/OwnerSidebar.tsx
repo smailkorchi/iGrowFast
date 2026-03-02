@@ -3,6 +3,7 @@ import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
     Building2,
     Users,
+    CreditCard,
     LogOut,
     PanelLeftClose,
     User as UserIcon,
@@ -20,6 +21,7 @@ type NavItem = {
 
 const navigation: NavItem[] = [
     { icon: Building2, label: 'Businesses', path: '/owner/businesses' },
+    { icon: CreditCard, label: 'Plans', path: '/owner/plans' },
     { icon: Users, label: 'Users', path: '/owner/users' },
 ];
 

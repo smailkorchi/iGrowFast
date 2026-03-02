@@ -31,6 +31,7 @@ import AiKeys from "./pages/AiKeys";
 import OwnerBusinesses from "./pages/owner/Businesses";
 import OwnerSelectBusiness from "./pages/owner/SelectBusiness";
 import OwnerUsers from "./pages/owner/Users";
+import OwnerPlans from "./pages/owner/Plans";
 import OwnerLayout from "./components/layout/OwnerLayout";
 import Calculator from "./pages/Calculator";
 import AdminDemands from "./pages/Demands";
@@ -157,6 +158,7 @@ const App = () => (
               <OwnerLayout>
                 <Routes>
                   <Route path="businesses" element={<OwnerBusinesses />} />
+                  <Route path="plans" element={<OwnerPlans />} />
                   <Route path="users" element={<OwnerUsers />} />
                   <Route path="" element={<Navigate to="businesses" replace />} />
                 </Routes>

@@ -2,33 +2,16 @@ import React, { useState, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { useQuery } from '@tanstack/react-query';
 import {
-    Upload,
-    ImageIcon,
-    Loader2,
-    Check,
-    Clock,
-    Calendar,
-    Infinity,
-    ShieldOff,
-    ShieldCheck,
-    CalendarPlus,
-    Power,
+    Upload, ImageIcon, Loader2, Check, Tag,
+    ShieldOff, ShieldCheck, CalendarPlus, Power,
 } from 'lucide-react';
 import {
-    Dialog,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
+    Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import {
-    Form,
-    FormControl,
-    FormField,
-    FormItem,
-    FormLabel,
-    FormMessage,
+    Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
 } from '@/components/ui/form';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,17 +24,11 @@ export const businessSchema = z.object({
     name: z.string().min(2, 'Business name must be at least 2 characters'),
     active: z.boolean().default(true),
     logo: z.string().optional().nullable(),
-    license_type: z.enum(['monthly', 'yearly', 'lifetime']).default('monthly'),
+    plan_id: z.string().min(1, 'Select a plan'),
     status: z.enum(['active', 'suspended', 'deactivated']).default('active'),
 });
 
 export type BusinessFormValues = z.infer<typeof businessSchema>;
-
-const LICENSE_OPTIONS = [
-    { value: 'monthly' as const, label: 'Monthly', icon: Clock, sub: '30 days' },
-    { value: 'yearly' as const, label: 'Yearly', icon: Calendar, sub: '365 days' },
-    { value: 'lifetime' as const, label: 'Lifetime', icon: Infinity, sub: 'No expiry' },
-];
 
 const STATUS_MAP: Record<string, { dot: string; label: string }> = {
     active: { dot: 'bg-emerald-500', label: 'Active' },
@@ -70,21 +47,28 @@ interface AddEditBusinessModalProps {
 }
 
 export const AddEditBusinessModal: React.FC<AddEditBusinessModalProps> = ({
-    isOpen,
-    onClose,
-    onSubmit,
-    initialData,
-    loading,
-    onStatusChange,
-    statusLoading,
+    isOpen, onClose, onSubmit, initialData, loading, onStatusChange, statusLoading,
 }) => {
     const { toast } = useToast();
     const [logoPreview, setLogoPreview] = useState<string | null>(null);
     const [isUploading, setIsUploading] = useState(false);
 
+    const { data: plans } = useQuery({
+        queryKey: ['plans-active'],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('plans')
+                .select('*')
+                .eq('active', true)
+                .order('sort_order', { ascending: true });
+            if (error) throw error;
+            return data;
+        },
+    });
+
     const form = useForm<BusinessFormValues>({
         resolver: zodResolver(businessSchema),
-        defaultValues: { name: '', active: true, logo: '', license_type: 'monthly', status: 'active' },
+        defaultValues: { name: '', active: true, logo: '', plan_id: '', status: 'active' },
     });
 
     React.useEffect(() => {
@@ -94,16 +78,17 @@ export const AddEditBusinessModal: React.FC<AddEditBusinessModalProps> = ({
                     name: initialData.name,
                     active: initialData.active,
                     logo: initialData.logo || '',
-                    license_type: initialData.license_type || 'monthly',
+                    plan_id: initialData.plan_id || '',
                     status: initialData.status || 'active',
                 });
                 setLogoPreview(initialData.logo);
             } else {
-                form.reset({ name: '', active: true, logo: '', license_type: 'monthly', status: 'active' });
+                const defaultPlan = plans?.[0]?.id || '';
+                form.reset({ name: '', active: true, logo: '', plan_id: defaultPlan, status: 'active' });
                 setLogoPreview(null);
             }
         }
-    }, [isOpen, initialData, form]);
+    }, [isOpen, initialData, form, plans]);
 
     const onDrop = useCallback(
         async (acceptedFiles: File[]) => {
@@ -128,9 +113,7 @@ export const AddEditBusinessModal: React.FC<AddEditBusinessModalProps> = ({
     );
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
-        onDrop,
-        accept: { 'image/*': [] },
-        multiple: false,
+        onDrop, accept: { 'image/*': [] }, multiple: false,
     });
 
     const isEditing = !!initialData;
@@ -139,6 +122,7 @@ export const AddEditBusinessModal: React.FC<AddEditBusinessModalProps> = ({
     const licenseEnd = initialData?.license_end ? new Date(initialData.license_end) : null;
     const isExpired = licenseEnd && licenseEnd < new Date();
     const daysLeft = licenseEnd ? Math.ceil((licenseEnd.getTime() - Date.now()) / 86400000) : null;
+    const currentPlan = plans?.find(p => p.id === initialData?.plan_id);
 
     return (
         <Dialog open={isOpen} onOpenChange={(v) => !v && onClose()}>
@@ -153,7 +137,6 @@ export const AddEditBusinessModal: React.FC<AddEditBusinessModalProps> = ({
                     <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col">
                         <div className="px-6 py-5 space-y-5">
 
-                            {/* Status & License Overview (edit only) */}
                             {isEditing && (
                                 <div className="space-y-3">
                                     <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
@@ -165,20 +148,22 @@ export const AddEditBusinessModal: React.FC<AddEditBusinessModalProps> = ({
                                                 <div className={cn('w-2 h-2 rounded-full', statusInfo.dot)} />
                                                 <span className="text-sm font-medium text-slate-700">{statusInfo.label}</span>
                                             </div>
-                                            <span className="text-xs font-medium text-slate-400 capitalize">
-                                                {initialData?.license_type || 'monthly'} plan
+                                            <span className="text-xs font-medium text-slate-400">
+                                                {currentPlan?.name || initialData?.license_type || '—'}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between px-4 py-2.5">
+                                            <span className="text-xs text-slate-400">Payment</span>
+                                            <span className={cn('text-xs font-medium', initialData?.paid ? 'text-emerald-600' : 'text-red-500')}>
+                                                {initialData?.paid ? 'Paid' : 'Unpaid'}
                                             </span>
                                         </div>
                                         {initialData?.license_type !== 'lifetime' && licenseEnd && (
                                             <div className="flex items-center justify-between px-4 py-2.5">
-                                                <span className="text-xs text-slate-400">
-                                                    {isExpired ? 'Expired on' : 'Expires'}
-                                                </span>
+                                                <span className="text-xs text-slate-400">{isExpired ? 'Expired on' : 'Expires'}</span>
                                                 <span className={cn('text-xs font-medium', isExpired ? 'text-red-500' : 'text-slate-600')}>
                                                     {licenseEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                                    {daysLeft !== null && !isExpired && (
-                                                        <span className="text-slate-400 ml-1">({daysLeft}d)</span>
-                                                    )}
+                                                    {daysLeft !== null && !isExpired && <span className="text-slate-400 ml-1">({daysLeft}d)</span>}
                                                 </span>
                                             </div>
                                         )}
@@ -193,42 +178,26 @@ export const AddEditBusinessModal: React.FC<AddEditBusinessModalProps> = ({
                                     {onStatusChange && (
                                         <div className="flex flex-wrap gap-2">
                                             {currentStatus === 'active' && initialData?.license_type !== 'lifetime' && (
-                                                <button
-                                                    type="button"
-                                                    disabled={statusLoading}
-                                                    onClick={() => onStatusChange(initialData.id, 'extend')}
-                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 transition-colors disabled:opacity-40"
-                                                >
+                                                <button type="button" disabled={statusLoading} onClick={() => onStatusChange(initialData.id, 'extend')}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 transition-colors disabled:opacity-40">
                                                     <CalendarPlus className="w-3.5 h-3.5" /> Extend
                                                 </button>
                                             )}
                                             {currentStatus === 'active' && (
-                                                <button
-                                                    type="button"
-                                                    disabled={statusLoading}
-                                                    onClick={() => onStatusChange(initialData.id, 'suspend')}
-                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-amber-600 bg-amber-50 hover:bg-amber-100 border border-amber-100 transition-colors disabled:opacity-40"
-                                                >
+                                                <button type="button" disabled={statusLoading} onClick={() => onStatusChange(initialData.id, 'suspend')}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-amber-600 bg-amber-50 hover:bg-amber-100 border border-amber-100 transition-colors disabled:opacity-40">
                                                     <ShieldOff className="w-3.5 h-3.5" /> Suspend
                                                 </button>
                                             )}
                                             {(currentStatus === 'suspended' || currentStatus === 'deactivated') && (
-                                                <button
-                                                    type="button"
-                                                    disabled={statusLoading}
-                                                    onClick={() => onStatusChange(initialData.id, 'reactivate')}
-                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 transition-colors disabled:opacity-40"
-                                                >
+                                                <button type="button" disabled={statusLoading} onClick={() => onStatusChange(initialData.id, 'reactivate')}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 transition-colors disabled:opacity-40">
                                                     <ShieldCheck className="w-3.5 h-3.5" /> Reactivate
                                                 </button>
                                             )}
                                             {currentStatus !== 'deactivated' && (
-                                                <button
-                                                    type="button"
-                                                    disabled={statusLoading}
-                                                    onClick={() => onStatusChange(initialData.id, 'deactivate')}
-                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-red-500 bg-red-50 hover:bg-red-100 border border-red-100 transition-colors disabled:opacity-40"
-                                                >
+                                                <button type="button" disabled={statusLoading} onClick={() => onStatusChange(initialData.id, 'deactivate')}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-red-500 bg-red-50 hover:bg-red-100 border border-red-100 transition-colors disabled:opacity-40">
                                                     <Power className="w-3.5 h-3.5" /> Deactivate
                                                 </button>
                                             )}
@@ -270,48 +239,40 @@ export const AddEditBusinessModal: React.FC<AddEditBusinessModalProps> = ({
                                 </div>
                             </div>
 
-                            {/* Business Name */}
-                            <FormField
-                                control={form.control}
-                                name="name"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                                            Business Name
-                                        </FormLabel>
-                                        <FormControl>
-                                            <Input
-                                                placeholder="Enter name..."
-                                                {...field}
-                                                className="h-10 rounded-lg border-slate-200 bg-white text-sm text-slate-900 px-3 focus-visible:ring-1 focus-visible:ring-slate-300"
-                                            />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+                            {/* Name */}
+                            <FormField control={form.control} name="name" render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Business Name</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="Enter name..." {...field} className="h-10 rounded-lg border-slate-200 bg-white text-sm text-slate-900 px-3 focus-visible:ring-1 focus-visible:ring-slate-300" />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )} />
 
-                            {/* License Plan */}
-                            <FormField
-                                control={form.control}
-                                name="license_type"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                                            License Plan
-                                        </FormLabel>
+                            {/* Plan Selection */}
+                            <FormField control={form.control} name="plan_id" render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Plan</FormLabel>
+                                    {!plans ? (
+                                        <div className="flex items-center gap-2 py-3 text-xs text-slate-400">
+                                            <Loader2 className="w-4 h-4 animate-spin" /> Loading plans...
+                                        </div>
+                                    ) : plans.length === 0 ? (
+                                        <p className="text-xs text-slate-400 py-2">No active plans. Create one in the Plans page first.</p>
+                                    ) : (
                                         <div className="space-y-1.5">
-                                            {LICENSE_OPTIONS.map((opt) => {
-                                                const selected = field.value === opt.value;
+                                            {plans.map((plan) => {
+                                                const selected = field.value === plan.id;
+                                                const hasPromo = plan.promotion_active && plan.promotion_label;
+                                                const hasDiscount = plan.old_price && plan.old_price > plan.price;
                                                 return (
                                                     <div
-                                                        key={opt.value}
-                                                        onClick={() => field.onChange(opt.value)}
+                                                        key={plan.id}
+                                                        onClick={() => field.onChange(plan.id)}
                                                         className={cn(
-                                                            'flex items-center gap-3 px-3.5 py-2.5 rounded-lg cursor-pointer border transition-all',
-                                                            selected
-                                                                ? 'border-brand-navy bg-brand-navy/[0.03]'
-                                                                : 'border-slate-100 hover:border-slate-200 bg-white'
+                                                            'flex items-center gap-3 px-3.5 py-3 rounded-lg cursor-pointer border transition-all',
+                                                            selected ? 'border-brand-navy bg-brand-navy/[0.03]' : 'border-slate-100 hover:border-slate-200 bg-white'
                                                         )}
                                                     >
                                                         <div className={cn(
@@ -320,37 +281,47 @@ export const AddEditBusinessModal: React.FC<AddEditBusinessModalProps> = ({
                                                         )}>
                                                             {selected && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
                                                         </div>
-                                                        <opt.icon className={cn('w-4 h-4 shrink-0', selected ? 'text-brand-navy' : 'text-slate-400')} />
                                                         <div className="flex-1 min-w-0">
-                                                            <span className={cn('text-sm font-medium', selected ? 'text-brand-navy' : 'text-slate-700')}>
-                                                                {opt.label}
-                                                            </span>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className={cn('text-sm font-medium', selected ? 'text-brand-navy' : 'text-slate-700')}>
+                                                                    {plan.name}
+                                                                </span>
+                                                                {hasPromo && (
+                                                                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-rose-100 text-rose-600 text-[9px] font-semibold uppercase">
+                                                                        <Tag className="w-2.5 h-2.5" /> {plan.promotion_label}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            {plan.description && (
+                                                                <p className="text-[11px] text-slate-400 mt-0.5 truncate">{plan.description}</p>
+                                                            )}
                                                         </div>
-                                                        <span className="text-[11px] text-slate-400">{opt.sub}</span>
+                                                        <div className="text-right shrink-0">
+                                                            <div className="flex items-baseline gap-1">
+                                                                <span className={cn('text-sm font-semibold', selected ? 'text-brand-navy' : 'text-slate-700')}>
+                                                                    {Number(plan.price).toLocaleString()}
+                                                                </span>
+                                                                <span className="text-[10px] text-slate-400">{plan.currency}</span>
+                                                            </div>
+                                                            {hasDiscount && (
+                                                                <span className="text-[10px] text-slate-400 line-through">
+                                                                    {Number(plan.old_price).toLocaleString()}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 );
                                             })}
                                         </div>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+                                    )}
+                                    <FormMessage />
+                                </FormItem>
+                            )} />
                         </div>
 
                         <DialogFooter className="px-6 py-4 border-t border-slate-100 gap-2 sm:gap-2">
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                onClick={onClose}
-                                className="h-9 px-4 text-sm text-slate-500 hover:text-slate-700"
-                            >
-                                Cancel
-                            </Button>
-                            <Button
-                                type="submit"
-                                disabled={loading || isUploading}
-                                className="h-9 px-5 bg-brand-navy hover:bg-brand-navy/90 text-white text-sm font-medium rounded-lg"
-                            >
+                            <Button type="button" variant="ghost" onClick={onClose} className="h-9 px-4 text-sm text-slate-500 hover:text-slate-700">Cancel</Button>
+                            <Button type="submit" disabled={loading || isUploading} className="h-9 px-5 bg-brand-navy hover:bg-brand-navy/90 text-white text-sm font-medium rounded-lg">
                                 {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                                 {isEditing ? 'Save Changes' : 'Create Business'}
                             </Button>
