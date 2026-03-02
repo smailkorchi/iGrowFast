@@ -50,12 +50,11 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
     });
 
     const { data: packageStatuses } = useQuery({
-        queryKey: ['analytics-package-statuses', businessId],
+        queryKey: ['analytics-package-statuses'],
         queryFn: async () => {
-            const { data } = await supabase.from('package_statuses').select('id, code, label').eq('DigiCom Business', businessId);
+            const { data } = await supabase.from('package_statuses').select('id, code, label');
             return data || [];
         },
-        enabled: !!businessId,
     });
 
     const { data: returnNotes } = useQuery({

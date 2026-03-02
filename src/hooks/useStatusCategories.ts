@@ -46,7 +46,6 @@ export function useStatusCategories() {
       const { data } = await supabase
         .from('order_statuses')
         .select('id, code, label, color, category, ranking, recheck, active')
-        .eq('DigiCom Business', activeBusinessId)
         .order('ranking');
       return (data || []) as OrderStatus[];
     },
@@ -60,7 +59,6 @@ export function useStatusCategories() {
       const { data } = await supabase
         .from('package_statuses')
         .select('id, code, label, color, category, ranking, delivery_service_statuses')
-        .eq('DigiCom Business', activeBusinessId)
         .order('ranking');
       return (data || []) as PackageStatus[];
     },

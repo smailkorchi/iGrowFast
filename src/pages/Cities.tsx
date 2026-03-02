@@ -73,6 +73,21 @@ const Cities = () => {
     // --- Queries ---
     const activeBusinessId = localStorage.getItem('activeBusinessId');
 
+    const { data: isOwner } = useQuery({
+        queryKey: ['user-role'],
+        queryFn: async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return false;
+            const { data, error } = await supabase
+                .from('users')
+                .select('role')
+                .eq('id', user.id)
+                .single();
+            if (error || !data) return false;
+            return data.role === 'owner';
+        },
+    });
+
     const { data: zones } = useQuery({
         queryKey: ['zones', activeBusinessId],
         queryFn: async () => {
@@ -80,7 +95,6 @@ const Cities = () => {
             const { data, error } = await supabase
                 .from('zones')
                 .select('id, name')
-                .eq('DigiCom Business', activeBusinessId)
                 .order('name');
             if (error) throw error;
             return data;
@@ -94,7 +108,6 @@ const Cities = () => {
             const { data, error } = await supabase
                 .from('master_cities')
                 .select('*, zones(name), provider_cities(provider_type, provider_city_id, provider_city_name)')
-                .eq('DigiCom Business', activeBusinessId)
                 .order('name');
 
             if (error) throw error;
@@ -109,8 +122,7 @@ const Cities = () => {
                 .from('master_cities')
                 .insert({
                     name: values.name,
-                    zone_id: values.zone_id,
-                    'DigiCom Business': activeBusinessId
+                    zone_id: values.zone_id
                 })
                 .select('*, zones(name)')
                 .single();
@@ -134,8 +146,7 @@ const Cities = () => {
                 .from('master_cities')
                 .update({
                     name: values.name,
-                    zone_id: values.zone_id,
-                    'DigiCom Business': activeBusinessId
+                    zone_id: values.zone_id
                 })
                 .eq('id', values.id)
                 .select('*, zones(name)')
@@ -217,17 +228,19 @@ const Cities = () => {
                                     className="pl-11 h-12 rounded-2xl border-gray-100 bg-white"
                                 />
                             </div>
-                            <Button
-                                onClick={() => {
-                                    setEditingCity(null);
-                                    form.reset({ name: '', zone_id: '', ameex_code: '' });
-                                    setIsModalOpen(true);
-                                }}
-                                className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group flex items-center gap-2"
-                            >
-                                <Plus className="w-5 h-5" />
-                                Add City
-                            </Button>
+                            {isOwner && (
+                                <Button
+                                    onClick={() => {
+                                        setEditingCity(null);
+                                        form.reset({ name: '', zone_id: '', ameex_code: '' });
+                                        setIsModalOpen(true);
+                                    }}
+                                    className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group flex items-center gap-2"
+                                >
+                                    <Plus className="w-5 h-5" />
+                                    Add City
+                                </Button>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -275,32 +288,34 @@ const Cities = () => {
                                     </div>
                                 </div>
 
-                                <div className="flex items-center gap-1 opacity-10 md:opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-x-2 group-hover:translate-x-0">
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => {
-                                            setEditingCity(city);
-                                            form.reset({
-                                                name: city.name,
-                                                zone_id: city.zone_id,
-                                                ameex_code: city.ameex_code || ''
-                                            });
-                                            setIsModalOpen(true);
-                                        }}
-                                        className="h-9 w-9 text-brand-navy/40 hover:text-brand-navy hover:bg-brand-navy/5 rounded-full"
-                                    >
-                                        <Pencil className="w-4 h-4" />
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => setCityToDelete(city)}
-                                        className="h-9 w-9 text-brand-navy/40 hover:text-red-500 hover:bg-red-50 rounded-full"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </Button>
-                                </div>
+                                {isOwner && (
+                                    <div className="flex items-center gap-1 opacity-10 md:opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-x-2 group-hover:translate-x-0">
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => {
+                                                setEditingCity(city);
+                                                form.reset({
+                                                    name: city.name,
+                                                    zone_id: city.zone_id,
+                                                    ameex_code: city.ameex_code || ''
+                                                });
+                                                setIsModalOpen(true);
+                                            }}
+                                            className="h-9 w-9 text-brand-navy/40 hover:text-brand-navy hover:bg-brand-navy/5 rounded-full"
+                                        >
+                                            <Pencil className="w-4 h-4" />
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => setCityToDelete(city)}
+                                            className="h-9 w-9 text-brand-navy/40 hover:text-red-500 hover:bg-red-50 rounded-full"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </Button>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="relative h-1 w-full bg-brand-navy/[0.03] rounded-full overflow-hidden">

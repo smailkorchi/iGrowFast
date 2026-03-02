@@ -426,7 +426,6 @@ const Orders = () => {
             const { data, error } = await (supabase as any)
                 .from('master_cities')
                 .select('id, name, zone_id')
-                .eq('DigiCom Business', activeBusinessId)
                 .order('name');
             if (error) throw error;
             return data;
@@ -522,7 +521,6 @@ const Orders = () => {
                 .from('order_statuses')
                 .select('id, code, label, ranking, color')
                 .eq('active', true)
-                .eq('DigiCom Business', activeBusinessId)
                 .order('ranking', { ascending: true });
             if (error) throw error;
             return data;
@@ -580,7 +578,6 @@ const Orders = () => {
                 .from('package_statuses')
                 .select('id, code, label, color')
                 .eq('active', true)
-                .eq('DigiCom Business', activeBusinessId)
                 .order('ranking', { ascending: true });
             if (error) throw error;
             return data;

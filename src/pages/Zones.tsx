@@ -69,17 +69,29 @@ const Zones = () => {
     const { toast } = useToast();
     const queryClient = useQueryClient();
 
-    const activeBusinessId = localStorage.getItem('activeBusinessId');
+    const { data: userRole } = useQuery({
+        queryKey: ['current-user-role'],
+        queryFn: async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return null;
+            const { data, error } = await supabase
+                .from('users')
+                .select('role')
+                .eq('id', user.id)
+                .single();
+            if (error) throw error;
+            return data?.role ?? null;
+        },
+    });
+    const isOwner = userRole === 'owner';
 
     // --- Queries ---
     const { data: zones, isLoading } = useQuery({
-        queryKey: ['zones', activeBusinessId],
+        queryKey: ['zones'],
         queryFn: async () => {
-            if (!activeBusinessId) return [];
             const { data, error } = await supabase
                 .from('zones')
                 .select('*, master_cities(id)')
-                .eq('DigiCom Business', activeBusinessId)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
@@ -93,7 +105,6 @@ const Zones = () => {
                 .from('zones')
                 .insert({
                     name: values.name,
-                    'DigiCom Business': activeBusinessId
                 })
                 .select()
                 .single();
@@ -117,10 +128,8 @@ const Zones = () => {
                 .from('zones')
                 .update({
                     name: values.name,
-                    'DigiCom Business': activeBusinessId
                 })
                 .eq('id', id)
-                .eq('DigiCom Business', activeBusinessId)
                 .select()
                 .single();
 
@@ -142,8 +151,7 @@ const Zones = () => {
             const { error } = await supabase
                 .from('zones')
                 .delete()
-                .eq('id', id)
-                .eq('DigiCom Business', activeBusinessId);
+                .eq('id', id);
 
             if (error) throw error;
         },
@@ -171,15 +179,17 @@ const Zones = () => {
                             <h1 className="text-4xl font-extralight text-gray-900 mb-2">Geographic Zones</h1>
                             <p className="text-gray-500 font-light">Manage delivery zones and regional territories.</p>
                         </div>
-                        <div className="flex items-center gap-3">
-                            <Button
-                                onClick={() => setIsAddModalOpen(true)}
-                                className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group"
-                            >
-                                <Plus className="w-5 h-5 mr-3 group-hover:rotate-90 transition-transform duration-500" />
-                                Add New Zone
-                            </Button>
-                        </div>
+                        {isOwner && (
+                            <div className="flex items-center gap-3">
+                                <Button
+                                    onClick={() => setIsAddModalOpen(true)}
+                                    className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group"
+                                >
+                                    <Plus className="w-5 h-5 mr-3 group-hover:rotate-90 transition-transform duration-500" />
+                                    Add New Zone
+                                </Button>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -216,6 +226,7 @@ const Zones = () => {
                         <ZoneCard
                             key={zone.id}
                             zone={zone}
+                            isOwner={isOwner}
                             onClick={() => setSelectedZoneCities(zone)}
                             onEdit={() => setEditingZone(zone)}
                             onDelete={() => {
@@ -232,6 +243,7 @@ const Zones = () => {
                 zone={selectedZoneCities}
                 isOpen={!!selectedZoneCities}
                 onClose={() => setSelectedZoneCities(null)}
+                isOwner={isOwner}
             />
 
             <ZoneModal
@@ -256,7 +268,7 @@ const Zones = () => {
     );
 };
 
-const ZoneCard = ({ zone, onClick, onEdit, onDelete }: { zone: any, onClick: () => void, onEdit: () => void, onDelete: () => void }) => {
+const ZoneCard = ({ zone, isOwner, onClick, onEdit, onDelete }: { zone: any, isOwner: boolean, onClick: () => void, onEdit: () => void, onDelete: () => void }) => {
     return (
         <Card
             onClick={onClick}
@@ -266,24 +278,26 @@ const ZoneCard = ({ zone, onClick, onEdit, onDelete }: { zone: any, onClick: () 
                 <div className="w-12 h-12 rounded-2xl bg-brand-navy/[0.04] flex items-center justify-center text-brand-navy group-hover:bg-brand-navy group-hover:text-brand-white transition-all duration-500">
                     <Map className="w-6 h-6" />
                 </div>
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                        <Button variant="ghost" className="h-10 w-10 rounded-full p-0 hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity">
-                            <MoreVertical className="h-5 w-5 text-muted-foreground" />
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-xl">
-                        <DropdownMenuItem onClick={onEdit} className="rounded-xl p-3 cursor-pointer">
-                            <Edit2 className="w-4 h-4 mr-3" />
-                            Edit Zone
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={onDelete} className="rounded-xl p-3 cursor-pointer text-brand-red hover:bg-brand-red/5">
-                            <Trash2 className="w-4 h-4 mr-3" />
-                            Delete Zone
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                {isOwner && (
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                            <Button variant="ghost" className="h-10 w-10 rounded-full p-0 hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity">
+                                <MoreVertical className="h-5 w-5 text-muted-foreground" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-xl">
+                            <DropdownMenuItem onClick={onEdit} className="rounded-xl p-3 cursor-pointer">
+                                <Edit2 className="w-4 h-4 mr-3" />
+                                Edit Zone
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={onDelete} className="rounded-xl p-3 cursor-pointer text-brand-red hover:bg-brand-red/5">
+                                <Trash2 className="w-4 h-4 mr-3" />
+                                Delete Zone
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                )}
             </div>
 
             <div className="space-y-2">
@@ -382,20 +396,17 @@ const ZoneModal = ({ isOpen, onClose, onSubmit, initialData, loading, title }: a
     );
 };
 
-const ZoneCitiesModal = ({ zone, isOpen, onClose }: { zone: any, isOpen: boolean, onClose: () => void }) => {
-    const activeBusinessId = localStorage.getItem('activeBusinessId');
+const ZoneCitiesModal = ({ zone, isOpen, onClose, isOwner }: { zone: any, isOpen: boolean, onClose: () => void, isOwner: boolean }) => {
     const [citySearch, setCitySearch] = useState("");
     const queryClient = useQueryClient();
     const { toast } = useToast();
 
     const { data: cities, isLoading } = useQuery({
-        queryKey: ['cities-all', activeBusinessId],
+        queryKey: ['cities-all'],
         queryFn: async () => {
-            if (!activeBusinessId) return [];
             const { data, error } = await supabase
                 .from('master_cities')
                 .select('*')
-                .eq('DigiCom Business', activeBusinessId)
                 .order('name');
             if (error) throw error;
             return data;
@@ -457,14 +468,16 @@ const ZoneCitiesModal = ({ zone, isOpen, onClose }: { zone: any, isOpen: boolean
                             {filteredCurrent.length > 0 ? filteredCurrent.map(city => (
                                 <div key={city.id} className="group/item flex items-center justify-between p-4 rounded-2xl bg-brand-navy/[0.03] border border-transparent hover:border-brand-navy/10 transition-all">
                                     <span className="font-bold text-brand-navy">{city.name}</span>
-                                    <Button
-                                        size="icon"
-                                        variant="ghost"
-                                        onClick={() => updateCityZoneMutation.mutate({ cityId: city.id, zoneId: null })}
-                                        className="h-8 w-8 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50"
-                                    >
-                                        <X className="w-4 h-4" />
-                                    </Button>
+                                    {isOwner && (
+                                        <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            onClick={() => updateCityZoneMutation.mutate({ cityId: city.id, zoneId: null })}
+                                            className="h-8 w-8 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50"
+                                        >
+                                            <X className="w-4 h-4" />
+                                        </Button>
+                                    )}
                                 </div>
                             )) : (
                                 <p className="text-sm text-muted-foreground px-2 pt-2 italic">No cities assigned yet.</p>
@@ -481,14 +494,16 @@ const ZoneCitiesModal = ({ zone, isOpen, onClose }: { zone: any, isOpen: boolean
                             {filteredAvailable.length > 0 ? filteredAvailable.map(city => (
                                 <div key={city.id} className="group/item flex items-center justify-between p-4 rounded-2xl bg-brand-white border border-brand-navy/[0.06] hover:border-brand-navy/20 transition-all">
                                     <span className="font-bold text-brand-navy/70">{city.name}</span>
-                                    <Button
-                                        size="icon"
-                                        variant="ghost"
-                                        onClick={() => updateCityZoneMutation.mutate({ cityId: city.id, zoneId: zone.id })}
-                                        className="h-8 w-8 rounded-lg text-muted-foreground hover:text-green-600 hover:bg-green-50"
-                                    >
-                                        <Plus className="w-4 h-4" />
-                                    </Button>
+                                    {isOwner && (
+                                        <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            onClick={() => updateCityZoneMutation.mutate({ cityId: city.id, zoneId: zone.id })}
+                                            className="h-8 w-8 rounded-lg text-muted-foreground hover:text-green-600 hover:bg-green-50"
+                                        >
+                                            <Plus className="w-4 h-4" />
+                                        </Button>
+                                    )}
                                 </div>
                             )) : (
                                 <p className="text-sm text-muted-foreground px-2 pt-2 italic">No unassigned cities available.</p>

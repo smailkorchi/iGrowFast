@@ -95,19 +95,33 @@ const Status = () => {
 
     const { toast } = useToast();
     const queryClient = useQueryClient();
-    const activeBusinessId = localStorage.getItem('activeBusinessId');
 
     const table = activeTab === "orders" ? "order_statuses" : "package_statuses";
 
+    // --- Owner check (only owners can write to order_statuses / package_statuses) ---
+    const { data: userRole } = useQuery({
+        queryKey: ['currentUserRole'],
+        queryFn: async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return null;
+            const { data, error } = await supabase
+                .from('users')
+                .select('role')
+                .eq('id', user.id)
+                .single();
+            if (error) return null;
+            return data?.role ?? null;
+        },
+    });
+    const isOwner = userRole === 'owner';
+
     // --- Queries ---
     const { data: statuses, isLoading } = useQuery({
-        queryKey: ['statuses', activeTab, activeBusinessId],
+        queryKey: ['statuses', activeTab],
         queryFn: async () => {
-            if (!activeBusinessId) return [];
             const { data, error } = await supabase
                 .from(table)
                 .select('*')
-                .eq('DigiCom Business', activeBusinessId)
                 .order('ranking', { ascending: true });
 
             if (error) throw error;
@@ -150,7 +164,6 @@ const Status = () => {
                 recheck: values.recheck,
                 active: values.active,
                 delivery_service_statuses: deliveryStatuses,
-                'DigiCom Business': activeBusinessId,
             };
 
             if (editingStatus) {
@@ -158,7 +171,6 @@ const Status = () => {
                     .from(table)
                     .update(payload)
                     .eq('id', editingStatus.id)
-                    .eq('DigiCom Business', activeBusinessId)
                     .select()
                     .single();
                 if (error) throw error;
@@ -174,7 +186,7 @@ const Status = () => {
             }
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['statuses', activeTab, activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['statuses', activeTab] });
             setIsUpsertOpen(false);
             setEditingStatus(null);
             toast({
@@ -192,12 +204,11 @@ const Status = () => {
             const { error } = await supabase
                 .from(table)
                 .delete()
-                .eq('id', id)
-                .eq('DigiCom Business', activeBusinessId);
+                .eq('id', id);
             if (error) throw error;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['statuses', activeTab, activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['statuses', activeTab] });
             setStatusToDelete(null);
             toast({ title: "Status deleted", description: "The status was successfully removed." });
         },
@@ -268,13 +279,15 @@ const Status = () => {
                                     className="pl-11 h-12 rounded-2xl border-gray-100 bg-white"
                                 />
                             </div>
-                            <Button
-                                onClick={() => openUpsert()}
-                                className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group flex items-center gap-2 w-full sm:w-auto"
-                            >
-                                <Plus className="w-5 h-5" />
-                                Add {activeTab === "orders" ? "Order" : "Package"} Status
-                            </Button>
+                            {isOwner && (
+                                <Button
+                                    onClick={() => openUpsert()}
+                                    className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group flex items-center gap-2 w-full sm:w-auto"
+                                >
+                                    <Plus className="w-5 h-5" />
+                                    Add {activeTab === "orders" ? "Order" : "Package"} Status
+                                </Button>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -312,6 +325,7 @@ const Status = () => {
                                     key={status.id}
                                     status={status}
                                     activeTab={activeTab}
+                                    isOwner={isOwner}
                                     onEdit={() => openUpsert(status)}
                                     onView={() => { setViewingStatus(status); setIsViewOpen(true); }}
                                     onDelete={() => setStatusToDelete(status)}
@@ -335,6 +349,7 @@ const Status = () => {
                                     key={status.id}
                                     status={status}
                                     activeTab={activeTab}
+                                    isOwner={isOwner}
                                     onEdit={() => openUpsert(status)}
                                     onView={() => { setViewingStatus(status); setIsViewOpen(true); }}
                                     onDelete={() => setStatusToDelete(status)}
@@ -605,21 +620,23 @@ const Status = () => {
 
                                 <Separator className="bg-brand-navy/[0.05]" />
 
-                                <div className="flex gap-3">
-                                    <Button
-                                        onClick={() => { setIsViewOpen(false); openUpsert(viewingStatus); }}
-                                        className="flex-1 bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-14 font-bold shadow-xl transition-all active:scale-95"
-                                    >
-                                        Edit Configuration
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        onClick={() => { setIsViewOpen(false); setStatusToDelete(viewingStatus); }}
-                                        className="h-14 w-14 rounded-2xl border-red-100 text-red-500 hover:bg-red-50 hover:border-red-200 transition-all flex items-center justify-center p-0"
-                                    >
-                                        <Trash2 className="w-6 h-6" />
-                                    </Button>
-                                </div>
+                                {isOwner && (
+                                    <div className="flex gap-3">
+                                        <Button
+                                            onClick={() => { setIsViewOpen(false); openUpsert(viewingStatus); }}
+                                            className="flex-1 bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-14 font-bold shadow-xl transition-all active:scale-95"
+                                        >
+                                            Edit Configuration
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => { setIsViewOpen(false); setStatusToDelete(viewingStatus); }}
+                                            className="h-14 w-14 rounded-2xl border-red-100 text-red-500 hover:bg-red-50 hover:border-red-200 transition-all flex items-center justify-center p-0"
+                                        >
+                                            <Trash2 className="w-6 h-6" />
+                                        </Button>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
@@ -660,7 +677,7 @@ const Status = () => {
 
 // --- Sub-components ---
 
-const StatusCard = ({ status, activeTab, onEdit, onView, onDelete }: any) => {
+const StatusCard = ({ status, activeTab, isOwner, onEdit, onView, onDelete }: any) => {
     return (
         <Card
             className={cn(
@@ -699,15 +716,19 @@ const StatusCard = ({ status, activeTab, onEdit, onView, onDelete }: any) => {
                                 <Eye className="w-4 h-4" />
                                 <span className="font-bold">Summary</span>
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={onEdit} className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3">
-                                <Edit2 className="w-4 h-4" />
-                                <span className="font-bold">Edit</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={onDelete} className="rounded-xl p-3 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-3">
-                                <Trash2 className="w-4 h-4" />
-                                <span className="font-bold">Delete</span>
-                            </DropdownMenuItem>
+                            {isOwner && (
+                                <>
+                                    <DropdownMenuItem onClick={onEdit} className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3">
+                                        <Edit2 className="w-4 h-4" />
+                                        <span className="font-bold">Edit</span>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={onDelete} className="rounded-xl p-3 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-3">
+                                        <Trash2 className="w-4 h-4" />
+                                        <span className="font-bold">Delete</span>
+                                    </DropdownMenuItem>
+                                </>
+                            )}
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </div>
