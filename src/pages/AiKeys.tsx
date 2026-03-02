@@ -171,31 +171,36 @@ const AiKeys = () => {
     );
 
     return (
-        <div className="space-y-8 p-4 md:p-8 animate-in fade-in slide-in-from-bottom-5 duration-700">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div>
-                    <h1 className="text-4xl font-black tracking-tighter text-brand-navy">AI Keys</h1>
-                    <p className="text-muted-foreground mt-2 text-lg">Manage your AI API keys and model limits.</p>
-                </div>
-                <div className="flex flex-col sm:flex-row gap-3 items-center">
-                    <div className="relative group sm:w-80">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground transition-colors group-focus-within:text-brand-navy" />
-                        <Input
-                            placeholder="Search keys..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-11 h-12 bg-white/50 border-none shadow-sm rounded-2xl focus-visible:ring-1 focus-visible:ring-brand-navy/20 transition-all font-medium"
-                        />
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-5 duration-700">
+            <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
+                <div className="relative p-8">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div>
+                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">AI Keys</h1>
+                            <p className="text-gray-500 font-light">Manage your AI API keys and model limits.</p>
+                        </div>
+                        <div className="flex flex-col sm:flex-row gap-3 items-center">
+                            <div className="relative group sm:w-80">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
+                                <Input
+                                    placeholder="Search keys..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="pl-11 h-12 rounded-2xl border-gray-100 bg-white"
+                                />
+                            </div>
+                            <Button
+                                onClick={() => {
+                                    setEditingItem(null);
+                                    setIsModalOpen(true);
+                                }}
+                                className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group flex items-center gap-2 w-full sm:w-auto"
+                            >
+                                <Plus className="w-5 h-5 mr-3 group-hover:rotate-90 transition-transform duration-500" /> New Key
+                            </Button>
+                        </div>
                     </div>
-                    <Button
-                        onClick={() => {
-                            setEditingItem(null);
-                            setIsModalOpen(true);
-                        }}
-                        className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-12 px-6 font-bold shadow-lg shadow-brand-navy/10 transition-all active:scale-95 flex items-center gap-2 w-full sm:w-auto"
-                    >
-                        <Plus className="w-5 h-5 mr-1" /> New Key
-                    </Button>
                 </div>
             </div>
 

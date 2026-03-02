@@ -16,7 +16,6 @@ import {
     ChevronRight,
     Filter,
     ArrowDownWideNarrow,
-    History,
     Receipt
 } from 'lucide-react';
 import {
@@ -245,70 +244,67 @@ const ExpensesDetails = () => {
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
             {/* Header Section */}
-            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
-                <div className="space-y-4">
-                    <div className="space-y-2">
-                        <h1 className="text-4xl font-black tracking-tight text-brand-navy uppercase flex items-center gap-3">
-                            <History className="w-10 h-10 text-brand-navy" />
-                            Expense Tracker
-                        </h1>
-                        <p className="text-brand-navy/60 text-lg font-medium">Keep track of every cent your business spends.</p>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                        <div className="bg-brand-navy p-6 rounded-[32px] shadow-2xl shadow-brand-navy/20 group hover:scale-[1.02] transition-transform duration-500">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-brand-white/40 mb-1">Total Period Budget</p>
-                            <div className="flex items-baseline gap-1">
-                                <span className="text-3xl font-black text-brand-white">{totalAmount.toLocaleString()}</span>
-                                <span className="text-sm font-bold text-brand-white/60">DH</span>
-                            </div>
+            <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
+                <div className="relative p-8">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div>
+                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Expense Tracker</h1>
+                            <p className="text-gray-500 font-light">Keep track of every cent your business spends.</p>
                         </div>
-                        <div className="bg-brand-blue p-6 rounded-[32px] shadow-2xl shadow-brand-blue/20 group hover:scale-[1.02] transition-transform duration-500">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-brand-white/40 mb-1">Total Transactions</p>
-                            <div className="flex items-baseline gap-1">
-                                <span className="text-3xl font-black text-brand-white">{filteredExpenses?.length || 0}</span>
-                                <span className="text-sm font-bold text-brand-white/60">Items</span>
+                        <div className="flex items-center gap-4">
+                            <div className="bg-white/50 backdrop-blur-sm border border-white p-2 rounded-2xl flex items-center gap-4 px-6 shadow-sm">
+                                <div>
+                                    <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400">Total Budget</p>
+                                    <p className="text-xl font-light text-primary">{totalAmount.toLocaleString()} DH</p>
+                                </div>
+                                <div className="w-px h-8 bg-gray-100" />
+                                <div>
+                                    <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400">Transactions</p>
+                                    <p className="text-xl font-light text-amber-600">{filteredExpenses?.length || 0}</p>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <div className="flex flex-col md:flex-row gap-3 items-center w-full lg:w-auto">
-                    <div className="relative group flex-1 sm:w-80">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-navy/40 transition-colors group-focus-within:text-brand-navy" />
-                        <Input
-                            placeholder="Find expense..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-11 h-12 bg-white/50 border-none shadow-sm rounded-2xl focus-visible:ring-1 focus-visible:ring-brand-navy/20 transition-all font-bold text-brand-navy"
-                        />
-                    </div>
-
-                    <Select value={selectedType} onValueChange={setSelectedType}>
-                        <SelectTrigger className="w-full sm:w-[200px] h-12 bg-white/50 border-none shadow-sm rounded-2xl font-bold text-brand-navy focus:ring-1 focus:ring-brand-navy/20">
-                            <div className="flex items-center gap-2">
-                                <Filter className="w-4 h-4 text-brand-navy/40" />
-                                <SelectValue placeholder="All Categories" />
-                            </div>
-                        </SelectTrigger>
-                        <SelectContent className="rounded-2xl border-none shadow-2xl p-2 bg-brand-white">
-                            <SelectItem value="all" className="rounded-xl p-3 font-bold uppercase text-[10px] tracking-widest text-brand-navy focus:bg-brand-navy focus:text-brand-white">All Categories</SelectItem>
-                            {expenseTypes?.map((type: any) => (
-                                <SelectItem key={type.id} value={type.id} className="rounded-xl p-3 font-bold uppercase text-[10px] tracking-widest text-brand-navy focus:bg-brand-navy focus:text-brand-white">
-                                    {type.name}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-
-                    <Button
-                        onClick={() => openUpsert()}
-                        className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-12 px-6 font-bold shadow-lg shadow-brand-navy/10 transition-all active:scale-95 flex items-center gap-2 w-full sm:w-auto"
-                    >
-                        <Plus className="w-5 h-5" />
-                        Add Expense
-                    </Button>
+            {/* Filter Bar */}
+            <div className="flex flex-wrap items-center gap-3">
+                <div className="relative group flex-1 min-w-[300px]">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
+                    <Input
+                        placeholder="Find expense..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-11 h-12 rounded-2xl border-gray-100 bg-white"
+                    />
                 </div>
+
+                <Select value={selectedType} onValueChange={setSelectedType}>
+                    <SelectTrigger className="w-full sm:w-[200px] h-12 border-gray-100 bg-white rounded-2xl font-medium text-gray-700 focus:ring-1 focus:ring-primary/20">
+                        <div className="flex items-center gap-2">
+                            <Filter className="w-4 h-4 text-gray-400" />
+                            <SelectValue placeholder="All Categories" />
+                        </div>
+                    </SelectTrigger>
+                    <SelectContent className="rounded-2xl border-gray-100 shadow-xl p-2">
+                        <SelectItem value="all" className="rounded-xl p-3 font-medium text-gray-700">All Categories</SelectItem>
+                        {expenseTypes?.map((type: any) => (
+                            <SelectItem key={type.id} value={type.id} className="rounded-xl p-3 font-medium text-gray-700">
+                                {type.name}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+
+                <Button
+                    onClick={() => openUpsert()}
+                    className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group flex items-center gap-2 w-full sm:w-auto"
+                >
+                    <Plus className="w-5 h-5" />
+                    Add Expense
+                </Button>
             </div>
 
             {/* List display */}

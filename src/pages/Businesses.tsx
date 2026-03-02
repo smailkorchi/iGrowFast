@@ -164,39 +164,38 @@ const Businesses = () => {
     };
 
     return (
-        <div className="min-h-screen bg-brand-white p-4 md:p-8 space-y-8 animate-in fade-in duration-500">
+        <div className="space-y-8 animate-in fade-in duration-500">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div className="space-y-2">
-                    <div className="flex items-center gap-3">
-                        <div className="p-3 bg-brand-navy rounded-2xl shadow-xl shadow-brand-navy/20">
-                            <Building2 className="w-6 h-6 text-brand-white" />
+            <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
+                <div className="relative p-8">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div>
+                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Business Units</h1>
+                            <p className="text-gray-500 font-light">Manage corporate identities and regional branches.</p>
                         </div>
-                        <h1 className="text-4xl font-black tracking-tight text-brand-navy">Business Units</h1>
+                        <div className="flex flex-col sm:flex-row gap-3 items-center">
+                            <div className="relative group sm:w-80">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
+                                <Input
+                                    placeholder="Search businesses..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="pl-11 h-12 rounded-2xl border-gray-100 bg-white"
+                                />
+                            </div>
+                            <Button
+                                onClick={() => {
+                                    setSelectedBusiness(null);
+                                    setIsAddEditModalOpen(true);
+                                }}
+                                className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group flex items-center gap-2 w-full sm:w-auto"
+                            >
+                                <Plus className="w-5 h-5" />
+                                New Business
+                            </Button>
+                        </div>
                     </div>
-                    <p className="text-muted-foreground text-lg font-medium">Manage corporate identities and regional branches.</p>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-3 items-center">
-                    <div className="relative group sm:w-80">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground transition-colors group-focus-within:text-brand-navy" />
-                        <Input
-                            placeholder="Search businesses..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-11 h-12 bg-white/50 border-none shadow-sm rounded-2xl focus-visible:ring-1 focus-visible:ring-brand-navy/20 transition-all font-medium"
-                        />
-                    </div>
-                    <Button
-                        onClick={() => {
-                            setSelectedBusiness(null);
-                            setIsAddEditModalOpen(true);
-                        }}
-                        className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-12 px-6 font-bold shadow-lg shadow-brand-navy/10 transition-all active:scale-95 flex items-center gap-2 w-full sm:w-auto"
-                    >
-                        <Plus className="w-5 h-5" />
-                        New Business
-                    </Button>
                 </div>
             </div>
 

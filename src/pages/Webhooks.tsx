@@ -209,21 +209,26 @@ const Webhooks = () => {
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-5 duration-700">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div>
-                    <h1 className="text-4xl font-black tracking-tighter text-brand-navy">Webhook Gateway</h1>
-                    <p className="text-muted-foreground mt-2 text-lg">Manage real-time data ingestion from your delivery partners.</p>
-                </div>
-                <div className="flex items-center gap-3">
-                    <Button
-                        onClick={() => {
-                            setEditingItem(null);
-                            setIsHookModalOpen(true);
-                        }}
-                        className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-14 px-8 text-base font-bold shadow-xl transition-all hover:scale-[1.02]"
-                    >
-                        <Plus className="w-5 h-5 mr-3" /> New Gateway
-                    </Button>
+            <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
+                <div className="relative p-8">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div>
+                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Webhook Gateway</h1>
+                            <p className="text-gray-500 font-light">Manage real-time data ingestion from your delivery partners.</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <Button
+                                onClick={() => {
+                                    setEditingItem(null);
+                                    setIsHookModalOpen(true);
+                                }}
+                                className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group"
+                            >
+                                <Plus className="w-5 h-5 mr-3 group-hover:rotate-90 transition-transform duration-500" /> New Gateway
+                            </Button>
+                        </div>
+                    </div>
                 </div>
             </div>
 

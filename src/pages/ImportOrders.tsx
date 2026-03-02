@@ -533,19 +533,26 @@ const ImportOrders = () => {
     return (
         <div className="space-y-8 animate-in fade-in duration-500 pb-20">
             {/* Header Section */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div>
-                    <h1 className="text-4xl font-bold tracking-tight text-brand-navy">Import Bulk Orders</h1>
-                    <p className="text-muted-foreground mt-2 text-lg">Upload your Excel files to import multiple orders instantly.</p>
+            <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
+                <div className="relative p-8">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div>
+                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Import Bulk Orders</h1>
+                            <p className="text-gray-500 font-light">Upload your Excel files to import multiple orders instantly.</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <Button
+                                variant="outline"
+                                onClick={handleDownloadModel}
+                                className="h-12 px-6 rounded-2xl border-gray-200 hover:bg-gray-50 text-gray-700 font-medium gap-2 transition-all"
+                            >
+                                <Download className="w-5 h-5" />
+                                Download Excel Model
+                            </Button>
+                        </div>
+                    </div>
                 </div>
-                <Button
-                    variant="outline"
-                    onClick={handleDownloadModel}
-                    className="h-12 px-6 rounded-2xl border-brand-navy/20 hover:bg-brand-navy/5 text-brand-navy font-semibold gap-2 transition-all hover:scale-[1.02]"
-                >
-                    <Download className="w-5 h-5" />
-                    Download Excel Model
-                </Button>
             </div>
 
             {/* Upload Section */}

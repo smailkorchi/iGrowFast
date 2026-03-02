@@ -1,5 +1,4 @@
 import { useState, useRef } from 'react';
-import { motion } from 'framer-motion';
 import {
     BarChart3, DollarSign, ShoppingBag, Megaphone, Truck,
     PackageOpen, Radio, Users, UserCheck, Activity,
@@ -62,26 +61,21 @@ const Analytics = () => {
     return (
         <div className="min-h-screen">
             {/* Header */}
-            <div className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-brand-navy/5">
-                <div className="px-4 sm:px-6 lg:px-8 py-4">
-                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
+                <div className="relative p-8">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                         <div>
-                            <motion.h1
-                                initial={{ opacity: 0, x: -20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                className="text-2xl font-black text-brand-navy tracking-tight"
-                            >
-                                Analytics War Room
-                            </motion.h1>
-                            <p className="text-sm text-gray-400 mt-0.5">
-                                Complete business intelligence across all operations
-                            </p>
+                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Analytics War Room</h1>
+                            <p className="text-gray-500 font-light">Complete business intelligence across all operations</p>
                         </div>
-                        <AnalyticsDateFilter dateFilter={dateFilter} onDateFilterChange={setDateFilter} />
+                        <div className="flex items-center gap-3">
+                            <AnalyticsDateFilter dateFilter={dateFilter} onDateFilterChange={setDateFilter} />
+                        </div>
                     </div>
 
                     {/* Section Quick Nav */}
-                    <div className="mt-3 -mx-1 overflow-x-auto scrollbar-hide" ref={scrollContainerRef}>
+                    <div className="mt-6 -mx-1 overflow-x-auto scrollbar-hide" ref={scrollContainerRef}>
                         <div className="flex items-center gap-1.5 px-1 pb-1">
                             {SECTIONS.map((section) => (
                                 <Button
@@ -89,7 +83,7 @@ const Analytics = () => {
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => scrollToSection(section.id)}
-                                    className="rounded-xl text-xs font-semibold h-8 px-3 gap-1.5 bg-brand-navy/[0.03] text-brand-navy/60 hover:bg-brand-navy/[0.08] hover:text-brand-navy whitespace-nowrap shrink-0"
+                                    className="rounded-xl text-xs font-semibold h-8 px-3 gap-1.5 bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700 whitespace-nowrap shrink-0"
                                 >
                                     <section.icon className="w-3.5 h-3.5" />
                                     {section.label}

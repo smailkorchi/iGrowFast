@@ -239,18 +239,25 @@ const Users = () => {
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-4xl font-bold tracking-tight text-brand-navy">Team Members</h1>
-                    <p className="text-muted-foreground mt-2 text-lg">Manage your team roles, permissions, and account access.</p>
+            <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
+                <div className="relative p-8">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div>
+                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Team Members</h1>
+                            <p className="text-gray-500 font-light">Manage your team roles, permissions, and account access.</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <Button
+                                onClick={() => setIsAddModalOpen(true)}
+                                className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group"
+                            >
+                                <Plus className="w-5 h-5 mr-3 group-hover:rotate-90 transition-transform duration-500" />
+                                Add New User
+                            </Button>
+                        </div>
+                    </div>
                 </div>
-                <Button
-                    onClick={() => setIsAddModalOpen(true)}
-                    className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-12 px-6 text-base font-semibold shadow-lg shadow-brand-navy/20 transition-all hover:scale-[1.02]"
-                >
-                    <Plus className="w-5 h-5 mr-2" />
-                    Add New User
-                </Button>
             </div>
 
             <Card className="border-none shadow-sm bg-white/50 backdrop-blur-sm rounded-[24px]">

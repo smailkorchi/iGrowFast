@@ -1,6 +1,4 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { LayoutDashboard } from 'lucide-react';
 import { AnalyticsDateFilter, DateFilter } from '@/components/analytics/AnalyticsDateFilter';
 import { DashboardKPICards } from '@/components/dashboard/DashboardKPICards';
 import { SalesComparatifChart } from '@/components/dashboard/SalesComparatifChart';
@@ -31,27 +29,17 @@ const Dashboard = () => {
     return (
         <div className="min-h-screen">
             {/* Header */}
-            <div className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-brand-navy/5">
-                <div className="py-4">
-                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                        <motion.div
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            className="flex items-center gap-3"
-                        >
-                            <div className="w-11 h-11 rounded-2xl bg-brand-navy flex items-center justify-center">
-                                <LayoutDashboard className="w-5.5 h-5.5 text-white" />
-                            </div>
-                            <div>
-                                <h1 className="text-xl font-black text-brand-navy tracking-tight">
-                                    Dashboard
-                                </h1>
-                                <p className="text-xs text-gray-400">
-                                    Command center overview
-                                </p>
-                            </div>
-                        </motion.div>
-                        <AnalyticsDateFilter dateFilter={dateFilter} onDateFilterChange={setDateFilter} />
+            <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
+                <div className="relative p-8">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div>
+                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Dashboard</h1>
+                            <p className="text-gray-500 font-light">Command center overview</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <AnalyticsDateFilter dateFilter={dateFilter} onDateFilterChange={setDateFilter} />
+                        </div>
                     </div>
                 </div>
             </div>

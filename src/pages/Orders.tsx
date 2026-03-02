@@ -1405,42 +1405,39 @@ const Orders = () => {
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
             {/* Header Section */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div className="space-y-2">
-                    <div className="flex items-center gap-3">
-                        <div className="p-3 bg-brand-navy rounded-2xl shadow-lg shadow-brand-navy/20">
-                            <ShoppingCart className="w-6 h-6 text-brand-white" />
+            <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
+                <div className="relative p-8">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div>
+                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Order Pipeline</h1>
+                            <p className="text-gray-500 font-light">Streamline your sales flow and delivery tracking.</p>
                         </div>
-                        <h1 className="text-4xl font-black tracking-tight text-brand-navy">Order Pipeline</h1>
-                    </div>
-                    <p className="text-muted-foreground text-lg font-medium">Streamline your sales flow and delivery tracking.</p>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-3 items-center">
-                    <div className="relative group sm:w-80">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground transition-colors group-focus-within:text-brand-navy" />
-                        <Input
-                            placeholder="Search client, phone, or tracking..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-11 h-12 bg-white/50 border-none shadow-sm rounded-2xl focus-visible:ring-1 focus-visible:ring-brand-navy/20 transition-all font-medium"
-                        />
-                    </div>
-                    {syncNeededCount > 0 && (
-                        <Button
-                            onClick={() => syncImportedMutation.mutate()}
-                            disabled={syncImportedMutation.isPending}
-                            variant="outline"
-                            className="rounded-2xl h-12 px-5 font-bold border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 shadow-sm transition-all active:scale-95 flex items-center gap-2 w-full sm:w-auto"
-                        >
-                            {syncImportedMutation.isPending
-                                ? <Loader2 className="w-4 h-4 animate-spin" />
-                                : <RefreshCcw className="w-4 h-4" />
-                            }
-                            Sync Imported
-                            <Badge className="bg-amber-500 text-white rounded-full h-6 min-w-6 px-1.5 text-xs font-black">{syncNeededCount}</Badge>
-                        </Button>
-                    )}
+                        <div className="flex flex-col sm:flex-row gap-3 items-center">
+                            <div className="relative group sm:w-80">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
+                                <Input
+                                    placeholder="Search client, phone, or tracking..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="pl-11 h-12 rounded-2xl border-gray-100 bg-white"
+                                />
+                            </div>
+                            {syncNeededCount > 0 && (
+                                <Button
+                                    onClick={() => syncImportedMutation.mutate()}
+                                    disabled={syncImportedMutation.isPending}
+                                    variant="outline"
+                                    className="rounded-2xl h-12 px-5 font-bold border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 shadow-sm transition-all active:scale-95 flex items-center gap-2 w-full sm:w-auto"
+                                >
+                                    {syncImportedMutation.isPending
+                                        ? <Loader2 className="w-4 h-4 animate-spin" />
+                                        : <RefreshCcw className="w-4 h-4" />
+                                    }
+                                    Sync Imported
+                                    <Badge className="bg-amber-500 text-white rounded-full h-6 min-w-6 px-1.5 text-xs font-black">{syncNeededCount}</Badge>
+                                </Button>
+                            )}
                     <Button
                         onClick={() => {
                             form.reset({
@@ -1463,11 +1460,13 @@ const Orders = () => {
                             });
                             setIsAddModalOpen(true);
                         }}
-                        className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-12 px-6 font-bold shadow-lg shadow-brand-navy/10 transition-all active:scale-95 flex items-center gap-2 w-full sm:w-auto"
+                        className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group flex items-center gap-2 w-full sm:w-auto"
                     >
                         <PlusCircle className="w-5 h-5" />
                         New Order
                     </Button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
