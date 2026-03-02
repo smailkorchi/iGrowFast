@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import {
@@ -12,12 +12,7 @@ import {
     LayoutGrid,
     List,
     AlertTriangle,
-    CheckCircle2,
     Upload,
-    X,
-    User,
-    Shield,
-    Image as ImageIcon
 } from 'lucide-react';
 import {
     Card,
@@ -28,7 +23,6 @@ import { Input } from '@/components/ui/input';
 import {
     Dialog,
     DialogContent,
-    DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
@@ -53,12 +47,39 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { cn } from '@/lib/utils';
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useDropzone } from 'react-dropzone';
+import { Switch } from '@/components/ui/switch';
 
 import { AddEditBusinessModal, BusinessFormValues } from '@/components/businesses/AddEditBusinessModal';
+
+const adminUserSchema = z.object({
+    name: z.string().min(2, 'Name is required'),
+    username: z.string().min(3, 'Username is required'),
+    email: z.string().email('Invalid email'),
+    password: z.string().min(6, 'Min 6 characters'),
+    active: z.boolean().default(true),
+    avatar_url: z.string().optional().nullable(),
+});
+
+const LICENSE_DURATIONS: Record<string, number> = {
+    monthly: 30,
+    yearly: 365,
+};
+
+const STATUS_DOT: Record<string, string> = {
+    active: 'bg-emerald-500',
+    suspended: 'bg-amber-500',
+    deactivated: 'bg-red-500',
+};
+
+function computeLicenseEnd(type: string, from?: Date): string | null {
+    if (type === 'lifetime') return null;
+    const start = from || new Date();
+    const days = LICENSE_DURATIONS[type] || 30;
+    return new Date(start.getTime() + days * 86400000).toISOString();
+}
 
 const Businesses = () => {
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -66,8 +87,9 @@ const Businesses = () => {
     const [isAddEditModalOpen, setIsAddEditModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [selectedBusiness, setSelectedBusiness] = useState<any>(null);
+    const [isCreateAdminOpen, setIsCreateAdminOpen] = useState(false);
+    const [newBusinessId, setNewBusinessId] = useState<string | null>(null);
 
-    // Delete confirmation states
     const [deleteStep, setDeleteStep] = useState(1);
     const [confirmName, setConfirmName] = useState("");
     const [confirmDeleteText, setConfirmDeleteText] = useState("");
@@ -75,7 +97,6 @@ const Businesses = () => {
     const { toast } = useToast();
     const queryClient = useQueryClient();
 
-    // --- Queries ---
     const { data: businesses, isLoading } = useQuery({
         queryKey: ['businesses'],
         queryFn: async () => {
@@ -100,36 +121,129 @@ const Businesses = () => {
         );
     }, [businesses, searchQuery]);
 
-    // --- Mutations ---
     const upsertMutation = useMutation({
         mutationFn: async (payload: BusinessFormValues & { id?: string }) => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error("Not authenticated");
 
-            const { id, ...values } = payload;
-            const dataToSubmit = {
-                ...values,
+            const { id, status, ...values } = payload;
+            const now = new Date();
+
+            const dataToSubmit: any = {
+                name: values.name,
+                active: values.active,
+                logo: values.logo,
+                license_type: values.license_type,
                 creator_id: user.id,
-                updated_at: new Date().toISOString()
+                updated_at: now.toISOString(),
             };
 
             if (id) {
                 const { error } = await supabase.from('businesses').update(dataToSubmit).eq('id', id);
                 if (error) throw error;
+                return { isNew: false };
             } else {
-                const { error } = await supabase.from('businesses').insert([dataToSubmit]);
+                dataToSubmit.license_start = now.toISOString();
+                dataToSubmit.license_end = computeLicenseEnd(values.license_type, now);
+                dataToSubmit.status = 'active';
+                const { data, error } = await supabase.from('businesses').insert([dataToSubmit]).select('id').single();
                 if (error) throw error;
+                return { isNew: true, businessId: data.id };
             }
         },
-        onSuccess: () => {
+        onSuccess: (result) => {
             queryClient.invalidateQueries({ queryKey: ['businesses'] });
             setIsAddEditModalOpen(false);
             setSelectedBusiness(null);
-            toast({ title: "Success", description: "Business information updated." });
+
+            if (result?.isNew && result.businessId) {
+                setNewBusinessId(result.businessId);
+                setIsCreateAdminOpen(true);
+                toast({ title: "Business created", description: "Now assign a Super Admin to this business." });
+            } else {
+                toast({ title: "Success", description: "Business information updated." });
+            }
         },
         onError: (err: any) => {
             toast({ title: "Error", description: err.message, variant: "destructive" });
         }
+    });
+
+    const statusChangeMutation = useMutation({
+        mutationFn: async ({ businessId, action }: { businessId: string; action: 'extend' | 'suspend' | 'deactivate' | 'reactivate' }) => {
+            const target = businesses?.find(b => b.id === businessId);
+            if (!target) throw new Error("Business not found");
+
+            const updates: any = { updated_at: new Date().toISOString() };
+
+            switch (action) {
+                case 'extend': {
+                    const currentEnd = target.license_end ? new Date(target.license_end) : new Date();
+                    const base = currentEnd > new Date() ? currentEnd : new Date();
+                    updates.license_end = computeLicenseEnd(target.license_type, base);
+                    updates.status = 'active';
+                    updates.active = true;
+                    break;
+                }
+                case 'suspend':
+                    updates.status = 'suspended';
+                    updates.active = false;
+                    break;
+                case 'deactivate':
+                    updates.status = 'deactivated';
+                    updates.active = false;
+                    break;
+                case 'reactivate': {
+                    const now = new Date();
+                    updates.status = 'active';
+                    updates.active = true;
+                    updates.license_start = now.toISOString();
+                    updates.license_end = computeLicenseEnd(target.license_type, now);
+                    break;
+                }
+            }
+
+            const { error } = await supabase.from('businesses').update(updates).eq('id', businessId);
+            if (error) throw error;
+        },
+        onSuccess: (_, { action }) => {
+            queryClient.invalidateQueries({ queryKey: ['businesses'] });
+            setIsAddEditModalOpen(false);
+            setSelectedBusiness(null);
+            const labels: Record<string, string> = {
+                extend: 'License extended',
+                suspend: 'Business suspended',
+                deactivate: 'Business deactivated',
+                reactivate: 'Business reactivated',
+            };
+            toast({ title: labels[action], description: "Status updated successfully." });
+        },
+        onError: (err: any) => {
+            toast({ title: "Error", description: err.message, variant: "destructive" });
+        },
+    });
+
+    const createAdminMutation = useMutation({
+        mutationFn: async (values: z.infer<typeof adminUserSchema>) => {
+            const { data, error } = await supabase.functions.invoke('manage-users', {
+                body: {
+                    action: 'create',
+                    userData: { ...values, role: 'super admin', 'DigiCom Business': newBusinessId },
+                },
+            });
+            if (error) throw error;
+            if (data?.error) throw new Error(data.error);
+            return data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['businesses'] });
+            setIsCreateAdminOpen(false);
+            setNewBusinessId(null);
+            toast({ title: "Super Admin created", description: "The admin account has been provisioned and linked to the business." });
+        },
+        onError: (err: any) => {
+            toast({ title: "Error", description: err.message, variant: "destructive" });
+        },
     });
 
     const deleteMutation = useMutation({
@@ -163,8 +277,12 @@ const Businesses = () => {
         setIsDeleteModalOpen(true);
     };
 
+    const handleStatusChange = (businessId: string, action: 'extend' | 'suspend' | 'deactivate' | 'reactivate') => {
+        statusChangeMutation.mutate({ businessId, action });
+    };
+
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
+        <div className="space-y-6">
             {/* Header */}
             <div className="relative">
                 <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
@@ -172,7 +290,7 @@ const Businesses = () => {
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                         <div>
                             <h1 className="text-4xl font-extralight text-gray-900 mb-2">Business Units</h1>
-                            <p className="text-gray-500 font-light">Manage corporate identities and regional branches.</p>
+                            <p className="text-gray-500 font-light">Manage business units, licenses and branches.</p>
                         </div>
                         <div className="flex flex-col sm:flex-row gap-3 items-center">
                             <div className="relative group sm:w-80">
@@ -185,10 +303,7 @@ const Businesses = () => {
                                 />
                             </div>
                             <Button
-                                onClick={() => {
-                                    setSelectedBusiness(null);
-                                    setIsAddEditModalOpen(true);
-                                }}
+                                onClick={() => { setSelectedBusiness(null); setIsAddEditModalOpen(true); }}
                                 className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group flex items-center gap-2 w-full sm:w-auto"
                             >
                                 <Plus className="w-5 h-5" />
@@ -200,48 +315,40 @@ const Businesses = () => {
             </div>
 
             {/* View Toggle */}
-            <div className="flex items-center gap-2 bg-white p-1 rounded-xl shadow-sm border border-brand-navy/5 w-fit">
-                <Button
-                    variant="ghost"
-                    size="sm"
+            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg w-fit">
+                <button
                     onClick={() => setViewMode('grid')}
                     className={cn(
-                        "h-9 px-4 rounded-lg gap-2 transition-all font-bold",
-                        viewMode === 'grid' ? "bg-brand-navy text-white shadow-lg" : "text-brand-navy/40"
+                        "h-7 px-3 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all",
+                        viewMode === 'grid' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
                     )}
                 >
-                    <LayoutGrid className="w-4 h-4" /> Grid
-                </Button>
-                <Button
-                    variant="ghost"
-                    size="sm"
+                    <LayoutGrid className="w-3.5 h-3.5" /> Grid
+                </button>
+                <button
                     onClick={() => setViewMode('list')}
                     className={cn(
-                        "h-9 px-4 rounded-lg gap-2 transition-all font-bold",
-                        viewMode === 'list' ? "bg-brand-navy text-white shadow-lg" : "text-brand-navy/40"
+                        "h-7 px-3 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all",
+                        viewMode === 'list' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
                     )}
                 >
-                    <List className="w-4 h-4" /> List
-                </Button>
+                    <List className="w-3.5 h-3.5" /> List
+                </button>
             </div>
 
             {/* Content */}
             {isLoading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {[1, 2, 3].map(i => <Skeleton key={i} className="h-64 rounded-[32px] w-full" />)}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {[1, 2, 3].map(i => <Skeleton key={i} className="h-48 rounded-xl w-full" />)}
                 </div>
             ) : filteredBusinesses.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-32 space-y-6 bg-white/40 backdrop-blur-md rounded-[40px] border border-brand-navy/[0.03]">
-                    <div className="w-24 h-24 bg-brand-navy/[0.04] rounded-[32px] flex items-center justify-center text-brand-navy/20">
-                        <Building2 className="w-12 h-12" />
-                    </div>
-                    <div className="text-center space-y-2">
-                        <h3 className="text-2xl font-black text-brand-navy uppercase tracking-tight">No Businesses</h3>
-                        <p className="text-muted-foreground max-w-xs mx-auto font-medium">Create your first business unit to start organizing your operations.</p>
-                    </div>
+                <div className="flex flex-col items-center justify-center py-20 rounded-xl border border-dashed border-slate-200 bg-slate-50/50">
+                    <Building2 className="w-10 h-10 text-slate-300 mb-3" />
+                    <p className="text-sm font-medium text-slate-500">No businesses yet</p>
+                    <p className="text-xs text-slate-400 mt-1">Create your first business to get started.</p>
                 </div>
             ) : viewMode === 'grid' ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-20">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {filteredBusinesses.map(business => (
                         <BusinessCard
                             key={business.id}
@@ -252,7 +359,7 @@ const Businesses = () => {
                     ))}
                 </div>
             ) : (
-                <div className="space-y-4 pb-20">
+                <div className="space-y-2">
                     {filteredBusinesses.map(business => (
                         <BusinessListItem
                             key={business.id}
@@ -267,10 +374,12 @@ const Businesses = () => {
             {/* Add/Edit Modal */}
             <AddEditBusinessModal
                 isOpen={isAddEditModalOpen}
-                onClose={() => setIsAddEditModalOpen(false)}
+                onClose={() => { setIsAddEditModalOpen(false); setSelectedBusiness(null); }}
                 onSubmit={(values) => upsertMutation.mutate({ ...values, id: selectedBusiness?.id })}
                 initialData={selectedBusiness}
                 loading={upsertMutation.isPending}
+                onStatusChange={handleStatusChange}
+                statusLoading={statusChangeMutation.isPending}
             />
 
             {/* Delete Dialog */}
@@ -287,129 +396,136 @@ const Businesses = () => {
                 confirmDeleteText={confirmDeleteText}
                 setConfirmDeleteText={setConfirmDeleteText}
             />
+
+            {/* Create Super Admin Modal */}
+            <CreateAdminModal
+                isOpen={isCreateAdminOpen}
+                onClose={() => { setIsCreateAdminOpen(false); setNewBusinessId(null); }}
+                onSubmit={(values) => createAdminMutation.mutate(values)}
+                loading={createAdminMutation.isPending}
+            />
         </div>
     );
 };
 
 // --- Sub-components ---
 
+const StatusDot = ({ status }: { status: string }) => (
+    <div className={cn('w-1.5 h-1.5 rounded-full shrink-0', STATUS_DOT[status] || STATUS_DOT.active)} />
+);
+
+const LicenseMeta = ({ business }: { business: any }) => {
+    const type = business.license_type || 'monthly';
+    const end = business.license_end ? new Date(business.license_end) : null;
+    const isExpired = end && end < new Date();
+    const daysLeft = end ? Math.ceil((end.getTime() - Date.now()) / 86400000) : null;
+    const status = business.status || 'active';
+
+    return (
+        <div className="flex items-center gap-2 text-xs text-slate-500">
+            <StatusDot status={status} />
+            <span className="capitalize">{status}</span>
+            <span className="text-slate-300">·</span>
+            <span className="capitalize">{type}</span>
+            {type !== 'lifetime' && daysLeft !== null && (
+                <>
+                    <span className="text-slate-300">·</span>
+                    <span className={isExpired ? 'text-red-500 font-medium' : ''}>
+                        {isExpired ? 'Expired' : `${daysLeft}d left`}
+                    </span>
+                </>
+            )}
+        </div>
+    );
+};
+
 const BusinessCard = ({ business, onEdit, onDelete }: any) => (
-    <Card className="group relative overflow-hidden border-none bg-white/60 backdrop-blur-md shadow-sm hover:shadow-[0_32px_64px_-16px_rgba(0,31,63,0.18)] hover:-translate-y-2 transition-all duration-700 rounded-[40px] border border-white/20 cursor-default">
-        {/* Animated Background Glow */}
-        <div className="absolute -right-20 -top-20 w-64 h-64 bg-brand-navy/[0.03] rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
-
-        {/* Top Accent Bar */}
-        <div className="absolute top-0 left-0 w-full h-1.5 bg-brand-navy/5 group-hover:bg-brand-navy transition-all duration-500" />
-
-        <CardContent className="p-8 space-y-7 relative z-10">
+    <Card className="group border border-slate-200/60 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow">
+        <CardContent className="p-4 space-y-3">
             <div className="flex items-start justify-between">
-                <div className="w-20 h-20 rounded-[28px] bg-white border border-brand-navy/5 flex items-center justify-center overflow-hidden shadow-sm group-hover:shadow-xl group-hover:scale-105 transition-all duration-700 shrink-0">
+                <div className="w-11 h-11 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden shrink-0">
                     {business.logo ? (
-                        <img src={business.logo} alt="" className="w-full h-full object-contain p-3" />
+                        <img src={business.logo} alt="" className="w-full h-full object-contain p-1.5" />
                     ) : (
-                        <Building2 className="w-10 h-10 text-brand-navy/10" />
+                        <Building2 className="w-5 h-5 text-slate-300" />
                     )}
                 </div>
-
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl hover:bg-brand-navy/5 text-brand-navy/20 hover:text-brand-navy transition-colors">
-                            <MoreVertical className="h-5 w-5" />
+                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100">
+                            <MoreVertical className="h-4 w-4" />
                         </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 bg-brand-white animate-in zoom-in-95">
-                        <DropdownMenuItem onClick={onEdit} className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3 font-bold uppercase text-[10px] tracking-widest leading-none transition-colors">
-                            <Edit2 className="w-4 h-4" /> Modify
+                    <DropdownMenuContent align="end" className="rounded-lg border border-slate-200 shadow-lg p-1 min-w-[140px]">
+                        <DropdownMenuItem onClick={onEdit} className="rounded-md px-2.5 py-1.5 text-xs font-medium cursor-pointer gap-2">
+                            <Edit2 className="w-3.5 h-3.5" /> Manage
                         </DropdownMenuItem>
-                        <DropdownMenuSeparator className="bg-brand-navy/5" />
-                        <DropdownMenuItem onClick={onDelete} className="rounded-xl p-3 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-3 font-bold uppercase text-[10px] tracking-widest leading-none transition-colors">
-                            <Trash2 className="w-4 h-4" /> Delete
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={onDelete} className="rounded-md px-2.5 py-1.5 text-xs font-medium cursor-pointer gap-2 text-red-600 focus:text-red-600 focus:bg-red-50">
+                            <Trash2 className="w-3.5 h-3.5" /> Delete
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
             </div>
 
-            <div className="space-y-1">
-                <h3 className="text-2xl font-black text-brand-navy tracking-tight uppercase leading-none transition-colors">
-                    {business.name}
-                </h3>
-                <div className="flex items-center gap-2">
-                    <Badge className={cn(
-                        "border-none font-bold text-[8px] uppercase tracking-[0.2em] px-2 py-0.5 rounded-md",
-                        business.active ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400"
-                    )}>
-                        {business.active ? 'Operational' : 'Offline'}
-                    </Badge>
+            <div>
+                <h3 className="text-sm font-semibold text-slate-900 leading-tight">{business.name}</h3>
+                <div className="mt-1">
+                    <LicenseMeta business={business} />
                 </div>
             </div>
 
-            <div className="pt-4 border-t border-brand-navy/5 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                    <Avatar className="h-10 w-10 border-2 border-white shadow-sm ring-1 ring-brand-navy/5">
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <Avatar className="h-6 w-6">
                         <AvatarImage src={business.creator?.avatar_url} />
-                        <AvatarFallback className="bg-brand-navy text-white text-[10px] font-black uppercase">
+                        <AvatarFallback className="bg-slate-100 text-slate-500 text-[9px] font-medium">
                             {business.creator?.name?.substring(0, 2) || '??'}
                         </AvatarFallback>
                     </Avatar>
-                    <div className="flex flex-col">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Responsible</span>
-                        <span className="text-xs font-bold text-brand-navy">{business.creator?.name || 'N/A'}</span>
-                    </div>
+                    <span className="text-xs text-slate-500">{business.creator?.name || 'N/A'}</span>
                 </div>
-                <Badge variant="outline" className="text-[8px] font-black uppercase tracking-tighter bg-brand-navy/5 border-none text-brand-navy/30">
-                    {business.creator?.role || 'Admin'}
-                </Badge>
+                <span className="text-[11px] text-slate-400 capitalize">{business.creator?.role || 'Admin'}</span>
             </div>
         </CardContent>
     </Card>
 );
 
 const BusinessListItem = ({ business, onEdit, onDelete }: any) => (
-    <div className="group bg-white/60 hover:bg-white backdrop-blur-md border border-brand-navy/[0.03] rounded-2xl p-4 flex items-center justify-between transition-all duration-300 hover:shadow-lg">
-        <div className="flex items-center gap-6">
-            <div className="w-12 h-12 rounded-xl bg-brand-navy/5 border border-brand-navy/5 flex items-center justify-center overflow-hidden shrink-0">
+    <div className="group flex items-center justify-between px-4 py-3 rounded-lg border border-slate-200/60 bg-white hover:bg-slate-50/50 transition-colors">
+        <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden shrink-0">
                 {business.logo ? (
-                    <img src={business.logo} alt="" className="w-full h-full object-contain p-1.5" />
+                    <img src={business.logo} alt="" className="w-full h-full object-contain p-1" />
                 ) : (
-                    <Building2 className="w-6 h-6 text-brand-navy/20" />
+                    <Building2 className="w-4 h-4 text-slate-300" />
                 )}
             </div>
-            <div className="space-y-0.5">
-                <h4 className="text-lg font-black text-brand-navy uppercase tracking-tight">{business.name}</h4>
-                <div className="flex items-center gap-2">
-                    <div className={cn("w-1.5 h-1.5 rounded-full", business.active ? "bg-emerald-500" : "bg-slate-300")} />
-                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                        {business.active ? 'Active' : 'Inactive'}
-                    </span>
-                </div>
+            <div className="min-w-0">
+                <h4 className="text-sm font-medium text-slate-900 truncate">{business.name}</h4>
+                <LicenseMeta business={business} />
             </div>
         </div>
 
-        <div className="flex items-center gap-12">
-            <div className="hidden md:flex items-center gap-3">
-                <Avatar className="h-8 w-8">
+        <div className="flex items-center gap-6 shrink-0">
+            <div className="hidden md:flex items-center gap-2">
+                <Avatar className="h-5 w-5">
                     <AvatarImage src={business.creator?.avatar_url} />
                     <AvatarFallback className="text-[8px]">{business.creator?.name?.substring(0, 2)}</AvatarFallback>
                 </Avatar>
-                <div className="flex flex-col">
-                    <span className="text-[9px] font-black uppercase tracking-widest text-brand-navy/40">Managed By</span>
-                    <span className="text-[11px] font-bold text-brand-navy">{business.creator?.name}</span>
-                </div>
+                <span className="text-xs text-slate-500">{business.creator?.name}</span>
             </div>
-
-            <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon" onClick={onEdit} className="h-10 w-10 rounded-xl hover:bg-brand-navy/5 text-brand-navy/40">
-                    <Edit2 className="w-4 h-4" />
+            <div className="flex items-center gap-1">
+                <Button variant="ghost" size="icon" onClick={onEdit} className="h-8 w-8 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100">
+                    <Edit2 className="w-3.5 h-3.5" />
                 </Button>
-                <Button variant="ghost" size="icon" onClick={onDelete} className="h-10 w-10 rounded-xl hover:bg-red-50 text-red-400">
-                    <Trash2 className="w-4 h-4" />
+                <Button variant="ghost" size="icon" onClick={onDelete} className="h-8 w-8 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50">
+                    <Trash2 className="w-3.5 h-3.5" />
                 </Button>
             </div>
         </div>
     </div>
 );
-
-
 
 const DeleteConfirmationDialog = ({
     isOpen,
@@ -426,98 +542,233 @@ const DeleteConfirmationDialog = ({
 }: any) => {
     return (
         <Dialog open={isOpen} onOpenChange={(v) => !v && onClose()}>
-            <DialogContent className="max-w-xl p-0 border-none bg-white rounded-[40px] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.25)] overflow-hidden animate-in zoom-in-95 duration-500">
-                {/* Clean Header */}
-                <div className="p-10 pb-4 space-y-6">
-                    <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center text-red-500 shadow-sm border border-red-100/50">
-                            <AlertTriangle className="w-7 h-7" />
+            <DialogContent className="max-w-md p-0 border border-slate-200/60 bg-white rounded-2xl shadow-xl overflow-hidden gap-0">
+                <div className="px-6 pt-6 pb-4 border-b border-slate-100">
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 bg-red-50 rounded-lg flex items-center justify-center text-red-500">
+                            <AlertTriangle className="w-4.5 h-4.5" />
                         </div>
-                        <div className="space-y-1">
-                            <DialogTitle className="text-3xl font-black uppercase tracking-tight text-brand-navy">
-                                System Wipe
+                        <div>
+                            <DialogTitle className="text-lg font-semibold text-slate-900">
+                                Delete Business
                             </DialogTitle>
-                            <DialogDescription className="text-brand-navy/30 font-bold uppercase text-[10px] tracking-[0.2em]">
-                                Irreversible Action Required
-                            </DialogDescription>
+                            <p className="text-xs text-slate-500 mt-0.5">This action is permanent and cannot be undone.</p>
                         </div>
                     </div>
-
-                    <div className="p-6 rounded-[24px] bg-slate-50/50 border border-slate-100 space-y-3">
-                        <p className="text-slate-600 font-medium text-base leading-relaxed">
-                            You are about to permanently delete <span className="font-black text-brand-navy uppercase italic">"{business?.name}"</span>.
-                            This action will wipe all associated records from the infrastructure.
-                        </p>
-                    </div>
                 </div>
 
-                <div className="px-10 pb-10 space-y-8">
-                    {/* Step Progress */}
-                    <div className="flex items-center gap-2">
-                        <div className={cn("h-1.5 flex-1 rounded-full transition-all duration-500", step >= 1 ? "bg-red-500" : "bg-slate-100")} />
-                        <div className={cn("h-1.5 flex-1 rounded-full transition-all duration-500", step >= 2 ? "bg-red-500" : "bg-slate-100")} />
+                <div className="px-6 py-5 space-y-5">
+                    <p className="text-sm text-slate-600">
+                        You are about to permanently delete <span className="font-semibold text-slate-900">"{business?.name}"</span> and all associated data.
+                    </p>
+
+                    <div className="flex items-center gap-1.5">
+                        <div className={cn("h-1 flex-1 rounded-full transition-colors", step >= 1 ? "bg-red-400" : "bg-slate-100")} />
+                        <div className={cn("h-1 flex-1 rounded-full transition-colors", step >= 2 ? "bg-red-400" : "bg-slate-100")} />
                     </div>
 
-                    <div className="space-y-6 min-h-[160px] flex flex-col justify-center">
-                        {step === 1 ? (
-                            <div className="space-y-5 animate-in slide-in-from-right-8 duration-500">
-                                <div className="space-y-3">
-                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-navy/40 pl-1">
-                                        Verify Entity Name
-                                    </label>
-                                    <Input
-                                        placeholder={`Type "${business?.name}"`}
-                                        value={confirmName}
-                                        onChange={(e) => setConfirmName(e.target.value)}
-                                        className="h-16 rounded-2xl border-none bg-slate-50 font-bold text-lg text-brand-navy shadow-inner px-6 focus-visible:ring-1 focus-visible:ring-brand-navy/10 transition-all font-medium"
-                                    />
-                                </div>
-                                <Button
-                                    onClick={() => setStep(2)}
-                                    disabled={confirmName !== business?.name}
-                                    className="w-full h-16 rounded-2xl bg-brand-navy text-white font-black text-lg shadow-xl shadow-brand-navy/10 transition-all hover:translate-y-[-2px] active:scale-95 disabled:opacity-20 flex items-center justify-center gap-2"
-                                >
-                                    Confirm Entity
-                                </Button>
+                    {step === 1 ? (
+                        <div className="space-y-3">
+                            <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                                Type the business name to confirm
+                            </label>
+                            <Input
+                                placeholder={business?.name}
+                                value={confirmName}
+                                onChange={(e) => setConfirmName(e.target.value)}
+                                className="h-10 rounded-lg border-slate-200 text-sm"
+                            />
+                            <Button
+                                onClick={() => setStep(2)}
+                                disabled={confirmName !== business?.name}
+                                className="w-full h-9 rounded-lg bg-slate-900 text-white text-sm font-medium disabled:opacity-30"
+                            >
+                                Continue
+                            </Button>
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <label className="text-[11px] font-semibold uppercase tracking-wider text-red-400">
+                                    Type "DELETE" to confirm
+                                </label>
+                                <button onClick={() => setStep(1)} className="text-xs text-slate-400 hover:text-slate-600 transition-colors">Back</button>
                             </div>
-                        ) : (
-                            <div className="space-y-5 animate-in slide-in-from-left-8 duration-500">
-                                <div className="space-y-3">
-                                    <div className="flex items-center justify-between px-1">
-                                        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-red-500/60 font-black">
-                                            Final Authorization
-                                        </label>
-                                        <button onClick={() => setStep(1)} className="text-[10px] font-black text-slate-400 uppercase hover:text-brand-navy transition-colors">Go Back</button>
-                                    </div>
-                                    <Input
-                                        placeholder='Type "DELETE"'
-                                        value={confirmDeleteText}
-                                        onChange={(e) => setConfirmDeleteText(e.target.value)}
-                                        className="h-16 rounded-2xl border-none bg-red-50/30 font-bold text-lg text-red-600 shadow-inner px-6 focus-visible:ring-1 focus-visible:ring-red-200 transition-all font-medium"
-                                    />
-                                </div>
-                                <Button
-                                    onClick={onConfirm}
-                                    disabled={confirmDeleteText !== "DELETE" || loading}
-                                    className="w-full h-16 rounded-2xl bg-red-500 hover:bg-red-600 text-white font-black text-lg shadow-2xl shadow-red-500/20 transition-all hover:translate-y-[-2px] active:scale-95 disabled:opacity-20 flex items-center justify-center gap-3"
-                                >
-                                    {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Trash2 className="w-6 h-6" />}
-                                    Execute Permanent Wipe
-                                </Button>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="flex justify-center pt-2">
-                        <button
-                            onClick={onClose}
-                            className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-brand-navy transition-colors flex items-center gap-2 group"
-                        >
-                            <X className="w-3 h-3 group-hover:rotate-90 transition-transform" />
-                            Abort Sequence
-                        </button>
-                    </div>
+                            <Input
+                                placeholder="DELETE"
+                                value={confirmDeleteText}
+                                onChange={(e) => setConfirmDeleteText(e.target.value)}
+                                className="h-10 rounded-lg border-red-200 text-sm text-red-600 focus-visible:ring-red-200"
+                            />
+                            <Button
+                                onClick={onConfirm}
+                                disabled={confirmDeleteText !== "DELETE" || loading}
+                                className="w-full h-9 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium disabled:opacity-30 gap-2"
+                            >
+                                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                                Delete Permanently
+                            </Button>
+                        </div>
+                    )}
                 </div>
+
+                <div className="px-6 py-3 border-t border-slate-100 flex justify-end">
+                    <Button variant="ghost" onClick={onClose} className="h-8 px-3 text-xs text-slate-500 hover:text-slate-700">
+                        Cancel
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+};
+
+const CreateAdminModal = ({ isOpen, onClose, onSubmit, loading }: any) => {
+    const [avatar, setAvatar] = useState<File | null>(null);
+    const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+
+    const form = useForm<z.infer<typeof adminUserSchema>>({
+        resolver: zodResolver(adminUserSchema),
+        defaultValues: { name: '', username: '', email: '', password: '', active: true, avatar_url: null },
+    });
+
+    useEffect(() => {
+        if (isOpen) {
+            form.reset({ name: '', username: '', email: '', password: '', active: true, avatar_url: null });
+            setAvatar(null);
+            setAvatarPreview(null);
+        }
+    }, [isOpen, form]);
+
+    const onDrop = useCallback((acceptedFiles: File[]) => {
+        const file = acceptedFiles[0];
+        setAvatar(file);
+        setAvatarPreview(URL.createObjectURL(file));
+    }, []);
+
+    const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop, accept: { 'image/*': [] }, multiple: false });
+
+    const handleSubmit = async (values: z.infer<typeof adminUserSchema>) => {
+        let finalValues = { ...values };
+        if (avatar) {
+            const fileExt = avatar.name.split('.').pop();
+            const filePath = `avatars/${Math.random()}.${fileExt}`;
+            const { error: uploadError } = await supabase.storage.from('avatar').upload(filePath, avatar);
+            if (!uploadError) {
+                const { data: { publicUrl } } = supabase.storage.from('avatar').getPublicUrl(filePath);
+                finalValues.avatar_url = publicUrl;
+            }
+        }
+        onSubmit(finalValues);
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={(v) => !v && onClose()}>
+            <DialogContent className="max-w-lg p-0 border border-slate-200/60 bg-white rounded-2xl shadow-xl overflow-hidden gap-0">
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col">
+                        <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-100">
+                            <DialogTitle className="text-lg font-semibold text-slate-900">
+                                Assign Super Admin
+                            </DialogTitle>
+                            <p className="text-xs text-slate-500 mt-0.5">Create the primary administrator for this business.</p>
+                        </DialogHeader>
+
+                        <div className="px-6 py-5 space-y-4">
+                            {/* Avatar */}
+                            <div className="flex items-center gap-3">
+                                <div
+                                    {...getRootProps()}
+                                    className={cn(
+                                        "relative group flex items-center justify-center border-2 border-dashed rounded-full w-14 h-14 shrink-0 cursor-pointer transition-colors overflow-hidden",
+                                        isDragActive ? "border-blue-400 bg-blue-50" : "border-slate-200 hover:border-slate-300",
+                                        avatarPreview && "border-transparent"
+                                    )}
+                                >
+                                    <input {...getInputProps()} />
+                                    {avatarPreview ? (
+                                        <>
+                                            <img src={avatarPreview} alt="" className="w-full h-full object-cover" />
+                                            <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Upload className="w-4 h-4 text-white" />
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <Upload className="w-4 h-4 text-slate-400" />
+                                    )}
+                                </div>
+                                <div>
+                                    <p className="text-sm font-medium text-slate-700">Photo</p>
+                                    <p className="text-xs text-slate-400">Click or drop</p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <FormField control={form.control} name="name" render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Full Name</FormLabel>
+                                        <FormControl>
+                                            <Input placeholder="John Doe" {...field} className="h-9 rounded-lg border-slate-200 text-sm" />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} />
+                                <FormField control={form.control} name="username" render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Username</FormLabel>
+                                        <FormControl>
+                                            <div className="relative">
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">@</span>
+                                                <Input placeholder="johndoe" {...field} className="h-9 pl-7 rounded-lg border-slate-200 text-sm" />
+                                            </div>
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} />
+                            </div>
+
+                            <FormField control={form.control} name="email" render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Email</FormLabel>
+                                    <FormControl>
+                                        <Input type="email" placeholder="admin@business.com" {...field} className="h-9 rounded-lg border-slate-200 text-sm" />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )} />
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <FormField control={form.control} name="password" render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Password</FormLabel>
+                                        <FormControl>
+                                            <Input type="password" placeholder="Min 6 chars" {...field} className="h-9 rounded-lg border-slate-200 text-sm" />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} />
+                                <FormField control={form.control} name="active" render={({ field }) => (
+                                    <FormItem className="flex flex-col justify-end">
+                                        <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Status</FormLabel>
+                                        <div className="flex items-center gap-2.5 h-9 px-3 bg-slate-50 rounded-lg border border-slate-200">
+                                            <Switch checked={field.value} onCheckedChange={field.onChange} className="data-[state=checked]:bg-emerald-500 scale-90" />
+                                            <span className="text-xs font-medium text-slate-600">{field.value ? 'Active' : 'Disabled'}</span>
+                                        </div>
+                                    </FormItem>
+                                )} />
+                            </div>
+                        </div>
+
+                        <DialogFooter className="px-6 py-4 border-t border-slate-100 gap-2 sm:gap-2">
+                            <Button type="button" variant="ghost" onClick={onClose} className="h-9 px-4 text-sm text-slate-500 hover:text-slate-700">
+                                Skip
+                            </Button>
+                            <Button type="submit" disabled={loading} className="h-9 px-5 bg-brand-navy hover:bg-brand-navy/90 text-white text-sm font-medium rounded-lg">
+                                {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                                Create Admin
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </Form>
             </DialogContent>
         </Dialog>
     );

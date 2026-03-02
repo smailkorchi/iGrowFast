@@ -69,16 +69,8 @@ const SelectBusiness = () => {
     });
 
     const handleSelect = (business: any) => {
-        localStorage.setItem('activeBusinessId', business.id);
-        toast({
-            title: "Access Granted",
-            description: `Switching to ${business.name} environment.`,
-        });
-
-        // Trigger a custom event so other components (like Sidebar) can react
-        window.dispatchEvent(new Event('businessSelected'));
-
-        navigate('/owner/businesses');
+        const url = `${window.location.origin}/?businessId=${business.id}`;
+        window.open(url, '_blank');
     };
 
     const handleLogout = async () => {

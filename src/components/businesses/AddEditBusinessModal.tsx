@@ -4,20 +4,24 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import {
     Upload,
-    X,
     ImageIcon,
     Loader2,
-    CheckCircle2,
-    Building2
+    Check,
+    Clock,
+    Calendar,
+    Infinity,
+    ShieldOff,
+    ShieldCheck,
+    CalendarPlus,
+    Power,
 } from 'lucide-react';
 import {
     Dialog,
     DialogContent,
-    DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
-} from "@/components/ui/dialog";
+} from '@/components/ui/dialog';
 import {
     Form,
     FormControl,
@@ -34,12 +38,26 @@ import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 
 export const businessSchema = z.object({
-    name: z.string().min(2, "Business name must be at least 2 characters"),
+    name: z.string().min(2, 'Business name must be at least 2 characters'),
     active: z.boolean().default(true),
     logo: z.string().optional().nullable(),
+    license_type: z.enum(['monthly', 'yearly', 'lifetime']).default('monthly'),
+    status: z.enum(['active', 'suspended', 'deactivated']).default('active'),
 });
 
 export type BusinessFormValues = z.infer<typeof businessSchema>;
+
+const LICENSE_OPTIONS = [
+    { value: 'monthly' as const, label: 'Monthly', icon: Clock, sub: '30 days' },
+    { value: 'yearly' as const, label: 'Yearly', icon: Calendar, sub: '365 days' },
+    { value: 'lifetime' as const, label: 'Lifetime', icon: Infinity, sub: 'No expiry' },
+];
+
+const STATUS_MAP: Record<string, { dot: string; label: string }> = {
+    active: { dot: 'bg-emerald-500', label: 'Active' },
+    suspended: { dot: 'bg-amber-500', label: 'Suspended' },
+    deactivated: { dot: 'bg-red-500', label: 'Deactivated' },
+};
 
 interface AddEditBusinessModalProps {
     isOpen: boolean;
@@ -47,6 +65,8 @@ interface AddEditBusinessModalProps {
     onSubmit: (values: BusinessFormValues) => void;
     initialData?: any;
     loading?: boolean;
+    onStatusChange?: (businessId: string, action: 'extend' | 'suspend' | 'deactivate' | 'reactivate') => void;
+    statusLoading?: boolean;
 }
 
 export const AddEditBusinessModal: React.FC<AddEditBusinessModalProps> = ({
@@ -54,7 +74,9 @@ export const AddEditBusinessModal: React.FC<AddEditBusinessModalProps> = ({
     onClose,
     onSubmit,
     initialData,
-    loading
+    loading,
+    onStatusChange,
+    statusLoading,
 }) => {
     const { toast } = useToast();
     const [logoPreview, setLogoPreview] = useState<string | null>(null);
@@ -62,11 +84,7 @@ export const AddEditBusinessModal: React.FC<AddEditBusinessModalProps> = ({
 
     const form = useForm<BusinessFormValues>({
         resolver: zodResolver(businessSchema),
-        defaultValues: {
-            name: '',
-            active: true,
-            logo: '',
-        }
+        defaultValues: { name: '', active: true, logo: '', license_type: 'monthly', status: 'active' },
     });
 
     React.useEffect(() => {
@@ -76,139 +94,265 @@ export const AddEditBusinessModal: React.FC<AddEditBusinessModalProps> = ({
                     name: initialData.name,
                     active: initialData.active,
                     logo: initialData.logo || '',
+                    license_type: initialData.license_type || 'monthly',
+                    status: initialData.status || 'active',
                 });
                 setLogoPreview(initialData.logo);
             } else {
-                form.reset({ name: '', active: true, logo: '' });
+                form.reset({ name: '', active: true, logo: '', license_type: 'monthly', status: 'active' });
                 setLogoPreview(null);
             }
         }
     }, [isOpen, initialData, form]);
 
-    const onDrop = useCallback(async (acceptedFiles: File[]) => {
-        const file = acceptedFiles[0];
-        if (!file) return;
-
-        setIsUploading(true);
-        try {
-            const fileExt = file.name.split('.').pop();
-            const fileName = `${Math.random()}.${fileExt}`;
-            const filePath = `logos/${fileName}`;
-
-            const { error: uploadError } = await supabase.storage
-                .from('business-logos')
-                .upload(filePath, file);
-
-            if (uploadError) throw uploadError;
-
-            const { data: { publicUrl } } = supabase.storage
-                .from('business-logos')
-                .getPublicUrl(filePath);
-
-            setLogoPreview(publicUrl);
-            form.setValue('logo', publicUrl);
-            toast({ title: "Logo Uploaded", description: "Business logo has been saved." });
-        } catch (error: any) {
-            toast({ title: "Upload Failed", description: error.message, variant: "destructive" });
-        } finally {
-            setIsUploading(false);
-        }
-    }, [form, toast]);
+    const onDrop = useCallback(
+        async (acceptedFiles: File[]) => {
+            const file = acceptedFiles[0];
+            if (!file) return;
+            setIsUploading(true);
+            try {
+                const fileExt = file.name.split('.').pop();
+                const filePath = `logos/${Math.random()}.${fileExt}`;
+                const { error: uploadError } = await supabase.storage.from('business-logos').upload(filePath, file);
+                if (uploadError) throw uploadError;
+                const { data: { publicUrl } } = supabase.storage.from('business-logos').getPublicUrl(filePath);
+                setLogoPreview(publicUrl);
+                form.setValue('logo', publicUrl);
+            } catch (error: any) {
+                toast({ title: 'Upload failed', description: error.message, variant: 'destructive' });
+            } finally {
+                setIsUploading(false);
+            }
+        },
+        [form, toast]
+    );
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
         onDrop,
         accept: { 'image/*': [] },
-        multiple: false
+        multiple: false,
     });
+
+    const isEditing = !!initialData;
+    const currentStatus = initialData?.status || 'active';
+    const statusInfo = STATUS_MAP[currentStatus] || STATUS_MAP.active;
+    const licenseEnd = initialData?.license_end ? new Date(initialData.license_end) : null;
+    const isExpired = licenseEnd && licenseEnd < new Date();
+    const daysLeft = licenseEnd ? Math.ceil((licenseEnd.getTime() - Date.now()) / 86400000) : null;
 
     return (
         <Dialog open={isOpen} onOpenChange={(v) => !v && onClose()}>
-            <DialogContent className="max-w-xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+            <DialogContent className="max-w-lg p-0 border border-slate-200/60 bg-white rounded-2xl shadow-xl overflow-hidden max-h-[90vh] overflow-y-auto gap-0">
+                <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-100">
+                    <DialogTitle className="text-lg font-semibold text-slate-900">
+                        {isEditing ? 'Manage Business' : 'New Business'}
+                    </DialogTitle>
+                </DialogHeader>
+
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col">
-                        <DialogHeader className="p-10 pb-6 bg-brand-navy text-white">
-                            <DialogTitle className="text-3xl font-black uppercase tracking-tight">
-                                {initialData ? 'Update Business' : 'New Identity'}
-                            </DialogTitle>
-                            <DialogDescription className="text-white/40 font-bold uppercase text-xs tracking-[0.2em] pt-1">
-                                Configure System Entity & Assets
-                            </DialogDescription>
-                        </DialogHeader>
+                        <div className="px-6 py-5 space-y-5">
 
-                        <div className="p-10 space-y-8">
-                            <div className="space-y-4">
-                                <FormLabel className="text-xs font-black uppercase tracking-widest text-brand-navy/40">Visual Identity (Logo)</FormLabel>
-                                <div {...getRootProps()} className={cn(
-                                    "relative h-48 rounded-[32px] border-4 border-dashed flex flex-col items-center justify-center transition-all duration-500 overflow-hidden cursor-pointer",
-                                    logoPreview ? "border-transparent" : "border-brand-navy/5 bg-brand-navy/[0.02] hover:border-brand-navy/20",
-                                    isDragActive && "border-blue-500 bg-blue-50/50"
-                                )}>
+                            {/* Status & License Overview (edit only) */}
+                            {isEditing && (
+                                <div className="space-y-3">
+                                    <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                                        Status & License
+                                    </label>
+                                    <div className="rounded-xl border border-slate-100 bg-slate-50/50 divide-y divide-slate-100">
+                                        <div className="flex items-center justify-between px-4 py-3">
+                                            <div className="flex items-center gap-2.5">
+                                                <div className={cn('w-2 h-2 rounded-full', statusInfo.dot)} />
+                                                <span className="text-sm font-medium text-slate-700">{statusInfo.label}</span>
+                                            </div>
+                                            <span className="text-xs font-medium text-slate-400 capitalize">
+                                                {initialData?.license_type || 'monthly'} plan
+                                            </span>
+                                        </div>
+                                        {initialData?.license_type !== 'lifetime' && licenseEnd && (
+                                            <div className="flex items-center justify-between px-4 py-2.5">
+                                                <span className="text-xs text-slate-400">
+                                                    {isExpired ? 'Expired on' : 'Expires'}
+                                                </span>
+                                                <span className={cn('text-xs font-medium', isExpired ? 'text-red-500' : 'text-slate-600')}>
+                                                    {licenseEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                    {daysLeft !== null && !isExpired && (
+                                                        <span className="text-slate-400 ml-1">({daysLeft}d)</span>
+                                                    )}
+                                                </span>
+                                            </div>
+                                        )}
+                                        {initialData?.license_type === 'lifetime' && (
+                                            <div className="flex items-center justify-between px-4 py-2.5">
+                                                <span className="text-xs text-slate-400">Expiry</span>
+                                                <span className="text-xs font-medium text-emerald-600">Never</span>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {onStatusChange && (
+                                        <div className="flex flex-wrap gap-2">
+                                            {currentStatus === 'active' && initialData?.license_type !== 'lifetime' && (
+                                                <button
+                                                    type="button"
+                                                    disabled={statusLoading}
+                                                    onClick={() => onStatusChange(initialData.id, 'extend')}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 transition-colors disabled:opacity-40"
+                                                >
+                                                    <CalendarPlus className="w-3.5 h-3.5" /> Extend
+                                                </button>
+                                            )}
+                                            {currentStatus === 'active' && (
+                                                <button
+                                                    type="button"
+                                                    disabled={statusLoading}
+                                                    onClick={() => onStatusChange(initialData.id, 'suspend')}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-amber-600 bg-amber-50 hover:bg-amber-100 border border-amber-100 transition-colors disabled:opacity-40"
+                                                >
+                                                    <ShieldOff className="w-3.5 h-3.5" /> Suspend
+                                                </button>
+                                            )}
+                                            {(currentStatus === 'suspended' || currentStatus === 'deactivated') && (
+                                                <button
+                                                    type="button"
+                                                    disabled={statusLoading}
+                                                    onClick={() => onStatusChange(initialData.id, 'reactivate')}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 transition-colors disabled:opacity-40"
+                                                >
+                                                    <ShieldCheck className="w-3.5 h-3.5" /> Reactivate
+                                                </button>
+                                            )}
+                                            {currentStatus !== 'deactivated' && (
+                                                <button
+                                                    type="button"
+                                                    disabled={statusLoading}
+                                                    onClick={() => onStatusChange(initialData.id, 'deactivate')}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-red-500 bg-red-50 hover:bg-red-100 border border-red-100 transition-colors disabled:opacity-40"
+                                                >
+                                                    <Power className="w-3.5 h-3.5" /> Deactivate
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Logo */}
+                            <div className="space-y-2">
+                                <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Logo</label>
+                                <div
+                                    {...getRootProps()}
+                                    className={cn(
+                                        'relative h-32 rounded-xl border-2 border-dashed flex items-center justify-center transition-colors cursor-pointer overflow-hidden',
+                                        logoPreview ? 'border-transparent bg-slate-50' : 'border-slate-200 bg-slate-50/50 hover:border-slate-300 hover:bg-slate-50',
+                                        isDragActive && 'border-blue-400 bg-blue-50/30'
+                                    )}
+                                >
                                     <input {...getInputProps()} />
                                     {logoPreview ? (
-                                        <div className="relative w-full h-full group/logo">
-                                            <img src={logoPreview} alt="" className="w-full h-full object-contain p-6" />
-                                            <div className="absolute inset-0 bg-brand-navy/40 backdrop-blur-sm opacity-0 group-hover/logo:opacity-100 transition-opacity flex items-center justify-center">
-                                                <Upload className="w-10 h-10 text-white" />
+                                        <div className="relative w-full h-full group">
+                                            <img src={logoPreview} alt="" className="w-full h-full object-contain p-4" />
+                                            <div className="absolute inset-0 bg-slate-900/30 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                <span className="text-white text-xs font-medium">Replace</span>
                                             </div>
                                         </div>
                                     ) : (
-                                        <div className="text-center space-y-3">
-                                            <div className="w-16 h-16 rounded-2xl bg-brand-navy/5 flex items-center justify-center mx-auto transition-transform group-hover:scale-110">
-                                                <ImageIcon className="w-8 h-8 text-brand-navy/20" />
-                                            </div>
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Drop JPG/PNG here</p>
+                                        <div className="flex flex-col items-center gap-1.5 text-slate-400">
+                                            <ImageIcon className="w-6 h-6" />
+                                            <span className="text-xs">Drop image or click to upload</span>
                                         </div>
                                     )}
                                     {isUploading && (
-                                        <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center">
-                                            <Loader2 className="w-8 h-8 animate-spin text-brand-navy" />
+                                        <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
+                                            <Loader2 className="w-5 h-5 animate-spin text-slate-500" />
                                         </div>
                                     )}
                                 </div>
                             </div>
 
-                            <FormField control={form.control} name="name" render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel className="text-xs font-black uppercase tracking-widest text-brand-navy/40">Business Name</FormLabel>
-                                    <FormControl>
-                                        <Input placeholder="Enter commercial name..." {...field} className="h-16 rounded-2xl border-none bg-brand-navy/5 font-bold text-lg text-brand-navy shadow-inner px-6" />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )} />
+                            {/* Business Name */}
+                            <FormField
+                                control={form.control}
+                                name="name"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                                            Business Name
+                                        </FormLabel>
+                                        <FormControl>
+                                            <Input
+                                                placeholder="Enter name..."
+                                                {...field}
+                                                className="h-10 rounded-lg border-slate-200 bg-white text-sm text-slate-900 px-3 focus-visible:ring-1 focus-visible:ring-slate-300"
+                                            />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
 
-                            <FormField control={form.control} name="active" render={({ field }) => (
-                                <FormItem className="flex items-center justify-between p-4 rounded-2xl bg-brand-navy/5 border border-transparent">
-                                    <div className="space-y-0.5">
-                                        <FormLabel className="text-xs font-black uppercase tracking-widest text-brand-navy">Entity Status</FormLabel>
-                                        <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Active units appear in select menus</p>
-                                    </div>
-                                    <FormControl>
-                                        <div
-                                            onClick={() => field.onChange(!field.value)}
-                                            className={cn(
-                                                "w-12 h-6 rounded-full p-1 cursor-pointer transition-colors duration-300",
-                                                field.value ? "bg-emerald-500" : "bg-slate-300"
-                                            )}
-                                        >
-                                            <div className={cn(
-                                                "w-4 h-4 rounded-full bg-white transition-transform duration-300",
-                                                field.value ? "translate-x-6" : "translate-x-0"
-                                            )} />
+                            {/* License Plan */}
+                            <FormField
+                                control={form.control}
+                                name="license_type"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                                            License Plan
+                                        </FormLabel>
+                                        <div className="space-y-1.5">
+                                            {LICENSE_OPTIONS.map((opt) => {
+                                                const selected = field.value === opt.value;
+                                                return (
+                                                    <div
+                                                        key={opt.value}
+                                                        onClick={() => field.onChange(opt.value)}
+                                                        className={cn(
+                                                            'flex items-center gap-3 px-3.5 py-2.5 rounded-lg cursor-pointer border transition-all',
+                                                            selected
+                                                                ? 'border-brand-navy bg-brand-navy/[0.03]'
+                                                                : 'border-slate-100 hover:border-slate-200 bg-white'
+                                                        )}
+                                                    >
+                                                        <div className={cn(
+                                                            'w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors',
+                                                            selected ? 'border-brand-navy bg-brand-navy' : 'border-slate-300'
+                                                        )}>
+                                                            {selected && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
+                                                        </div>
+                                                        <opt.icon className={cn('w-4 h-4 shrink-0', selected ? 'text-brand-navy' : 'text-slate-400')} />
+                                                        <div className="flex-1 min-w-0">
+                                                            <span className={cn('text-sm font-medium', selected ? 'text-brand-navy' : 'text-slate-700')}>
+                                                                {opt.label}
+                                                            </span>
+                                                        </div>
+                                                        <span className="text-[11px] text-slate-400">{opt.sub}</span>
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
-                                    </FormControl>
-                                </FormItem>
-                            )} />
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
                         </div>
 
-                        <DialogFooter className="p-10 pt-0">
+                        <DialogFooter className="px-6 py-4 border-t border-slate-100 gap-2 sm:gap-2">
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={onClose}
+                                className="h-9 px-4 text-sm text-slate-500 hover:text-slate-700"
+                            >
+                                Cancel
+                            </Button>
                             <Button
                                 type="submit"
                                 disabled={loading || isUploading}
-                                className="w-full bg-brand-navy hover:bg-brand-navy/90 text-white rounded-2xl h-16 text-lg font-black shadow-2xl transition-all flex items-center gap-3 active:scale-95"
+                                className="h-9 px-5 bg-brand-navy hover:bg-brand-navy/90 text-white text-sm font-medium rounded-lg"
                             >
-                                {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <CheckCircle2 className="w-6 h-6" />}
-                                {initialData ? 'Update Entity' : 'Finalize Registration'}
+                                {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                                {isEditing ? 'Save Changes' : 'Create Business'}
                             </Button>
                         </DialogFooter>
                     </form>

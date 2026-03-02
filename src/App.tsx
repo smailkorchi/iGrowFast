@@ -30,6 +30,7 @@ import Webhooks from "./pages/Webhooks";
 import AiKeys from "./pages/AiKeys";
 import OwnerBusinesses from "./pages/owner/Businesses";
 import OwnerSelectBusiness from "./pages/owner/SelectBusiness";
+import OwnerUsers from "./pages/owner/Users";
 import OwnerLayout from "./components/layout/OwnerLayout";
 import Calculator from "./pages/Calculator";
 import AdminDemands from "./pages/Demands";
@@ -48,27 +49,72 @@ import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "./lib/supabase";
-import { Loader2 } from "lucide-react";
+import { Loader2, ShieldOff, AlertTriangle } from "lucide-react";
+
+const BusinessSuspendedScreen = ({ status }: { status: string }) => (
+  <div className="min-h-screen flex items-center justify-center bg-brand-white">
+    <div className="text-center space-y-6 max-w-md px-6">
+      <div className="w-20 h-20 rounded-full bg-amber-50 flex items-center justify-center mx-auto">
+        {status === 'suspended' ? (
+          <ShieldOff className="w-10 h-10 text-amber-500" />
+        ) : (
+          <AlertTriangle className="w-10 h-10 text-red-500" />
+        )}
+      </div>
+      <h1 className="text-3xl font-black text-brand-navy uppercase tracking-tight">
+        {status === 'suspended' ? 'Business Suspended' : 'Business Deactivated'}
+      </h1>
+      <p className="text-muted-foreground font-medium">
+        {status === 'suspended'
+          ? 'This business has been suspended due to an expired license. Contact the owner to renew.'
+          : 'This business has been deactivated. Contact the owner for reactivation.'}
+      </p>
+    </div>
+  </div>
+);
 
 const BusinessGuard = ({ children }: { children: React.ReactNode }) => {
-  const [ready, setReady] = useState(() => !!localStorage.getItem('activeBusinessId'));
+  const [ready, setReady] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const qsId = params.get('businessId');
+    if (qsId) {
+      localStorage.setItem('activeBusinessId', qsId);
+      window.history.replaceState({}, '', window.location.pathname);
+      return true;
+    }
+    return !!localStorage.getItem('activeBusinessId');
+  });
+  const [businessStatus, setBusinessStatus] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   useEffect(() => {
-    if (ready) return;
-
     const resolve = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
       const { data: profile } = await supabase
         .from('users')
-        .select('"DigiCom Business"')
+        .select('"DigiCom Business", role')
         .eq('id', user.id)
         .single();
 
-      if (profile?.['DigiCom Business']) {
+      if (profile?.role) setUserRole(profile.role);
+
+      if (!ready && profile?.['DigiCom Business']) {
         localStorage.setItem('activeBusinessId', profile['DigiCom Business']);
       }
+
+      const bid = localStorage.getItem('activeBusinessId');
+      if (bid) {
+        const { data: business } = await supabase
+          .from('businesses')
+          .select('status')
+          .eq('id', bid)
+          .single();
+
+        setBusinessStatus(business?.status || 'active');
+      }
+
       setReady(true);
     };
 
@@ -81,6 +127,10 @@ const BusinessGuard = ({ children }: { children: React.ReactNode }) => {
         <Loader2 className="w-10 h-10 animate-spin text-brand-navy" />
       </div>
     );
+  }
+
+  if (businessStatus && businessStatus !== 'active' && userRole !== 'owner') {
+    return <BusinessSuspendedScreen status={businessStatus} />;
   }
 
   return <>{children}</>;
@@ -107,6 +157,7 @@ const App = () => (
               <OwnerLayout>
                 <Routes>
                   <Route path="businesses" element={<OwnerBusinesses />} />
+                  <Route path="users" element={<OwnerUsers />} />
                   <Route path="" element={<Navigate to="businesses" replace />} />
                 </Routes>
               </OwnerLayout>
@@ -131,9 +182,9 @@ const App = () => (
             </ProtectedRoute>
           } />
 
-          {/* Admin Routes */}
+          {/* Admin Routes (owner can access via new tab) */}
           <Route path="*" element={
-            <ProtectedRoute allowedRoles={['super admin', 'admin', 'mediabuyer', 'delivery person']}>
+            <ProtectedRoute allowedRoles={['super admin', 'admin', 'mediabuyer', 'delivery person', 'owner']}>
               <BusinessGuard>
                 <AppLayout>
                   <Routes>
