@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import SellerSidebar from './SellerSidebar';
+import SuspensionOverlay from './SuspensionOverlay';
 import { supabase } from '@/lib/supabase';
 import { Loader2 } from 'lucide-react';
 
@@ -9,26 +10,42 @@ interface SellerLayoutProps {
 
 const SellerLayout: React.FC<SellerLayoutProps> = ({ children }) => {
     const [isReady, setIsReady] = useState(() => !!localStorage.getItem('activeBusinessId'));
+    const [businessStatus, setBusinessStatus] = useState<string>('active');
+    const [businessId, setBusinessId] = useState<string | null>(null);
 
     useEffect(() => {
-        const checkBusinessId = async () => {
-            if (!localStorage.getItem('activeBusinessId')) {
-                const { data: { session } } = await supabase.auth.getSession();
-                if (session?.user) {
-                    const { data: profile } = await supabase
-                        .from('users')
-                        .select('"DigiCom Business"')
-                        .eq('id', session.user.id)
-                        .single();
+        const init = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session?.user) { setIsReady(true); return; }
 
-                    if (profile?.['DigiCom Business']) {
-                        localStorage.setItem('activeBusinessId', profile['DigiCom Business']);
-                    }
+            let bid = localStorage.getItem('activeBusinessId');
+
+            if (!bid) {
+                const { data: profile } = await supabase
+                    .from('users')
+                    .select('"DigiCom Business"')
+                    .eq('id', session.user.id)
+                    .single();
+
+                if (profile?.['DigiCom Business']) {
+                    bid = profile['DigiCom Business'];
+                    localStorage.setItem('activeBusinessId', bid!);
                 }
-                setIsReady(true);
             }
+
+            if (bid) {
+                setBusinessId(bid);
+                const { data: business } = await supabase
+                    .from('businesses')
+                    .select('status')
+                    .eq('id', bid)
+                    .single();
+                setBusinessStatus(business?.status || 'active');
+            }
+
+            setIsReady(true);
         };
-        checkBusinessId();
+        init();
     }, []);
 
     if (!isReady) {
@@ -39,24 +56,21 @@ const SellerLayout: React.FC<SellerLayoutProps> = ({ children }) => {
         );
     }
 
+    const isSuspended = businessStatus !== 'active';
+
     return (
         <div className="min-h-screen bg-brand-white flex overflow-x-hidden">
-            {/* Sidebar stays in the flex flow to naturally push the content */}
             <SellerSidebar />
-
             <main className="flex-1 min-w-0 transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)]">
-                {/* 
-                    Responsive Container:
-                    - p-4 on mobile (if we support mobile later)
-                    - p-8 on desktop
-                    - max-w-[1600px] to prevent content from stretching too far on ultra-wide screens
-                */}
                 <div className="p-4 md:p-8">
                     <div className="max-w-[1700px] mx-auto w-full">
                         {children}
                     </div>
                 </div>
             </main>
+            {isSuspended && businessId && (
+                <SuspensionOverlay role="seller" businessId={businessId} />
+            )}
         </div>
     );
 };

@@ -4,6 +4,7 @@ import {
     Building2,
     Users,
     CreditCard,
+    Receipt,
     LogOut,
     PanelLeftClose,
     User as UserIcon,
@@ -22,6 +23,7 @@ type NavItem = {
 const navigation: NavItem[] = [
     { icon: Building2, label: 'Businesses', path: '/owner/businesses' },
     { icon: CreditCard, label: 'Plans', path: '/owner/plans' },
+    { icon: Receipt, label: 'Payments', path: '/owner/payments' },
     { icon: Users, label: 'Users', path: '/owner/users' },
 ];
 

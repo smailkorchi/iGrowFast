@@ -32,6 +32,7 @@ import OwnerBusinesses from "./pages/owner/Businesses";
 import OwnerSelectBusiness from "./pages/owner/SelectBusiness";
 import OwnerUsers from "./pages/owner/Users";
 import OwnerPlans from "./pages/owner/Plans";
+import OwnerPayments from "./pages/owner/Payments";
 import OwnerLayout from "./components/layout/OwnerLayout";
 import Calculator from "./pages/Calculator";
 import AdminDemands from "./pages/Demands";
@@ -50,29 +51,8 @@ import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "./lib/supabase";
-import { Loader2, ShieldOff, AlertTriangle } from "lucide-react";
-
-const BusinessSuspendedScreen = ({ status }: { status: string }) => (
-  <div className="min-h-screen flex items-center justify-center bg-brand-white">
-    <div className="text-center space-y-6 max-w-md px-6">
-      <div className="w-20 h-20 rounded-full bg-amber-50 flex items-center justify-center mx-auto">
-        {status === 'suspended' ? (
-          <ShieldOff className="w-10 h-10 text-amber-500" />
-        ) : (
-          <AlertTriangle className="w-10 h-10 text-red-500" />
-        )}
-      </div>
-      <h1 className="text-3xl font-black text-brand-navy uppercase tracking-tight">
-        {status === 'suspended' ? 'Business Suspended' : 'Business Deactivated'}
-      </h1>
-      <p className="text-muted-foreground font-medium">
-        {status === 'suspended'
-          ? 'This business has been suspended due to an expired license. Contact the owner to renew.'
-          : 'This business has been deactivated. Contact the owner for reactivation.'}
-      </p>
-    </div>
-  </div>
-);
+import { Loader2 } from "lucide-react";
+import SuspensionOverlay from "./components/layout/SuspensionOverlay";
 
 const BusinessGuard = ({ children }: { children: React.ReactNode }) => {
   const [ready, setReady] = useState(() => {
@@ -87,6 +67,7 @@ const BusinessGuard = ({ children }: { children: React.ReactNode }) => {
   });
   const [businessStatus, setBusinessStatus] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [businessId, setBusinessId] = useState<string | null>(null);
 
   useEffect(() => {
     const resolve = async () => {
@@ -107,6 +88,7 @@ const BusinessGuard = ({ children }: { children: React.ReactNode }) => {
 
       const bid = localStorage.getItem('activeBusinessId');
       if (bid) {
+        setBusinessId(bid);
         const { data: business } = await supabase
           .from('businesses')
           .select('status')
@@ -130,11 +112,16 @@ const BusinessGuard = ({ children }: { children: React.ReactNode }) => {
     );
   }
 
-  if (businessStatus && businessStatus !== 'active' && userRole !== 'owner') {
-    return <BusinessSuspendedScreen status={businessStatus} />;
-  }
+  const isSuspended = businessStatus && businessStatus !== 'active' && userRole !== 'owner';
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      {isSuspended && businessId && (
+        <SuspensionOverlay role="admin" businessId={businessId} />
+      )}
+    </>
+  );
 };
 
 const queryClient = new QueryClient();
@@ -159,6 +146,7 @@ const App = () => (
                 <Routes>
                   <Route path="businesses" element={<OwnerBusinesses />} />
                   <Route path="plans" element={<OwnerPlans />} />
+                  <Route path="payments" element={<OwnerPayments />} />
                   <Route path="users" element={<OwnerUsers />} />
                   <Route path="" element={<Navigate to="businesses" replace />} />
                 </Routes>
