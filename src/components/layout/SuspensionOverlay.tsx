@@ -156,8 +156,7 @@ const SuspensionOverlay: React.FC<SuspensionOverlayProps> = ({ role, businessId 
 
     if (role === 'seller') {
         return (
-            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-xl"
-                onKeyDown={e => e.preventDefault()}>
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-xl">
                 <div className="relative w-full max-w-md mx-4 rounded-2xl border border-white/20 bg-white/10 backdrop-blur-2xl shadow-2xl p-8 text-center">
                     <div className="w-16 h-16 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-5">
                         <PhoneCall className="w-8 h-8 text-amber-400" />
@@ -174,8 +173,7 @@ const SuspensionOverlay: React.FC<SuspensionOverlayProps> = ({ role, businessId 
     }
 
     return (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-xl overflow-y-auto py-8"
-            onKeyDown={e => e.preventDefault()}>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-xl overflow-y-auto py-8">
             <div className="relative w-full max-w-lg mx-4 rounded-2xl border border-white/20 bg-white/10 backdrop-blur-2xl shadow-2xl p-8">
                 <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-5">
                     <AlertTriangle className="w-8 h-8 text-red-400" />
@@ -185,7 +183,7 @@ const SuspensionOverlay: React.FC<SuspensionOverlayProps> = ({ role, businessId 
                     Payment Unsuccessful
                 </h1>
                 <p className="text-white/70 text-sm text-center leading-relaxed mb-6">
-                    Your subscription must be renewed. If not renewed, all data will be lost in 30 days.
+                    Your subscription must be renewed to regain access.
                 </p>
 
                 {isDenied && latestSubmission?.denial_message && (
