@@ -27,7 +27,7 @@ export const PendingOrdersBreakdown = ({ businessId, dateFilter }: PendingOrders
         queryFn: async () => {
             const { data } = await supabase
                 .from('orders')
-                .select('id, date, price, order_status_id, package_status_id, package_status_label, seller_id, company_id, order_statuses(code, label)')
+                .select('id, date, price, shipping_cost, order_status_id, package_status_id, package_status_label, seller_id, company_id, source_name, order_statuses(code, label)')
                 .eq('DigiCom Business', businessId);
             return data || [];
         },

@@ -1,11 +1,10 @@
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { Box, ShoppingBag } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { ShoppingBag, Box, ChevronDown } from 'lucide-react';
 import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
 import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 
@@ -14,9 +13,20 @@ interface DashboardProductsPerformanceProps {
     dateFilter: DateFilter;
 }
 
-const COLORS = ['#3b5e5e', '#7a9385', '#F97316', '#3B82F6', '#A855F7', '#14B8A6', '#EC4899', '#c93942'];
+const CONFIRMED_CODES = new Set(['CONFIRMED', 'PAID', 'UNPAID', 'PROCESSED']);
 
 export const DashboardProductsPerformance = ({ businessId, dateFilter }: DashboardProductsPerformanceProps) => {
+    const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
+
+    const toggleProduct = (id: string) => {
+        setExpandedProducts(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
     const { data: products } = useQuery({
         queryKey: ['dashboard-products', businessId],
         queryFn: async () => {
@@ -34,7 +44,19 @@ export const DashboardProductsPerformance = ({ businessId, dateFilter }: Dashboa
         queryFn: async () => {
             const { data } = await supabase
                 .from('order_items')
-                .select('id, order_id, product_id, quantity, unit_price, total_price')
+                .select('id, order_id, product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price')
+                .eq('DigiCom Business', businessId);
+            return data || [];
+        },
+        enabled: !!businessId,
+    });
+
+    const { data: accessories } = useQuery({
+        queryKey: ['dashboard-accessories', businessId],
+        queryFn: async () => {
+            const { data } = await supabase
+                .from('accessories')
+                .select('id, cost_price')
                 .eq('DigiCom Business', businessId);
             return data || [];
         },
@@ -46,7 +68,31 @@ export const DashboardProductsPerformance = ({ businessId, dateFilter }: Dashboa
         queryFn: async () => {
             const { data } = await supabase
                 .from('orders')
-                .select('id, date, price, order_status_id, package_status_id, package_status_label, seller_id, company_id, order_statuses(code, label)')
+                .select('id, date, price, shipping_cost, order_status_id, package_status_id, package_status_label, seller_id, company_id, source_name, order_statuses(code, label)')
+                .eq('DigiCom Business', businessId);
+            return data || [];
+        },
+        enabled: !!businessId,
+    });
+
+    const { data: adsHistory } = useQuery({
+        queryKey: ['dashboard-ads-history', businessId],
+        queryFn: async () => {
+            const { data } = await supabase
+                .from('ads_history')
+                .select('id, product_id, amount, start_date, end_date')
+                .eq('DigiCom Business', businessId);
+            return data || [];
+        },
+        enabled: !!businessId,
+    });
+
+    const { data: sellerPayments } = useQuery({
+        queryKey: ['dashboard-seller-payments-products', businessId],
+        queryFn: async () => {
+            const { data } = await supabase
+                .from('seller_payments')
+                .select('id, total_amount, status, created_at')
                 .eq('DigiCom Business', businessId);
             return data || [];
         },
@@ -68,29 +114,90 @@ export const DashboardProductsPerformance = ({ businessId, dateFilter }: Dashboa
 
         const filteredOrders = orders.filter((o: any) => isInRange(o.date));
         const filteredOrderIds = new Set(filteredOrders.map((o: any) => o.id));
-
         const orderMap = new Map<string, any>();
         filteredOrders.forEach((o: any) => orderMap.set(o.id, o));
 
-        const productData = products.map((product: any) => {
-            const items = orderItems.filter((oi: any) => oi.product_id === product.id && filteredOrderIds.has(oi.order_id));
-            const totalOrders = items.length;
-            const totalQuantity = items.reduce((s: number, oi: any) => s + Number(oi.quantity || 1), 0);
+        const accessoryCostMap = new Map<string, number>();
+        (accessories || []).forEach((a: any) => accessoryCostMap.set(a.id, Number(a.cost_price || 0)));
 
-            let confirmedOrders = 0;
-            let deliveredOrders = 0;
-            let revenue = 0;
+        const filteredAds = (adsHistory || []).filter((a: any) => isInRange(a.start_date));
+        const adsByProduct = new Map<string, number>();
+        filteredAds.forEach((a: any) => {
+            if (a.product_id) {
+                adsByProduct.set(a.product_id, (adsByProduct.get(a.product_id) || 0) + Number(a.amount || 0));
+            }
+        });
+
+        const filteredPayments = (sellerPayments || []).filter((sp: any) => isInRange(sp.created_at));
+        const totalSellerPayments = filteredPayments.reduce((s: number, sp: any) => s + Number(sp.total_amount || 0), 0);
+
+        // First pass: count total delivered units across all products for confirmation cost rate
+        let globalDeliveredUnits = 0;
+        const filteredItems = orderItems.filter((oi: any) => filteredOrderIds.has(oi.order_id));
+        filteredItems.forEach((oi: any) => {
+            const order = orderMap.get(oi.order_id);
+            if (order && (order.package_status_label || '').toLowerCase() === 'livré') {
+                globalDeliveredUnits += Number(oi.quantity || 1);
+            }
+        });
+        const confirmationCostPerUnit = globalDeliveredUnits > 0 ? totalSellerPayments / globalDeliveredUnits : 0;
+
+        // Build a map of total quantity per order (for shipping cost allocation)
+        const orderTotalQty = new Map<string, number>();
+        filteredItems.forEach((oi: any) => {
+            const current = orderTotalQty.get(oi.order_id) || 0;
+            orderTotalQty.set(oi.order_id, current + Number(oi.quantity || 1));
+        });
+
+        const productData = products.map((product: any) => {
+            const items = filteredItems.filter((oi: any) => oi.product_id === product.id);
+            const totalOrderedUnits = items.reduce((s: number, oi: any) => s + Number(oi.quantity || 1), 0);
+
+            let deliveredUnits = 0;
+            let confirmedUnits = 0;
+            let sellingTotal = 0;
+            let shippingTotal = 0;
+            let accessoriesTotal = 0;
 
             items.forEach((oi: any) => {
                 const order = orderMap.get(oi.order_id);
                 if (!order) return;
                 const code = ((order.order_statuses as any)?.code || '').toUpperCase();
-                if (['CONFIRMED', 'PAID', 'UNPAID', 'PROCESSED'].includes(code)) confirmedOrders++;
+                const qty = Number(oi.quantity || 1);
+
+                if (CONFIRMED_CODES.has(code)) confirmedUnits += qty;
+
                 if ((order.package_status_label || '').toLowerCase() === 'livré') {
-                    deliveredOrders++;
-                    revenue += Number(oi.total_price || oi.unit_price || 0);
+                    deliveredUnits += qty;
+                    sellingTotal += Number(oi.total_price || 0) || (Number(oi.unit_price || 0) * qty);
+
+                    const totalQtyInOrder = orderTotalQty.get(oi.order_id) || 1;
+                    const shippingShare = (Number(order.shipping_cost || 0) * qty) / totalQtyInOrder;
+                    shippingTotal += shippingShare;
+
+                    if (oi.accessory_id) {
+                        const accCost = accessoryCostMap.get(oi.accessory_id) || 0;
+                        accessoriesTotal += accCost * Number(oi.accessory_quantity || 0);
+                    }
                 }
             });
+
+            const unitBuyingPrice = Number(product.cost_price || 0);
+            const unitSellingPrice = Number(product.selling_price || 0);
+            const unitShippingCost = deliveredUnits > 0 ? shippingTotal / deliveredUnits : 0;
+            const unitConfirmationCost = confirmationCostPerUnit;
+
+            const adsTotal = adsByProduct.get(product.id) || 0;
+            const unitAdsCost = totalOrderedUnits > 0 ? adsTotal / totalOrderedUnits : 0;
+            const unitDeliveryAdsCost = deliveredUnits > 0 ? adsTotal / deliveredUnits : 0;
+
+            const unitAccessoriesCost = deliveredUnits > 0 ? accessoriesTotal / deliveredUnits : 0;
+
+            const buyingTotal = deliveredUnits * unitBuyingPrice;
+            const confirmationTotal = deliveredUnits * unitConfirmationCost;
+            const deliveredPercent = totalOrderedUnits > 0 ? (deliveredUnits / totalOrderedUnits) * 100 : 0;
+
+            const netProfit = sellingTotal - buyingTotal - shippingTotal - confirmationTotal - adsTotal - accessoriesTotal;
 
             return {
                 id: product.id,
@@ -98,24 +205,29 @@ export const DashboardProductsPerformance = ({ businessId, dateFilter }: Dashboa
                 image_url: product.image_url,
                 stock: Number(product.stock || 0),
                 active: product.active,
-                totalOrders,
-                totalQuantity,
-                confirmedOrders,
-                deliveredOrders,
-                revenue,
-                confirmRate: totalOrders > 0 ? (confirmedOrders / totalOrders) * 100 : 0,
-                deliveryRate: totalOrders > 0 ? (deliveredOrders / totalOrders) * 100 : 0,
+                totalOrderedUnits,
+                deliveredUnits,
+                deliveredPercent,
+                confirmedUnits,
+                unitBuyingPrice,
+                unitSellingPrice,
+                unitShippingCost,
+                unitConfirmationCost,
+                unitAdsCost,
+                unitDeliveryAdsCost,
+                unitAccessoriesCost,
+                sellingTotal,
+                buyingTotal,
+                shippingTotal,
+                confirmationTotal,
+                adsTotal,
+                accessoriesTotal,
+                netProfit,
             };
-        }).sort((a: any, b: any) => b.totalOrders - a.totalOrders);
+        }).sort((a, b) => b.deliveredUnits - a.deliveredUnits);
 
-        const chartData = productData.slice(0, 8).map((p: any) => ({
-            name: (p.name || '').substring(0, 12),
-            orders: p.totalOrders,
-            delivered: p.deliveredOrders,
-        }));
-
-        return { productData, chartData };
-    }, [products, orderItems, orders, dateFilter]);
+        return { productData };
+    }, [products, orderItems, orders, accessories, adsHistory, sellerPayments, dateFilter]);
 
     if (!metrics) return null;
 
@@ -132,91 +244,170 @@ export const DashboardProductsPerformance = ({ businessId, dateFilter }: Dashboa
                     </div>
                 </div>
             </CardHeader>
-            <CardContent>
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className="lg:col-span-1">
-                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Top Products</h4>
-                        <div className="h-[260px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={metrics.chartData} layout="vertical" margin={{ left: 0, right: 5 }}>
-                                    <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                                    <YAxis dataKey="name" type="category" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} width={80} />
-                                    <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', fontSize: 12 }} />
-                                    <Bar dataKey="orders" name="Orders" radius={[0, 8, 8, 0]} barSize={18}>
-                                        {metrics.chartData.map((_: any, i: number) => (
-                                            <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </div>
+            <CardContent className="space-y-1.5">
+                {metrics.productData.map((p) => {
+                    const isExpanded = expandedProducts.has(p.id);
+                    return (
+                        <div
+                            key={p.id}
+                            className={cn(
+                                'border rounded-2xl overflow-hidden transition-all',
+                                isExpanded ? 'border-gray-200 shadow-sm' : 'border-gray-100'
+                            )}
+                        >
+                            <button
+                                onClick={() => toggleProduct(p.id)}
+                                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50/60 transition-colors text-left"
+                            >
+                                <div className="flex items-center gap-2.5 min-w-[140px] shrink-0">
+                                    {p.image_url ? (
+                                        <img src={p.image_url} alt="" className="w-9 h-9 rounded-xl object-cover bg-gray-100 shrink-0" />
+                                    ) : (
+                                        <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
+                                            <Box className="w-4 h-4 text-gray-400" />
+                                        </div>
+                                    )}
+                                    <div className="min-w-0">
+                                        <span className="font-bold text-brand-navy text-xs block truncate max-w-[120px]">{p.name}</span>
+                                        {!p.active && <Badge variant="outline" className="text-[8px] px-1 py-0 mt-0.5">Inactive</Badge>}
+                                    </div>
+                                </div>
 
-                    <div className="lg:col-span-2 overflow-x-auto">
-                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Details</h4>
-                        <table className="w-full text-xs">
-                            <thead>
-                                <tr className="border-b border-gray-100">
-                                    <th className="text-left py-2 px-2 font-bold text-gray-400 uppercase tracking-widest text-[10px]">Product</th>
-                                    <th className="text-center py-2 px-1 font-bold text-gray-400 uppercase tracking-widest text-[10px]">Orders</th>
-                                    <th className="text-center py-2 px-1 font-bold text-gray-400 uppercase tracking-widest text-[10px]">Confirmed</th>
-                                    <th className="text-center py-2 px-1 font-bold text-gray-400 uppercase tracking-widest text-[10px]">Delivered</th>
-                                    <th className="text-center py-2 px-1 font-bold text-gray-400 uppercase tracking-widest text-[10px]">Rate</th>
-                                    <th className="text-right py-2 px-1 font-bold text-gray-400 uppercase tracking-widest text-[10px]">Revenue</th>
-                                    <th className="text-right py-2 px-2 font-bold text-gray-400 uppercase tracking-widest text-[10px]">Stock</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {metrics.productData.map((p: any) => (
-                                    <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
-                                        <td className="py-2.5 px-2">
-                                            <div className="flex items-center gap-2">
-                                                {p.image_url ? (
-                                                    <img src={p.image_url} alt="" className="w-8 h-8 rounded-xl object-cover bg-gray-100" />
-                                                ) : (
-                                                    <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center">
-                                                        <Box className="w-4 h-4 text-gray-400" />
-                                                    </div>
-                                                )}
-                                                <span className="font-bold text-brand-navy text-xs truncate max-w-[120px]">{p.name}</span>
-                                            </div>
-                                        </td>
-                                        <td className="text-center font-bold text-brand-navy">{p.totalOrders}</td>
-                                        <td className="text-center font-bold text-brand-navy">{p.confirmedOrders}</td>
-                                        <td className="text-center font-bold text-brand-navy">{p.deliveredOrders}</td>
-                                        <td className="text-center">
-                                            <Badge className={cn(
-                                                'text-[10px] px-1.5 py-0 font-bold',
-                                                p.deliveryRate >= 20 ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-50' :
-                                                p.deliveryRate >= 10 ? 'bg-amber-50 text-amber-600 hover:bg-amber-50' :
-                                                'bg-red-50 text-red-600 hover:bg-red-50'
-                                            )}>
-                                                {p.deliveryRate.toFixed(1)}%
-                                            </Badge>
-                                        </td>
-                                        <td className="text-right font-bold text-brand-navy">
-                                            {p.revenue.toLocaleString('fr-MA')} <span className="text-[10px] text-gray-400">MAD</span>
-                                        </td>
-                                        <td className="text-right px-2">
-                                            <Badge className={cn(
-                                                'text-[10px] px-1.5 py-0 font-bold',
-                                                p.stock > 10 ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-50' :
-                                                p.stock > 0 ? 'bg-amber-50 text-amber-600 hover:bg-amber-50' :
-                                                'bg-red-50 text-red-600 hover:bg-red-50'
-                                            )}>
-                                                {p.stock}
-                                            </Badge>
-                                        </td>
-                                    </tr>
-                                ))}
-                                {metrics.productData.length === 0 && (
-                                    <tr><td colSpan={7} className="text-center py-8 text-gray-400">No products found</td></tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                                <div className="flex-1 grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3">
+                                    <div className="text-center">
+                                        <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Stock</p>
+                                        <Badge className={cn(
+                                            'text-[10px] px-1.5 py-0 font-bold mt-0.5',
+                                            p.stock > 10 ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-50' :
+                                            p.stock > 0 ? 'bg-amber-50 text-amber-600 hover:bg-amber-50' :
+                                            'bg-red-50 text-red-600 hover:bg-red-50'
+                                        )}>
+                                            {p.stock}
+                                        </Badge>
+                                    </div>
+
+                                    <div className="text-center">
+                                        <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Delivered</p>
+                                        <p className="text-sm font-bold text-brand-navy leading-tight mt-0.5">{p.deliveredUnits}</p>
+                                        <Badge className={cn(
+                                            'text-[9px] px-1.5 py-0 font-bold',
+                                            p.deliveredPercent >= 40 ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-50' :
+                                            p.deliveredPercent >= 20 ? 'bg-amber-50 text-amber-600 hover:bg-amber-50' :
+                                            'bg-red-50 text-red-600 hover:bg-red-50'
+                                        )}>
+                                            {p.deliveredPercent.toFixed(1)}%
+                                        </Badge>
+                                    </div>
+
+                                    <div className="text-center">
+                                        <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Revenue</p>
+                                        <p className="text-sm font-bold text-brand-navy leading-tight mt-0.5">
+                                            {p.sellingTotal.toLocaleString('fr-MA')}
+                                        </p>
+                                        <p className="text-[10px] text-gray-400">MAD</p>
+                                    </div>
+
+                                    <div className="text-center">
+                                        <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Costs</p>
+                                        <p className="text-sm font-bold text-red-500 leading-tight mt-0.5">
+                                            {(p.buyingTotal + p.shippingTotal + p.confirmationTotal + p.adsTotal + p.accessoriesTotal).toLocaleString('fr-MA')}
+                                        </p>
+                                        <p className="text-[10px] text-gray-400">MAD</p>
+                                    </div>
+
+                                    <div className="text-center">
+                                        <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Net Profit</p>
+                                        <p className={cn(
+                                            'text-sm font-bold leading-tight mt-0.5',
+                                            p.netProfit >= 0 ? 'text-emerald-600' : 'text-red-500'
+                                        )}>
+                                            {p.netProfit.toLocaleString('fr-MA')}
+                                        </p>
+                                        <p className="text-[10px] text-gray-400">MAD</p>
+                                    </div>
+                                </div>
+
+                                <ChevronDown className={cn(
+                                    'w-4 h-4 text-gray-400 transition-transform shrink-0',
+                                    isExpanded && 'rotate-180'
+                                )} />
+                            </button>
+
+                            {isExpanded && (
+                                <div className="px-4 pb-4 pt-2 border-t border-gray-100 bg-gray-50/30">
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                        <CostTable
+                                            title="Unit Costs"
+                                            rows={[
+                                                { label: 'Selling Price', value: p.unitSellingPrice, color: 'text-brand-navy' },
+                                                { label: 'Buying Price', value: p.unitBuyingPrice, color: 'text-red-500' },
+                                                { label: 'Shipping', value: p.unitShippingCost, color: 'text-red-500' },
+                                                { label: 'Confirmation', value: p.unitConfirmationCost, color: 'text-red-500' },
+                                                { label: 'Ads (per order)', value: p.unitAdsCost, color: 'text-red-500' },
+                                                { label: 'Ads (per delivery)', value: p.unitDeliveryAdsCost, color: 'text-red-500' },
+                                                { label: 'Accessories', value: p.unitAccessoriesCost, color: 'text-red-500' },
+                                            ]}
+                                        />
+                                        <CostTable
+                                            title="Total Costs"
+                                            rows={[
+                                                { label: 'Selling Total', value: p.sellingTotal, color: 'text-brand-navy' },
+                                                { label: 'Buying Total', value: p.buyingTotal, color: 'text-red-500' },
+                                                { label: 'Shipping Total', value: p.shippingTotal, color: 'text-red-500' },
+                                                { label: 'Confirmation Total', value: p.confirmationTotal, color: 'text-red-500' },
+                                                { label: 'Ads Total', value: p.adsTotal, color: 'text-red-500' },
+                                                { label: 'Accessories Total', value: p.accessoriesTotal, color: 'text-red-500' },
+                                            ]}
+                                            footer={{ label: 'Net Profit', value: p.netProfit, color: p.netProfit >= 0 ? 'text-emerald-600' : 'text-red-600' }}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+                {metrics.productData.length === 0 && (
+                    <p className="text-center py-8 text-gray-400 text-xs">No products found</p>
+                )}
             </CardContent>
         </Card>
     );
 };
+
+function CostTable({ title, rows, footer }: {
+    title: string;
+    rows: { label: string; value: number; color: string }[];
+    footer?: { label: string; value: number; color: string };
+}) {
+    return (
+        <div>
+            <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">{title}</h5>
+            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                <table className="w-full text-xs">
+                    <tbody>
+                        {rows.map((row) => (
+                            <tr key={row.label} className="border-b border-gray-50 last:border-b-0">
+                                <td className="py-1.5 px-3 text-gray-500 font-medium">{row.label}</td>
+                                <td className={cn('py-1.5 px-3 text-right font-bold tabular-nums', row.color)}>
+                                    {row.value.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    <span className="text-[9px] text-gray-400 ml-0.5">MAD</span>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                    {footer && (
+                        <tfoot>
+                            <tr className="border-t-2 border-gray-200 bg-gray-50/50">
+                                <td className="py-2 px-3 font-bold text-brand-navy text-xs">{footer.label}</td>
+                                <td className={cn('py-2 px-3 text-right font-bold text-sm tabular-nums', footer.color)}>
+                                    {footer.value.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    <span className="text-[9px] text-gray-400 ml-0.5">MAD</span>
+                                </td>
+                            </tr>
+                        </tfoot>
+                    )}
+                </table>
+            </div>
+        </div>
+    );
+}
