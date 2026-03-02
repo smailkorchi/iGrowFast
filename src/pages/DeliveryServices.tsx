@@ -84,7 +84,7 @@ const USERS_TABLE = 'users' as any;
 const COURIER_ZONES_TABLE = 'courier_zones' as any;
 const COURIER_FEES_TABLE = 'courier_fees' as any;
 const ZONES_TABLE = 'zones' as any;
-const CITIES_TABLE = 'cities' as any;
+const CITIES_TABLE = 'master_cities' as any;
 const COMPANY_ZONES_TABLE = 'company_zones' as any;
 const COMPANY_FEES_TABLE = 'company_fees' as any;
 
@@ -1173,7 +1173,7 @@ function FeesModal({ isOpen, onClose, courier }: any) {
 
             if (error) throw error;
             const feeMap: Record<string, string> = {};
-            data.forEach((f: any) => feeMap[f.city_id] = f.fee.toString());
+            data.forEach((f: any) => feeMap[f.master_city_id || f.city_id] = f.fee.toString());
             setFees(feeMap);
             return feeMap;
         },
@@ -1185,11 +1185,11 @@ function FeesModal({ isOpen, onClose, courier }: any) {
             const numericFee = parseFloat(fee) || 0;
             const { error } = await supabase.from(COURIER_FEES_TABLE).upsert({
                 courier_id: courier.id,
-                city_id: cityId,
+                master_city_id: cityId,
                 fee: numericFee,
                 updated_at: new Date().toISOString(),
                 'DigiCom Business': activeBusinessId
-            }, { onConflict: 'courier_id,city_id,DigiCom Business' });
+            }, { onConflict: 'courier_id,master_city_id,DigiCom Business' });
             if (error) throw error;
         },
         onSuccess: () => {
@@ -1211,7 +1211,7 @@ function FeesModal({ isOpen, onClose, courier }: any) {
             newFees[city.id] = bulkPrice;
             return {
                 courier_id: courier.id,
-                city_id: city.id,
+                master_city_id: city.id,
                 fee: numericPrice,
                 updated_at: new Date().toISOString(),
                 'DigiCom Business': activeBusinessId
@@ -1220,7 +1220,7 @@ function FeesModal({ isOpen, onClose, courier }: any) {
 
         setFees(newFees);
 
-        const { error } = await supabase.from(COURIER_FEES_TABLE).upsert(updates, { onConflict: 'courier_id,city_id,DigiCom Business' });
+        const { error } = await supabase.from(COURIER_FEES_TABLE).upsert(updates, { onConflict: 'courier_id,master_city_id,DigiCom Business' });
 
         if (error) {
             toast({ title: "Error", description: "Failed to update bulk fees", variant: "destructive" });
@@ -1425,7 +1425,7 @@ function CompanyFeesModal({ isOpen, onClose, company }: any) {
 
             if (error) throw error;
             const feeMap: Record<string, string> = {};
-            data.forEach((f: any) => feeMap[f.city_id] = f.fee.toString());
+            data.forEach((f: any) => feeMap[f.master_city_id || f.city_id] = f.fee.toString());
             setFees(feeMap);
             return feeMap;
         },
@@ -1437,11 +1437,11 @@ function CompanyFeesModal({ isOpen, onClose, company }: any) {
             const numericFee = parseFloat(fee) || 0;
             const { error } = await supabase.from(COMPANY_FEES_TABLE).upsert({
                 company_id: company.id,
-                city_id: cityId,
+                master_city_id: cityId,
                 fee: numericFee,
                 updated_at: new Date().toISOString(),
                 'DigiCom Business': activeBusinessId
-            }, { onConflict: 'company_id,city_id,DigiCom Business' });
+            }, { onConflict: 'company_id,master_city_id,DigiCom Business' });
             if (error) throw error;
         },
         onSuccess: () => {
@@ -1463,7 +1463,7 @@ function CompanyFeesModal({ isOpen, onClose, company }: any) {
             newFees[city.id] = bulkPrice;
             return {
                 company_id: company.id,
-                city_id: city.id,
+                master_city_id: city.id,
                 fee: numericPrice,
                 updated_at: new Date().toISOString(),
                 'DigiCom Business': activeBusinessId
@@ -1472,7 +1472,7 @@ function CompanyFeesModal({ isOpen, onClose, company }: any) {
 
         setFees(newFees);
 
-        const { error } = await supabase.from(COMPANY_FEES_TABLE).upsert(updates, { onConflict: 'company_id,city_id,DigiCom Business' });
+        const { error } = await supabase.from(COMPANY_FEES_TABLE).upsert(updates, { onConflict: 'company_id,master_city_id,DigiCom Business' });
 
         if (error) {
             toast({ title: "Error", description: "Failed to update bulk fees", variant: "destructive" });
