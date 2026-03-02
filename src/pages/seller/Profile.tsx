@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useStatusCategories } from '@/hooks/useStatusCategories';
 import {
     User, Mail, ShieldCheck, DollarSign, TrendingUp,
     Calendar, LogOut, Loader2, CreditCard, Building2,
@@ -53,6 +54,7 @@ interface ProductStat {
 
 const SellerProfile = () => {
     const { toast } = useToast();
+    const statusCats = useStatusCategories();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [profile, setProfile] = useState<SellerProfileData | null>(null);
@@ -81,7 +83,7 @@ const SellerProfile = () => {
 
     useEffect(() => {
         fetchProfile();
-    }, []);
+    }, [statusCats.confirmedIds, statusCats.deliveredPkgIds]);
 
     const fetchProfile = async () => {
         try {
@@ -110,18 +112,20 @@ const SellerProfile = () => {
                 // Fetch real performance stats
                 const { data: ordersData, error: ordersError } = await supabase
                     .from('orders')
-                    .select('package_status_label, order_statuses(code)')
+                    .select('order_status_id, package_status_id, package_status_label, order_statuses(code)')
                     .eq('seller_id', session.user.id);
 
                 const orders = (ordersData || []).map(o => ({
+                    order_status_id: (o as any).order_status_id,
+                    package_status_id: (o as any).package_status_id,
                     status: (o.order_statuses as any)?.code?.toLowerCase() || 'unknown',
                     packageStatus: ((o as any).package_status_label || '').toLowerCase()
                 }));
 
                 if (!ordersError && orders) {
                     const total = orders.length;
-                    const confirmed = orders.filter(o => ['confirmed', 'processed', 'paid', 'unpaid'].includes(o.status)).length;
-                    const delivered = orders.filter(o => o.packageStatus === 'livré').length;
+                    const confirmed = orders.filter(o => statusCats.confirmedIds.has(o.order_status_id)).length;
+                    const delivered = orders.filter(o => o.package_status_id && statusCats.deliveredPkgIds.has(o.package_status_id)).length;
 
                     const cRate = total > 0 ? (confirmed / total) * 100 : 0;
                     const dRate = confirmed > 0 ? (delivered / confirmed) * 100 : 0;
@@ -151,12 +155,14 @@ const SellerProfile = () => {
 
                     const { data: orderItemsData } = await supabase
                         .from('order_items')
-                        .select('order_id, product_id, orders!inner(seller_id, package_status_label, order_statuses(code))')
+                        .select('order_id, product_id, orders!inner(seller_id, order_status_id, package_status_id, package_status_label, order_statuses(code))')
                         .eq('orders.seller_id', session.user.id);
 
                     const orderItems = (orderItemsData || []).map(oi => ({
                         ...oi,
                         orders: {
+                            order_status_id: (oi.orders as any)?.order_status_id,
+                            package_status_id: (oi.orders as any)?.package_status_id,
                             status: (oi.orders as any)?.order_statuses?.code?.toLowerCase() || 'unknown',
                             packageStatus: ((oi.orders as any)?.package_status_label || '').toLowerCase()
                         }
@@ -188,12 +194,12 @@ const SellerProfile = () => {
                                 stock: Number(p.stock) || 0,
                                 total: uniqueOrders.length,
                                 confirmed: uniqueOrders.filter(o => {
-                                    const status = Array.isArray(o) ? o[0]?.status : (o as any)?.status;
-                                    return ['confirmed', 'processed', 'paid', 'unpaid'].includes(status);
+                                    const oo = Array.isArray(o) ? o[0] : o;
+                                    return oo?.order_status_id && statusCats.confirmedIds.has(oo.order_status_id);
                                 }).length,
                                 delivered: uniqueOrders.filter(o => {
-                                    const pkgStatus = Array.isArray(o) ? o[0]?.packageStatus : (o as any)?.packageStatus;
-                                    return pkgStatus === 'livré';
+                                    const oo = Array.isArray(o) ? o[0] : o;
+                                    return oo?.package_status_id && statusCats.deliveredPkgIds.has(oo.package_status_id);
                                 }).length
                             };
                         });

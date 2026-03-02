@@ -1,11 +1,11 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { SectionWrapper } from './SectionWrapper';
 import { StatCard } from './StatCard';
 import { DateFilter } from './AnalyticsDateFilter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import {
     ShoppingBag, CheckCircle, Truck, XCircle, Receipt,
     TrendingUp, Clock, BarChart3, MapPin,
@@ -16,34 +16,28 @@ import {
 } from 'recharts';
 import { format, startOfDay, endOfDay, isWithinInterval, eachMonthOfInterval, startOfMonth, subMonths, eachDayOfInterval, subDays } from 'date-fns';
 
-const STATUS_COLORS: Record<string, string> = {
-    NEW: '#3B82F6', CONFIRMED: '#10B981', PAID: '#059669', CANCELED: '#EF4444',
-    INTERESTED: '#F59E0B', RECHECK: '#8B5CF6', POSTPONED: '#6B7280',
-    PROCESSED: '#14B8A6', RETURN: '#DC2626', UNPAID: '#F97316',
-};
-
 interface OrdersSectionProps {
     businessId: string;
     dateFilter: DateFilter;
 }
 
 export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) => {
+    const {
+        confirmedIds,
+        cancelledIds,
+        deliveredPkgIds,
+        getOrderCategory,
+        getCategoryColor,
+        isOrderCategory,
+    } = useStatusCategories();
+
     const { data: orders, isLoading } = useQuery({
         queryKey: ['analytics-orders-full', businessId],
         queryFn: async () => {
             const { data } = await supabase
                 .from('orders')
-                .select('id, price, date, order_status_id, package_status_id, city_id, master_city_id, source_name, shipping_cost, cities(name), master_cities(name), order_statuses(code, label), order_items(quantity, unit_price)')
+                .select('id, price, date, order_status_id, package_status_id, city_id, master_city_id, source_name, shipping_cost, cities(name), master_cities(name), order_items(quantity, unit_price)')
                 .eq('DigiCom Business', businessId);
-            return data || [];
-        },
-        enabled: !!businessId,
-    });
-
-    const { data: packageStatuses } = useQuery({
-        queryKey: ['analytics-package-statuses', businessId],
-        queryFn: async () => {
-            const { data } = await supabase.from('package_statuses').select('id, code, label').eq('DigiCom Business', businessId);
             return data || [];
         },
         enabled: !!businessId,
@@ -66,23 +60,22 @@ export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) =>
         const total = filtered.length;
         const avgOrderValue = total > 0 ? filtered.reduce((s, o) => s + Number(o.price || 0), 0) / total : 0;
 
-        const statusCounts: Record<string, number> = {};
+        const categoryCounts: Record<string, number> = {};
         filtered.forEach(o => {
-            const code = (o as any).order_statuses?.code || 'UNKNOWN';
-            statusCounts[code] = (statusCounts[code] || 0) + 1;
+            const cat = getOrderCategory(o.order_status_id) || 'other';
+            categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
         });
 
-        const confirmedCount = (statusCounts['CONFIRMED'] || 0) + (statusCounts['PAID'] || 0) + (statusCounts['PROCESSED'] || 0);
-        const canceledCount = statusCounts['CANCELED'] || 0;
+        const confirmedCount = filtered.filter(o => o.order_status_id && confirmedIds.has(o.order_status_id)).length;
+        const canceledCount = filtered.filter(o => o.order_status_id && cancelledIds.has(o.order_status_id)).length;
         const confirmRate = total > 0 ? (confirmedCount / total) * 100 : 0;
         const cancelRate = total > 0 ? (canceledCount / total) * 100 : 0;
 
-        const deliveredStatusId = packageStatuses?.find(s => s.code === 'P_DELIVERED')?.id;
-        const deliveredCount = deliveredStatusId ? filtered.filter(o => o.package_status_id === deliveredStatusId).length : 0;
+        const deliveredCount = filtered.filter(o => o.package_status_id && deliveredPkgIds.has(o.package_status_id)).length;
         const deliveryRate = total > 0 ? (deliveredCount / total) * 100 : 0;
 
-        const statusDistribution = Object.entries(statusCounts)
-            .map(([code, count]) => ({ name: code, value: count, color: STATUS_COLORS[code] || '#9CA3AF' }))
+        const statusDistribution = Object.entries(categoryCounts)
+            .map(([cat, count]) => ({ name: cat, value: count, color: getCategoryColor(cat) }))
             .sort((a, b) => b.value - a.value);
 
         const today = new Date();
@@ -134,11 +127,11 @@ export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) =>
             .map(([city, count]) => ({ city, count }));
 
         const funnelData = [
-            { stage: 'New', count: statusCounts['NEW'] || 0 },
+            { stage: 'New', count: filtered.filter(o => o.order_status_id && isOrderCategory(o.order_status_id, 'new')).length },
             { stage: 'Confirmed', count: confirmedCount },
-            { stage: 'Shipped', count: filtered.filter(o => (o as any).order_statuses?.code === 'PROCESSED').length || 0 },
+            { stage: 'Shipped', count: filtered.filter(o => o.order_status_id && isOrderCategory(o.order_status_id, 'processed')).length },
             { stage: 'Delivered', count: deliveredCount },
-            { stage: 'Paid', count: statusCounts['PAID'] || 0 },
+            { stage: 'Paid', count: filtered.filter(o => o.order_status_id && isOrderCategory(o.order_status_id, 'paid')).length },
         ];
 
         return {
@@ -147,7 +140,7 @@ export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) =>
             todayOrders, weekOrders, statusDistribution, trendData,
             topCities, funnelData,
         };
-    }, [orders, packageStatuses, dateFilter]);
+    }, [orders, dateFilter, confirmedIds, cancelledIds, deliveredPkgIds, getOrderCategory, getCategoryColor, isOrderCategory]);
 
     return (
         <SectionWrapper

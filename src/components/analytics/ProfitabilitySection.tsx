@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { SectionWrapper } from './SectionWrapper';
 import { StatCard } from './StatCard';
 import { DateFilter } from './AnalyticsDateFilter';
@@ -23,6 +24,8 @@ interface ProfitabilitySectionProps {
 }
 
 export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySectionProps) => {
+    const { deliveredPkgIds, isOrderCategory } = useStatusCategories();
+
     const { data: orders, isLoading: ordersLoading } = useQuery({
         queryKey: ['analytics-orders-profit', businessId],
         queryFn: async () => {
@@ -30,24 +33,6 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
                 .from('orders')
                 .select('id, price, shipping_cost, raw_price, date, order_status_id, package_status_id, order_statuses(code), order_items(quantity, unit_price, product_id, accessory_id, accessory_quantity, accessory_unit_price)')
                 .eq('DigiCom Business', businessId);
-            return data || [];
-        },
-        enabled: !!businessId,
-    });
-
-    const { data: orderStatuses } = useQuery({
-        queryKey: ['analytics-order-statuses', businessId],
-        queryFn: async () => {
-            const { data } = await supabase.from('order_statuses').select('id, code').eq('DigiCom Business', businessId);
-            return data || [];
-        },
-        enabled: !!businessId,
-    });
-
-    const { data: packageStatuses } = useQuery({
-        queryKey: ['analytics-package-statuses', businessId],
-        queryFn: async () => {
-            const { data } = await supabase.from('package_statuses').select('id, code').eq('DigiCom Business', businessId);
             return data || [];
         },
         enabled: !!businessId,
@@ -101,10 +86,11 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
     const isLoading = ordersLoading;
 
     const metrics = useMemo(() => {
-        if (!orders || !orderStatuses || !packageStatuses) return null;
+        if (!orders) return null;
 
-        const paidStatusId = orderStatuses.find(s => s.code === 'PAID')?.id;
-        const deliveredStatusId = packageStatuses.find(s => s.code === 'P_DELIVERED')?.id;
+        const isPaidAndDelivered = (o: any) =>
+            o.order_status_id && isOrderCategory(o.order_status_id, 'paid') &&
+            o.package_status_id && deliveredPkgIds.has(o.package_status_id);
 
         const isInRange = (dateStr: string | null) => {
             if (!dateStr) return true;
@@ -117,9 +103,7 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
 
         const filteredOrders = orders.filter(o => isInRange(o.date));
 
-        const revenueOrders = filteredOrders.filter(o =>
-            o.order_status_id === paidStatusId && o.package_status_id === deliveredStatusId
-        );
+        const revenueOrders = filteredOrders.filter(isPaidAndDelivered);
 
         const totalRevenue = revenueOrders.reduce((sum, o) => sum + Number(o.price || 0), 0);
 
@@ -193,7 +177,7 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
             expenseBreakdown, trendData, revenueOrderCount: revenueOrders.length,
             totalOrderCount: filteredOrders.length,
         };
-    }, [orders, orderStatuses, packageStatuses, products, accessories, expenses, sellerPayments, adsHistory, dateFilter]);
+    }, [orders, products, accessories, expenses, sellerPayments, adsHistory, dateFilter, deliveredPkgIds, isOrderCategory]);
 
     const insights = useMemo(() => {
         if (!metrics) return [];

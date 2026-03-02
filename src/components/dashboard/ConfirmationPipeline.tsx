@@ -7,6 +7,7 @@ import { PhoneCall } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
 import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
+import { useStatusCategories } from '@/hooks/useStatusCategories';
 
 interface ConfirmationPipelineProps {
     businessId: string;
@@ -19,14 +20,8 @@ const COLORS = [
     '#84cc16', '#a855f7', '#e11d48',
 ];
 
-const CONFIRMATION_CODES = new Set([
-    'NEW', 'INTERESTED', 'RAPPEL 1', 'RAPPEL2', 'RAPPEL3', 'RAPPEL',
-    'RAPPEL 5', 'RAPPEL 6', 'Boitevocale', 'Rappel + msg wtsp',
-    'Boite vocale + msg wtsp', 'Pasdereponse', 'PASDEREPONSE + Sms',
-    'PASDEREPONSE + Messagewhatsup', 'RECHECK',
-]);
-
 export const ConfirmationPipeline = ({ businessId, dateFilter }: ConfirmationPipelineProps) => {
+    const { pendingIds, callbackIds } = useStatusCategories();
     const { data: orders } = useQuery({
         queryKey: ['dashboard-orders', businessId],
         queryFn: async () => {
@@ -52,28 +47,30 @@ export const ConfirmationPipeline = ({ businessId, dateFilter }: ConfirmationPip
             });
         };
 
-        const confirmationOrders = orders.filter((o: any) => {
-            const code = (o.order_statuses as any)?.code;
-            return code && CONFIRMATION_CODES.has(code) && isInRange(o.date);
-        });
+        const isConfirmationStatus = (statusId: string) =>
+            statusId && (pendingIds.has(statusId) || callbackIds.has(statusId));
+
+        const confirmationOrders = orders.filter((o: any) =>
+            o.order_status_id && isConfirmationStatus(o.order_status_id) && isInRange(o.date)
+        );
 
         const statusCounts: Record<string, { label: string; count: number }> = {};
         confirmationOrders.forEach((o: any) => {
             const status = o.order_statuses as any;
             const label = status?.label || status?.code || 'Unknown';
-            const code = status?.code || 'unknown';
-            if (!statusCounts[code]) statusCounts[code] = { label, count: 0 };
-            statusCounts[code].count++;
+            const id = o.order_status_id || 'unknown';
+            if (!statusCounts[id]) statusCounts[id] = { label, count: 0 };
+            statusCounts[id].count++;
         });
 
         const sorted = Object.entries(statusCounts)
-            .map(([code, { label, count }]) => ({ code, label, count }))
+            .map(([id, { label, count }]) => ({ code: id, label, count }))
             .sort((a, b) => b.count - a.count);
 
         const total = confirmationOrders.length;
 
         return { total, sorted };
-    }, [orders, dateFilter]);
+    }, [orders, dateFilter, pendingIds, callbackIds]);
 
     if (!metrics) return null;
 

@@ -82,6 +82,7 @@ import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, subMon
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import type { DateRange } from 'react-day-picker';
 import CustomerInsights from '@/components/CustomerInsights';
+import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
@@ -177,7 +178,8 @@ const Orders = () => {
     const [isReportedModalOpen, setIsReportedModalOpen] = useState(false);
     const [reportedData, setReportedData] = useState<{ date: Date | undefined, time: string, comment: string }>({ date: undefined, time: "12:00", comment: "" });
     const [pendingReportedAction, setPendingReportedAction] = useState<((date: Date, time: string, comment: string) => void) | null>(null);
-    const REPORTED_STATUS_ID = '713cf400-b800-4bea-b27a-8c40241e0ae2';
+    const { getOrderByCategory, isOrderCategory } = useStatusCategories();
+    const REPORTED_STATUS_ID = getOrderByCategory('postponed')?.id;
 
     // Parcel Tracking States
     const [orderParcel, setOrderParcel] = useState<any>(null);
@@ -185,7 +187,7 @@ const Orders = () => {
     const [isTrackingLoading, setIsTrackingLoading] = useState(false);
     const [isParcelLoading, setIsParcelLoading] = useState(false);
 
-    const EDGE_FUNCTION_URL = "https://zjkqprrfbibjoslvlmxf.supabase.co/functions/v1/provider-integration";
+    const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/provider-integration`;
 
     // Dropdown search states
     const [citySearchOpen, setCitySearchOpen] = useState(false);
@@ -980,19 +982,19 @@ const Orders = () => {
 
             // Status-specific field population
             if (values.order_status_id && values.order_status_id !== selectedOrder.order_status_id) {
-                const newStatus = orderStatuses?.find((s: any) => s.id === values.order_status_id);
-                if (newStatus?.code === 'CONFIRMED') {
+                const statusId = values.order_status_id;
+                if (isOrderCategory(statusId, 'confirmed')) {
                     updatePayload.confirmed_by_id = userId;
                     updatePayload.confirmation_date = new Date().toISOString();
                 }
-                if (newStatus?.code === 'CANCELED') {
+                if (isOrderCategory(statusId, 'cancelled')) {
                     updatePayload.canceled_by_id = userId;
                     updatePayload.annulation_date = new Date().toISOString();
                 }
-                if (newStatus?.code === 'PAID') {
+                if (isOrderCategory(statusId, 'paid')) {
                     updatePayload.date_livraison = new Date().toISOString();
                 }
-                if (newStatus?.code === 'POSTPONED') {
+                if (isOrderCategory(statusId, 'postponed')) {
                     // Use explicitly passed reported_date, falling back to current time
                     updatePayload.reported_date = (values as any)._reportedDate || new Date().toISOString();
                 }
@@ -1052,10 +1054,10 @@ const Orders = () => {
 
             // 3. Track History if Status Changed
             if (values.order_status_id && values.order_status_id !== selectedOrder.order_status_id) {
-                const newStatus = orderStatuses?.find(s => s.id === values.order_status_id);
+                const statusId = values.order_status_id;
                 let finalComment = values.history_comment || '';
 
-                if (newStatus?.code === 'POSTPONED' || values.order_status_id === REPORTED_STATUS_ID) {
+                if ((isOrderCategory(statusId, 'postponed') || statusId === REPORTED_STATUS_ID)) {
                     const rDate = (values as any)._reportedDate;
                     if (rDate) {
                         const formattedDate = format(new Date(rDate), 'dd/MM/yyyy HH:mm');
@@ -1116,19 +1118,18 @@ const Orders = () => {
                 updated_at: new Date().toISOString()
             };
 
-            const newStatus = orderStatuses?.find((s: any) => s.id === statusId);
-            if (newStatus?.code === 'CONFIRMED') {
+            if (isOrderCategory(statusId, 'confirmed')) {
                 updatePayload.confirmed_by_id = userId;
                 updatePayload.confirmation_date = new Date().toISOString();
             }
-            if (newStatus?.code === 'CANCELED') {
+            if (isOrderCategory(statusId, 'cancelled')) {
                 updatePayload.canceled_by_id = userId;
                 updatePayload.annulation_date = new Date().toISOString();
             }
-            if (newStatus?.code === 'PAID') {
+            if (isOrderCategory(statusId, 'paid')) {
                 updatePayload.date_livraison = new Date().toISOString();
             }
-            if (newStatus?.code === 'POSTPONED') {
+            if (isOrderCategory(statusId, 'postponed')) {
                 updatePayload.reported_date = reportedDate || new Date().toISOString();
             }
 
@@ -1143,7 +1144,7 @@ const Orders = () => {
             try {
                 let finalCommentTemplate = commentOverride || bulkStatusComment || 'Bulk status update';
 
-                if ((newStatus?.code === 'POSTPONED' || statusId === REPORTED_STATUS_ID) && reportedDate) {
+                if ((isOrderCategory(statusId, 'postponed') || statusId === REPORTED_STATUS_ID) && reportedDate) {
                     const formattedDate = format(new Date(reportedDate), 'dd/MM/yyyy HH:mm');
                     finalCommentTemplate = `[Reporté pour: ${formattedDate}] ${finalCommentTemplate}`;
                 }
@@ -2286,7 +2287,7 @@ const Orders = () => {
                                             )}
 
                                             {/* Row 5: Reported recall */}
-                                            {(order.status?.code === 'POSTPONED' || order.order_status_id === REPORTED_STATUS_ID) && order.reported_date && (
+                                            {isOrderCategory(order.order_status_id, 'postponed') && order.reported_date && (
                                                 <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-amber-50 border border-amber-100">
                                                     <div className="flex items-center gap-2">
                                                         <Calendar className="w-3.5 h-3.5 text-amber-600" />
@@ -2409,7 +2410,7 @@ const Orders = () => {
                                                                     {order.package_status?.label || order.package_status_label}
                                                                 </span>
                                                             )}
-                                                            {(order.status?.code === 'POSTPONED' || order.order_status_id === REPORTED_STATUS_ID) && order.reported_date && (
+                                                            {isOrderCategory(order.order_status_id, 'postponed') && order.reported_date && (
                                                                 <span className="flex items-center gap-1 text-[9px] font-bold text-amber-700">
                                                                     <Calendar className="w-2.5 h-2.5" />
                                                                     {format(new Date(order.reported_date), 'dd/MM HH:mm')}
@@ -2572,7 +2573,7 @@ const Orders = () => {
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit((values) => {
                             const targetStatusId = values.order_status_id;
-                            const REPORTED_STATUS_ID = orderStatuses?.find(s => s.code === 'POSTPONED')?.id;
+                            const reportedId = getOrderByCategory('postponed')?.id;
 
                             if (isEditModalOpen && selectedOrder && targetStatusId !== selectedOrder.order_status_id) {
                                 if (!values.history_comment?.trim()) {
@@ -2582,7 +2583,7 @@ const Orders = () => {
                                 }
                             }
 
-                            if (targetStatusId === REPORTED_STATUS_ID && selectedOrder?.order_status_id !== REPORTED_STATUS_ID) {
+                            if (reportedId && targetStatusId === reportedId && selectedOrder?.order_status_id !== reportedId) {
                                 setIsReportedModalOpen(true);
                                 setReportedData({ date: undefined, time: "12:00", comment: values.history_comment || "" });
                                 setPendingReportedAction(() => (date: Date, time: string, comment: string) => {
@@ -3749,7 +3750,7 @@ const Orders = () => {
                                                             </div>
                                                             {record.comment && (
                                                                 <div className="space-y-2">
-                                                                    {(record.status?.code === 'POSTPONED' || record.status_id === REPORTED_STATUS_ID) ? (
+                                                                    {isOrderCategory(record.status_id, 'postponed') ? (
                                                                         <div className="flex flex-col gap-1 p-3 bg-amber-50 rounded-xl border border-amber-100">
                                                                             <div className="flex items-center gap-2">
                                                                                 <Calendar className="w-3 h-3 text-amber-600" />
@@ -3832,12 +3833,13 @@ const Orders = () => {
                                     key={status.id}
                                     variant="outline"
                                     onClick={() => {
-                                        if (!bulkStatusComment.trim() && status.id !== REPORTED_STATUS_ID) {
+                                        const isPostponed = isOrderCategory(status.id, 'postponed');
+                                        if (!bulkStatusComment.trim() && !isPostponed) {
                                             toast({ title: "Validation Error", description: "Please provide a reason for changing the status.", variant: "destructive" });
                                             return;
                                         }
 
-                                        if (status.id === REPORTED_STATUS_ID) {
+                                        if (isPostponed) {
                                             setIsReportedModalOpen(true);
                                             setReportedData({ date: undefined, time: "12:00", comment: bulkStatusComment });
                                             setPendingReportedAction(() => (date: Date, time: string, comment: string) => {

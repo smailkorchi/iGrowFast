@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { useStatusCategories } from '@/hooks/useStatusCategories';
 import {
     Dialog,
     DialogContent,
@@ -27,7 +28,7 @@ import {
     Download
 } from 'lucide-react';
 
-const EDGE_FUNCTION_URL = 'https://zjkqprrfbibjoslvlmxf.supabase.co/functions/v1/provider-integration';
+const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/provider-integration`;
 
 interface DeliveryNoteWizardProps {
     open: boolean;
@@ -54,19 +55,14 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const activeBusinessId = localStorage.getItem('activeBusinessId');
+    const { getOrderByCategory } = useStatusCategories();
+    const confirmedStatusId = getOrderByCategory('confirmed')?.id;
 
     // Fetch zones that have confirmed orders
     const { data: zones } = useQuery({
-        queryKey: ['zones-with-confirmed-orders'],
+        queryKey: ['zones-with-confirmed-orders', confirmedStatusId],
         queryFn: async () => {
-            if (!activeBusinessId) return [];
-            const { data: confirmedStatus } = await supabase
-                .from('order_statuses')
-                .select('id')
-                .eq('label', 'CONFIRMER')
-                .single();
-
-            if (!confirmedStatus) return [];
+            if (!activeBusinessId || !confirmedStatusId) return [];
 
             // Get zones that have master_cities with confirmed orders
             const { data, error } = await supabase
@@ -83,7 +79,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                         )
                     )
                 `)
-                .eq('master_cities.orders.order_status_id', confirmedStatus.id)
+                .eq('master_cities.orders.order_status_id', confirmedStatusId)
                 .eq('master_cities.orders.DigiCom Business', activeBusinessId);
 
             if (error) throw error;
@@ -93,7 +89,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                 zone.master_cities.some((city: any) => city.orders.length > 0)
             ) || [];
         },
-        enabled: open
+        enabled: open && !!confirmedStatusId
     });
 
     // Fetch company_zones for provider resolution
@@ -115,13 +111,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
     const { data: ordersGrouped } = useQuery({
         queryKey: ['confirmed-orders-by-zone', selectedZoneId],
         queryFn: async () => {
-            if (!selectedZoneId) return null;
-
-            const { data: confirmedStatus } = await supabase
-                .from('order_statuses')
-                .select('id')
-                .eq('label', 'CONFIRMER')
-                .single();
+            if (!selectedZoneId || !confirmedStatusId) return null;
 
             // Fetch ALL confirmed orders in this zone (including those without company_id)
             const { data, error } = await supabase
@@ -135,7 +125,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                         product:products(name, code)
                     )
                 `)
-                .eq('order_status_id', confirmedStatus.id)
+                .eq('order_status_id', confirmedStatusId)
                 .eq('city.zone_id', selectedZoneId)
                 .eq('DigiCom Business', activeBusinessId);
 
@@ -177,7 +167,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
 
             return grouped;
         },
-        enabled: !!selectedZoneId && step === 'zone' && !!companyZonesData
+        enabled: !!selectedZoneId && step === 'zone' && !!companyZonesData && !!confirmedStatusId
     });
 
     // Create parcels for a provider

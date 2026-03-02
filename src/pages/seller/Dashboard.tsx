@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
+import { useStatusCategories } from '@/hooks/useStatusCategories';
 import {
     ShoppingCart, DollarSign, Clock, Package, ArrowUpRight,
     TrendingUp, CheckCircle, ChevronRight, Truck, Eye,
@@ -38,6 +39,7 @@ interface SellerStats {
 
 interface RecentOrder {
     id: string;
+    order_status_id?: string;
     status: string;
     total_amount: number;
     created_at: string;
@@ -66,6 +68,7 @@ const getGreeting = () => {
 
 const SellerDashboard = () => {
     const navigate = useNavigate();
+    const statusCats = useStatusCategories();
     const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
     const [stats, setStats] = useState<SellerStats>({
         todayOrders: 0,
@@ -88,7 +91,7 @@ const SellerDashboard = () => {
     useEffect(() => {
         initDashboard();
         fetchSellerData();
-    }, []);
+    }, [statusCats.confirmedIds.size, statusCats.deliveredPkgIds.size, statusCats.pendingIds.size]);
 
     const logPresence = async (userId: string, businessId?: string) => {
         try {
@@ -151,20 +154,21 @@ const SellerDashboard = () => {
             // Get orders attributed to this seller
             const { data: ordersData } = await supabase
                 .from('orders')
-                .select('id, price, created_at, name, package_status_label, order_statuses(code), order_items(product_id, products(name, image_url))')
+                .select('id, price, created_at, name, order_status_id, package_status_id, package_status_label, order_statuses(code), order_items(product_id, products(name, image_url))')
                 .eq('seller_id', userId)
                 .order('created_at', { ascending: false });
 
             const orders = (ordersData || []).map(o => ({
                 ...o,
+                order_status_id: (o as any).order_status_id,
+                package_status_id: (o as any).package_status_id,
                 status: (o.order_statuses as any)?.code?.toLowerCase() || 'unknown',
                 packageStatus: ((o as any).package_status_label || '').toLowerCase()
             }));
 
-            // Delivered = package_status is "Livré" (physically delivered by courier)
-            const isDelivered = (o: any) => o.packageStatus === 'livré';
-            const isPending = (o: any) => ['new', 'relaunch_new'].includes(o.status);
-            const isConfirmed = (o: any) => ['confirmed', 'processed', 'paid', 'unpaid'].includes(o.status);
+            const isDelivered = (o: any) => o.package_status_id && statusCats.deliveredPkgIds.has(o.package_status_id);
+            const isPending = (o: any) => statusCats.pendingIds.has(o.order_status_id);
+            const isConfirmed = (o: any) => statusCats.confirmedIds.has(o.order_status_id);
 
             const todayOrders = orders.filter(o => new Date(o.created_at) >= today);
             const todayRevenue = todayOrders.reduce((sum, o) => sum + (Number((o as any).price) || 0), 0);
@@ -208,6 +212,7 @@ const SellerDashboard = () => {
                 const product = orderItem?.products;
                 return {
                     id: o.id,
+                    order_status_id: (o as any).order_status_id,
                     status: (o as any).status,
                     total_amount: Number((o as any).price) || 0,
                     created_at: (o as any).created_at,
@@ -255,15 +260,9 @@ const SellerDashboard = () => {
         return userProfile?.name || userProfile?.email?.split('@')[0] || 'Seller';
     };
 
-    const getStatusColor = (status: string) => {
-        if (['paid', 'unpaid'].includes(status)) return 'bg-green-100 text-green-700';
-        if (['new', 'relaunch_new'].includes(status)) return 'bg-orange-100 text-orange-700';
-        if (status === 'confirmed') return 'bg-blue-100 text-blue-700';
-        if (status === 'canceled') return 'bg-red-100 text-red-700';
-        if (status === 'processed') return 'bg-indigo-100 text-indigo-700';
-        if (['faux commande', 'commandedouble'].includes(status)) return 'bg-rose-100 text-rose-700';
-        if (status === 'return') return 'bg-amber-100 text-amber-700';
-        return 'bg-gray-100 text-gray-700';
+    const getStatusStyle = (statusId: string) => {
+        const hex = statusCats.getOrderStatusColor(statusId);
+        return { backgroundColor: `${hex}20`, color: hex };
     };
 
     // Group recent orders by day
@@ -631,7 +630,7 @@ const SellerDashboard = () => {
                                                             </div>
                                                         </div>
                                                         <div className="flex items-center gap-3 flex-shrink-0">
-                                                            <Badge className={`border-0 text-[10px] rounded-lg ${getStatusColor(order.status)}`}>
+                                                            <Badge className="border-0 text-[10px] rounded-lg" style={order.order_status_id ? getStatusStyle(order.order_status_id) : { backgroundColor: '#f3f4f6', color: '#6b7280' }}>
                                                                 {order.status.replace('_', ' ')}
                                                             </Badge>
                                                             <p className="text-[10px] text-gray-400">

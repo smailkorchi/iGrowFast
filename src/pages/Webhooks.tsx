@@ -80,8 +80,7 @@ const PROVIDERS_TABLE = 'providers' as any;
 const LOGS_TABLE = 'webhook_logs' as any;
 const STATUS_MAP_TABLE = 'provider_statuses' as any;
 
-const SUPABASE_PROJECT_ID = 'zjkqprrfbibjoslvlmxf';
-const WEBHOOK_BASE_URL = `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/provider-webhook`;
+const WEBHOOK_BASE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/provider-webhook`;
 
 // --- Schemas ---
 

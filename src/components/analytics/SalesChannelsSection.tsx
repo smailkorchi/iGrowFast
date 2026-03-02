@@ -1,6 +1,7 @@
 import { useMemo, ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { SectionWrapper } from './SectionWrapper';
 import { StatCard } from './StatCard';
 import { DateFilter } from './AnalyticsDateFilter';
@@ -61,6 +62,8 @@ interface SalesChannelsSectionProps {
 }
 
 export const SalesChannelsSection = ({ businessId, dateFilter }: SalesChannelsSectionProps) => {
+    const { deliveredPkgIds, isOrderCategory } = useStatusCategories();
+
     const { data: orders, isLoading } = useQuery({
         queryKey: ['analytics-orders-channels', businessId],
         queryFn: async () => {
@@ -82,24 +85,6 @@ export const SalesChannelsSection = ({ businessId, dateFilter }: SalesChannelsSe
         enabled: !!businessId,
     });
 
-    const { data: packageStatuses } = useQuery({
-        queryKey: ['analytics-package-statuses', businessId],
-        queryFn: async () => {
-            const { data } = await supabase.from('package_statuses').select('id, code').eq('DigiCom Business', businessId);
-            return data || [];
-        },
-        enabled: !!businessId,
-    });
-
-    const { data: orderStatuses } = useQuery({
-        queryKey: ['analytics-order-statuses', businessId],
-        queryFn: async () => {
-            const { data } = await supabase.from('order_statuses').select('id, code').eq('DigiCom Business', businessId);
-            return data || [];
-        },
-        enabled: !!businessId,
-    });
-
     const metrics = useMemo(() => {
         if (!orders) return null;
 
@@ -116,8 +101,9 @@ export const SalesChannelsSection = ({ businessId, dateFilter }: SalesChannelsSe
         const filtered = orders.filter(o => isInRange(o.date));
         const channelMap = new Map((salesChannels || []).map(c => [c.id, c.name]));
 
-        const deliveredId = packageStatuses?.find(s => s.code === 'P_DELIVERED')?.id;
-        const paidId = orderStatuses?.find(s => s.code === 'PAID')?.id;
+        const isPaidAndDelivered = (o: any) =>
+            o.package_status_id && deliveredPkgIds.has(o.package_status_id) &&
+            o.order_status_id && isOrderCategory(o.order_status_id, 'paid');
 
         const channelBreakdown: Record<string, { orders: number; revenue: number; delivered: number }> = {};
         filtered.forEach(o => {
@@ -125,7 +111,7 @@ export const SalesChannelsSection = ({ businessId, dateFilter }: SalesChannelsSe
             if (!channelBreakdown[source]) channelBreakdown[source] = { orders: 0, revenue: 0, delivered: 0 };
             channelBreakdown[source].orders++;
             channelBreakdown[source].revenue += Number(o.price || 0);
-            if (o.package_status_id === deliveredId && o.order_status_id === paidId) {
+            if (isPaidAndDelivered(o)) {
                 channelBreakdown[source].delivered++;
             }
         });
@@ -163,7 +149,7 @@ export const SalesChannelsSection = ({ businessId, dateFilter }: SalesChannelsSe
             trendData,
             channelNames: channelData.slice(0, 5).map(c => c.name),
         };
-    }, [orders, salesChannels, packageStatuses, orderStatuses, dateFilter]);
+    }, [orders, salesChannels, dateFilter, deliveredPkgIds, isOrderCategory]);
 
     return (
         <SectionWrapper

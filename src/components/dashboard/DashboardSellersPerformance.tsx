@@ -7,32 +7,12 @@ import { cn } from '@/lib/utils';
 import { Users, ChevronDown } from 'lucide-react';
 import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
 import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
+import { useStatusCategories } from '@/hooks/useStatusCategories';
 
 interface DashboardSellersPerformanceProps {
     businessId: string;
     dateFilter: DateFilter;
 }
-
-const EXCLUDED_FROM_CONFIRMATION = new Set([
-    '2ab2ec36-3514-4082-bc98-4c0c70fc704b',
-    '6e630c78-e048-4406-8aa7-cf1bc2a71fde',
-    'b3772ee3-9910-4c5a-85dd-13dfc9f9ff73',
-    '9ceb7b82-a081-4362-9820-f1d9fa70d2c9',
-    '5c514555-0728-40c7-b6c5-2a006ed21d37',
-    '171119c0-5999-4e4b-adb9-3a1a32a7cecd',
-    '964ffaa1-8ca0-4a1f-b3a7-466a66fa046d',
-    '6b1d31d9-051a-4cf1-8a44-9d5ec4614412',
-    'd1e28bff-36d9-46e5-a2d9-9d9405159364',
-    'dbb3ae2c-abbf-4c96-93af-ed82319c8b68',
-    'b5b9f007-dee5-4873-9424-70cfd9231368',
-    'ac63ac02-04e9-4b9e-a917-737107d7fb60',
-    '5561c4b1-aed4-4988-816b-4e18fe5e775f',
-    '4d622f19-cf11-4d31-b908-5829ce0c57c7',
-    '31428d13-bf1f-4b23-b297-b3c112a549e7',
-    'deb5c74e-95f3-41a8-8446-c9b831792cca',
-]);
-
-const CONFIRMED_CODES = new Set(['CONFIRMED', 'PAID', 'UNPAID', 'PROCESSED']);
 
 const SOURCE_COLORS: Record<string, string> = {
     facebook: 'bg-blue-50 text-blue-700',
@@ -47,6 +27,13 @@ const SOURCE_COLORS: Record<string, string> = {
 
 export const DashboardSellersPerformance = ({ businessId, dateFilter }: DashboardSellersPerformanceProps) => {
     const [expandedSellers, setExpandedSellers] = useState<Set<string>>(new Set());
+    const {
+        confirmedIds,
+        callbackIds,
+        cancelledIds,
+        deliveredPkgIds,
+        getPkgsByCategories,
+    } = useStatusCategories();
 
     const toggleSeller = (id: string) => {
         setExpandedSellers(prev => {
@@ -82,26 +69,14 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
         enabled: !!businessId,
     });
 
-    const { data: packageStatuses } = useQuery({
-        queryKey: ['dashboard-package-statuses', businessId],
-        queryFn: async () => {
-            const { data } = await supabase
-                .from('package_statuses')
-                .select('id, label, recheck')
-                .eq('DigiCom Business', businessId);
-            return data || [];
-        },
-        enabled: !!businessId,
-    });
-
     const metrics = useMemo(() => {
         if (!sellers || !orders) return null;
 
         const recheckPackageIds = new Set(
-            (packageStatuses || [])
-                .filter((ps: any) => ps.recheck === true)
-                .map((ps: any) => ps.id)
+            getPkgsByCategories(['recheck']).map((p) => p.id)
         );
+        const isExcludedFromConfirmation = (statusId: string) =>
+            callbackIds.has(statusId) || cancelledIds.has(statusId);
 
         const isInRange = (dateStr: string | null) => {
             if (!dateStr) return true;
@@ -128,7 +103,7 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
             });
 
             const preConfOrders = sellerOrders.filter(
-                (o: any) => !EXCLUDED_FROM_CONFIRMATION.has(o.order_status_id)
+                (o: any) => !isExcludedFromConfirmation(o.order_status_id)
             );
             const preConfirmationBreakdown: Record<string, number> = {};
             preConfOrders.forEach((o: any) => {
@@ -136,10 +111,9 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                 preConfirmationBreakdown[label] = (preConfirmationBreakdown[label] || 0) + 1;
             });
 
-            const confirmedCount = sellerOrders.filter((o: any) => {
-                const code = ((o.order_statuses as any)?.code || '').toUpperCase();
-                return CONFIRMED_CODES.has(code);
-            }).length;
+            const confirmedCount = sellerOrders.filter((o: any) =>
+                confirmedIds.has(o.order_status_id)
+            ).length;
             const confirmedPercent = assignedCount > 0 ? (confirmedCount / assignedCount) * 100 : 0;
 
             const postConfOrders = sellerOrders.filter(
@@ -151,8 +125,8 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                 postConfirmationBreakdown[label] = (postConfirmationBreakdown[label] || 0) + 1;
             });
 
-            const delivered = sellerOrders.filter(
-                (o: any) => (o.package_status_label || '').toLowerCase() === 'livré'
+            const delivered = sellerOrders.filter((o: any) =>
+                deliveredPkgIds.has(o.package_status_id)
             );
             const deliveredCount = delivered.length;
             const deliveredPercent = confirmedCount > 0 ? (deliveredCount / confirmedCount) * 100 : 0;
@@ -178,7 +152,7 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
         }).sort((a, b) => b.deliveredCount - a.deliveredCount);
 
         return { sellerData, totalOrders };
-    }, [sellers, orders, packageStatuses, dateFilter]);
+    }, [sellers, orders, dateFilter, confirmedIds, callbackIds, cancelledIds, deliveredPkgIds, getPkgsByCategories]);
 
     if (!metrics) return null;
 

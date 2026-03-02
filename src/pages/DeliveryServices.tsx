@@ -88,6 +88,33 @@ const CITIES_TABLE = 'cities' as any;
 const COMPANY_ZONES_TABLE = 'company_zones' as any;
 const COMPANY_FEES_TABLE = 'company_fees' as any;
 
+const KNOWN_PROVIDERS = [
+    {
+        type: 'ameex',
+        name: 'AMEEX',
+        logo: `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/providers-logos/logos/0.2729560049630101.png`,
+        color: '#f97316',
+        baseUrl: 'https://api.ameex.app',
+        description: 'Full delivery management with tracking, labels, and delivery notes.',
+    },
+    {
+        type: 'coliaty',
+        name: 'Coliaty',
+        logo: `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/providers-logos/logos/0.6419997609504474.png`,
+        color: '#10b981',
+        baseUrl: 'https://customer-api-v1.coliaty.com',
+        description: 'Parcel delivery with pickup notes and real-time status tracking.',
+    },
+    {
+        type: 'ozon',
+        name: 'OzonExpress',
+        logo: `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/providers-logos/logos/0.9436752251055719.png`,
+        color: '#ef4444',
+        baseUrl: 'https://api.ozonexpress.ma',
+        description: 'Express delivery network with multipart parcel creation.',
+    },
+];
+
 // --- Schemas ---
 
 const deliveryPersonSchema = z.object({
@@ -119,6 +146,8 @@ const DeliveryServices = () => {
     const [activeTab, setActiveTab] = useState<'person' | 'company'>('company');
     const [isPersonModalOpen, setIsPersonModalOpen] = useState(false);
     const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
+    const [isPickerOpen, setIsPickerOpen] = useState(false);
+    const [selectedProviderTemplate, setSelectedProviderTemplate] = useState<typeof KNOWN_PROVIDERS[number] | null>(null);
     const [isZonesModalOpen, setIsZonesModalOpen] = useState(false);
     const [isFeesModalOpen, setIsFeesModalOpen] = useState(false);
     const [editingItem, setEditingItem] = useState<any>(null);
@@ -270,10 +299,22 @@ const DeliveryServices = () => {
         c.business_name?.toLowerCase().includes(searchQuery.toLowerCase())
     ) || [];
 
+    const connectedTypes = new Set((companies || []).map((c: any) => c.provider_type?.toLowerCase()));
+    const availableProviders = KNOWN_PROVIDERS.filter(p => !connectedTypes.has(p.type));
+    const allProvidersConnected = availableProviders.length === 0;
+
     const handleEdit = (item: any, type: 'person' | 'company') => {
         setEditingItem(item);
+        setSelectedProviderTemplate(null);
         if (type === 'person') setIsPersonModalOpen(true);
         else setIsCompanyModalOpen(true);
+    };
+
+    const handlePickProvider = (provider: typeof KNOWN_PROVIDERS[number]) => {
+        setSelectedProviderTemplate(provider);
+        setIsPickerOpen(false);
+        setEditingItem(null);
+        setIsCompanyModalOpen(true);
     };
 
     return (
@@ -288,17 +329,22 @@ const DeliveryServices = () => {
                             <p className="text-gray-500 font-light">Manage your logistics network, couriers, and provider integrations.</p>
                         </div>
                         <div className="flex items-center gap-3">
-                            <Button
-                                onClick={() => {
-                                    setEditingItem(null);
-                                    if (activeTab === 'person') setIsPersonModalOpen(true);
-                                    else setIsCompanyModalOpen(true);
-                                }}
-                                className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group flex items-center gap-2"
-                            >
-                                <Plus className="w-5 h-5 mr-3 group-hover:rotate-90 transition-transform duration-500" />
-                                Add {activeTab === 'person' ? 'Courier' : 'Partner'}
-                            </Button>
+                            {(activeTab === 'person' || !allProvidersConnected) && (
+                                <Button
+                                    onClick={() => {
+                                        setEditingItem(null);
+                                        if (activeTab === 'person') {
+                                            setIsPersonModalOpen(true);
+                                        } else {
+                                            setIsPickerOpen(true);
+                                        }
+                                    }}
+                                    className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group flex items-center gap-2"
+                                >
+                                    <Plus className="w-5 h-5 mr-3 group-hover:rotate-90 transition-transform duration-500" />
+                                    Add {activeTab === 'person' ? 'Courier' : 'Partner'}
+                                </Button>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -377,11 +423,19 @@ const DeliveryServices = () => {
                 loading={personMutation.isPending}
             />
 
+            <ProviderPickerModal
+                isOpen={isPickerOpen}
+                onClose={() => setIsPickerOpen(false)}
+                availableProviders={availableProviders}
+                onSelect={handlePickProvider}
+            />
+
             <CompanyModal
                 isOpen={isCompanyModalOpen}
-                onClose={() => setIsCompanyModalOpen(false)}
+                onClose={() => { setIsCompanyModalOpen(false); setSelectedProviderTemplate(null); }}
                 onSubmit={(values) => companyMutation.mutate({ values, id: editingItem?.id })}
                 initialData={editingItem}
+                providerTemplate={selectedProviderTemplate}
                 loading={companyMutation.isPending}
             />
 
@@ -511,12 +565,11 @@ function PartnerCard({ company, onEdit, onZones, onFees, onDelete }: any) {
 
                     <div>
                         <CardTitle className="text-2xl font-black text-brand-navy tracking-tight">{company.name}</CardTitle>
-                        <Badge className={cn(
-                            "mt-1.5 border-none font-bold text-[10px] uppercase tracking-widest px-2.5 py-1 rounded-lg",
-                            company.provider_type?.toLowerCase() === 'ameex' ? "bg-orange-100 text-orange-600" :
-                                company.provider_type?.toLowerCase() === 'coliaty' ? "bg-blue-100 text-blue-600" : "bg-slate-100 text-slate-500"
-                        )}>
-                            {company.provider_type} System
+                        <Badge
+                            className={cn("mt-1.5 border-none font-bold text-[10px] uppercase tracking-widest px-2.5 py-1 rounded-lg", !company.color && "bg-slate-100 text-slate-500")}
+                            style={company.color ? { backgroundColor: `${company.color}20`, color: company.color } : undefined}
+                        >
+                            {company.provider_type || 'Provider'} System
                         </Badge>
                     </div>
                 </div>
@@ -664,7 +717,52 @@ function PersonModal({ isOpen, onClose, onSubmit, initialData, loading }: any) {
     );
 };
 
-function CompanyModal({ isOpen, onClose, onSubmit, initialData, loading }: any) {
+function ProviderPickerModal({ isOpen, onClose, availableProviders, onSelect }: {
+    isOpen: boolean;
+    onClose: () => void;
+    availableProviders: typeof KNOWN_PROVIDERS;
+    onSelect: (provider: typeof KNOWN_PROVIDERS[number]) => void;
+}) {
+    return (
+        <Dialog open={isOpen} onOpenChange={(v) => !v && onClose()}>
+            <DialogContent className="max-w-lg p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden">
+                <DialogHeader className="p-10 pb-6">
+                    <DialogTitle className="text-3xl font-black text-brand-navy">Connect Provider</DialogTitle>
+                    <DialogDescription className="text-base font-medium">Select a delivery partner to integrate.</DialogDescription>
+                </DialogHeader>
+
+                <div className="px-10 pb-10 space-y-4">
+                    {availableProviders.map((provider) => (
+                        <div
+                            key={provider.type}
+                            onClick={() => onSelect(provider)}
+                            className="group relative flex items-center gap-5 p-5 rounded-[24px] border-2 border-transparent bg-slate-50 hover:border-brand-navy/20 hover:shadow-xl cursor-pointer transition-all duration-300"
+                        >
+                            <div
+                                className="h-16 w-16 rounded-2xl flex items-center justify-center overflow-hidden shrink-0 p-2 border border-slate-100"
+                                style={{ backgroundColor: `${provider.color}08` }}
+                            >
+                                <img src={provider.logo} alt={provider.name} className="max-w-full max-h-full object-contain" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <h3 className="text-lg font-black text-brand-navy">{provider.name}</h3>
+                                <p className="text-sm text-slate-500 font-medium leading-snug mt-0.5">{provider.description}</p>
+                            </div>
+                            <div
+                                className="w-10 h-10 rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                                style={{ backgroundColor: provider.color }}
+                            >
+                                <Plus className="w-5 h-5 text-white" />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function CompanyModal({ isOpen, onClose, onSubmit, initialData, providerTemplate, loading }: any) {
     const [logo, setLogo] = useState<File | null>(null);
     const [logoPreview, setLogoPreview] = useState<string | null>(initialData?.logo_url || null);
 
@@ -673,11 +771,11 @@ function CompanyModal({ isOpen, onClose, onSubmit, initialData, loading }: any) 
         defaultValues: {
             name: '',
             business_name: '',
-            provider_type: 'other',
+            provider_type: '',
             api_key: '',
             api_login: '',
             api_password: '',
-            api_base_url: 'https://app.ameex.co/api',
+            api_base_url: '',
             api_public_key: '',
             api_secret_key: '',
             active: true,
@@ -689,16 +787,32 @@ function CompanyModal({ isOpen, onClose, onSubmit, initialData, loading }: any) 
         if (isOpen && initialData) {
             form.reset(initialData);
             setLogoPreview(initialData.logo_url);
+        } else if (isOpen && providerTemplate) {
+            form.reset({
+                name: providerTemplate.name,
+                business_name: '',
+                business_id: '',
+                provider_type: providerTemplate.type,
+                api_key: '',
+                api_login: '',
+                api_password: '',
+                api_base_url: providerTemplate.baseUrl,
+                api_public_key: '',
+                api_secret_key: '',
+                active: true,
+                logo_url: providerTemplate.logo,
+            });
+            setLogoPreview(providerTemplate.logo);
         } else if (isOpen) {
             form.reset({
                 name: '',
                 business_name: '',
                 business_id: '',
-                provider_type: 'other',
+                provider_type: '',
                 api_key: '',
                 api_login: '',
                 api_password: '',
-                api_base_url: 'https://app.ameex.co/api',
+                api_base_url: '',
                 api_public_key: '',
                 api_secret_key: '',
                 active: true,
@@ -706,7 +820,7 @@ function CompanyModal({ isOpen, onClose, onSubmit, initialData, loading }: any) 
             });
             setLogoPreview(null);
         }
-    }, [isOpen, initialData, form]);
+    }, [isOpen, initialData, providerTemplate, form]);
 
     const onDrop = useCallback((acceptedFiles: File[]) => {
         const file = acceptedFiles[0];
@@ -719,6 +833,8 @@ function CompanyModal({ isOpen, onClose, onSubmit, initialData, loading }: any) 
         accept: { 'image/*': [] },
         multiple: false
     });
+
+    const isTemplateCreate = !initialData && !!providerTemplate;
 
     const handleFormSubmit = async (values: DeliveryCompanyValues) => {
         let finalValues = { ...values };
@@ -738,6 +854,13 @@ function CompanyModal({ isOpen, onClose, onSubmit, initialData, loading }: any) 
                     .getPublicUrl(filePath);
                 finalValues.logo_url = publicUrl;
             }
+        } else if (isTemplateCreate && providerTemplate) {
+            finalValues.logo_url = providerTemplate.logo;
+        }
+
+        if (isTemplateCreate && providerTemplate) {
+            finalValues.provider_type = providerTemplate.type;
+            (finalValues as any).color = providerTemplate.color;
         }
 
         onSubmit(finalValues);
@@ -749,37 +872,53 @@ function CompanyModal({ isOpen, onClose, onSubmit, initialData, loading }: any) 
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleFormSubmit)}>
                         <DialogHeader className="p-10 pb-6 flex flex-row items-center justify-between">
-                            <div className="space-y-1">
-                                <DialogTitle className="text-3xl font-black text-brand-navy">{initialData ? 'Configure Service' : 'Connect Delivery Partner'}</DialogTitle>
-                                <DialogDescription className="text-base font-medium">Link an external delivery company via API integration.</DialogDescription>
+                            <div className="space-y-1 flex items-center gap-5">
+                                {isTemplateCreate && providerTemplate && (
+                                    <div
+                                        className="h-14 w-14 rounded-2xl flex items-center justify-center overflow-hidden shrink-0 p-2 border"
+                                        style={{ backgroundColor: `${providerTemplate.color}10`, borderColor: `${providerTemplate.color}30` }}
+                                    >
+                                        <img src={providerTemplate.logo} alt={providerTemplate.name} className="max-w-full max-h-full object-contain" />
+                                    </div>
+                                )}
+                                <div>
+                                    <DialogTitle className="text-3xl font-black text-brand-navy">
+                                        {initialData ? 'Configure Service' : isTemplateCreate ? `Connect ${providerTemplate?.name}` : 'Connect Delivery Partner'}
+                                    </DialogTitle>
+                                    <DialogDescription className="text-base font-medium">
+                                        {isTemplateCreate ? `Enter your ${providerTemplate?.name} API credentials below.` : 'Link an external delivery company via API integration.'}
+                                    </DialogDescription>
+                                </div>
                             </div>
                         </DialogHeader>
 
                         <div className="px-10 pb-10 grid grid-cols-1 md:grid-cols-2 gap-10">
                             {/* Left Column: Basic Info */}
                             <div className="space-y-8">
-                                <div className="space-y-4">
-                                    <FormLabel className="text-xs font-black uppercase tracking-widest text-brand-navy/40">Company Branding</FormLabel>
-                                    <div {...getRootProps()} className={cn(
-                                        "relative group h-40 rounded-[32px] border-2 border-dashed flex flex-col items-center justify-center transition-all cursor-pointer overflow-hidden",
-                                        logoPreview ? "border-transparent" : "border-brand-navy/10 hover:border-brand-navy/30 bg-brand-navy/[0.02]"
-                                    )}>
-                                        <input {...getInputProps()} />
-                                        {logoPreview ? (
-                                            <>
-                                                <img src={logoPreview} alt="Preview" className="w-full h-full object-contain p-4" />
-                                                <div className="absolute inset-0 bg-brand-navy/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <Upload className="w-8 h-8 text-white" />
+                                {!isTemplateCreate && (
+                                    <div className="space-y-4">
+                                        <FormLabel className="text-xs font-black uppercase tracking-widest text-brand-navy/40">Company Branding</FormLabel>
+                                        <div {...getRootProps()} className={cn(
+                                            "relative group h-40 rounded-[32px] border-2 border-dashed flex flex-col items-center justify-center transition-all cursor-pointer overflow-hidden",
+                                            logoPreview ? "border-transparent" : "border-brand-navy/10 hover:border-brand-navy/30 bg-brand-navy/[0.02]"
+                                        )}>
+                                            <input {...getInputProps()} />
+                                            {logoPreview ? (
+                                                <>
+                                                    <img src={logoPreview} alt="Preview" className="w-full h-full object-contain p-4" />
+                                                    <div className="absolute inset-0 bg-brand-navy/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <Upload className="w-8 h-8 text-white" />
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <div className="text-center">
+                                                    <ImageIcon className="w-10 h-10 text-brand-navy/20 mx-auto mb-2" />
+                                                    <p className="text-xs font-bold text-brand-navy/60">Upload Logo</p>
                                                 </div>
-                                            </>
-                                        ) : (
-                                            <div className="text-center">
-                                                <ImageIcon className="w-10 h-10 text-brand-navy/20 mx-auto mb-2" />
-                                                <p className="text-xs font-bold text-brand-navy/60">Upload Logo</p>
-                                            </div>
-                                        )}
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
+                                )}
 
                                 <FormField control={form.control} name="name" render={({ field }) => (
                                     <FormItem>
@@ -811,7 +950,16 @@ function CompanyModal({ isOpen, onClose, onSubmit, initialData, loading }: any) 
                                         <FormItem>
                                             <FormLabel className="text-xs font-black uppercase tracking-widest text-brand-navy/40">Provider Type (System)</FormLabel>
                                             <FormControl>
-                                                <Input placeholder="e.g. ameex, coliaty, speedaf" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/5 text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium font-bold shadow-inner px-6" value={field.value || ''} />
+                                                <Input
+                                                    placeholder="e.g. ameex, coliaty"
+                                                    {...field}
+                                                    disabled={isTemplateCreate}
+                                                    className={cn(
+                                                        "h-14 rounded-2xl border-none bg-brand-navy/5 text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium font-bold shadow-inner px-6",
+                                                        isTemplateCreate && "opacity-60 cursor-not-allowed"
+                                                    )}
+                                                    value={field.value || ''}
+                                                />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -891,7 +1039,7 @@ function CompanyModal({ isOpen, onClose, onSubmit, initialData, loading }: any) 
                         <DialogFooter className="p-10 pt-0">
                             <Button type="submit" disabled={loading} className="w-full bg-brand-navy hover:bg-brand-navy/90 text-white rounded-2xl h-16 text-lg font-black shadow-2xl transition-all flex items-center justify-center gap-3">
                                 {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <ExternalLink className="w-6 h-6" />}
-                                {initialData ? 'Save Configuration' : 'Establish Connection'}
+                                {initialData ? 'Save Configuration' : isTemplateCreate ? `Connect ${providerTemplate?.name}` : 'Establish Connection'}
                             </Button>
                         </DialogFooter>
                     </form>

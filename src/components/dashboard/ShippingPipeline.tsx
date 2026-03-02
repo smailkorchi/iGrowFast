@@ -7,29 +7,15 @@ import { Truck, Building2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
 import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
+import { useStatusCategories } from '@/hooks/useStatusCategories';
 
 interface ShippingPipelineProps {
     businessId: string;
     dateFilter: DateFilter;
 }
 
-const STATUS_COLORS: Record<string, string> = {
-    'Expédié': '#3b82f6',
-    'Mise en distribution': '#8b5cf6',
-    'Reçu': '#06b6d4',
-    'Attente De Ramassage': '#f59e0b',
-    'En attente de ramassage': '#f97316',
-    'Livré': '#10b981',
-    'Retourné': '#ef4444',
-    'Refusé': '#dc2626',
-    'Reporté': '#6366f1',
-    'Programmé': '#14b8a6',
-    'Nouveau Colis': '#64748b',
-};
-
-const getStatusColor = (label: string) => STATUS_COLORS[label] || '#94a3b8';
-
 export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelineProps) => {
+    const { getPkgStatusColor, isPkgCategory, returnedPkgIds } = useStatusCategories();
     const { data: orders } = useQuery({
         queryKey: ['dashboard-orders', businessId],
         queryFn: async () => {
@@ -69,15 +55,17 @@ export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelinePro
 
         const shipped = orders.filter((o: any) => !!o.company_id && isInRange(o.date));
 
-        const statusDist: Record<string, number> = {};
+        const statusDist: Record<string, { count: number; statusId: string }> = {};
         shipped.forEach((o: any) => {
             const label = o.package_status_label;
-            if (!label) return;
-            statusDist[label] = (statusDist[label] || 0) + 1;
+            const statusId = o.package_status_id;
+            if (!label || !statusId) return;
+            if (!statusDist[label]) statusDist[label] = { count: 0, statusId };
+            statusDist[label].count++;
         });
 
         const statusChart = Object.entries(statusDist)
-            .map(([label, count]) => ({ label, count, color: getStatusColor(label) }))
+            .map(([label, { count, statusId }]) => ({ label, count, color: getPkgStatusColor(statusId) }))
             .sort((a, b) => b.count - a.count);
 
         const providerDist: Record<string, { total: number; delivered: number; returned: number }> = {};
@@ -85,9 +73,8 @@ export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelinePro
             const pid = o.company_id;
             if (!providerDist[pid]) providerDist[pid] = { total: 0, delivered: 0, returned: 0 };
             providerDist[pid].total++;
-            const label = (o.package_status_label || '').toLowerCase();
-            if (label === 'livré') providerDist[pid].delivered++;
-            if (label === 'retourné') providerDist[pid].returned++;
+            if (o.package_status_id && isPkgCategory(o.package_status_id, 'delivered')) providerDist[pid].delivered++;
+            if (o.package_status_id && returnedPkgIds.has(o.package_status_id)) providerDist[pid].returned++;
         });
 
         const providerList = Object.entries(providerDist)
@@ -104,7 +91,7 @@ export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelinePro
             .sort((a, b) => b.total - a.total);
 
         return { total: shipped.length, statusChart, providerList };
-    }, [orders, providers, dateFilter]);
+    }, [orders, providers, dateFilter, getPkgStatusColor, isPkgCategory, returnedPkgIds]);
 
     if (!metrics) return null;
 

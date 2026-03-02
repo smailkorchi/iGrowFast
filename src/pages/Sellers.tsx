@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { format, parseISO, differenceInDays } from 'date-fns';
+import { useStatusCategories } from '@/hooks/useStatusCategories';
 
 // ============ TYPE DEFINITIONS ============
 
@@ -73,6 +74,13 @@ interface EnrichedSeller extends SellerProfile {
 
 const Sellers = () => {
   const activeBusinessId = localStorage.getItem('activeBusinessId');
+  const {
+    confirmedIds,
+    cancelledIds,
+    deliveredPkgIds,
+    pendingIds,
+    getOrderCategory,
+  } = useStatusCategories();
   const [sellers, setSellers] = useState<EnrichedSeller[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedSeller, setSelectedSeller] = useState<EnrichedSeller | null>(null);
@@ -86,7 +94,7 @@ const Sellers = () => {
 
   useEffect(() => {
     fetchSellers();
-  }, []);
+  }, [confirmedIds, cancelledIds, deliveredPkgIds, pendingIds, getOrderCategory]);
 
   const fetchSellers = async () => {
     setLoading(true);
@@ -111,13 +119,10 @@ const Sellers = () => {
       // 2. Fetch all orders for all sellers (using correct schema)
       const { data: ordersData } = await supabase
         .from('orders')
-        .select('id, seller_id, order_status_id, price, created_at, date_livraison, master_city_id, package_status_label, status:order_statuses(code, label), city:master_cities(name)')
+        .select('id, seller_id, order_status_id, package_status_id, price, created_at, date_livraison, master_city_id, package_status_label, status:order_statuses(code, label), city:master_cities(name)')
         .in('seller_id', sellerIds);
 
       const orders = (ordersData || []) as any[];
-
-      // Helper to get status code from joined order_statuses
-      const getStatusCode = (o: any): string => (o.status?.code || '').toUpperCase();
 
       // 3. Fetch daily earnings
       const { data: earningsData } = await supabase
@@ -160,14 +165,6 @@ const Sellers = () => {
         });
       }
 
-      // Status code groupings
-      const CONFIRMED_CODES = ['CONFIRMED'];
-      const DELIVERED_CODES = ['PAID', 'UNPAID'];
-      const CANCELLED_CODES = ['CANCELED'];
-      const FAKE_CODES = ['FAUX COMMANDE', 'COMMANDEDOUBLE'];
-      const SHIPPED_CODES = ['PROCESSED'];
-      const NEW_CODES = ['NEW', 'RELAUNCH_NEW'];
-
       // 7. Enrich each seller with KPIs
       const enriched: EnrichedSeller[] = sellersData.map(seller => {
         const sellerOrders = orders.filter(o => o.seller_id === seller.id);
@@ -181,24 +178,23 @@ const Sellers = () => {
         let delivered = 0, shipped = 0, confirmed = 0, pending = 0, cancelled = 0, fake = 0;
         
         sellerOrders.forEach(o => {
-          const statusCode = getStatusCode(o);
-          const packageLabel = (o.package_status_label || '').toLowerCase();
-          
+          const orderCat = getOrderCategory(o.order_status_id);
+          const isDeliveredPkg = o.package_status_id && deliveredPkgIds.has(o.package_status_id);
+
           // Priority: delivered > shipped > confirmed > cancelled/fake > pending
-          if (packageLabel === 'livré') {
+          if (isDeliveredPkg) {
             delivered++;
-          } else if (SHIPPED_CODES.includes(statusCode)) {
+          } else if (orderCat === 'processed') {
             shipped++;
-          } else if (CONFIRMED_CODES.includes(statusCode)) {
+          } else if (confirmedIds.has(o.order_status_id)) {
             confirmed++;
-          } else if (CANCELLED_CODES.includes(statusCode)) {
+          } else if (orderCat === 'cancelled') {
             cancelled++;
-          } else if (FAKE_CODES.includes(statusCode)) {
+          } else if (orderCat === 'fake' || orderCat === 'double') {
             fake++;
-          } else if (NEW_CODES.includes(statusCode)) {
+          } else if (pendingIds.has(o.order_status_id)) {
             pending++;
           } else {
-            // Other statuses go to pending
             pending++;
           }
         });
@@ -218,7 +214,7 @@ const Sellers = () => {
         const liveCommission = unpaidDeliveries * (Number(seller.commission_price) || 0);
 
         const totalRevenue = sellerOrders
-          .filter(o => (o.package_status_label || '').toLowerCase() === 'livré')
+          .filter(o => o.package_status_id && deliveredPkgIds.has(o.package_status_id))
           .reduce((sum, o) => sum + (Number(o.price) || 0), 0);
 
         const totalCommissionEarned = sellerEarnings.reduce((sum, e) => sum + (Number(e.commission_earned) || 0), 0);
@@ -238,7 +234,7 @@ const Sellers = () => {
 
         // Top city from delivered orders
         const cityMap: Record<string, number> = {};
-        sellerOrders.filter(o => (o.package_status_label || '').toLowerCase() === 'livré').forEach(o => {
+        sellerOrders.filter(o => o.package_status_id && deliveredPkgIds.has(o.package_status_id)).forEach(o => {
           const cityName = (o.city as any)?.name || 'Unknown';
           cityMap[cityName] = (cityMap[cityName] || 0) + 1;
         });

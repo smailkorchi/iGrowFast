@@ -93,7 +93,7 @@ const Cities = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await supabase
                 .from('master_cities')
-                .select('*, zones(name), ameex:ameex_cities(name, ameex_city_id), coliaty:coliaty_cities(city_name), ozonexpress:ozonexpress_cities(name, ozon_city_id)')
+                .select('*, zones(name), provider_cities(provider_type, provider_city_id, provider_city_name)')
                 .eq('DigiCom Business', activeBusinessId)
                 .order('name');
 
@@ -266,24 +266,12 @@ const Cities = () => {
                                             <MapPin className="w-2.5 h-2.5" />
                                             {(city.zones as any)?.name || 'Unassigned'}
                                         </div>
-                                        {city.ameex && (
-                                            <div className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-brand-navy/[0.04] text-[10px] font-bold text-brand-navy/60 uppercase tracking-wider">
+                                        {(city.provider_cities as any[])?.map((pc: any) => (
+                                            <div key={pc.provider_type} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-brand-navy/[0.04] text-[10px] font-bold text-brand-navy/60 uppercase tracking-wider">
                                                 <Globe className="w-2.5 h-2.5" />
-                                                AMEEX: {(city.ameex as any).name}
+                                                {pc.provider_type}: {pc.provider_city_name}
                                             </div>
-                                        )}
-                                        {city.coliaty && (
-                                            <div className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-brand-navy/[0.04] text-[10px] font-bold text-brand-navy/60 uppercase tracking-wider">
-                                                <Globe className="w-2.5 h-2.5" />
-                                                Coliaty: {(city.coliaty as any).city_name}
-                                            </div>
-                                        )}
-                                        {city.ozonexpress && (
-                                            <div className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-brand-navy/[0.04] text-[10px] font-bold text-brand-navy/60 uppercase tracking-wider">
-                                                <Globe className="w-2.5 h-2.5" />
-                                                Ozon: {(city.ozonexpress as any).name}
-                                            </div>
-                                        )}
+                                        ))}
                                     </div>
                                 </div>
 

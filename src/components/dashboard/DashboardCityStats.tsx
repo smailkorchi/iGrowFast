@@ -9,6 +9,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
 import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { Globe } from '@/components/ui/globe';
+import { useStatusCategories } from '@/hooks/useStatusCategories';
 
 interface DashboardCityStatsProps {
     businessId: string;
@@ -18,12 +19,13 @@ interface DashboardCityStatsProps {
 const COLORS = ['#3b5e5e', '#7a9385', '#F97316', '#3B82F6', '#A855F7', '#14B8A6', '#EC4899', '#c93942', '#6366f1', '#84cc16'];
 
 export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStatsProps) => {
+    const { confirmedIds, isPkgCategory } = useStatusCategories();
     const { data: orders } = useQuery({
         queryKey: ['dashboard-orders-cities', businessId],
         queryFn: async () => {
             const { data } = await supabase
                 .from('orders')
-                .select('id, date, price, package_status_label, master_city_id, company_id, master_cities(name), order_statuses(code)')
+                .select('id, date, price, package_status_id, package_status_label, master_city_id, company_id, master_cities(name), order_status_id, order_statuses(code)')
                 .eq('DigiCom Business', businessId);
             return data || [];
         },
@@ -53,11 +55,9 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
             if (!cityMap[cityName]) cityMap[cityName] = { name: cityName, total: 0, delivered: 0, confirmed: 0, revenue: 0 };
             cityMap[cityName].total++;
 
-            const code = ((o.order_statuses as any)?.code || '').toUpperCase();
-            if (['CONFIRMED', 'PAID', 'UNPAID', 'PROCESSED'].includes(code)) cityMap[cityName].confirmed++;
+            if (o.order_status_id && confirmedIds.has(o.order_status_id)) cityMap[cityName].confirmed++;
 
-            const label = (o.package_status_label || '').toLowerCase();
-            if (label === 'livré') {
+            if (o.package_status_id && isPkgCategory(o.package_status_id, 'delivered')) {
                 cityMap[cityName].delivered++;
                 cityMap[cityName].revenue += Number(o.price || 0);
             }
@@ -72,7 +72,7 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
         }));
 
         return { cities: sorted, chartData, totalCities: sorted.length };
-    }, [orders, dateFilter]);
+    }, [orders, dateFilter, confirmedIds, isPkgCategory]);
 
     if (!metrics) return null;
 

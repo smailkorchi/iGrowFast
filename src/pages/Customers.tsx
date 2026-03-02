@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { useStatusCategories } from '@/hooks/useStatusCategories';
 import {
     Search,
     User,
@@ -70,6 +71,8 @@ interface Order {
     date: string;
     price: number;
     shipping_cost: number;
+    order_status_id: string;
+    package_status_id: string | null;
     status: {
         label: string;
         color: string;
@@ -95,6 +98,7 @@ interface Customer {
 const PAGE_SIZE = 12;
 
 const Customers = () => {
+    const statusCats = useStatusCategories();
     const [searchQuery, setSearchQuery] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -103,7 +107,7 @@ const Customers = () => {
 
     // --- Data Fetching ---
     const { data: customers, isLoading } = useQuery({
-        queryKey: ['customers-derived', activeBusinessId],
+        queryKey: ['customers-derived', activeBusinessId, statusCats.confirmedIds.size, statusCats.deliveredPkgIds.size],
         queryFn: async () => {
             if (!activeBusinessId) return [];
             // Fetch all orders with necessary fields
@@ -118,6 +122,8 @@ const Customers = () => {
                     shipping_cost,
                     date,
                     created_at,
+                    order_status_id,
+                    package_status_id,
                     city:master_cities(name),
                     status:order_statuses(label, color)
                 `)
@@ -146,6 +152,8 @@ const Customers = () => {
                     date: orderDate,
                     price: orderPrice,
                     shipping_cost: Number(order.shipping_cost) || 0,
+                    order_status_id: order.order_status_id || '',
+                    package_status_id: order.package_status_id || null,
                     status: { label: statusLabel, color: statusColor },
                     city_name: cityName
                 };
@@ -190,9 +198,11 @@ const Customers = () => {
                 else if (cust.totalSpent > 500) cust.status = 'Mid Value';
                 else cust.status = 'Low Value';
 
-                // Interaction Score (e.g., successful orders weight more)
+                // Interaction Score (successful = confirmed+delivered)
                 const successfulOrders = cust.orders.filter(o =>
-                    ['CONFIRMER', 'PAID', 'LIVRE'].includes(o.status.label.toUpperCase())
+                    statusCats.confirmedIds.has(o.order_status_id) &&
+                    o.package_status_id != null &&
+                    statusCats.deliveredPkgIds.has(o.package_status_id)
                 ).length;
                 cust.interactionScore = (successfulOrders * 10) + (cust.totalOrders * 2);
 

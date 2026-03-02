@@ -104,7 +104,7 @@ Deno.serve(async (req: Request) => {
         // Find matching package status
         const { data: matchedStatus, error: matchError } = await supabase
             .from('package_statuses')
-            .select('id, code')
+            .select('id, code, category')
             .contains('delivery_service_statuses', [incomingStatus])
             .limit(1)
             .maybeSingle();
@@ -121,7 +121,7 @@ Deno.serve(async (req: Request) => {
             updated_at: new Date().toISOString()
         };
 
-        if (matchedStatus.code === 'P_DELIVERED') {
+        if (matchedStatus.category === 'delivered') {
             updateData.delivered = true;
             updateData.date_livraison = new Date().toISOString();
         }

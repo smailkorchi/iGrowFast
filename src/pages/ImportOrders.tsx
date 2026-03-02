@@ -42,12 +42,11 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { useStatusCategories } from '@/hooks/useStatusCategories';
 
 // --- Types & Constants ---
 const PAGE_SIZE = 500;
-// Default status code for new imports
-const DEFAULT_STATUS_CODE = 'NEW';
-const TEMPLATE_URL = 'https://zjkqprrfbibjoslvlmxf.supabase.co/storage/v1/object/public/documents/Orders%20Model.xlsx';
+const TEMPLATE_URL = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/documents/Orders%20Model.xlsx`;
 
 interface RawRow {
     [key: string]: any;
@@ -77,6 +76,8 @@ interface MappedOrder {
 
 const ImportOrders = () => {
     const { toast } = useToast();
+    const { getOrderByCategory } = useStatusCategories();
+    const defaultStatusId = getOrderByCategory('new')?.id;
     const [file, setFile] = useState<File | null>(null);
     const [data, setData] = useState<MappedOrder[]>([]);
     const [isParsing, setIsParsing] = useState(false);
@@ -166,22 +167,6 @@ const ImportOrders = () => {
         }
     });
 
-    const { data: defaultStatus } = useQuery({
-        queryKey: ['default-order-status', activeBusinessId],
-        queryFn: async () => {
-            if (!activeBusinessId) return null;
-            const { data, error } = await (supabase as any)
-                .from('order_statuses')
-                .select('id')
-                .eq('code', DEFAULT_STATUS_CODE)
-                .eq('DigiCom Business', activeBusinessId)
-                .single();
-            if (error) return null;
-            return data;
-        },
-        enabled: !!activeBusinessId
-    });
-
     const { data: courierFees } = useQuery({
         queryKey: ['courier-fees-all', activeBusinessId],
         queryFn: async () => {
@@ -237,6 +222,7 @@ const ImportOrders = () => {
 
     const uploadMutation = useMutation({
         mutationFn: async (orders: MappedOrder[]) => {
+            if (!defaultStatusId) throw new Error('Order status not loaded');
             let completed = 0;
             const validOrders = orders.filter(o => o.status === 'valid');
             const total = validOrders.length;
@@ -323,7 +309,7 @@ const ImportOrders = () => {
                     delivery_note: order.delivery_note,
                     source_name: order.source,
                     replace: order.is_exchange,
-                    order_status_id: defaultStatus?.id,
+                    order_status_id: defaultStatusId,
                     date: new Date().toISOString().split('T')[0],
                     courier_id: bestProviderType === 'courier' ? bestProviderId : null,
                     company_id: bestProviderType === 'company' ? bestProviderId : null,
@@ -667,7 +653,7 @@ const ImportOrders = () => {
                             </div>
                         ) : (
                             <Button
-                                disabled={data.length === 0 || validCount === 0 || uploadMutation.isPending}
+                                disabled={data.length === 0 || validCount === 0 || !defaultStatusId || uploadMutation.isPending}
                                 onClick={() => uploadMutation.mutate(data.filter(d => d.status === 'valid'))}
                                 className="w-full h-14 bg-brand-white text-brand-navy hover:bg-brand-white/90 rounded-2xl text-base font-black shadow-2xl transition-all"
                             >

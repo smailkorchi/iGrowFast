@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useStatusCategories } from '@/hooks/useStatusCategories';
 import {
     BarChart3,
     TrendingUp,
@@ -89,31 +90,9 @@ interface ProductPerformance {
 
 const COLORS = ['#F97316', '#3B82F6', '#10B981', '#6366F1', '#F43F5E', '#A855F7'];
 
-const CITY_COORDS: Record<string, [number, number]> = {
-    'Casablanca': [33.5731, -7.5898],
-    'Rabat': [34.0209, -6.8416],
-    'Marrakech': [31.6295, -7.9811],
-    'Tangier': [35.7595, -5.8340],
-    'Fez': [34.0181, -5.0078],
-    'Agadir': [30.4278, -9.5981],
-    'Oujda': [34.6805, -1.9075],
-    'Meknes': [33.8935, -5.5473],
-    'Kenitra': [34.2610, -6.5802],
-    'Tetouan': [35.5785, -5.3684],
-    'Safi': [32.2994, -9.2372],
-    'El Jadida': [33.2316, -8.5007],
-    'Beni Mellal': [32.3373, -6.3498],
-    'Nador': [35.1689, -2.9335],
-    'Settat': [33.0010, -7.6166],
-    'Mohammedia': [33.6833, -7.3833],
-    'Laayoune': [27.1500, -13.2000],
-    'Guelmim': [28.9870, -10.0574],
-    'Khemisset': [33.8247, -6.0667],
-    'Taza': [34.2167, -4.0167],
-};
-
 const SellerStatistics = () => {
     const { toast } = useToast();
+    const statusCats = useStatusCategories();
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState<PerformanceStats>({
         successRate: 0,
@@ -134,7 +113,7 @@ const SellerStatistics = () => {
 
     useEffect(() => {
         fetchAllStats();
-    }, []);
+    }, [statusCats.confirmedIds.size, statusCats.deliveredPkgIds.size, statusCats.orderStatuses.length]);
 
     const fetchAllStats = async () => {
         setLoading(true);
@@ -145,75 +124,60 @@ const SellerStatistics = () => {
             // 1. Fetch Orders with Items & Product Images for Granular Analysis + City Coordinates
             const { data: ordersData, error: ordersError } = await supabase
                 .from('orders')
-                .select('city_id, package_status_label, master_cities(name, ameex_cities(lat, lng)), order_statuses(code), order_items(unit_price, quantity, products(name, image_url))')
+                .select('city_id, order_status_id, package_status_id, package_status_label, master_cities(name, lat, lng), order_statuses(code), order_items(unit_price, quantity, products(name, image_url))')
                 .eq('seller_id', user.id);
 
             const orders = (ordersData || []).map(o => ({
                 ...o,
+                order_status_id: (o as any).order_status_id,
+                package_status_id: (o as any).package_status_id,
                 status: (o.order_statuses as any)?.code?.toLowerCase() || 'unknown',
                 packageStatus: ((o as any).package_status_label || '').toLowerCase(),
-                cityData: (o.master_cities as any) // Preserve city data with coordinates
+                cityData: (o.master_cities as any)
             }));
 
-            // Delivered = package_status is "Livré" (physically delivered by courier)
-            const isDelivered = (o: any) => o.packageStatus === 'livré';
-            const isConfirmedOrBeyond = (o: any) => ['confirmed', 'processed', 'paid', 'unpaid'].includes(o.status);
-            const isFake = (o: any) => ['faux commande', 'commandedouble'].includes(o.status);
+            const isDelivered = (o: any) => o.package_status_id && statusCats.deliveredPkgIds.has(o.package_status_id);
+            const isConfirmedOrBeyond = (o: any) => statusCats.confirmedIds.has(o.order_status_id);
+            const isFake = (o: any) => statusCats.isOrderInCategories(o.order_status_id, ['fake', 'double']);
 
             if (ordersError) throw ordersError;
 
-            // Calculate Order Distribution
+            // Calculate Order Distribution (key by order_status_id)
             const distMap: Record<string, number> = {};
             orders?.forEach(o => {
-                distMap[o.status] = (distMap[o.status] || 0) + 1;
+                const id = o.order_status_id || 'unknown';
+                distMap[id] = (distMap[id] || 0) + 1;
             });
 
-            const statusConfig: Record<string, { label: string, color: string }> = {
-                paid: { label: 'Delivered (Paid)', color: '#10B981' },
-                unpaid: { label: 'Delivered (Unpaid)', color: '#F59E0B' },
-                confirmed: { label: 'Confirmed', color: '#3B82F6' },
-                new: { label: 'New', color: '#F97316' },
-                relaunch_new: { label: 'Relaunched', color: '#F97316' },
-                canceled: { label: 'Cancelled', color: '#EF4444' },
-                processed: { label: 'Processed', color: '#6366F1' },
-                return: { label: 'Return', color: '#DC2626' },
-                'faux commande': { label: 'Fake', color: '#94A3B8' },
-                commandedouble: { label: 'Duplicate', color: '#94A3B8' }
-            };
-
-            const formattedDist = Object.entries(distMap).map(([status, count]) => ({
-                name: statusConfig[status]?.label || status.charAt(0).toUpperCase() + status.slice(1),
+            const formattedDist = Object.entries(distMap).map(([statusId, count]) => ({
+                name: statusCats.orderStatuses.find(s => s.id === statusId)?.label || statusId.slice(0, 8),
                 value: count,
-                color: statusConfig[status]?.color || '#CBD5E1'
+                color: statusCats.getOrderStatusColor(statusId)
             })).sort((a, b) => b.value - a.value);
             setOrderDistribution(formattedDist);
 
-            // Calculate Regional Data with actual coordinates from database
-            const cityMap: Record<string, { count: number; lat: string | null; lng: string | null }> = {};
+            // Calculate Regional Data with coordinates from master_cities
+            const cityMap: Record<string, { count: number; lat: number | null; lng: number | null }> = {};
             orders?.filter(o => isDelivered(o)).forEach(o => {
                 const cityData = (o.master_cities as any);
                 const cityName = cityData?.name || 'Unknown';
-                const ameexData = cityData?.ameex_cities;
-                
+                const lat = cityData?.lat != null ? parseFloat(cityData.lat) : null;
+                const lng = cityData?.lng != null ? parseFloat(cityData.lng) : null;
+
                 if (!cityMap[cityName]) {
-                    cityMap[cityName] = { 
-                        count: 0, 
-                        lat: ameexData?.lat || null, 
-                        lng: ameexData?.lng || null 
-                    };
+                    cityMap[cityName] = { count: 0, lat, lng };
                 }
                 cityMap[cityName].count++;
             });
-            
-            // Convert to array and filter out cities without coordinates
+
             const formattedRegional = Object.entries(cityMap)
+                .filter(([, data]) => data.lat != null && data.lng != null && !isNaN(data.lat) && !isNaN(data.lng))
                 .map(([city, data]) => ({
                     city,
                     delivered: data.count,
-                    lat: data.lat ? parseFloat(data.lat) : (CITY_COORDS[city]?.[0] || 33.57),
-                    lng: data.lng ? parseFloat(data.lng) : (CITY_COORDS[city]?.[1] || -7.58)
+                    lat: data.lat as number,
+                    lng: data.lng as number
                 }))
-                .filter(r => !isNaN(r.lat) && !isNaN(r.lng)) // Only include valid coordinates
                 .sort((a, b) => b.delivered - a.delivered);
             setRegionalData(formattedRegional);
 

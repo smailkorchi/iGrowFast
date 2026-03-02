@@ -16,10 +16,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-
-const UNPAID_STATUS_ID = '171119c0-5999-4e4b-adb9-3a1a32a7cecd';
-const PAID_STATUS_ID = '964ffaa1-8ca0-4a1f-b3a7-466a66fa046d';
-const LIVRE_PACKAGE_STATUS_ID = '6aa86b54-a5b1-44c1-b29e-970e1bce6782';
+import { useStatusCategories } from '@/hooks/useStatusCategories';
 
 interface UnpaidOrder {
     id: string; name: string; phone: string; price: number; shipping_cost: number;
@@ -43,6 +40,11 @@ interface PaymentNote {
 }
 
 const Payments = () => {
+    const { getOrderByCategory, getPkgByCategory } = useStatusCategories();
+    const unpaidStatusId = getOrderByCategory('unpaid')?.id;
+    const paidStatusId = getOrderByCategory('paid')?.id;
+    const deliveredPkgId = getPkgByCategory('delivered')?.id;
+
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [wizardStep, setWizardStep] = useState(0);
     const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
@@ -58,20 +60,21 @@ const Payments = () => {
 
     // ─── Fetch unpaid+livré orders (exclude those already linked to a payment note) ───
     const { data: unpaidOrders, isLoading: isLoadingUnpaid } = useQuery({
-        queryKey: ['unpaid-livre-orders', activeBusinessId],
+        queryKey: ['unpaid-livre-orders', activeBusinessId, unpaidStatusId, deliveredPkgId],
         queryFn: async () => {
-            if (!activeBusinessId) return [];
+            if (!activeBusinessId || !unpaidStatusId || !deliveredPkgId) return [];
             const { data, error } = await (supabase as any)
                 .from('orders')
                 .select(`*, company:providers(id, name, logo_url), items:order_items(quantity, unit_price, product:products(name)), parcels:company_parcels(tracking_code, provider:providers(id, name, logo_url))`)
                 .eq('DigiCom Business', activeBusinessId)
-                .eq('order_status_id', UNPAID_STATUS_ID)
-                .eq('package_status_id', LIVRE_PACKAGE_STATUS_ID)
+                .eq('order_status_id', unpaidStatusId)
+                .eq('package_status_id', deliveredPkgId)
                 .is('payment_delivery_id', null)
                 .order('created_at', { ascending: false });
             if (error) throw error;
             return (data || []) as UnpaidOrder[];
         },
+        enabled: !!unpaidStatusId && !!deliveredPkgId,
     });
 
     // ─── Fetch existing payment notes ───
@@ -141,8 +144,8 @@ const Payments = () => {
             const { error: noteErr } = await (supabase as any).from('company_payment_notes').update({ status: 'paid', paid_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', note.id);
             if (noteErr) throw noteErr;
             const orderIds = note.line_items.map(li => li.order_id);
-            if (orderIds.length > 0) {
-                const { error: ordErr } = await (supabase as any).from('orders').update({ order_status_id: PAID_STATUS_ID, payed: true, updated_at: new Date().toISOString() }).in('id', orderIds);
+            if (orderIds.length > 0 && paidStatusId) {
+                const { error: ordErr } = await (supabase as any).from('orders').update({ order_status_id: paidStatusId, payed: true, updated_at: new Date().toISOString() }).in('id', orderIds);
                 if (ordErr) throw ordErr;
             }
         },

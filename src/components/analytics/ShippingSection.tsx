@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { SectionWrapper } from './SectionWrapper';
 import { StatCard } from './StatCard';
 import { DateFilter } from './AnalyticsDateFilter';
@@ -25,12 +26,14 @@ interface ShippingSectionProps {
 }
 
 export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps) => {
+    const { deliveredPkgIds, returnedPkgIds } = useStatusCategories();
+
     const { data: orders, isLoading } = useQuery({
         queryKey: ['analytics-orders-shipping', businessId],
         queryFn: async () => {
             const { data } = await supabase
                 .from('orders')
-                .select('id, date, shipping_cost, delivery_type, company_id, courier_id, package_status_id, package_status_label, date_livraison, master_city_id, master_cities(name, ameex_city_id, ameex_cities(lat, lng))')
+                .select('id, date, shipping_cost, delivery_type, company_id, courier_id, package_status_id, date_livraison, master_city_id, master_cities(name, lat, lng)')
                 .eq('DigiCom Business', businessId);
             return data || [];
         },
@@ -87,11 +90,11 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
         };
 
         const filtered = orders.filter(o => isInRange(o.date));
-        const shippedOrders = filtered.filter(o => o.package_status_id || o.package_status_label);
+        const shippedOrders = filtered.filter(o => o.package_status_id);
         const total = shippedOrders.length;
 
-        const isDelivered = (o: any) => (o.package_status_label || '').toLowerCase() === 'livré';
-        const isReturned = (o: any) => (o.package_status_label || '').toLowerCase() === 'retourné';
+        const isDelivered = (o: any) => o.package_status_id && deliveredPkgIds.has(o.package_status_id);
+        const isReturned = (o: any) => o.package_status_id && returnedPkgIds.has(o.package_status_id);
 
         const deliveredCount = shippedOrders.filter(isDelivered).length;
         const returnedCount = shippedOrders.filter(isReturned).length;
@@ -124,9 +127,7 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
 
         const statusCounts: Record<string, number> = {};
         shippedOrders.forEach(o => {
-            const label = o.package_status_label
-                || packageStatuses.find(s => s.id === o.package_status_id)?.label;
-            if (!label) return;
+            const label = packageStatuses?.find(s => s.id === o.package_status_id)?.label ?? 'Unknown';
             statusCounts[label] = (statusCounts[label] || 0) + 1;
         });
         const statusDistribution = Object.entries(statusCounts)
@@ -152,11 +153,9 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
         const cityDeliveries: Record<string, { count: number; lat: number; lng: number }> = {};
         shippedOrders.forEach(o => {
             const mc = (o as any).master_cities;
-            if (!mc?.name) return;
-            const ameex = mc.ameex_cities;
-            if (!ameex?.lat || !ameex?.lng) return;
-            const lat = parseFloat(ameex.lat);
-            const lng = parseFloat(ameex.lng);
+            if (!mc?.name || !mc?.lat || !mc?.lng) return;
+            const lat = parseFloat(mc.lat);
+            const lng = parseFloat(mc.lng);
             if (isNaN(lat) || isNaN(lng)) return;
             if (!cityDeliveries[mc.name]) cityDeliveries[mc.name] = { count: 0, lat, lng };
             cityDeliveries[mc.name].count++;
@@ -175,7 +174,7 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
             totalShippingCost, avgDeliveryDays, providerData, pendingPayments,
             statusDistribution, trendData, globeMarkers,
         };
-    }, [orders, packageStatuses, providers, paymentNotes, dateFilter]);
+    }, [orders, packageStatuses, providers, paymentNotes, dateFilter, deliveredPkgIds, returnedPkgIds]);
 
     const globeConfig: COBEOptions = useMemo(() => ({
         width: 800,

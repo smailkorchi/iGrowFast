@@ -7,10 +7,11 @@ import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import {
     ShoppingCart, CheckCircle2, Truck, XCircle, Clock,
-    Package, PercentIcon, Ban, FileText, TrendingUp,
+    Package, Ban, FileText, TrendingUp,
 } from 'lucide-react';
 import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
 import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
+import { useStatusCategories } from '@/hooks/useStatusCategories';
 
 interface DashboardKPICardsProps {
     businessId: string;
@@ -30,6 +31,17 @@ interface KPICardData {
 
 export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsProps) => {
     const navigate = useNavigate();
+    const {
+        confirmedIds,
+        cancelledIds,
+        pendingIds,
+        deliveredPkgIds,
+        shippedPkgIds,
+        returnedPkgIds,
+        getOrderByCategory,
+        getPkgByCategory,
+        isPkgCategory,
+    } = useStatusCategories();
 
     const { data: orders } = useQuery({
         queryKey: ['dashboard-orders', businessId],
@@ -37,32 +49,6 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
             const { data } = await supabase
                 .from('orders')
                 .select('id, date, price, shipping_cost, order_status_id, package_status_id, package_status_label, seller_id, company_id, source_name, order_statuses(code, label)')
-                .eq('DigiCom Business', businessId);
-            return data || [];
-        },
-        enabled: !!businessId,
-    });
-
-    const { data: orderStatuses } = useQuery({
-        queryKey: ['dashboard-order-statuses', businessId],
-        queryFn: async () => {
-            const { data } = await supabase
-                .from('order_statuses')
-                .select('id, code, label')
-                .eq('active', true)
-                .eq('DigiCom Business', businessId);
-            return data || [];
-        },
-        enabled: !!businessId,
-    });
-
-    const { data: packageStatuses } = useQuery({
-        queryKey: ['dashboard-package-statuses', businessId],
-        queryFn: async () => {
-            const { data } = await supabase
-                .from('package_statuses')
-                .select('id, code, label')
-                .eq('active', true)
                 .eq('DigiCom Business', businessId);
             return data || [];
         },
@@ -82,7 +68,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
     });
 
     const cards = useMemo<KPICardData[]>(() => {
-        if (!orders || !orderStatuses || !packageStatuses) return [];
+        if (!orders) return [];
 
         const isInRange = (dateStr: string | null) => {
             if (!dateStr) return true;
@@ -97,23 +83,18 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
         const filtered = orders.filter((o: any) => isInRange(o.date));
         const total = filtered.length;
 
-        const getStatusId = (code: string) => orderStatuses.find((s: any) => s.code === code)?.id;
-        const getPkgStatusId = (code: string) => packageStatuses.find((s: any) => s.code === code)?.id;
+        const confirmedId = getOrderByCategory('confirmed')?.id;
+        const newId = getOrderByCategory('new')?.id;
+        const cancelledId = getOrderByCategory('cancelled')?.id;
+        const deliveredPkgId = getPkgByCategory('delivered')?.id;
+        const shippedPkgId = getPkgByCategory('in_transit')?.id;
+        const refusedPkgId = getPkgByCategory('refused')?.id;
 
-        const confirmedId = getStatusId('CONFIRMED');
-        const paidId = getStatusId('PAID');
-        const newId = getStatusId('NEW');
-        const canceledId = getStatusId('CANCELED');
-        const deliveredPkgId = getPkgStatusId('P_DELIVERED');
-        const shippedPkgId = getPkgStatusId('P_SHIPPED');
-        const refusedPkgId = getPkgStatusId('p_refuser');
-
-        const confirmed = filtered.filter((o: any) => {
-            const code = (o.order_statuses as any)?.code?.toUpperCase();
-            return code === 'CONFIRMED' || code === 'PAID' || code === 'UNPAID' || code === 'PROCESSED';
-        });
+        const confirmed = filtered.filter((o: any) =>
+            o.order_status_id && confirmedIds.has(o.order_status_id)
+        );
         const delivered = filtered.filter((o: any) =>
-            (o.package_status_label || '').toLowerCase() === 'livré'
+            o.package_status_id && deliveredPkgIds.has(o.package_status_id)
         );
 
         const shippedOrders = filtered.filter((o: any) => !!o.company_id);
@@ -121,22 +102,22 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
             ? ((delivered.length / shippedOrders.length) * 100).toFixed(1)
             : '0';
 
-        const pendingConfirmation = filtered.filter((o: any) => {
-            const code = (o.order_statuses as any)?.code?.toUpperCase();
-            return code === 'NEW' || code === 'INTERESTED';
-        });
+        const pendingConfirmation = filtered.filter((o: any) =>
+            o.order_status_id && pendingIds.has(o.order_status_id)
+        );
 
-        const enCoursLivraison = filtered.filter((o: any) => {
-            const label = (o.package_status_label || '').toLowerCase();
-            return !!o.company_id && label !== 'livré' && label !== 'retourné' && label !== 'refusé';
-        });
+        const enCoursLivraison = filtered.filter((o: any) =>
+            !!o.company_id &&
+            (!o.package_status_id ||
+                (!deliveredPkgIds.has(o.package_status_id) && !returnedPkgIds.has(o.package_status_id)))
+        );
 
         const canceled = filtered.filter((o: any) =>
-            (o.order_statuses as any)?.code?.toUpperCase() === 'CANCELED'
+            o.order_status_id && cancelledIds.has(o.order_status_id)
         );
 
         const refused = filtered.filter((o: any) =>
-            (o.package_status_label || '').toLowerCase() === 'refusé'
+            o.package_status_id && isPkgCategory(o.package_status_id, 'refused')
         );
 
         const pct = (n: number) => total > 0 ? ((n / total) * 100).toFixed(1) : '0';
@@ -205,7 +186,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
                 iconBg: 'bg-red-50',
                 iconColor: 'text-red-600',
                 valueColor: canceled.length > 0 ? 'text-red-600' : undefined,
-                onClick: () => navigate('/orders', { state: { filterStatus: canceledId } }),
+                onClick: () => navigate('/orders', { state: { filterStatus: cancelledId } }),
             },
             {
                 title: 'Refused Packages',
@@ -227,7 +208,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
                 onClick: () => navigate('/payments'),
             },
         ];
-    }, [orders, orderStatuses, packageStatuses, paymentNotes, dateFilter, navigate]);
+    }, [orders, paymentNotes, dateFilter, navigate, confirmedIds, cancelledIds, pendingIds, deliveredPkgIds, shippedPkgIds, returnedPkgIds, getOrderByCategory, getPkgByCategory, isPkgCategory]);
 
     return (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9 gap-3">

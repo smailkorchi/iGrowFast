@@ -80,6 +80,7 @@ import { format, differenceInDays } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 
+import { useStatusCategories } from '@/hooks/useStatusCategories';
 import {
     FaWhatsapp,
     FaInstagram,
@@ -127,10 +128,6 @@ const PLATFORM_SOURCE_MAP: Record<string, string> = {
     "pinterest ads": "pinterest",
     "reddit ads": "reddit",
 };
-
-const CONFIRMED_CODES = ['confirmed', 'processed', 'paid', 'unpaid'];
-const CANCELLED_CODES = ['canceled'];
-const FAKE_CODES = ['faux commande', 'commandedouble'];
 
 const adsHistorySchema = z.object({
     product_id: z.string().uuid("Please select a product"),
@@ -189,6 +186,8 @@ interface CampaignMetrics {
 }
 
 const AdsHistory = () => {
+    const { confirmedIds, cancelledIds, deliveredPkgIds, getOrderCategory } = useStatusCategories();
+
     const [isUpsertOpen, setIsUpsertOpen] = useState(false);
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
     const [selectedHistory, setSelectedHistory] = useState<any>(null);
@@ -235,7 +234,7 @@ const AdsHistory = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('orders')
-                .select('id, date, source_name, price, shipping_cost, package_status_label, order_statuses(code), order_items(product_id, unit_price, quantity)')
+                .select('id, date, source_name, price, shipping_cost, package_status_id, order_status_id, package_status_label, order_statuses(code), order_items(product_id, unit_price, quantity)')
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data;
@@ -283,20 +282,22 @@ const AdsHistory = () => {
             let shippingCosts = 0;
 
             matchedOrders.forEach((o: any) => {
-                const statusCode = ((o.order_statuses as any)?.code || '').toLowerCase();
-                const packageLabel = (o.package_status_label || '').toLowerCase();
+                const isDelivered = o.package_status_id && deliveredPkgIds.has(o.package_status_id);
+                const orderCat = getOrderCategory(o.order_status_id);
 
-                if (packageLabel === 'livré') {
+                if (isDelivered) {
                     deliveredOrders++;
                     confirmedOrders++;
                     grossRevenue += Number(o.price) || 0;
                     shippingCosts += Number(o.shipping_cost) || 0;
-                } else if (CONFIRMED_CODES.includes(statusCode)) {
+                } else if (o.order_status_id && confirmedIds.has(o.order_status_id)) {
                     confirmedOrders++;
-                } else if (CANCELLED_CODES.includes(statusCode)) {
-                    cancelledOrders++;
-                } else if (FAKE_CODES.includes(statusCode)) {
-                    fakeOrders++;
+                } else if (o.order_status_id && cancelledIds.has(o.order_status_id)) {
+                    if (orderCat === 'fake' || orderCat === 'double') {
+                        fakeOrders++;
+                    } else {
+                        cancelledOrders++;
+                    }
                 }
             });
 
@@ -334,7 +335,7 @@ const AdsHistory = () => {
                 qualityScore: totalOrders > 0 ? (deliveredOrders / totalOrders) * 100 : 0,
             };
         };
-    }, [allOrders, productCosts]);
+    }, [allOrders, productCosts, confirmedIds, cancelledIds, deliveredPkgIds, getOrderCategory]);
 
     const form = useForm<AdsHistoryValues>({
         resolver: zodResolver(adsHistorySchema),

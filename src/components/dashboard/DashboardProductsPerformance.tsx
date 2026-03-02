@@ -7,15 +7,15 @@ import { cn } from '@/lib/utils';
 import { ShoppingBag, Box, ChevronDown } from 'lucide-react';
 import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
 import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
+import { useStatusCategories } from '@/hooks/useStatusCategories';
 
 interface DashboardProductsPerformanceProps {
     businessId: string;
     dateFilter: DateFilter;
 }
 
-const CONFIRMED_CODES = new Set(['CONFIRMED', 'PAID', 'UNPAID', 'PROCESSED']);
-
 export const DashboardProductsPerformance = ({ businessId, dateFilter }: DashboardProductsPerformanceProps) => {
+    const { confirmedIds, isPkgCategory } = useStatusCategories();
     const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
 
     const toggleProduct = (id: string) => {
@@ -136,7 +136,7 @@ export const DashboardProductsPerformance = ({ businessId, dateFilter }: Dashboa
         const filteredItems = orderItems.filter((oi: any) => filteredOrderIds.has(oi.order_id));
         filteredItems.forEach((oi: any) => {
             const order = orderMap.get(oi.order_id);
-            if (order && (order.package_status_label || '').toLowerCase() === 'livré') {
+            if (order && order.package_status_id && isPkgCategory(order.package_status_id, 'delivered')) {
                 globalDeliveredUnits += Number(oi.quantity || 1);
             }
         });
@@ -162,12 +162,11 @@ export const DashboardProductsPerformance = ({ businessId, dateFilter }: Dashboa
             items.forEach((oi: any) => {
                 const order = orderMap.get(oi.order_id);
                 if (!order) return;
-                const code = ((order.order_statuses as any)?.code || '').toUpperCase();
                 const qty = Number(oi.quantity || 1);
 
-                if (CONFIRMED_CODES.has(code)) confirmedUnits += qty;
+                if (order.order_status_id && confirmedIds.has(order.order_status_id)) confirmedUnits += qty;
 
-                if ((order.package_status_label || '').toLowerCase() === 'livré') {
+                if (order.package_status_id && isPkgCategory(order.package_status_id, 'delivered')) {
                     deliveredUnits += qty;
                     sellingTotal += Number(oi.total_price || 0) || (Number(oi.unit_price || 0) * qty);
 
@@ -227,7 +226,7 @@ export const DashboardProductsPerformance = ({ businessId, dateFilter }: Dashboa
         }).sort((a, b) => b.deliveredUnits - a.deliveredUnits);
 
         return { productData };
-    }, [products, orderItems, orders, accessories, adsHistory, sellerPayments, dateFilter]);
+    }, [products, orderItems, orders, accessories, adsHistory, sellerPayments, dateFilter, confirmedIds, isPkgCategory]);
 
     if (!metrics) return null;
 

@@ -24,13 +24,14 @@ class OzonAdapter {
 
         if (parcelData.master_city_id && supabase) {
             const { data: mapping } = await supabase
-                .from('master_cities')
-                .select('ozonexpress_cities(ozon_city_id)')
-                .eq('id', parcelData.master_city_id)
+                .from('provider_cities')
+                .select('provider_city_id')
+                .eq('master_city_id', parcelData.master_city_id)
+                .eq('provider_type', 'ozon')
                 .single();
 
-            if (mapping?.ozonexpress_cities?.ozon_city_id) {
-                ozonCityId = mapping.ozonexpress_cities.ozon_city_id;
+            if (mapping?.provider_city_id) {
+                ozonCityId = mapping.provider_city_id;
             }
         }
 
@@ -307,13 +308,14 @@ class ColiatyAdapter {
 
         if (parcelData.master_city_id && supabase) {
             const { data: mapping } = await supabase
-                .from('master_cities')
-                .select('coliaty_cities(city_name)')
-                .eq('id', parcelData.master_city_id)
+                .from('provider_cities')
+                .select('provider_city_name')
+                .eq('master_city_id', parcelData.master_city_id)
+                .eq('provider_type', 'coliaty')
                 .single();
 
-            if (mapping?.coliaty_cities?.city_name) {
-                payload.package_city = mapping.coliaty_cities.city_name;
+            if (mapping?.provider_city_name) {
+                payload.package_city = mapping.provider_city_name;
             }
         }
 
@@ -817,13 +819,14 @@ class AmeexAdapter {
         if (parcelData.master_city_id && supabase) {
             console.log('Resolving AMEEX code from master_city_id:', parcelData.master_city_id);
             const { data: mapping } = await supabase
-                .from('master_cities')
-                .select('ameex_cities(ameex_city_id)')
-                .eq('id', parcelData.master_city_id)
+                .from('provider_cities')
+                .select('provider_city_id')
+                .eq('master_city_id', parcelData.master_city_id)
+                .eq('provider_type', 'ameex')
                 .single();
 
-            if (mapping?.ameex_cities?.ameex_city_id) {
-                cityCode = mapping.ameex_cities.ameex_city_id;
+            if (mapping?.provider_city_id) {
+                cityCode = mapping.provider_city_id;
                 console.log('Resolved AMEEX code:', cityCode);
             }
         }

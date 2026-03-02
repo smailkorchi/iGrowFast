@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { SectionWrapper } from './SectionWrapper';
 import { StatCard } from './StatCard';
 import { DateFilter } from './AnalyticsDateFilter';
@@ -21,6 +22,8 @@ interface BusinessHealthSectionProps {
 }
 
 export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealthSectionProps) => {
+    const { confirmedIds, cancelledIds, deliveredPkgIds, isOrderCategory } = useStatusCategories();
+
     const { data: orders, isLoading } = useQuery({
         queryKey: ['analytics-orders-health', businessId],
         queryFn: async () => {
@@ -33,26 +36,12 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
         enabled: !!businessId,
     });
 
-    const { data: packageStatuses } = useQuery({
-        queryKey: ['analytics-package-statuses', businessId],
-        queryFn: async () => {
-            const { data } = await supabase.from('package_statuses').select('id, code').eq('DigiCom Business', businessId);
-            return data || [];
-        },
-        enabled: !!businessId,
-    });
-
-    const { data: orderStatuses } = useQuery({
-        queryKey: ['analytics-order-statuses', businessId],
-        queryFn: async () => {
-            const { data } = await supabase.from('order_statuses').select('id, code').eq('DigiCom Business', businessId);
-            return data || [];
-        },
-        enabled: !!businessId,
-    });
-
     const metrics = useMemo(() => {
-        if (!orders || !packageStatuses || !orderStatuses) return null;
+        if (!orders) return null;
+
+        const isPaidAndDelivered = (o: any) =>
+            o.order_status_id && isOrderCategory(o.order_status_id, 'paid') &&
+            o.package_status_id && deliveredPkgIds.has(o.package_status_id);
 
         const isInRange = (dateStr: string | null) => {
             if (!dateStr) return true;
@@ -65,22 +54,17 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
         };
 
         const filtered = orders.filter(o => isInRange(o.date));
-        const deliveredId = packageStatuses.find(s => s.code === 'P_DELIVERED')?.id;
-        const paidId = orderStatuses.find(s => s.code === 'PAID')?.id;
-        const confirmedId = orderStatuses.find(s => s.code === 'CONFIRMED')?.id;
-        const canceledId = orderStatuses.find(s => s.code === 'CANCELED')?.id;
-
         const datesWithOrders = filtered.filter(o => o.date).map(o => new Date(o.date!));
         const minDate = datesWithOrders.length > 0 ? new Date(Math.min(...datesWithOrders.map(d => d.getTime()))) : new Date();
         const maxDate = datesWithOrders.length > 0 ? new Date(Math.max(...datesWithOrders.map(d => d.getTime()))) : new Date();
         const daySpan = Math.max(1, differenceInDays(maxDate, minDate));
         const orderVelocity = filtered.length / daySpan;
 
-        const revenueOrders = filtered.filter(o => o.order_status_id === paidId && o.package_status_id === deliveredId);
+        const revenueOrders = filtered.filter(isPaidAndDelivered);
         const totalRevenue = revenueOrders.reduce((s, o) => s + Number(o.price || 0), 0);
 
-        const confirmedCount = filtered.filter(o => o.order_status_id === confirmedId || o.order_status_id === paidId).length;
-        const canceledCount = filtered.filter(o => o.order_status_id === canceledId).length;
+        const confirmedCount = filtered.filter(o => o.order_status_id && confirmedIds.has(o.order_status_id)).length;
+        const canceledCount = filtered.filter(o => o.order_status_id && cancelledIds.has(o.order_status_id)).length;
         const confirmRate = filtered.length > 0 ? (confirmedCount / filtered.length) * 100 : 0;
         const deliveryRate = filtered.length > 0 ? (revenueOrders.length / filtered.length) * 100 : 0;
 
@@ -102,11 +86,11 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
             const mStart = startOfMonth(month);
             const mEnd = new Date(mStart.getFullYear(), mStart.getMonth() + 1, 0);
             const monthOrders = filtered.filter(o => o.date && isWithinInterval(new Date(o.date), { start: mStart, end: mEnd }));
-            const monthRevenue = monthOrders.filter(o => o.order_status_id === paidId && o.package_status_id === deliveredId)
+            const monthRevenue = monthOrders.filter(isPaidAndDelivered)
                 .reduce((s, o) => s + Number(o.price || 0), 0);
             const monthDays = differenceInDays(mEnd, mStart) || 1;
-            const monthConfirmed = monthOrders.filter(o => o.order_status_id === confirmedId || o.order_status_id === paidId).length;
-            const monthDelivered = monthOrders.filter(o => o.package_status_id === deliveredId && o.order_status_id === paidId).length;
+            const monthConfirmed = monthOrders.filter(o => o.order_status_id && confirmedIds.has(o.order_status_id)).length;
+            const monthDelivered = monthOrders.filter(isPaidAndDelivered).length;
 
             return {
                 month: format(month, 'MMM yy'),
@@ -129,7 +113,7 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
             avgConfirmTime, operationalEfficiency, revenueGrowth, trendData,
             totalOrders: filtered.length,
         };
-    }, [orders, packageStatuses, orderStatuses, dateFilter]);
+    }, [orders, dateFilter, confirmedIds, cancelledIds, deliveredPkgIds, isOrderCategory]);
 
     return (
         <SectionWrapper

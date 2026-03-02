@@ -77,6 +77,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import CustomerInsights from '@/components/CustomerInsights';
+import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
@@ -169,7 +170,10 @@ const Orders = () => {
     const [isReportedModalOpen, setIsReportedModalOpen] = useState(false);
     const [reportedData, setReportedData] = useState<{ date: Date | undefined, time: string, comment: string }>({ date: undefined, time: "12:00", comment: "" });
     const [pendingReportedAction, setPendingReportedAction] = useState<((date: Date, time: string, comment: string) => void) | null>(null);
-    const REPORTED_STATUS_ID = '713cf400-b800-4bea-b27a-8c40241e0ae2';
+
+    const statusCats = useStatusCategories();
+    const REPORTED_STATUS_ID = statusCats.getOrderByCategory('postponed')?.id;
+    const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/provider-integration`;
 
     // Dropdown search states
     const [citySearchOpen, setCitySearchOpen] = useState(false);
@@ -181,8 +185,6 @@ const Orders = () => {
     const [trackingHistory, setTrackingHistory] = useState<any>(null);
     const [isTrackingLoading, setIsTrackingLoading] = useState(false);
     const [isParcelLoading, setIsParcelLoading] = useState(false);
-
-    const EDGE_FUNCTION_URL = "https://zjkqprrfbibjoslvlmxf.supabase.co/functions/v1/provider-integration";
 
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -814,19 +816,18 @@ const Orders = () => {
 
             // Status-specific field population
             if (values.order_status_id && values.order_status_id !== selectedOrder.order_status_id) {
-                const newStatus = orderStatuses?.find((s: any) => s.id === values.order_status_id);
-                if (newStatus?.code === 'CONFIRMED') {
+                if (statusCats.isOrderCategory(values.order_status_id, 'confirmed')) {
                     updatePayload.confirmed_by_id = currentUserId;
                     updatePayload.confirmation_date = new Date().toISOString();
                 }
-                if (newStatus?.code === 'CANCELED') {
+                if (statusCats.isOrderCategory(values.order_status_id, 'cancelled')) {
                     updatePayload.canceled_by_id = currentUserId;
                     updatePayload.annulation_date = new Date().toISOString();
                 }
-                if (newStatus?.code === 'PAID') {
+                if (statusCats.isOrderCategory(values.order_status_id, 'paid')) {
                     updatePayload.date_livraison = new Date().toISOString();
                 }
-                if (newStatus?.code === 'POSTPONED') {
+                if (statusCats.isOrderCategory(values.order_status_id, 'postponed')) {
                     // Use explicitly passed reported_date, falling back to current time
                     updatePayload.reported_date = (values as any)._reportedDate || new Date().toISOString();
                 }
@@ -886,10 +887,9 @@ const Orders = () => {
 
             // 3. Track History if status changed
             if (selectedOrder.order_status_id !== values.order_status_id) {
-                const newStatus = orderStatuses?.find(s => s.id === values.order_status_id);
                 let finalComment = values.history_comment || '';
 
-                if (newStatus?.code === 'POSTPONED' || values.order_status_id === REPORTED_STATUS_ID) {
+                if (statusCats.isOrderCategory(values.order_status_id, 'postponed') || values.order_status_id === REPORTED_STATUS_ID) {
                     const rDate = (values as any)._reportedDate;
                     if (rDate) {
                         const formattedDate = format(new Date(rDate), 'dd/MM/yyyy HH:mm');
@@ -963,39 +963,20 @@ const Orders = () => {
     }, [orders]);
 
     const isOrderInTab = (o: any, tab: string) => {
-        // PLACEHOLDER: The user will provide the specific logic for each tab.
-        // For now, we will use some simple dummy keyword checks for demonstration.
-        const statusLabel = o.order_statuses?.label?.toLowerCase() || '';
-        const statusCode = o.order_statuses?.code?.toLowerCase() || '';
-        const combined = statusLabel + ' ' + statusCode;
-
+        const newStatusId = statusCats.getOrderByCategory('new')?.id;
         switch (tab) {
             case 'new':
-                return o.order_status_id === 'deb5c74e-95f3-41a8-8446-c9b831792cca'; // 'Nouvel commande'
+                return newStatusId ? o.order_status_id === newStatusId : false;
             case 'confirmation':
-                const excludedFromConfirmation = [
-                    '2ab2ec36-3514-4082-bc98-4c0c70fc704b', // Retour de Produit
-                    '6e630c78-e048-4406-8aa7-cf1bc2a71fde', // Annuler apres confirmation
-                    'b3772ee3-9910-4c5a-85dd-13dfc9f9ff73', // INTERESSER
-                    '9ceb7b82-a081-4362-9820-f1d9fa70d2c9', // Client pas sérieux
-                    '5c514555-0728-40c7-b6c5-2a006ed21d37', // CONFIRMER
-                    '171119c0-5999-4e4b-adb9-3a1a32a7cecd', // UNPAID
-                    '964ffaa1-8ca0-4a1f-b3a7-466a66fa046d', // PAID
-                    '6b1d31d9-051a-4cf1-8a44-9d5ec4614412', // SUIVI
-                    'd1e28bff-36d9-46e5-a2d9-9d9405159364', // PROCESSED
-                    'dbb3ae2c-abbf-4c96-93af-ed82319c8b68', // RETURN
-                    'b5b9f007-dee5-4873-9424-70cfd9231368', // Black liste
-                    'ac63ac02-04e9-4b9e-a917-737107d7fb60', // Relancer vers un nouveau client
-                    '5561c4b1-aed4-4988-816b-4e18fe5e775f', // Fausse commande
-                    '4d622f19-cf11-4d31-b908-5829ce0c57c7', // ANNULER
-                    '31428d13-bf1f-4b23-b297-b3c112a549e7', // COMMANDE DOUBLE
-                    'deb5c74e-95f3-41a8-8446-c9b831792cca'  // NOUVELLE COMMANDE (already in 'new')
-                ];
-                return !excludedFromConfirmation.includes(o.order_status_id);
+                return !statusCats.callbackIds.has(o.order_status_id) &&
+                    !statusCats.cancelledIds.has(o.order_status_id) &&
+                    !statusCats.pendingIds.has(o.order_status_id) &&
+                    !(REPORTED_STATUS_ID && o.order_status_id === REPORTED_STATUS_ID) &&
+                    !o.package_status?.recheck;
             case 'suivi':
                 return o.package_status?.recheck === true;
             case 'reported':
-                return o.order_status_id === REPORTED_STATUS_ID;
+                return REPORTED_STATUS_ID ? o.order_status_id === REPORTED_STATUS_ID : false;
             default:
                 return false;
         }
@@ -1057,14 +1038,14 @@ const Orders = () => {
             const allOrders = orders || [];
             const total = allOrders.length;
 
-            // Count confirmed orders (CONFIRMED, PROCESSED, PAID, UNPAID statuses)
-            const confirmed = allOrders.filter(o => 
-                ['confirmed', 'processed', 'paid', 'unpaid'].includes((o.status?.code || '').toLowerCase())
+            // Count confirmed orders (confirmed, processed, paid, unpaid)
+            const confirmed = allOrders.filter(o =>
+                statusCats.confirmedIds.has(o.order_status_id)
             ).length;
 
-            // Count delivered orders (package_status_label = 'Livré')
-            const delivered = allOrders.filter(o => 
-                (o.package_status_label || '').toLowerCase() === 'livré'
+            // Count delivered orders (package in delivered category)
+            const delivered = allOrders.filter(o =>
+                o.package_status_id && statusCats.deliveredPkgIds.has(o.package_status_id)
             ).length;
 
             // Rates
@@ -1560,7 +1541,7 @@ const Orders = () => {
                                         )}
 
                                         {/* Row 5: Reported recall */}
-                                        {(order.status?.code === 'POSTPONED' || order.order_status_id === REPORTED_STATUS_ID) && order.reported_date && (
+                                        {(REPORTED_STATUS_ID && (statusCats.isOrderCategory(order.order_status_id, 'postponed') || order.order_status_id === REPORTED_STATUS_ID)) && order.reported_date && (
                                             <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-amber-50 border border-amber-100">
                                                 <div className="flex items-center gap-2">
                                                     <Calendar className="w-3.5 h-3.5 text-amber-600" />
@@ -1665,7 +1646,7 @@ const Orders = () => {
                                                                 {order.package_status?.label || order.package_status_label}
                                                             </span>
                                                         )}
-                                                        {(order.status?.code === 'POSTPONED' || order.order_status_id === REPORTED_STATUS_ID) && order.reported_date && (
+                                                        {(REPORTED_STATUS_ID && (statusCats.isOrderCategory(order.order_status_id, 'postponed') || order.order_status_id === REPORTED_STATUS_ID)) && order.reported_date && (
                                                             <span className="flex items-center gap-1 text-[9px] font-bold text-amber-700">
                                                                 <Calendar className="w-2.5 h-2.5" />
                                                                 {format(new Date(order.reported_date), 'dd/MM HH:mm')}
@@ -1771,7 +1752,7 @@ const Orders = () => {
                                 }
                             }
 
-                            if (targetStatusId === REPORTED_STATUS_ID && selectedOrder?.order_status_id !== REPORTED_STATUS_ID) {
+                            if (REPORTED_STATUS_ID && targetStatusId === REPORTED_STATUS_ID && selectedOrder?.order_status_id !== REPORTED_STATUS_ID) {
                                 setIsReportedModalOpen(true);
                                 setReportedData({ date: undefined, time: "12:00", comment: v.history_comment || "" });
                                 setPendingReportedAction(() => (date: Date, time: string, comment: string) => {
@@ -2928,7 +2909,7 @@ const Orders = () => {
                                                             </div>
                                                             {record.comment && (
                                                                 <div className="space-y-2">
-                                                                    {(record.status?.code === 'POSTPONED' || record.status_id === REPORTED_STATUS_ID) ? (
+                                                                    {(REPORTED_STATUS_ID && (statusCats.isOrderCategory(record.status_id, 'postponed') || record.status_id === REPORTED_STATUS_ID)) ? (
                                                                         <div className="flex flex-col gap-1 p-3 bg-amber-50 rounded-xl border border-amber-100">
                                                                             <div className="flex items-center gap-2">
                                                                                 <Calendar className="w-3 h-3 text-amber-600" />

@@ -83,7 +83,7 @@ const DeliveryNote = () => {
     const [wizardProviderId, setWizardProviderId] = useState<string | undefined>(undefined);
     const activeBusinessId = localStorage.getItem('activeBusinessId');
 
-    const EDGE_FUNCTION_URL = "https://zjkqprrfbibjoslvlmxf.supabase.co/functions/v1/provider-integration";
+    const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/provider-integration`;
 
     const handleTrackParcel = async (parcel: any) => {
         setTrackingParcel(parcel);
@@ -532,7 +532,7 @@ const DeliveryNote = () => {
             if (isCompanyNote && selectedNote.provider_id) {
                 const { data: provider } = await supabase
                     .from('providers')
-                    .select('name, business_name, logo_url, provider_type')
+                    .select('name, business_name, logo_url, provider_type, color')
                     .eq('id', selectedNote.provider_id)
                     .single();
                 providerInfo = provider;
@@ -654,7 +654,8 @@ const DeliveryNote = () => {
                         name,
                         provider_type,
                         logo_url,
-                        business_name
+                        business_name,
+                        color
                     )
                 `)
                 .eq('DigiCom Business', activeBusinessId)
@@ -694,20 +695,16 @@ const DeliveryNote = () => {
         }
     };
 
+    const getProviderColor = (provider: any) => provider?.color || '#3b82f6';
+
     const renderNoteCard = (note: any, type: 'company' | 'courier') => {
-        // Get provider info and brand color
         const provider = note.providers;
-        const providerType = provider?.provider_type?.toLowerCase();
-        const brandColor = providerType === 'coliaty' ? 'emerald' : providerType === 'ameex' ? 'orange' : providerType === 'ozon' ? 'red' : 'blue';
+        const brandColor = getProviderColor(provider);
 
         return (
             <Card key={note.id} className="group relative overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-2xl transition-all duration-500 rounded-[32px]">
                 {/* Provider brand color accent */}
-                <div className={`absolute top-0 left-0 w-full h-1.5 ${brandColor === 'emerald' ? 'bg-emerald-500' :
-                    brandColor === 'orange' ? 'bg-orange-500' :
-                        brandColor === 'red' ? 'bg-red-500' :
-                            'bg-blue-500'
-                    }`} />
+                <div className="absolute top-0 left-0 w-full h-1.5" style={{ backgroundColor: brandColor }} />
 
                 <CardContent className="p-8 space-y-6">
                     {/* Header with provider logo */}
@@ -715,11 +712,7 @@ const DeliveryNote = () => {
                         <div className="flex items-center gap-4 flex-1">
                             {/* Provider Logo */}
                             {provider?.logo_url ? (
-                                <div className={`p-3 rounded-2xl border-2 ${brandColor === 'emerald' ? 'bg-emerald-50 border-emerald-200' :
-                                    brandColor === 'orange' ? 'bg-orange-50 border-orange-200' :
-                                        brandColor === 'red' ? 'bg-red-50 border-red-200' :
-                                            'bg-blue-50 border-blue-200'
-                                    }`}>
+                                <div className="p-3 rounded-2xl border-2" style={{ backgroundColor: `${brandColor}15`, borderColor: `${brandColor}40` }}>
                                     <img
                                         src={provider.logo_url}
                                         alt={provider.name}
@@ -727,11 +720,7 @@ const DeliveryNote = () => {
                                     />
                                 </div>
                             ) : (
-                                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center font-bold text-white ${brandColor === 'emerald' ? 'bg-emerald-500' :
-                                    brandColor === 'orange' ? 'bg-orange-500' :
-                                        brandColor === 'red' ? 'bg-red-500' :
-                                            'bg-blue-500'
-                                    }`}>
+                                <div className="w-16 h-16 rounded-2xl flex items-center justify-center font-bold text-white" style={{ backgroundColor: brandColor }}>
                                     {type === 'company' ? <Building2 className="w-7 h-7" /> : <Truck className="w-7 h-7" />}
                                 </div>
                             )}
@@ -758,10 +747,7 @@ const DeliveryNote = () => {
                     <div className="grid grid-cols-2 gap-6">
                         {/* Provider */}
                         <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${brandColor === 'emerald' ? 'bg-emerald-50 text-emerald-600' :
-                                brandColor === 'orange' ? 'bg-orange-50 text-orange-600' :
-                                    'bg-blue-50 text-blue-600'
-                                }`}>
+                            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${brandColor}15`, color: brandColor }}>
                                 {type === 'company' ? <Building2 className="w-5 h-5" /> : <Truck className="w-5 h-5" />}
                             </div>
                             <div className="flex flex-col min-w-0">
@@ -776,10 +762,7 @@ const DeliveryNote = () => {
 
                         {/* Parcel Count */}
                         <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${brandColor === 'emerald' ? 'bg-emerald-50 text-emerald-600' :
-                                brandColor === 'orange' ? 'bg-orange-50 text-orange-600' :
-                                    'bg-blue-50 text-blue-600'
-                                }`}>
+                            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${brandColor}15`, color: brandColor }}>
                                 <Package className="w-5 h-5" />
                             </div>
                             <div className="flex flex-col">
@@ -800,10 +783,8 @@ const DeliveryNote = () => {
                                 setSelectedNote(note);
                                 setIsViewModalOpen(true);
                             }}
-                            className={`font-bold text-xs gap-2 rounded-xl h-11 px-5 ${brandColor === 'emerald' ? 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700' :
-                                brandColor === 'orange' ? 'text-orange-600 hover:bg-orange-50 hover:text-orange-700' :
-                                    'text-blue-600 hover:bg-blue-50 hover:text-blue-700'
-                                }`}
+                            className="font-bold text-xs gap-2 rounded-xl h-11 px-5 hover:opacity-90"
+                            style={{ color: brandColor }}
                         >
                             <Eye className="w-4 h-4" /> Preview
                         </Button>
@@ -853,18 +834,13 @@ const DeliveryNote = () => {
                     <tbody className="divide-y divide-brand-navy/[0.03]">
                         {notes.map((note) => {
                             const provider = note.providers;
-                            const providerType = provider?.provider_type?.toLowerCase();
-                            const brandColor = providerType === 'coliaty' ? 'emerald' : providerType === 'ameex' ? 'orange' : providerType === 'ozon' ? 'red' : 'blue';
+                            const brandColor = getProviderColor(provider);
 
                             return (
                                 <tr key={note.id} className="hover:bg-brand-navy/[0.01] transition-colors group">
                                     <td className="p-6">
                                         <div className="flex items-center gap-3">
-                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform ${brandColor === 'emerald' ? 'bg-emerald-50 text-emerald-600' :
-                                                brandColor === 'orange' ? 'bg-orange-50 text-orange-600' :
-                                                    brandColor === 'red' ? 'bg-red-50 text-red-600' :
-                                                        'bg-blue-50 text-blue-600'
-                                                }`}>
+                                            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform" style={{ backgroundColor: `${brandColor}15`, color: brandColor }}>
                                                 <FileText className="w-5 h-5" />
                                             </div>
                                             <div className="flex flex-col min-w-0">

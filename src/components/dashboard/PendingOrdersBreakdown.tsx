@@ -8,6 +8,7 @@ import { Clock, AlertTriangle, Hourglass, CalendarClock } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
 import { differenceInDays, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
+import { useStatusCategories } from '@/hooks/useStatusCategories';
 
 interface PendingOrdersBreakdownProps {
     businessId: string;
@@ -22,6 +23,7 @@ const BUCKETS = [
 ];
 
 export const PendingOrdersBreakdown = ({ businessId, dateFilter }: PendingOrdersBreakdownProps) => {
+    const { pendingIds } = useStatusCategories();
     const { data: orders } = useQuery({
         queryKey: ['dashboard-orders', businessId],
         queryFn: async () => {
@@ -47,10 +49,9 @@ export const PendingOrdersBreakdown = ({ businessId, dateFilter }: PendingOrders
             });
         };
 
-        const pending = orders.filter((o: any) => {
-            const code = (o.order_statuses as any)?.code?.toUpperCase();
-            return (code === 'NEW' || code === 'INTERESTED') && isInRange(o.date);
-        });
+        const pending = orders.filter((o: any) =>
+            o.order_status_id && pendingIds.has(o.order_status_id) && isInRange(o.date)
+        );
 
         const now = new Date();
         const buckets: Record<string, any[]> = { 'today': [], '1-3d': [], '3-7d': [], '7+d': [] };
@@ -71,7 +72,7 @@ export const PendingOrdersBreakdown = ({ businessId, dateFilter }: PendingOrders
         }));
 
         return { total: pending.length, buckets, chartData };
-    }, [orders, dateFilter]);
+    }, [orders, dateFilter, pendingIds]);
 
     if (!metrics) return null;
 

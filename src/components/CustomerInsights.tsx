@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useStatusCategories } from '@/hooks/useStatusCategories';
 import {
     ShoppingBag,
     Truck,
@@ -34,6 +35,8 @@ interface OrderRecord {
     date: string;
     created_at: string;
     raw_price: number;
+    order_status_id: string | null;
+    package_status_id: string | null;
     status_code: string;
     status_label: string;
     status_color: string;
@@ -46,10 +49,8 @@ interface MonthData {
     revenue: number;
 }
 
-const DELIVERED_CODES = ['P_DELIVERED'];
-const CANCELLED_CODES = ['CANCELED', 'RETURN', 'Black liste', 'faux commande'];
-
 const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className }) => {
+    const { deliveredPkgIds, cancelledIds } = useStatusCategories();
     const [orders, setOrders] = useState<OrderRecord[]>([]);
     const [loading, setLoading] = useState(false);
     const [searched, setSearched] = useState(false);
@@ -74,6 +75,8 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
                         date,
                         created_at,
                         raw_price,
+                        order_status_id,
+                        package_status_id,
                         status:order_statuses(code, label, color),
                         package_status:package_statuses(code, label)
                     `)
@@ -88,6 +91,8 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
                     date: o.date || o.created_at,
                     created_at: o.created_at,
                     raw_price: Number(o.raw_price) || 0,
+                    order_status_id: o.order_status_id || null,
+                    package_status_id: o.package_status_id || null,
                     status_code: o.status?.code || '',
                     status_label: o.status?.label || '',
                     status_color: o.status?.color || '#999',
@@ -111,12 +116,12 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
     // Stats
     const stats = useMemo(() => {
         const total = orders.length;
-        const delivered = orders.filter(o => DELIVERED_CODES.includes(o.package_status_code)).length;
-        const cancelled = orders.filter(o => CANCELLED_CODES.includes(o.status_code)).length;
+        const delivered = orders.filter(o => o.package_status_id && deliveredPkgIds.has(o.package_status_id)).length;
+        const cancelled = orders.filter(o => o.order_status_id && cancelledIds.has(o.order_status_id)).length;
         const totalSpent = orders.reduce((acc, o) => acc + o.raw_price, 0);
         const deliveryRate = total > 0 ? Math.round((delivered / total) * 100) : 0;
         return { total, delivered, cancelled, totalSpent, deliveryRate };
-    }, [orders]);
+    }, [orders, deliveredPkgIds, cancelledIds]);
 
     // Chart data: last 6 months
     const chartData = useMemo((): MonthData[] => {
