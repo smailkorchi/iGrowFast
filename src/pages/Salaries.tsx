@@ -185,7 +185,7 @@ const AdminSalaries = () => {
       const start = format(startOfMonth(new Date(selectedMonth)), 'yyyy-MM-dd');
       const end = format(endOfMonth(new Date(selectedMonth)), 'yyyy-MM-dd');
 
-      // Check for existing payouts in this month for this seller
+      // Prior payouts for this seller + calendar month (pending or paid both reduce remainder)
       const { data: existingPayouts } = await supabase
         .from('seller_payments')
         .select('created_at, delivered_orders, commission_earned')
@@ -193,42 +193,50 @@ const AdminSalaries = () => {
         .eq('payout_month', selectedMonth)
         .order('created_at', { ascending: true });
 
-      // Get the latest payout's creation date (if any)
-      const lastPayoutDate = existingPayouts && existingPayouts.length > 0
-        ? format(new Date(existingPayouts[existingPayouts.length - 1].created_at), 'yyyy-MM-dd')
-        : null;
-
-      // Get daily earnings for this seller in this month
-      // If there's a previous payout, only include earnings AFTER that payout was created
-      let query = supabase
+      const { data, error } = await supabase
         .from('seller_daily_earnings')
         .select('*')
         .eq('seller_id', selectedSellerId)
         .gte('date', start)
         .lte('date', end);
 
-      // Only include earnings from dates after the last payout was created
-      if (lastPayoutDate) {
-        query = query.gt('date', lastPayoutDate);
-      }
-
-      const { data, error } = await query;
-
       if (error) throw error;
 
-      // Calculate totals from unpaid earnings only
-      const calc = (data || []).reduce((acc, curr) => ({
-        commission: acc.commission + Number(curr.commission_earned),
-        days: acc.days + (Number(curr.commission_earned) > 0 ? 1 : 0),
-        orders: acc.orders + Number(curr.delivered_count)
-      }), { commission: 0, days: 0, orders: 0 });
+      // Full month accrual from daily earnings (delivery-day buckets, not payout creation date)
+      const monthCommission = (data || []).reduce((s, r) => s + Number(r.commission_earned || 0), 0);
+      const monthOrders = (data || []).reduce((s, r) => s + Number(r.delivered_count || 0), 0);
+      const monthDays = new Set(
+        (data || []).filter(r => Number(r.commission_earned || 0) > 0).map(r => r.date),
+      ).size;
 
-      // Add warning if there are existing payouts
-      const existingTotal = existingPayouts?.reduce((sum, p) => sum + Number(p.delivered_orders || 0), 0) || 0;
+      const prevCommission = (existingPayouts || []).reduce((s, p) => s + Number(p.commission_earned || 0), 0);
+      const prevOrders = (existingPayouts || []).reduce((s, p) => s + Number(p.delivered_orders || 0), 0);
+
+      const commission = Math.max(0, monthCommission - prevCommission);
+      const orders = Math.max(0, monthOrders - prevOrders);
+      // Remainder is often a small share of the month; round() can yield 0. Use ceil with min 1 when there is accrual.
+      let days = 0;
+      if (commission > 0 || orders > 0) {
+        if (monthCommission > 0 && monthDays > 0) {
+          days = Math.min(
+            monthDays,
+            Math.max(1, Math.ceil((commission / monthCommission) * monthDays)),
+          );
+        } else {
+          days = 1;
+        }
+      }
+
+      const accrualNoun =
+        normalizeCommissionBasis(seller.commission_basis) === 'per_unit' ? 'units' : 'orders';
 
       setPayoutPreview({
-        ...calc,
-        total: calc.commission,
+        commission,
+        orders,
+        days,
+        total: commission,
+        monthCommission,
+        monthOrders,
         seller_name: seller.name,
         bank: {
           name: seller.bank_name,
@@ -236,9 +244,10 @@ const AdminSalaries = () => {
           holder: seller.bank_account_holder,
           cin: seller.cin_number
         },
-        // Track existing payouts for display
         existingPayouts: existingPayouts?.length || 0,
-        existingOrdersCount: existingTotal
+        existingOrdersCount: prevOrders,
+        existingCommissionTotal: prevCommission,
+        accrualNoun,
       });
 
     } catch (error) {
@@ -262,11 +271,10 @@ const AdminSalaries = () => {
   const handleCreatePayout = async () => {
     if (!payoutPreview || !selectedSellerId) return;
 
-    // Prevent creating payout with no new orders
-    if (payoutPreview.orders === 0) {
+    if (payoutPreview.orders === 0 && payoutPreview.commission === 0) {
       toast({
         title: "Cannot Create Payout",
-        description: "No new delivered orders found for this period.",
+        description: "No remaining accrual for this month (daily earnings match prior payouts).",
         variant: "destructive"
       });
       return;
@@ -619,13 +627,13 @@ const AdminSalaries = () => {
 
       {/* Create Payout Modal */}
       <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-        <DialogContent className="max-w-2xl p-0 overflow-hidden border-0 rounded-[2.5rem] shadow-3xl bg-white">
-          <DialogHeader className="p-8 pb-0">
+        <DialogContent className="max-w-2xl w-[calc(100%-2rem)] max-h-[min(90dvh,900px)] flex flex-col gap-0 p-0 overflow-hidden border-0 rounded-[2.5rem] shadow-3xl bg-white sm:w-full">
+          <DialogHeader className="flex-shrink-0 p-8 pb-4 pr-14 text-left">
             <DialogTitle className="text-3xl font-extralight tracking-tight">Generate New Payout</DialogTitle>
             <DialogDescription className="text-gray-400 font-light">Select a seller and a month to calculate their commission earnings.</DialogDescription>
           </DialogHeader>
 
-          <div className="p-8 space-y-6">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-8 pb-4 space-y-6">
             <div className="grid grid-cols-2 gap-6">
               <div className="space-y-2">
                 <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400 ml-1">Member Seller</label>
@@ -680,14 +688,16 @@ const AdminSalaries = () => {
                     <div>
                       <p className="text-sm font-medium text-blue-900">Existing payouts detected</p>
                       <p className="text-xs text-blue-700 mt-1">
-                        {payoutPreview.existingPayouts} payout(s) already generated for this month ({payoutPreview.existingOrdersCount} {payoutPreview.accrualNoun || 'orders'} in paid payouts).
-                        Showing only <strong>new unpaid accrual</strong>.
+                        {payoutPreview.existingPayouts} prior payout(s) this month already recorded{' '}
+                        ({payoutPreview.existingOrdersCount} {payoutPreview.accrualNoun || 'orders'},{' '}
+                        {Number(payoutPreview.existingCommissionTotal || 0).toLocaleString()} MAD commission).
+                        Draft below is <strong>remainder</strong> for the same month (monthly totals minus those payouts).
                       </p>
                     </div>
                   </div>
                 )}
                 <div className="p-6 rounded-3xl bg-purple-50/50 border border-purple-100/50">
-                  <p className="text-[10px] uppercase font-bold text-purple-400 mb-1">Commission Earned {payoutPreview.existingPayouts > 0 ? '(New Orders Only)' : ''}</p>
+                  <p className="text-[10px] uppercase font-bold text-purple-400 mb-1">Commission Earned {payoutPreview.existingPayouts > 0 ? '(remainder after prior payouts)' : ''}</p>
                   <p className="text-2xl font-medium text-purple-900">{payoutPreview.commission.toLocaleString()} <span className="text-sm font-light">MAD</span></p>
                   <p className="text-xs text-purple-600/60 mt-2">{payoutPreview.orders} delivered {payoutPreview.accrualNoun || 'units'} • {payoutPreview.days} active days</p>
                 </div>
@@ -717,18 +727,18 @@ const AdminSalaries = () => {
             ) : null}
           </div>
 
-          <DialogFooter className="p-8 bg-gray-50 border-t border-gray-100 sm:justify-end gap-3">
+          <DialogFooter className="flex-shrink-0 p-6 sm:p-8 bg-gray-50 border-t border-gray-100 sm:justify-end gap-3">
             <Button variant="outline" onClick={() => {
               setIsCreateModalOpen(false);
               setSelectedSellerId('');
               setPayoutPreview(null);
             }} className="h-12 rounded-2xl border-gray-200">Cancel</Button>
             <Button
-              disabled={!payoutPreview || previewLoading || payoutPreview?.orders === 0}
+              disabled={!payoutPreview || previewLoading || (payoutPreview?.orders === 0 && payoutPreview?.commission === 0)}
               onClick={handleCreatePayout}
               className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-8 rounded-2xl disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {payoutPreview?.orders === 0 ? 'No New Orders to Pay' : 'Generate Draft Settlement'}
+              {payoutPreview?.orders === 0 && payoutPreview?.commission === 0 ? 'Nothing left to pay this month' : 'Generate Draft Settlement'}
             </Button>
           </DialogFooter>
         </DialogContent>
