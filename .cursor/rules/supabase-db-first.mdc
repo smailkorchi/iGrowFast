@@ -1,0 +1,14 @@
+---
+description: Inspect Supabase via MCP before any DB work
+alwaysApply: true
+---
+
+# Database changes and fixes
+
+Before proposing or applying any database change, schema fix, or data-dependent app fix:
+
+1. Use Supabase MCP: `list_tables` (and relevant schemas), `execute_sql` for read-only `SELECT` to confirm columns, types, sample rows, and RLS-relevant facts as needed, and `list_migrations` when migrations are involved.
+2. Do not assume table/column names, constraints, or data shape from code alone.
+3. Schema changes: use `apply_migration` (or the project’s agreed migration path), not ad-hoc DDL guesses.
+
+If Supabase MCP is unavailable in the environment, state that explicitly and do not pretend the database was verified.

@@ -51,6 +51,14 @@ interface SellerPayment {
     status: string;
     paid_at: string | null;
     created_at: string;
+    updated_at?: string | null;
+}
+
+/** Shown in Settlement Logs; prefers explicit paid_at set when admin marks paid. */
+function settledDateIso(p: SellerPayment): string | null {
+    if (p.paid_at) return p.paid_at;
+    if (p.updated_at) return p.updated_at;
+    return p.created_at || null;
 }
 
 const SellerPayments = () => {
@@ -348,7 +356,12 @@ const SellerPayments = () => {
                                             </td>
                                             <td className="p-6">
                                                 <p className="text-sm text-gray-600 font-light italic">
-                                                    {p.paid_at ? format(new Date(p.paid_at), 'MMM dd, yyyy') : 'N/A'}
+                                                    {(() => {
+                                                        const iso = settledDateIso(p);
+                                                        return iso
+                                                            ? format(new Date(iso), 'MMM dd, yyyy')
+                                                            : 'N/A';
+                                                    })()}
                                                 </p>
                                             </td>
                                             <td className="p-6 text-right">
@@ -415,6 +428,14 @@ const SellerPayments = () => {
                                         <Badge className="bg-green-50 text-green-600 border-green-100 px-6 py-2 rounded-2xl text-xs uppercase tracking-widest font-bold">
                                             Verified Paid
                                         </Badge>
+                                        {(() => {
+                                            const iso = settledDateIso(selectedPayment);
+                                            return iso ? (
+                                                <p className="text-xs text-gray-500 mt-2 font-light">
+                                                    Settled {format(new Date(iso), 'MMM d, yyyy')}
+                                                </p>
+                                            ) : null;
+                                        })()}
                                         <p className="text-[10px] text-gray-300 mt-2 font-mono">TRANS_ID: {selectedPayment.id.slice(0, 12).toUpperCase()}</p>
                                     </div>
                                 </div>

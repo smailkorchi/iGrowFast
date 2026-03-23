@@ -317,10 +317,11 @@ const AdminSalaries = () => {
 
   const updateStatus = async (ids: string[], status: 'paid' | 'pending') => {
     try {
-      const { error } = await supabase
-        .from('seller_payments')
-        .update({ status })
-        .in('id', ids);
+      const payload =
+        status === 'paid'
+          ? { status, paid_at: new Date().toISOString() }
+          : { status, paid_at: null };
+      const { error } = await supabase.from('seller_payments').update(payload).in('id', ids);
 
       if (error) throw error;
 
