@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import {
@@ -87,6 +87,93 @@ const ZONES_TABLE = 'zones' as any;
 const CITIES_TABLE = 'master_cities' as any;
 const COMPANY_ZONES_TABLE = 'company_zones' as any;
 const COMPANY_FEES_TABLE = 'company_fees' as any;
+
+type FeeTableEntity = 'company_id' | 'courier_id';
+
+/** DB enforces master-city fees via a partial unique index; PostgREST upsert on_conflict cannot target it. */
+async function saveFeeRowByMasterCity(
+    table: string,
+    entityKey: FeeTableEntity,
+    entityId: string,
+    masterCityId: string,
+    businessId: string | null,
+    fee: number
+) {
+    if (!businessId) throw new Error('No active business');
+    const match = {
+        [entityKey]: entityId,
+        master_city_id: masterCityId,
+        'DigiCom Business': businessId,
+    };
+    const { data: existing, error: findErr } = await supabase
+        .from(table as typeof COMPANY_FEES_TABLE)
+        .select('id')
+        .match(match)
+        .maybeSingle();
+    if (findErr) throw findErr;
+    const updated_at = new Date().toISOString();
+    if (existing?.id) {
+        const { error } = await supabase
+            .from(table as typeof COMPANY_FEES_TABLE)
+            .update({ fee, updated_at })
+            .eq('id', existing.id);
+        if (error) throw error;
+    } else {
+        const { error } = await supabase.from(table as typeof COMPANY_FEES_TABLE).insert({
+            ...match,
+            fee,
+            updated_at,
+        });
+        if (error) throw error;
+    }
+}
+
+const POSTGREST_MAX_ROWS = 1000;
+
+async function fetchAllMasterCitiesInZones(zoneIds: string[]) {
+    if (!zoneIds.length) return [];
+    const all: any[] = [];
+    let from = 0;
+    for (;;) {
+        const { data, error } = await supabase
+            .from(CITIES_TABLE)
+            .select('*')
+            .in('zone_id', zoneIds)
+            .order('name')
+            .range(from, from + POSTGREST_MAX_ROWS - 1);
+        if (error) throw error;
+        if (!data?.length) break;
+        all.push(...data);
+        if (data.length < POSTGREST_MAX_ROWS) break;
+        from += POSTGREST_MAX_ROWS;
+    }
+    return all;
+}
+
+async function fetchAllFeeRowsForEntity(
+    table: string,
+    entityKey: FeeTableEntity,
+    entityId: string,
+    businessId: string
+) {
+    const all: any[] = [];
+    let from = 0;
+    for (;;) {
+        const { data, error } = await supabase
+            .from(table as typeof COMPANY_FEES_TABLE)
+            .select('*')
+            .eq(entityKey, entityId)
+            .eq('DigiCom Business', businessId)
+            .order('id')
+            .range(from, from + POSTGREST_MAX_ROWS - 1);
+        if (error) throw error;
+        if (!data?.length) break;
+        all.push(...data);
+        if (data.length < POSTGREST_MAX_ROWS) break;
+        from += POSTGREST_MAX_ROWS;
+    }
+    return all;
+}
 
 const KNOWN_PROVIDERS = [
     {
@@ -1186,11 +1273,7 @@ function FeesModal({ isOpen, onClose, courier }: any) {
         queryFn: async () => {
             const { data: czones } = await supabase.from(COURIER_ZONES_TABLE).select('zone_id').eq('courier_id', courier.id);
             const zoneIds = czones?.map((z: any) => z.zone_id) || [];
-            if (!zoneIds.length) return [];
-
-            const { data, error } = await supabase.from(CITIES_TABLE).select('*').in('zone_id', zoneIds).order('name');
-            if (error) throw error;
-            return data || [];
+            return fetchAllMasterCitiesInZones(zoneIds);
         },
         enabled: !!courier?.id && isOpen
     });
@@ -1199,15 +1282,17 @@ function FeesModal({ isOpen, onClose, courier }: any) {
         queryKey: ['courier_fees', courier?.id, activeBusinessId],
         queryFn: async () => {
             if (!activeBusinessId) return {};
-            const { data, error } = await supabase
-                .from(COURIER_FEES_TABLE)
-                .select('*')
-                .eq('courier_id', courier.id)
-                .eq('DigiCom Business', activeBusinessId);
-
-            if (error) throw error;
+            const data = await fetchAllFeeRowsForEntity(
+                COURIER_FEES_TABLE,
+                'courier_id',
+                courier.id,
+                activeBusinessId
+            );
             const feeMap: Record<string, string> = {};
-            data.forEach((f: any) => feeMap[f.master_city_id || f.city_id] = f.fee.toString());
+            data.forEach((f: any) => {
+                const k = f.master_city_id || f.city_id;
+                if (k) feeMap[k] = f.fee.toString();
+            });
             setFees(feeMap);
             return feeMap;
         },
@@ -1217,14 +1302,14 @@ function FeesModal({ isOpen, onClose, courier }: any) {
     const saveFee = useMutation({
         mutationFn: async ({ cityId, fee }: { cityId: string, fee: string }) => {
             const numericFee = parseFloat(fee) || 0;
-            const { error } = await supabase.from(COURIER_FEES_TABLE).upsert({
-                courier_id: courier.id,
-                master_city_id: cityId,
-                fee: numericFee,
-                updated_at: new Date().toISOString(),
-                'DigiCom Business': activeBusinessId
-            }, { onConflict: 'courier_id,master_city_id,DigiCom Business' });
-            if (error) throw error;
+            await saveFeeRowByMasterCity(
+                COURIER_FEES_TABLE,
+                'courier_id',
+                courier.id,
+                cityId,
+                activeBusinessId,
+                numericFee
+            );
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['courier_fees', courier?.id, activeBusinessId] });
@@ -1241,26 +1326,26 @@ function FeesModal({ isOpen, onClose, courier }: any) {
         }
 
         const newFees = { ...fees };
-        const updates = cities.map((city: any) => {
+        for (const city of cities) {
             newFees[city.id] = bulkPrice;
-            return {
-                courier_id: courier.id,
-                master_city_id: city.id,
-                fee: numericPrice,
-                updated_at: new Date().toISOString(),
-                'DigiCom Business': activeBusinessId
-            };
-        });
-
+        }
         setFees(newFees);
 
-        const { error } = await supabase.from(COURIER_FEES_TABLE).upsert(updates, { onConflict: 'courier_id,master_city_id,DigiCom Business' });
-
-        if (error) {
-            toast({ title: "Error", description: "Failed to update bulk fees", variant: "destructive" });
-        } else {
+        try {
+            for (const city of cities) {
+                await saveFeeRowByMasterCity(
+                    COURIER_FEES_TABLE,
+                    'courier_id',
+                    courier.id,
+                    city.id,
+                    activeBusinessId,
+                    numericPrice
+                );
+            }
             queryClient.invalidateQueries({ queryKey: ['courier_fees', courier?.id, activeBusinessId] });
             toast({ title: "Success", description: `Updated ${cities.length} cities to ${bulkPrice} MAD` });
+        } catch {
+            toast({ title: "Error", description: "Failed to update bulk fees", variant: "destructive" });
         }
     };
 
@@ -1316,7 +1401,9 @@ function FeesModal({ isOpen, onClose, courier }: any) {
                                         <Input
                                             value={fees[city.id] || ''}
                                             onChange={(e) => setFees({ ...fees, [city.id]: e.target.value })}
-                                            onBlur={() => saveFee.mutate({ cityId: city.id, fee: fees[city.id] })}
+                                            onBlur={(e) =>
+                                                saveFee.mutate({ cityId: city.id, fee: e.currentTarget.value })
+                                            }
                                             placeholder="0.00"
                                             className="h-12 pl-10 pr-4 rounded-xl border-none bg-white font-black text-brand-navy text-right shadow-inner focus-visible:ring-brand-navy/20"
                                         />
@@ -1444,11 +1531,7 @@ function CompanyFeesModal({ isOpen, onClose, company }: any) {
         queryFn: async () => {
             const { data: czones } = await supabase.from(COMPANY_ZONES_TABLE).select('zone_id').eq('company_id', company.id);
             const zoneIds = czones?.map((z: any) => z.zone_id) || [];
-            if (!zoneIds.length) return [];
-
-            const { data, error } = await supabase.from(CITIES_TABLE).select('*').in('zone_id', zoneIds).order('name');
-            if (error) throw error;
-            return data || [];
+            return fetchAllMasterCitiesInZones(zoneIds);
         },
         enabled: !!company?.id && isOpen
     });
@@ -1457,15 +1540,17 @@ function CompanyFeesModal({ isOpen, onClose, company }: any) {
         queryKey: ['company_fees', company?.id, activeBusinessId],
         queryFn: async () => {
             if (!activeBusinessId) return {};
-            const { data, error } = await supabase
-                .from(COMPANY_FEES_TABLE)
-                .select('*')
-                .eq('company_id', company.id)
-                .eq('DigiCom Business', activeBusinessId);
-
-            if (error) throw error;
+            const data = await fetchAllFeeRowsForEntity(
+                COMPANY_FEES_TABLE,
+                'company_id',
+                company.id,
+                activeBusinessId
+            );
             const feeMap: Record<string, string> = {};
-            data.forEach((f: any) => feeMap[f.master_city_id || f.city_id] = f.fee.toString());
+            data.forEach((f: any) => {
+                const k = f.master_city_id || f.city_id;
+                if (k) feeMap[k] = f.fee.toString();
+            });
             setFees(feeMap);
             return feeMap;
         },
@@ -1475,14 +1560,14 @@ function CompanyFeesModal({ isOpen, onClose, company }: any) {
     const saveFee = useMutation({
         mutationFn: async ({ cityId, fee }: { cityId: string, fee: string }) => {
             const numericFee = parseFloat(fee) || 0;
-            const { error } = await supabase.from(COMPANY_FEES_TABLE).upsert({
-                company_id: company.id,
-                master_city_id: cityId,
-                fee: numericFee,
-                updated_at: new Date().toISOString(),
-                'DigiCom Business': activeBusinessId
-            }, { onConflict: 'company_id,master_city_id,DigiCom Business' });
-            if (error) throw error;
+            await saveFeeRowByMasterCity(
+                COMPANY_FEES_TABLE,
+                'company_id',
+                company.id,
+                cityId,
+                activeBusinessId,
+                numericFee
+            );
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['company_fees', company?.id, activeBusinessId] });
@@ -1499,26 +1584,26 @@ function CompanyFeesModal({ isOpen, onClose, company }: any) {
         }
 
         const newFees = { ...fees };
-        const updates = cities.map((city: any) => {
+        for (const city of cities) {
             newFees[city.id] = bulkPrice;
-            return {
-                company_id: company.id,
-                master_city_id: city.id,
-                fee: numericPrice,
-                updated_at: new Date().toISOString(),
-                'DigiCom Business': activeBusinessId
-            };
-        });
-
+        }
         setFees(newFees);
 
-        const { error } = await supabase.from(COMPANY_FEES_TABLE).upsert(updates, { onConflict: 'company_id,master_city_id,DigiCom Business' });
-
-        if (error) {
-            toast({ title: "Error", description: "Failed to update bulk fees", variant: "destructive" });
-        } else {
+        try {
+            for (const city of cities) {
+                await saveFeeRowByMasterCity(
+                    COMPANY_FEES_TABLE,
+                    'company_id',
+                    company.id,
+                    city.id,
+                    activeBusinessId,
+                    numericPrice
+                );
+            }
             queryClient.invalidateQueries({ queryKey: ['company_fees', company?.id, activeBusinessId] });
             toast({ title: "Success", description: `Updated ${cities.length} cities to ${bulkPrice} MAD` });
+        } catch {
+            toast({ title: "Error", description: "Failed to update bulk fees", variant: "destructive" });
         }
     };
 
@@ -1574,7 +1659,9 @@ function CompanyFeesModal({ isOpen, onClose, company }: any) {
                                         <Input
                                             value={fees[city.id] || ''}
                                             onChange={(e) => setFees({ ...fees, [city.id]: e.target.value })}
-                                            onBlur={() => saveFee.mutate({ cityId: city.id, fee: fees[city.id] })}
+                                            onBlur={(e) =>
+                                                saveFee.mutate({ cityId: city.id, fee: e.currentTarget.value })
+                                            }
                                             placeholder="0.00"
                                             className="h-12 pl-10 pr-4 rounded-xl border-none bg-white font-black text-brand-navy text-right shadow-inner focus-visible:ring-brand-navy/20"
                                         />
