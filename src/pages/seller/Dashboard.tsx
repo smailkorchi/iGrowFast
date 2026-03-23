@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { computeUnpaidCommission, normalizeCommissionBasis, type CommissionBasis } from '@/lib/commercialCommission';
 import {
     ShoppingCart, DollarSign, Clock, Package, ArrowUpRight,
     TrendingUp, CheckCircle, ChevronRight, Truck, Eye,
@@ -35,6 +36,7 @@ interface SellerStats {
     successRate: number;
     confirmRate: number;
     commissionRate: number;
+    commissionBasis: CommissionBasis;
 }
 
 interface RecentOrder {
@@ -83,6 +85,7 @@ const SellerDashboard = () => {
         successRate: 0,
         confirmRate: 0,
         commissionRate: 0,
+        commissionBasis: 'per_order',
     });
     const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([]);
     const [topProduct, setTopProduct] = useState<TopProduct | null>(null);
@@ -144,17 +147,20 @@ const SellerDashboard = () => {
             // Get seller config
             const { data: sellerData } = await supabase
                 .from('users')
-                .select('products, commission_price')
+                .select('products, commission_price, commission_basis')
                 .eq('id', userId)
                 .single();
 
-            const attributedProducts: string[] = sellerData?.products || [];
+            const attributedProducts: string[] = Array.isArray(sellerData?.products)
+                ? (sellerData!.products as string[]).filter((id): id is string => typeof id === 'string' && id.length > 0)
+                : [];
             const commissionRate = sellerData?.commission_price || 0;
+            const commissionBasis = normalizeCommissionBasis(sellerData?.commission_basis as string | null | undefined);
 
             // Get orders attributed to this seller
             const { data: ordersData } = await supabase
                 .from('orders')
-                .select('id, price, created_at, name, order_status_id, package_status_id, package_status_label, order_statuses(code), order_items(product_id, products(name, image_url))')
+                .select('id, price, created_at, name, order_status_id, package_status_id, package_status_label, order_statuses(code), order_items(product_id, quantity, products(name, image_url))')
                 .eq('seller_id', userId)
                 .order('created_at', { ascending: false });
 
@@ -186,10 +192,15 @@ const SellerDashboard = () => {
                 .eq('status', 'paid');
 
             const alreadyPaidDeliveries = (paymentsData || []).reduce((sum, p) => sum + (Number(p.delivered_orders) || 0), 0);
-            
-            // Live commission should only count unpaid deliveries
-            const unpaidDeliveries = Math.max(0, delivered - alreadyPaidDeliveries);
-            const liveCommission = unpaidDeliveries * commissionRate;
+
+            const { unpaidCommission: liveCommission, unpaidAccrued: unpaidDeliveries } = computeUnpaidCommission({
+                basis: commissionBasis,
+                commissionPrice: Number(commissionRate) || 0,
+                orders,
+                isDelivered,
+                sellerProductIds: attributedProducts,
+                paidTally: alreadyPaidDeliveries,
+            });
 
             setStats({
                 todayOrders: todayOrders.length,
@@ -203,7 +214,8 @@ const SellerDashboard = () => {
                 liveCommission,
                 successRate,
                 confirmRate,
-                commissionRate,
+                commissionRate: Number(commissionRate) || 0,
+                commissionBasis,
             });
 
             // Recent orders with product images
@@ -409,7 +421,10 @@ const SellerDashboard = () => {
                         {
                             label: 'Live Commission (Unpaid)',
                             value: `${stats.liveCommission.toLocaleString()} MAD`,
-                            sub: `${stats.commissionRate} MAD × ${stats.unpaidDeliveries} unpaid deliveries`,
+                            sub:
+                                stats.commissionBasis === 'per_unit'
+                                    ? `${stats.commissionRate} MAD × ${stats.unpaidDeliveries} unpaid units`
+                                    : `${stats.commissionRate} MAD × ${stats.unpaidDeliveries} unpaid orders`,
                             icon: Receipt,
                             color: 'text-amber-600',
                             bg: 'bg-amber-50',

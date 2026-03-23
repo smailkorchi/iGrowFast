@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { normalizeCommissionBasis } from '@/lib/commercialCommission';
 import {
     User, Mail, ShieldCheck, DollarSign, TrendingUp,
     Calendar, LogOut, Loader2, CreditCard, Building2,
@@ -28,6 +29,7 @@ interface SellerProfileData {
     email: string | null;
     avatar_url: string | null;
     commission_price: number;
+    commission_basis?: string | null;
     created_at: string;
     products: any[] | null;
     bank_account_holder: string | null;
@@ -562,7 +564,11 @@ const SellerProfile = () => {
                                         <p className="text-lg font-medium text-gray-900">{profile?.commission_price || 0} MAD</p>
                                     </div>
                                 </div>
-                                <p className="text-xs text-gray-400 italic font-light">per order delivered</p>
+                                <p className="text-xs text-gray-400 italic font-light">
+                                    {normalizeCommissionBasis(profile?.commission_basis) === 'per_unit'
+                                        ? 'per unit (assigned products) on delivered orders'
+                                        : 'per delivered order'}
+                                </p>
                             </div>
 
                         </CardContent>

@@ -79,6 +79,7 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import type { DateRange } from 'react-day-picker';
 import CustomerInsights from '@/components/CustomerInsights';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { computeUnpaidCommission, normalizeCommissionBasis, type CommissionBasis } from '@/lib/commercialCommission';
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
@@ -197,7 +198,8 @@ const Orders = () => {
         deliveryRate: 0,
         unpaidCommission: 0,
         totalDelivered: 0,
-        commissionRate: 0
+        commissionRate: 0,
+        commissionBasis: 'per_order' as CommissionBasis,
     });
 
     // Reported Modal States
@@ -579,11 +581,15 @@ const Orders = () => {
             if (!userId) return null;
             const { data, error } = await supabase
                 .from('users')
-                .select('products')
+                .select('products, commission_price, commission_basis')
                 .eq('id', userId)
                 .maybeSingle();
             if (error) throw error;
-            return data as { products: string[] | null } | null;
+            return data as {
+                products: string[] | null;
+                commission_price: number | null;
+                commission_basis: string | null;
+            } | null;
         },
         enabled: !!userId && !!activeBusinessId,
     });
@@ -1225,7 +1231,7 @@ const Orders = () => {
     // Calculate seller-specific statistics
     useEffect(() => {
         const calculateSellerStats = async () => {
-            if (!orders || !userId) return;
+            if (!orders || !userId || !sellerProfile) return;
 
             const allOrders = orders || [];
             const total = allOrders.length;
@@ -1244,16 +1250,9 @@ const Orders = () => {
             const confirmRate = total > 0 ? (confirmed / total) * 100 : 0;
             const deliveryRate = total > 0 ? (delivered / total) * 100 : 0;
 
-            // Get commission rate and calculate unpaid commission
-            const { data: userData } = await supabase
-                .from('users')
-                .select('commission_price')
-                .eq('id', userId)
-                .single();
+            const basis = normalizeCommissionBasis(sellerProfile.commission_basis);
+            const commissionRate = Number(sellerProfile.commission_price) || 0;
 
-            const commissionRate = userData?.commission_price || 0;
-
-            // Get already paid deliveries
             const { data: paymentsData } = await supabase
                 .from('seller_payments')
                 .select('delivered_orders')
@@ -1261,20 +1260,32 @@ const Orders = () => {
                 .eq('status', 'paid');
 
             const alreadyPaid = (paymentsData || []).reduce((sum, p) => sum + (Number(p.delivered_orders) || 0), 0);
-            const unpaidDeliveries = Math.max(0, delivered - alreadyPaid);
-            const unpaidCommission = unpaidDeliveries * commissionRate;
+
+            const commissionOrders = allOrders.filter((o: any) => o.seller_id === userId);
+            const isDelivered = (o: any) =>
+                !!(o.package_status_id && statusCats.deliveredPkgIds.has(o.package_status_id));
+
+            const { unpaidCommission } = computeUnpaidCommission({
+                basis,
+                commissionPrice: commissionRate,
+                orders: commissionOrders,
+                isDelivered,
+                sellerProductIds,
+                paidTally: alreadyPaid,
+            });
 
             setSellerStats({
                 confirmRate,
                 deliveryRate,
                 unpaidCommission,
                 totalDelivered: delivered,
-                commissionRate
+                commissionRate,
+                commissionBasis: basis,
             });
         };
 
         calculateSellerStats();
-    }, [orders, userId]);
+    }, [orders, userId, sellerProfile, sellerProductIds, statusCats.confirmedIds, statusCats.deliveredPkgIds]);
 
     const handleEdit = (order: any) => {
         setSelectedOrder(order);
@@ -1419,7 +1430,9 @@ const Orders = () => {
                             </span>
                             <span className="text-lg font-bold opacity-60 shrink-0">MAD</span>
                         </div>
-                        <p className="text-[10px] text-white/60 mt-2">{sellerStats.commissionRate} MAD per delivery</p>
+                        <p className="text-[10px] text-white/60 mt-2">
+                            {sellerStats.commissionRate} MAD per {sellerStats.commissionBasis === 'per_unit' ? 'unit' : 'order'} (unpaid accrual)
+                        </p>
                     </div>
                     <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-brand-white/5 rounded-full blur-2xl group-hover:bg-brand-white/10 transition-colors duration-500" />
                 </div>

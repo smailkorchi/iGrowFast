@@ -15,6 +15,7 @@ import {
     ResponsiveContainer, AreaChart, Area, Cell, Legend,
 } from 'recharts';
 import { format, startOfDay, endOfDay, isWithinInterval, eachMonthOfInterval, startOfMonth, subMonths } from 'date-fns';
+import { computeUnpaidCommission, normalizeCommissionBasis } from '@/lib/commercialCommission';
 
 const BAR_COLORS = ['#3b5e5e', '#7a9385', '#F97316', '#3B82F6', '#A855F7', '#14B8A6', '#EC4899', '#c93942'];
 
@@ -29,7 +30,7 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
         queryFn: async () => {
             const { data } = await supabase
                 .from('users')
-                .select('id, name, active, commission_price, role, avatar_url')
+                .select('id, name, active, commission_price, commission_basis, products, role, avatar_url')
                 .eq('DigiCom Business', businessId)
                 .eq('role', 'commercial');
             return data || [];
@@ -42,7 +43,7 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
         queryFn: async () => {
             const { data } = await supabase
                 .from('orders')
-                .select('id, seller_id, date, price, order_status_id, package_status_id, package_status_label')
+                .select('id, seller_id, date, price, order_status_id, package_status_id, package_status_label, order_items(product_id, quantity)')
                 .eq('DigiCom Business', businessId);
             return data || [];
         },
@@ -85,6 +86,11 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
         const filtered = orders.filter(o => isInRange(o.date));
         const activeSellers = sellers.filter(s => s.active);
 
+        const pkgDelivered = (o: any) => {
+            const l = (o.package_status_label || '').toLowerCase();
+            return l.includes('livré') || l.includes('livre') || l.includes('delivered');
+        };
+
         const totalPaidToSellers = (sellerPayments || [])
             .filter(sp => sp.status === 'paid')
             .reduce((s, sp) => s + Number(sp.total_amount || 0), 0);
@@ -99,17 +105,25 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
 
         const sellerPerformance = sellers.map(seller => {
             const sellerOrders = filtered.filter(o => o.seller_id === seller.id);
-            const delivered = sellerOrders.filter(o =>
-                (o.package_status_label || '').toLowerCase() === 'livré'
-            );
+            const delivered = sellerOrders.filter(pkgDelivered);
             const revenue = delivered.reduce((s, o) => s + Number(o.price || 0), 0);
             const sellerPresences = (presences || []).filter(p => p.seller_id === seller.id && isInRange(p.date)).length;
 
             const paidPayments = (sellerPayments || []).filter(sp => sp.seller_id === seller.id && sp.status === 'paid');
             const totalPaid = paidPayments.reduce((s, sp) => s + Number(sp.total_amount || 0), 0);
             const alreadyPaidDeliveries = paidPayments.reduce((s, sp) => s + Number(sp.delivered_orders || 0), 0);
-            const unpaidDeliveries = Math.max(0, delivered.length - alreadyPaidDeliveries);
-            const liveCommission = unpaidDeliveries * (Number(seller.commission_price) || 0);
+            const basis = normalizeCommissionBasis((seller as any).commission_basis);
+            const sellerProductIds = Array.isArray((seller as any).products)
+                ? ((seller as any).products as string[]).filter((id): id is string => typeof id === 'string' && id.length > 0)
+                : [];
+            const { unpaidCommission: liveCommission } = computeUnpaidCommission({
+                basis,
+                commissionPrice: Number(seller.commission_price) || 0,
+                orders: sellerOrders,
+                isDelivered: pkgDelivered,
+                sellerProductIds,
+                paidTally: alreadyPaidDeliveries,
+            });
             const totalCommissionEarned = (sellerPayments || [])
                 .filter(sp => sp.seller_id === seller.id)
                 .reduce((s, sp) => s + Number(sp.commission_earned || 0), 0);
@@ -119,6 +133,7 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
                 active: seller.active,
                 avatar_url: seller.avatar_url,
                 commission_price: Number(seller.commission_price) || 0,
+                commission_basis: basis,
                 totalOrders: sellerOrders.length,
                 delivered: delivered.length,
                 revenue,
@@ -177,7 +192,7 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
                         <StatCard title="Total Sellers" value={metrics.totalSellers} icon={Users} iconBg="bg-orange-50" iconColor="text-orange-600" subtitle={`${metrics.activeSellers} active`} />
                         <StatCard title="Total Paid" value={metrics.totalPaidToSellers.toLocaleString('fr-MA')} suffix=" MAD" icon={DollarSign} iconBg="bg-emerald-50" iconColor="text-emerald-600" />
                         <StatCard title="Pending Payment" value={metrics.totalPendingToSellers.toLocaleString('fr-MA')} suffix=" MAD" icon={DollarSign} iconBg="bg-orange-50" iconColor="text-orange-600" />
-                        <StatCard title="Live Commission" value={metrics.totalLiveCommission.toLocaleString('fr-MA')} suffix=" MAD" icon={DollarSign} iconBg="bg-amber-50" iconColor="text-amber-600" subtitle="Unpaid deliveries" />
+                        <StatCard title="Live Commission" value={metrics.totalLiveCommission.toLocaleString('fr-MA')} suffix=" MAD" icon={DollarSign} iconBg="bg-amber-50" iconColor="text-amber-600" subtitle="Unpaid accrual (orders or units)" />
                         <StatCard title="Top Performer" value={metrics.topPerformer?.name || 'N/A'} icon={Trophy} iconBg="bg-amber-50" iconColor="text-amber-600" subtitle={`${metrics.topPerformer?.delivered || 0} delivered`} />
                         <StatCard title="Attendance" value={metrics.attendanceRate.toFixed(0)} suffix="%" icon={CalendarCheck} iconBg="bg-purple-50" iconColor="text-purple-600" />
                         <StatCard title="Best Success Rate" value={Math.max(...metrics.sellerPerformance.map(s => s.successRate), 0).toFixed(1)} suffix="%" icon={Award} iconBg="bg-teal-50" iconColor="text-teal-600" />
@@ -267,7 +282,9 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
                                                                 {s.name}
                                                             </div>
                                                             {!s.active && <Badge className="bg-gray-100 text-gray-500 border-0 text-[9px]">Inactive</Badge>}
-                                                            <div className="text-[10px] text-gray-400">{s.commission_price} MAD/delivery</div>
+                                                            <div className="text-[10px] text-gray-400">
+                                                                {s.commission_price} MAD/{s.commission_basis === 'per_unit' ? 'unit' : 'order'}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </td>

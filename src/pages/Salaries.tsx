@@ -48,6 +48,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { format, startOfMonth, endOfMonth, subMonths, eachMonthOfInterval } from 'date-fns';
 import { useToast } from "@/hooks/use-toast";
+import { normalizeCommissionBasis } from '@/lib/commercialCommission';
 import { Checkbox } from "@/components/ui/checkbox";
 
 interface Payout {
@@ -76,6 +77,7 @@ interface SellerUser {
   email: string;
   avatar_url: string;
   commission_price: number;
+  commission_basis?: string | null;
   bank_name: string;
   bank_rib: string;
   bank_account_holder: string;
@@ -132,7 +134,7 @@ const AdminSalaries = () => {
       // Fetch Sellers (users with role 'commercial')
       const { data: sellersData, error: sError } = await supabase
         .from('users')
-        .select('id, name, email, avatar_url, commission_price, bank_name, bank_rib, bank_account_holder, cin_number')
+        .select('id, name, email, avatar_url, commission_price, commission_basis, bank_name, bank_rib, bank_account_holder, cin_number')
         .eq('role', 'commercial')
         .eq('DigiCom Business', activeBusinessId);
 
@@ -290,7 +292,7 @@ const AdminSalaries = () => {
 
       toast({
         title: "Success",
-        description: `Draft payout generated: ${payoutPreview.orders} orders, ${payoutPreview.commission.toLocaleString()} MAD`,
+        description: `Draft payout generated: ${payoutPreview.orders} ${payoutPreview.accrualNoun || 'orders'}, ${payoutPreview.commission.toLocaleString()} MAD`,
       });
       setIsCreateModalOpen(false);
       setSelectedSellerId('');
@@ -678,8 +680,8 @@ const AdminSalaries = () => {
                     <div>
                       <p className="text-sm font-medium text-blue-900">Existing payouts detected</p>
                       <p className="text-xs text-blue-700 mt-1">
-                        {payoutPreview.existingPayouts} payout(s) already generated for this month ({payoutPreview.existingOrdersCount} orders paid).
-                        Showing only <strong>new unpaid deliveries</strong>.
+                        {payoutPreview.existingPayouts} payout(s) already generated for this month ({payoutPreview.existingOrdersCount} {payoutPreview.accrualNoun || 'orders'} in paid payouts).
+                        Showing only <strong>new unpaid accrual</strong>.
                       </p>
                     </div>
                   </div>
@@ -687,7 +689,7 @@ const AdminSalaries = () => {
                 <div className="p-6 rounded-3xl bg-purple-50/50 border border-purple-100/50">
                   <p className="text-[10px] uppercase font-bold text-purple-400 mb-1">Commission Earned {payoutPreview.existingPayouts > 0 ? '(New Orders Only)' : ''}</p>
                   <p className="text-2xl font-medium text-purple-900">{payoutPreview.commission.toLocaleString()} <span className="text-sm font-light">MAD</span></p>
-                  <p className="text-xs text-purple-600/60 mt-2">{payoutPreview.orders} delivered units • {payoutPreview.days} active days</p>
+                  <p className="text-xs text-purple-600/60 mt-2">{payoutPreview.orders} delivered {payoutPreview.accrualNoun || 'units'} • {payoutPreview.days} active days</p>
                 </div>
                 <div className="p-6 rounded-3xl bg-gray-900 text-white shadow-2xl flex items-center justify-between">
                   <div>
@@ -775,7 +777,13 @@ const AdminSalaries = () => {
                   </h4>
                   <div className="bg-gray-50 rounded-3xl p-6 space-y-4">
                     <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-500 font-light">Commission ({activePayout.delivered_orders} units)</span>
+                      <span className="text-gray-500 font-light">
+                        Commission ({activePayout.delivered_orders}{' '}
+                        {normalizeCommissionBasis(sellers.find(s => s.id === activePayout.seller_id)?.commission_basis) === 'per_unit'
+                          ? 'units'
+                          : 'orders'}
+                        )
+                      </span>
                       <span className="font-mono tabular-nums text-gray-900">+{Number(activePayout.commission_earned).toLocaleString()} MAD</span>
                     </div>
                     <div className="pt-4 border-t border-gray-200 flex justify-between items-center text-base">

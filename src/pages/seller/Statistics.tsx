@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { computeUnpaidCommission, normalizeCommissionBasis, type CommissionBasis } from '@/lib/commercialCommission';
 import {
     BarChart3,
     TrendingUp,
@@ -58,6 +59,7 @@ interface PerformanceStats {
     integrityScore: number;
     deliveryEff: number;
     liveCommission: number;
+    commissionBasis: CommissionBasis;
 }
 
 interface ChartData {
@@ -104,7 +106,8 @@ const SellerStatistics = () => {
         confirmRate: 0,
         integrityScore: 0,
         deliveryEff: 0,
-        liveCommission: 0
+        liveCommission: 0,
+        commissionBasis: 'per_order',
     });
     const [revenueData, setRevenueData] = useState<ChartData[]>([]);
     const [orderDistribution, setOrderDistribution] = useState<StatusDistribution[]>([]);
@@ -124,7 +127,7 @@ const SellerStatistics = () => {
             // 1. Fetch Orders with Items & Product Images for Granular Analysis + City Coordinates
             const { data: ordersData, error: ordersError } = await supabase
                 .from('orders')
-                .select('city_id, order_status_id, package_status_id, package_status_label, master_cities(name, lat, lng), order_statuses(code), order_items(unit_price, quantity, products(name, image_url))')
+                .select('city_id, order_status_id, package_status_id, package_status_label, master_cities(name, lat, lng), order_statuses(code), order_items(product_id, unit_price, quantity, products(name, image_url))')
                 .eq('seller_id', user.id);
 
             const orders = (ordersData || []).map(o => ({
@@ -279,7 +282,7 @@ const SellerStatistics = () => {
             // Fetch Seller Config for Commission
             const { data: sellerInfo, error: sellerError } = await supabase
                 .from('users')
-                .select('commission_price')
+                .select('commission_price, commission_basis, products')
                 .eq('id', user.id)
                 .single();
 
@@ -288,6 +291,10 @@ const SellerStatistics = () => {
             }
 
             const commissionRate = sellerInfo?.commission_price || 0;
+            const commissionBasis = normalizeCommissionBasis(sellerInfo?.commission_basis as string | null | undefined);
+            const sellerProductIds = Array.isArray(sellerInfo?.products)
+                ? (sellerInfo!.products as string[]).filter((id): id is string => typeof id === 'string' && id.length > 0)
+                : [];
 
             // Calculate Detailed Ratios
             const totalOrdersCount = orders?.length || 0;
@@ -307,10 +314,15 @@ const SellerStatistics = () => {
                 .eq('status', 'paid');
 
             const alreadyPaidDeliveries = (paymentsData || []).reduce((sum, p) => sum + (Number(p.delivered_orders) || 0), 0);
-            
-            // Live Commission should only count unpaid deliveries
-            const unpaidDeliveries = Math.max(0, deliveredOrdersCount - alreadyPaidDeliveries);
-            const liveCommission = unpaidDeliveries * commissionRate;
+
+            const { unpaidCommission: liveCommission } = computeUnpaidCommission({
+                basis: commissionBasis,
+                commissionPrice: Number(commissionRate) || 0,
+                orders: orders || [],
+                isDelivered,
+                sellerProductIds,
+                paidTally: alreadyPaidDeliveries,
+            });
 
             setStats({
                 successRate,
@@ -322,7 +334,8 @@ const SellerStatistics = () => {
                 confirmRate,
                 integrityScore,
                 deliveryEff,
-                liveCommission
+                liveCommission,
+                commissionBasis,
             });
 
         } catch (error) {
@@ -421,7 +434,7 @@ const SellerStatistics = () => {
                     {
                         label: 'Live Commission (Unpaid)',
                         value: `${stats.liveCommission.toLocaleString()} MAD`,
-                        sub: 'Unpaid Deliveries Only',
+                        sub: stats.commissionBasis === 'per_unit' ? 'Unpaid units (assigned products)' : 'Unpaid orders',
                         icon: Receipt,
                         color: 'text-amber-600',
                         bg: 'bg-amber-50',

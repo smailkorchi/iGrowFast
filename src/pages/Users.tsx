@@ -97,6 +97,8 @@ import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { normalizeCommissionBasis } from '@/lib/commercialCommission';
 
 // --- Types ---
 const userSchema = z.object({
@@ -107,6 +109,7 @@ const userSchema = z.object({
     role: z.enum(['super admin', 'admin', 'commercial']),
     assignment: z.number().default(0),
     commission_price: z.number().default(0),
+    commission_basis: z.enum(['per_order', 'per_unit']).default('per_order'),
     products: z.array(z.string()).default([]),
     active: z.boolean().default(true),
     permissions: z.record(z.any()).default({}),
@@ -440,7 +443,12 @@ const UserCard = ({ user, onEdit, onDelete }: { user: any, onEdit: () => void, o
                             <Tag className="w-3.5 h-3.5 text-brand-blue/60" />
                             <span className="text-muted-foreground text-[10px] font-bold uppercase tracking-wider">Commission Price</span>
                         </div>
-                        <span className="font-semibold text-brand-blue">{user.commission_price || 0} DH</span>
+                        <span className="font-semibold text-brand-blue">
+                            {user.commission_price || 0} DH
+                            <span className="text-[10px] font-bold text-brand-blue/70 ml-1">
+                                {normalizeCommissionBasis(user.commission_basis) === 'per_unit' ? '/ unit' : '/ order'}
+                            </span>
+                        </span>
                     </div>
                 )}
                 <div className="flex flex-col p-3 rounded-2xl bg-brand-navy/5 border border-brand-navy/10">
@@ -502,6 +510,7 @@ const UserModal = ({
             role: 'commercial',
             assignment: 0,
             commission_price: 0,
+            commission_basis: 'per_order',
             products: [],
             active: true,
             permissions: {},
@@ -536,6 +545,7 @@ const UserModal = ({
                 form.reset({
                     ...initialData,
                     password: '',
+                    commission_basis: normalizeCommissionBasis(initialData.commission_basis),
                     products: Array.isArray(initialData.products) ? initialData.products : [],
                     permissions: initialData.permissions || {},
                 });
@@ -548,6 +558,8 @@ const UserModal = ({
                     password: '',
                     role: 'commercial',
                     assignment: 0,
+                    commission_price: 0,
+                    commission_basis: 'per_order',
                     products: [],
                     active: true,
                     permissions: {},
@@ -850,6 +862,45 @@ const UserModal = ({
                                                         )}
                                                     />
                                                 </div>
+
+                                                <FormField
+                                                    control={form.control}
+                                                    name="commission_basis"
+                                                    render={({ field }) => (
+                                                        <FormItem className="space-y-3 rounded-2xl border border-brand-navy/10 bg-brand-navy/[0.02] p-4">
+                                                            <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
+                                                                Commission calculation
+                                                            </FormLabel>
+                                                            <FormControl>
+                                                                <RadioGroup
+                                                                    onValueChange={field.onChange}
+                                                                    value={field.value}
+                                                                    className="grid gap-3"
+                                                                >
+                                                                    <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-transparent p-2 hover:bg-brand-white/80 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand-navy/20">
+                                                                        <RadioGroupItem value="per_order" id="commission-per-order" className="mt-0.5" />
+                                                                        <div className="space-y-0.5">
+                                                                            <span className="text-sm font-bold text-brand-navy">Per order</span>
+                                                                            <p className="text-[11px] text-muted-foreground leading-snug">
+                                                                                Commission price × each delivered order
+                                                                            </p>
+                                                                        </div>
+                                                                    </label>
+                                                                    <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-transparent p-2 hover:bg-brand-white/80 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand-navy/20">
+                                                                        <RadioGroupItem value="per_unit" id="commission-per-unit" className="mt-0.5" />
+                                                                        <div className="space-y-0.5">
+                                                                            <span className="text-sm font-bold text-brand-navy">Per unit</span>
+                                                                            <p className="text-[11px] text-muted-foreground leading-snug">
+                                                                                Commission price × total units (assigned products only) across delivered orders
+                                                                            </p>
+                                                                        </div>
+                                                                    </label>
+                                                                </RadioGroup>
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
 
                                                 <div className="space-y-4">
                                                     <div className="flex items-center justify-between">

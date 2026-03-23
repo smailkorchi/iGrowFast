@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { format, parseISO, differenceInDays } from 'date-fns';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { computeUnpaidCommission, normalizeCommissionBasis } from '@/lib/commercialCommission';
 
 // ============ TYPE DEFINITIONS ============
 
@@ -25,6 +26,7 @@ interface SellerProfile {
   products: string[];
   assignment: number;
   commission_price: number;
+  commission_basis?: string | null;
   created_at: string;
   bank_account_holder: string | null;
   bank_name: string | null;
@@ -102,7 +104,7 @@ const Sellers = () => {
       // 1. Fetch all sellers (users with role 'commercial')
       const { data: sellersData, error: sellersErr } = await supabase
         .from('users')
-        .select('id, name, email, avatar_url, products, assignment, commission_price, created_at, bank_account_holder, bank_name, bank_rib, cin_number, address, phone')
+        .select('id, name, email, avatar_url, products, assignment, commission_price, commission_basis, created_at, bank_account_holder, bank_name, bank_rib, cin_number, address, phone')
         .eq('role', 'commercial')
         .eq('DigiCom Business', activeBusinessId)
         .order('created_at', { ascending: true });
@@ -119,7 +121,7 @@ const Sellers = () => {
       // 2. Fetch all orders for all sellers (using correct schema)
       const { data: ordersData } = await supabase
         .from('orders')
-        .select('id, seller_id, order_status_id, package_status_id, price, created_at, date_livraison, master_city_id, package_status_label, status:order_statuses(code, label), city:master_cities(name)')
+        .select('id, seller_id, order_status_id, package_status_id, price, created_at, date_livraison, master_city_id, package_status_label, status:order_statuses(code, label), city:master_cities(name), order_items(product_id, quantity)')
         .in('seller_id', sellerIds);
 
       const orders = (ordersData || []) as any[];
@@ -205,14 +207,21 @@ const Sellers = () => {
         const deliveryRate = total > 0 ? (delivered / total) * 100 : 0;
         const cancellationRate = total > 0 ? ((cancelled + fake) / total) * 100 : 0;
 
-        // Calculate already paid deliveries for this seller
         const alreadyPaidDeliveries = sellerPayments
           .filter(p => p.status === 'paid')
           .reduce((sum, p) => sum + (Number(p.delivered_orders) || 0), 0);
-        
-        // Live commission should only count unpaid deliveries
-        const unpaidDeliveries = Math.max(0, delivered - alreadyPaidDeliveries);
-        const liveCommission = unpaidDeliveries * (Number(seller.commission_price) || 0);
+
+        const isDeliveredOrder = (o: any) => o.package_status_id && deliveredPkgIds.has(o.package_status_id);
+        const basis = normalizeCommissionBasis(seller.commission_basis);
+        const sellerProductIds = (seller.products || []).filter((id: string) => typeof id === 'string' && id.length > 0);
+        const { unpaidCommission: liveCommission } = computeUnpaidCommission({
+          basis,
+          commissionPrice: Number(seller.commission_price) || 0,
+          orders: sellerOrders,
+          isDelivered: isDeliveredOrder,
+          sellerProductIds,
+          paidTally: alreadyPaidDeliveries,
+        });
 
         const totalRevenue = sellerOrders
           .filter(o => o.package_status_id && deliveredPkgIds.has(o.package_status_id))
@@ -368,7 +377,7 @@ const Sellers = () => {
                   <p className="text-[10px] text-gray-400 truncate">{seller.email}</p>
                   <div className="flex items-center gap-2 mt-1">
                     <Badge className="bg-amber-50 text-amber-700 border-0 text-[9px] px-1.5 py-0 rounded-md whitespace-nowrap">
-                      {seller.commission_price} MAD/del
+                      {seller.commission_price} MAD/{normalizeCommissionBasis(seller.commission_basis) === 'per_unit' ? 'unit' : 'order'}
                     </Badge>
                     <Badge className="bg-blue-50 text-blue-700 border-0 text-[9px] px-1.5 py-0 rounded-md whitespace-nowrap">
                       {seller.assignment} orders/day
@@ -483,7 +492,9 @@ const Sellers = () => {
               <div className="bg-gray-50 rounded-2xl p-4 text-center">
                 <Receipt className="w-5 h-5 text-amber-500 mx-auto mb-2" />
                 <p className="text-lg font-semibold text-gray-900">{seller.commission_price} MAD</p>
-                <p className="text-[9px] uppercase tracking-widest font-bold text-gray-400">Per Delivery</p>
+                <p className="text-[9px] uppercase tracking-widest font-bold text-gray-400">
+                  {normalizeCommissionBasis(seller.commission_basis) === 'per_unit' ? 'Per unit' : 'Per order'}
+                </p>
               </div>
               <div className="bg-gray-50 rounded-2xl p-4 text-center">
                 <Zap className="w-5 h-5 text-blue-500 mx-auto mb-2" />
