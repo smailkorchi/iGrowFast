@@ -81,6 +81,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { isDeliveredForCommission } from '@/lib/commercialCommission';
 import {
     FaWhatsapp,
     FaInstagram,
@@ -235,7 +236,7 @@ const AdsHistory = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('orders')
-                .select('id, date, source_name, price, shipping_cost, package_status_id, order_status_id, package_status_label, order_statuses(code), order_items(product_id, unit_price, quantity)')
+                .select('id, date, source_name, price, shipping_cost, package_status_id, order_status_id, package_status_label, order_statuses(code), package_statuses(label), order_items(product_id, unit_price, quantity)')
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data;
@@ -283,7 +284,7 @@ const AdsHistory = () => {
             let shippingCosts = 0;
 
             matchedOrders.forEach((o: any) => {
-                const isDelivered = o.package_status_id && deliveredPkgIds.has(o.package_status_id);
+                const isDelivered = isDeliveredForCommission(o, deliveredPkgIds);
                 const orderCat = getOrderCategory(o.order_status_id);
 
                 if (isDelivered) {

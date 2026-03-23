@@ -12,6 +12,7 @@ import {
 import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
 import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { isDeliveredForCommission } from '@/lib/commercialCommission';
 
 interface DashboardKPICardsProps {
     businessId: string;
@@ -48,7 +49,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
         queryFn: async () => {
             const { data } = await supabase
                 .from('orders')
-                .select('id, date, price, shipping_cost, order_status_id, package_status_id, package_status_label, seller_id, company_id, source_name, order_statuses(code, label)')
+                .select('id, date, price, shipping_cost, order_status_id, package_status_id, package_status_label, seller_id, company_id, source_name, order_statuses(code, label), package_statuses(label)')
                 .eq('DigiCom Business', businessId);
             return data || [];
         },
@@ -93,9 +94,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
         const confirmed = filtered.filter((o: any) =>
             o.order_status_id && confirmedIds.has(o.order_status_id)
         );
-        const delivered = filtered.filter((o: any) =>
-            o.package_status_id && deliveredPkgIds.has(o.package_status_id)
-        );
+        const delivered = filtered.filter((o: any) => isDeliveredForCommission(o, deliveredPkgIds));
 
         const shippedOrders = filtered.filter((o: any) => !!o.company_id);
         const deliveryRate = shippedOrders.length > 0
@@ -109,7 +108,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
         const enCoursLivraison = filtered.filter((o: any) =>
             !!o.company_id &&
             (!o.package_status_id ||
-                (!deliveredPkgIds.has(o.package_status_id) && !returnedPkgIds.has(o.package_status_id)))
+                (!isDeliveredForCommission(o, deliveredPkgIds) && !returnedPkgIds.has(o.package_status_id)))
         );
 
         const canceled = filtered.filter((o: any) =>

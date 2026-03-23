@@ -79,7 +79,7 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import type { DateRange } from 'react-day-picker';
 import CustomerInsights from '@/components/CustomerInsights';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { computeUnpaidCommission, normalizeCommissionBasis, type CommissionBasis } from '@/lib/commercialCommission';
+import { computeUnpaidCommission, normalizeCommissionBasis, isDeliveredForCommission, type CommissionBasis } from '@/lib/commercialCommission';
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
@@ -1243,7 +1243,7 @@ const Orders = () => {
 
             // Count delivered orders (package in delivered category)
             const delivered = allOrders.filter(o =>
-                o.package_status_id && statusCats.deliveredPkgIds.has(o.package_status_id)
+                isDeliveredForCommission(o, statusCats.deliveredPkgIds)
             ).length;
 
             // Rates
@@ -1263,7 +1263,7 @@ const Orders = () => {
 
             const commissionOrders = allOrders.filter((o: any) => o.seller_id === userId);
             const isDelivered = (o: any) =>
-                !!(o.package_status_id && statusCats.deliveredPkgIds.has(o.package_status_id));
+                isDeliveredForCommission(o, statusCats.deliveredPkgIds);
 
             const { unpaidCommission } = computeUnpaidCommission({
                 basis,

@@ -2,6 +2,7 @@ import { useMemo, ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { isDeliveredForCommission } from '@/lib/commercialCommission';
 import { SectionWrapper } from './SectionWrapper';
 import { StatCard } from './StatCard';
 import { DateFilter } from './AnalyticsDateFilter';
@@ -69,7 +70,7 @@ export const SalesChannelsSection = ({ businessId, dateFilter }: SalesChannelsSe
         queryFn: async () => {
             const { data } = await supabase
                 .from('orders')
-                .select('id, source_name, source_id, price, date, order_status_id, package_status_id')
+                .select('id, source_name, source_id, price, date, order_status_id, package_status_id, package_status_label, package_statuses(label)')
                 .eq('DigiCom Business', businessId);
             return data || [];
         },
@@ -102,7 +103,7 @@ export const SalesChannelsSection = ({ businessId, dateFilter }: SalesChannelsSe
         const channelMap = new Map((salesChannels || []).map(c => [c.id, c.name]));
 
         const isPaidAndDelivered = (o: any) =>
-            o.package_status_id && deliveredPkgIds.has(o.package_status_id) &&
+            isDeliveredForCommission(o, deliveredPkgIds) &&
             o.order_status_id && isOrderCategory(o.order_status_id, 'paid');
 
         const channelBreakdown: Record<string, { orders: number; revenue: number; delivered: number }> = {};

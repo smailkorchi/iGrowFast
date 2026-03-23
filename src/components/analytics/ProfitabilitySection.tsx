@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { isDeliveredForCommission } from '@/lib/commercialCommission';
 import { SectionWrapper } from './SectionWrapper';
 import { StatCard } from './StatCard';
 import { DateFilter } from './AnalyticsDateFilter';
@@ -31,7 +32,7 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
         queryFn: async () => {
             const { data } = await supabase
                 .from('orders')
-                .select('id, price, shipping_cost, raw_price, date, order_status_id, package_status_id, order_statuses(code), order_items(quantity, unit_price, product_id, accessory_id, accessory_quantity, accessory_unit_price)')
+                .select('id, price, shipping_cost, raw_price, date, order_status_id, package_status_id, package_status_label, order_statuses(code), package_statuses(label), order_items(quantity, unit_price, product_id, accessory_id, accessory_quantity, accessory_unit_price)')
                 .eq('DigiCom Business', businessId);
             return data || [];
         },
@@ -90,7 +91,7 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
 
         const isPaidAndDelivered = (o: any) =>
             o.order_status_id && isOrderCategory(o.order_status_id, 'paid') &&
-            o.package_status_id && deliveredPkgIds.has(o.package_status_id);
+            isDeliveredForCommission(o, deliveredPkgIds);
 
         const isInRange = (dateStr: string | null) => {
             if (!dateStr) return true;

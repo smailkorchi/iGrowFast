@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { isDeliveredForCommission } from '@/lib/commercialCommission';
 import {
     ShoppingBag,
     Truck,
@@ -77,6 +78,7 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
                         raw_price,
                         order_status_id,
                         package_status_id,
+                        package_status_label,
                         status:order_statuses(code, label, color),
                         package_status:package_statuses(code, label)
                     `)
@@ -116,7 +118,7 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
     // Stats
     const stats = useMemo(() => {
         const total = orders.length;
-        const delivered = orders.filter(o => o.package_status_id && deliveredPkgIds.has(o.package_status_id)).length;
+        const delivered = orders.filter(o => isDeliveredForCommission(o, deliveredPkgIds)).length;
         const cancelled = orders.filter(o => o.order_status_id && cancelledIds.has(o.order_status_id)).length;
         const totalSpent = orders.reduce((acc, o) => acc + o.raw_price, 0);
         const deliveryRate = total > 0 ? Math.round((delivered / total) * 100) : 0;

@@ -8,6 +8,7 @@ import { Users, ChevronDown } from 'lucide-react';
 import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
 import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { isDeliveredForCommission } from '@/lib/commercialCommission';
 
 interface DashboardSellersPerformanceProps {
     businessId: string;
@@ -126,7 +127,7 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
             });
 
             const delivered = sellerOrders.filter((o: any) =>
-                deliveredPkgIds.has(o.package_status_id)
+                isDeliveredForCommission(o, deliveredPkgIds)
             );
             const deliveredCount = delivered.length;
             const deliveredPercent = confirmedCount > 0 ? (deliveredCount / confirmedCount) * 100 : 0;

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { isDeliveredForCommission } from '@/lib/commercialCommission';
 import { SectionWrapper } from './SectionWrapper';
 import { StatCard } from './StatCard';
 import { DateFilter } from './AnalyticsDateFilter';
@@ -33,7 +34,7 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
         queryFn: async () => {
             const { data } = await supabase
                 .from('orders')
-                .select('id, date, shipping_cost, delivery_type, company_id, courier_id, package_status_id, date_livraison, master_city_id, master_cities(name, lat, lng)')
+                .select('id, date, shipping_cost, delivery_type, company_id, courier_id, package_status_id, package_status_label, date_livraison, master_city_id, master_cities(name, lat, lng), package_statuses(label)')
                 .eq('DigiCom Business', businessId);
             return data || [];
         },
@@ -92,7 +93,7 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
         const shippedOrders = filtered.filter(o => o.package_status_id);
         const total = shippedOrders.length;
 
-        const isDelivered = (o: any) => o.package_status_id && deliveredPkgIds.has(o.package_status_id);
+        const isDelivered = (o: any) => isDeliveredForCommission(o, deliveredPkgIds);
         const isReturned = (o: any) => o.package_status_id && returnedPkgIds.has(o.package_status_id);
 
         const deliveredCount = shippedOrders.filter(isDelivered).length;

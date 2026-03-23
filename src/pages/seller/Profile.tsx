@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { normalizeCommissionBasis } from '@/lib/commercialCommission';
+import { normalizeCommissionBasis, isDeliveredForCommission } from '@/lib/commercialCommission';
 import {
     User, Mail, ShieldCheck, DollarSign, TrendingUp,
     Calendar, LogOut, Loader2, CreditCard, Building2,
@@ -114,20 +114,14 @@ const SellerProfile = () => {
                 // Fetch real performance stats
                 const { data: ordersData, error: ordersError } = await supabase
                     .from('orders')
-                    .select('order_status_id, package_status_id, package_status_label, order_statuses(code)')
+                    .select('order_status_id, package_status_id, package_status_label, order_statuses(code), package_statuses(label)')
                     .eq('seller_id', session.user.id);
 
-                const orders = (ordersData || []).map(o => ({
-                    order_status_id: (o as any).order_status_id,
-                    package_status_id: (o as any).package_status_id,
-                    status: (o.order_statuses as any)?.code?.toLowerCase() || 'unknown',
-                    packageStatus: ((o as any).package_status_label || '').toLowerCase()
-                }));
-
-                if (!ordersError && orders) {
-                    const total = orders.length;
-                    const confirmed = orders.filter(o => statusCats.confirmedIds.has(o.order_status_id)).length;
-                    const delivered = orders.filter(o => o.package_status_id && statusCats.deliveredPkgIds.has(o.package_status_id)).length;
+                if (!ordersError && ordersData) {
+                    const ordersList = ordersData;
+                    const total = ordersList.length;
+                    const confirmed = ordersList.filter(o => statusCats.confirmedIds.has(o.order_status_id)).length;
+                    const delivered = ordersList.filter(o => isDeliveredForCommission(o, statusCats.deliveredPkgIds)).length;
 
                     const cRate = total > 0 ? (confirmed / total) * 100 : 0;
                     const dRate = confirmed > 0 ? (delivered / confirmed) * 100 : 0;
@@ -158,17 +152,12 @@ const SellerProfile = () => {
 
                     const { data: orderItemsData } = await supabase
                         .from('order_items')
-                        .select('order_id, product_id, orders!inner(seller_id, order_status_id, package_status_id, package_status_label, order_statuses(code))')
+                        .select('order_id, product_id, orders!inner(seller_id, order_status_id, package_status_id, package_status_label, order_statuses(code), package_statuses(label))')
                         .eq('orders.seller_id', session.user.id);
 
                     const orderItems = (orderItemsData || []).map(oi => ({
                         ...oi,
-                        orders: {
-                            order_status_id: (oi.orders as any)?.order_status_id,
-                            package_status_id: (oi.orders as any)?.package_status_id,
-                            status: (oi.orders as any)?.order_statuses?.code?.toLowerCase() || 'unknown',
-                            packageStatus: ((oi.orders as any)?.package_status_label || '').toLowerCase()
-                        }
+                        orders: oi.orders as any,
                     }));
 
                     if (productsData) {
@@ -202,7 +191,7 @@ const SellerProfile = () => {
                                 }).length,
                                 delivered: uniqueOrders.filter(o => {
                                     const oo = Array.isArray(o) ? o[0] : o;
-                                    return oo?.package_status_id && statusCats.deliveredPkgIds.has(oo.package_status_id);
+                                    return isDeliveredForCommission(oo, statusCats.deliveredPkgIds);
                                 }).length
                             };
                         });

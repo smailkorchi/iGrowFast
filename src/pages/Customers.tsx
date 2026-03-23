@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { isDeliveredForCommission } from '@/lib/commercialCommission';
 import {
     Search,
     User,
@@ -73,6 +74,8 @@ interface Order {
     shipping_cost: number;
     order_status_id: string;
     package_status_id: string | null;
+    package_status_label?: string | null;
+    package_statuses?: { label?: string | null } | null;
     status: {
         label: string;
         color: string;
@@ -124,8 +127,10 @@ const Customers = () => {
                     created_at,
                     order_status_id,
                     package_status_id,
+                    package_status_label,
                     city:master_cities(name),
-                    status:order_statuses(label, color)
+                    status:order_statuses(label, color),
+                    package_statuses(label)
                 `)
                 .eq('DigiCom Business', activeBusinessId)
                 .order('date', { ascending: false });
@@ -154,6 +159,8 @@ const Customers = () => {
                     shipping_cost: Number(order.shipping_cost) || 0,
                     order_status_id: order.order_status_id || '',
                     package_status_id: order.package_status_id || null,
+                    package_status_label: order.package_status_label ?? null,
+                    package_statuses: (order as any).package_statuses ?? null,
                     status: { label: statusLabel, color: statusColor },
                     city_name: cityName
                 };
@@ -201,8 +208,7 @@ const Customers = () => {
                 // Interaction Score (successful = confirmed+delivered)
                 const successfulOrders = cust.orders.filter(o =>
                     statusCats.confirmedIds.has(o.order_status_id) &&
-                    o.package_status_id != null &&
-                    statusCats.deliveredPkgIds.has(o.package_status_id)
+                    isDeliveredForCommission(o, statusCats.deliveredPkgIds)
                 ).length;
                 cust.interactionScore = (successfulOrders * 10) + (cust.totalOrders * 2);
 

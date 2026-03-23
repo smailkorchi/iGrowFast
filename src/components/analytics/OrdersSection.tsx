@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { isDeliveredForCommission } from '@/lib/commercialCommission';
 import { SectionWrapper } from './SectionWrapper';
 import { StatCard } from './StatCard';
 import { DateFilter } from './AnalyticsDateFilter';
@@ -36,7 +37,7 @@ export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) =>
         queryFn: async () => {
             const { data } = await supabase
                 .from('orders')
-                .select('id, price, date, order_status_id, package_status_id, city_id, master_city_id, source_name, shipping_cost, cities(name), master_cities(name), order_items(quantity, unit_price)')
+                .select('id, price, date, order_status_id, package_status_id, package_status_label, city_id, master_city_id, source_name, shipping_cost, cities(name), master_cities(name), package_statuses(label), order_items(quantity, unit_price)')
                 .eq('DigiCom Business', businessId);
             return data || [];
         },
@@ -71,7 +72,7 @@ export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) =>
         const confirmRate = total > 0 ? (confirmedCount / total) * 100 : 0;
         const cancelRate = total > 0 ? (canceledCount / total) * 100 : 0;
 
-        const deliveredCount = filtered.filter(o => o.package_status_id && deliveredPkgIds.has(o.package_status_id)).length;
+        const deliveredCount = filtered.filter(o => isDeliveredForCommission(o, deliveredPkgIds)).length;
         const deliveryRate = total > 0 ? (deliveredCount / total) * 100 : 0;
 
         const statusDistribution = Object.entries(categoryCounts)

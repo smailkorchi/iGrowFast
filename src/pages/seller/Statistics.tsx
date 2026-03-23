@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { computeUnpaidCommission, normalizeCommissionBasis, type CommissionBasis } from '@/lib/commercialCommission';
+import { computeUnpaidCommission, normalizeCommissionBasis, isDeliveredForCommission, type CommissionBasis } from '@/lib/commercialCommission';
 import {
     BarChart3,
     TrendingUp,
@@ -127,7 +127,7 @@ const SellerStatistics = () => {
             // 1. Fetch Orders with Items & Product Images for Granular Analysis + City Coordinates
             const { data: ordersData, error: ordersError } = await supabase
                 .from('orders')
-                .select('city_id, order_status_id, package_status_id, package_status_label, master_cities(name, lat, lng), order_statuses(code), order_items(product_id, unit_price, quantity, products(name, image_url))')
+                .select('city_id, order_status_id, package_status_id, package_status_label, master_cities(name, lat, lng), order_statuses(code), package_statuses(label), order_items(product_id, unit_price, quantity, products(name, image_url))')
                 .eq('seller_id', user.id);
 
             const orders = (ordersData || []).map(o => ({
@@ -139,7 +139,7 @@ const SellerStatistics = () => {
                 cityData: (o.master_cities as any)
             }));
 
-            const isDelivered = (o: any) => o.package_status_id && statusCats.deliveredPkgIds.has(o.package_status_id);
+            const isDelivered = (o: any) => isDeliveredForCommission(o, statusCats.deliveredPkgIds);
             const isConfirmedOrBeyond = (o: any) => statusCats.confirmedIds.has(o.order_status_id);
             const isFake = (o: any) => statusCats.isOrderInCategories(o.order_status_id, ['fake', 'double']);
 
@@ -434,7 +434,7 @@ const SellerStatistics = () => {
                     {
                         label: 'Live Commission (Unpaid)',
                         value: `${stats.liveCommission.toLocaleString()} MAD`,
-                        sub: stats.commissionBasis === 'per_unit' ? 'Unpaid units (assigned products)' : 'Unpaid orders',
+                        sub: stats.commissionBasis === 'per_unit' ? 'Unpaid units (assigned SKUs; all line qty if none assigned)' : 'Unpaid orders',
                         icon: Receipt,
                         color: 'text-amber-600',
                         bg: 'bg-amber-50',

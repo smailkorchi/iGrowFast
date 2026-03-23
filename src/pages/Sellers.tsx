@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { format, parseISO, differenceInDays } from 'date-fns';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { computeUnpaidCommission, normalizeCommissionBasis } from '@/lib/commercialCommission';
+import { computeUnpaidCommission, normalizeCommissionBasis, isDeliveredForCommission } from '@/lib/commercialCommission';
 
 // ============ TYPE DEFINITIONS ============
 
@@ -121,7 +121,7 @@ const Sellers = () => {
       // 2. Fetch all orders for all sellers (using correct schema)
       const { data: ordersData } = await supabase
         .from('orders')
-        .select('id, seller_id, order_status_id, package_status_id, price, created_at, date_livraison, master_city_id, package_status_label, status:order_statuses(code, label), city:master_cities(name), order_items(product_id, quantity)')
+        .select('id, seller_id, order_status_id, package_status_id, price, created_at, date_livraison, master_city_id, package_status_label, status:order_statuses(code, label), city:master_cities(name), package_statuses(label), order_items(product_id, quantity)')
         .in('seller_id', sellerIds);
 
       const orders = (ordersData || []) as any[];
@@ -182,7 +182,7 @@ const Sellers = () => {
         
         sellerOrders.forEach(o => {
           const orderCat = getOrderCategory(o.order_status_id);
-          const isDeliveredPkg = o.package_status_id && deliveredPkgIds.has(o.package_status_id);
+          const isDeliveredPkg = isDeliveredForCommission(o, deliveredPkgIds);
 
           // Priority: delivered > shipped > confirmed > cancelled/fake > pending
           if (isDeliveredPkg) {
@@ -211,7 +211,7 @@ const Sellers = () => {
           .filter(p => p.status === 'paid')
           .reduce((sum, p) => sum + (Number(p.delivered_orders) || 0), 0);
 
-        const isDeliveredOrder = (o: any) => o.package_status_id && deliveredPkgIds.has(o.package_status_id);
+        const isDeliveredOrder = (o: any) => isDeliveredForCommission(o, deliveredPkgIds);
         const basis = normalizeCommissionBasis(seller.commission_basis);
         const sellerProductIds = (seller.products || []).filter((id: string) => typeof id === 'string' && id.length > 0);
         const { unpaidCommission: liveCommission } = computeUnpaidCommission({
@@ -224,7 +224,7 @@ const Sellers = () => {
         });
 
         const totalRevenue = sellerOrders
-          .filter(o => o.package_status_id && deliveredPkgIds.has(o.package_status_id))
+          .filter(o => isDeliveredForCommission(o, deliveredPkgIds))
           .reduce((sum, o) => sum + (Number(o.price) || 0), 0);
 
         const totalCommissionEarned = sellerEarnings.reduce((sum, e) => sum + (Number(e.commission_earned) || 0), 0);
@@ -246,7 +246,7 @@ const Sellers = () => {
 
         // Top city from delivered orders
         const cityMap: Record<string, number> = {};
-        sellerOrders.filter(o => o.package_status_id && deliveredPkgIds.has(o.package_status_id)).forEach(o => {
+        sellerOrders.filter(o => isDeliveredForCommission(o, deliveredPkgIds)).forEach(o => {
           const cityName = (o.city as any)?.name || 'Unknown';
           cityMap[cityName] = (cityMap[cityName] || 0) + 1;
         });

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { isDeliveredForCommission } from '@/lib/commercialCommission';
 import { SectionWrapper } from './SectionWrapper';
 import { StatCard } from './StatCard';
 import { DateFilter } from './AnalyticsDateFilter';
@@ -41,7 +42,7 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
 
         const isPaidAndDelivered = (o: any) =>
             o.order_status_id && isOrderCategory(o.order_status_id, 'paid') &&
-            o.package_status_id && deliveredPkgIds.has(o.package_status_id);
+            isDeliveredForCommission(o, deliveredPkgIds);
 
         const isInRange = (dateStr: string | null) => {
             if (!dateStr) return true;

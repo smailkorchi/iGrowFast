@@ -2,7 +2,14 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { computeUnpaidCommission, normalizeCommissionBasis, type CommissionBasis } from '@/lib/commercialCommission';
+import {
+    computeUnpaidCommission,
+    normalizeCommissionBasis,
+    isDeliveredForCommission,
+    isDeliveredOnLocalDay,
+    commissionAccruedForDeliveredOrder,
+    type CommissionBasis,
+} from '@/lib/commercialCommission';
 import {
     ShoppingCart, DollarSign, Clock, Package, ArrowUpRight,
     TrendingUp, CheckCircle, ChevronRight, Truck, Eye,
@@ -26,6 +33,8 @@ interface UserProfile {
 interface SellerStats {
     todayOrders: number;
     todayRevenue: number;
+    deliveredToday: number;
+    commissionAccruedToday: number;
     pendingOrders: number;
     confirmedOrders: number;
     deliveredOrders: number;
@@ -75,6 +84,8 @@ const SellerDashboard = () => {
     const [stats, setStats] = useState<SellerStats>({
         todayOrders: 0,
         todayRevenue: 0,
+        deliveredToday: 0,
+        commissionAccruedToday: 0,
         pendingOrders: 0,
         confirmedOrders: 0,
         deliveredOrders: 0,
@@ -160,7 +171,7 @@ const SellerDashboard = () => {
             // Get orders attributed to this seller
             const { data: ordersData } = await supabase
                 .from('orders')
-                .select('id, price, created_at, name, order_status_id, package_status_id, package_status_label, order_statuses(code), order_items(product_id, quantity, products(name, image_url))')
+                .select('id, price, created_at, updated_at, date_livraison, name, order_status_id, package_status_id, package_status_label, order_statuses(code), package_statuses(label), order_items(product_id, quantity, products(name, image_url))')
                 .eq('seller_id', userId)
                 .order('created_at', { ascending: false });
 
@@ -172,12 +183,29 @@ const SellerDashboard = () => {
                 packageStatus: ((o as any).package_status_label || '').toLowerCase()
             }));
 
-            const isDelivered = (o: any) => o.package_status_id && statusCats.deliveredPkgIds.has(o.package_status_id);
+            const isDelivered = (o: any) => isDeliveredForCommission(o, statusCats.deliveredPkgIds);
             const isPending = (o: any) => statusCats.pendingIds.has(o.order_status_id);
             const isConfirmed = (o: any) => statusCats.confirmedIds.has(o.order_status_id);
 
             const todayOrders = orders.filter(o => new Date(o.created_at) >= today);
             const todayRevenue = todayOrders.reduce((sum, o) => sum + (Number((o as any).price) || 0), 0);
+
+            const now = new Date();
+            const deliveredToday = orders.filter(o =>
+                isDeliveredOnLocalDay(o, statusCats.deliveredPkgIds, now),
+            ).length;
+            const commissionAccruedToday = orders.reduce((sum, o) => {
+                if (!isDeliveredOnLocalDay(o, statusCats.deliveredPkgIds, now)) return sum;
+                return (
+                    sum +
+                    commissionAccruedForDeliveredOrder({
+                        order: o,
+                        basis: commissionBasis,
+                        commissionPrice: Number(commissionRate) || 0,
+                        sellerProductIds: attributedProducts,
+                    })
+                );
+            }, 0);
 
             const delivered = orders.filter(o => isDelivered(o)).length;
             const confirmed = orders.filter(o => isConfirmed(o)).length;
@@ -205,6 +233,8 @@ const SellerDashboard = () => {
             setStats({
                 todayOrders: todayOrders.length,
                 todayRevenue,
+                deliveredToday,
+                commissionAccruedToday,
                 pendingOrders: orders.filter(o => isPending(o)).length,
                 confirmedOrders: confirmed,
                 deliveredOrders: delivered,
@@ -387,18 +417,26 @@ const SellerDashboard = () => {
                 </div>
 
                 {/* ============ KPI GRID ============ */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                     {[
                         {
-                            label: "Today's Orders",
+                            label: 'Orders created today',
                             value: stats.todayOrders,
-                            sub: 'New orders received',
+                            sub: 'By order creation date',
                             icon: ShoppingCart,
                             color: 'text-blue-600',
                             bg: 'bg-blue-50',
                             gradient: 'from-blue-50 to-white',
                         },
-
+                        {
+                            label: 'Revenue (created today)',
+                            value: `${stats.todayRevenue.toLocaleString()} MAD`,
+                            sub: 'Order totals created today',
+                            icon: DollarSign,
+                            color: 'text-sky-600',
+                            bg: 'bg-sky-50',
+                            gradient: 'from-sky-50 to-white',
+                        },
                         {
                             label: 'Pending',
                             value: stats.pendingOrders,
@@ -410,13 +448,25 @@ const SellerDashboard = () => {
                             pulse: stats.pendingOrders > 0,
                         },
                         {
-                            label: 'Delivered',
-                            value: `${stats.deliveredOrders}/${stats.totalOrders}`,
-                            sub: 'Fulfillment ratio',
+                            label: 'Delivered today',
+                            value: stats.deliveredToday,
+                            sub: `All-time delivered ${stats.deliveredOrders}/${stats.totalOrders}`,
                             icon: Truck,
                             color: 'text-emerald-600',
                             bg: 'bg-emerald-50',
                             gradient: 'from-emerald-50 to-white',
+                        },
+                        {
+                            label: 'Commission accrued today',
+                            value: `${stats.commissionAccruedToday.toLocaleString()} MAD`,
+                            sub:
+                                stats.commissionBasis === 'per_unit'
+                                    ? `Gross today (${stats.commissionRate} MAD/unit, lines count if no products assigned)`
+                                    : `Gross today (${stats.commissionRate} MAD/order)`,
+                            icon: TrendingUp,
+                            color: 'text-violet-600',
+                            bg: 'bg-violet-50',
+                            gradient: 'from-violet-50 to-white',
                         },
                         {
                             label: 'Live Commission (Unpaid)',
