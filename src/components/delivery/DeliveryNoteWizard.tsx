@@ -280,7 +280,10 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                         cod_amount: Number(order.price),
                         master_city_id: order.master_city_id,
                         city_name: order.city?.name,
-                        product_info: order.items?.map((i: any) => `${i.product?.code || 'P'} x${i.quantity || 1}`).join(', '),
+                        product_info: order.items
+                            ?.filter((i: any) => i.quantity > 0)
+                            .map((i: any) => `${i.product?.code || 'P'} x${i.quantity}`)
+                            .join(', '),
                         note: order.note || '', // Internal note
                         delivery_note: order.delivery_note || '', // Public note for courier
                         replaceable: order.replace || false,
