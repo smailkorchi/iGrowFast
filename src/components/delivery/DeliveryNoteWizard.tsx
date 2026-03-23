@@ -615,29 +615,8 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
             }
         }
 
-        // Update order statuses to 'PROCESSED'
-        try {
-            const { data: processedStatus } = await supabase
-                .from('order_statuses')
-                .select('id')
-                .eq('label', 'PROCESSED')
-                .single();
-
-            if (processedStatus) {
-                const successfulOrderIds = createdParcels
-                    .filter(p => !p.error && p.order?.id)
-                    .map(p => p.order.id);
-
-                if (successfulOrderIds.length > 0) {
-                    await supabase
-                        .from('orders')
-                        .update({ order_status_id: processedStatus.id })
-                        .in('id', successfulOrderIds);
-                }
-            }
-        } catch (error) {
-            console.error('Error updating order statuses:', error);
-        }
+        // NOTE: Orders stay as CONFIRMED until delivery note is finalized.
+        // Stock deduction happens via DB trigger when order status changes to PROCESSED on finalization.
 
         queryClient.invalidateQueries({ queryKey: ['company-delivery-notes'] });
         queryClient.invalidateQueries({ queryKey: ['seller-company-delivery-notes'] });

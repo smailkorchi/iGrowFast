@@ -26,7 +26,8 @@ import {
     Loader2,
     LayoutGrid,
     List,
-    PlusCircle
+    PlusCircle,
+    Unlock
 } from 'lucide-react';
 import {
     Card,
@@ -75,6 +76,7 @@ const DeliveryNote = () => {
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
     const [wizardZoneId, setWizardZoneId] = useState<string | undefined>(undefined);
     const [wizardProviderId, setWizardProviderId] = useState<string | undefined>(undefined);
+    const [isReopening, setIsReopening] = useState(false);
     const activeBusinessId = localStorage.getItem('activeBusinessId');
 
     const { data: sellerShippingCtx } = useQuery({
@@ -442,6 +444,29 @@ const DeliveryNote = () => {
 
             if (error) throw error;
 
+            // Set all linked orders to PROCESSED → DB trigger deducts stock
+            const { data: linkedParcels } = await supabase
+                .from('company_parcels')
+                .select('order_id')
+                .eq('company_delivery_note_id', note.id)
+                .not('order_id', 'is', null);
+
+            if (linkedParcels && linkedParcels.length > 0) {
+                const { data: processedStatus } = await supabase
+                    .from('order_statuses')
+                    .select('id')
+                    .eq('label', 'PROCESSED')
+                    .single();
+
+                if (processedStatus) {
+                    const orderIds = linkedParcels.map(p => p.order_id);
+                    await supabase
+                        .from('orders')
+                        .update({ order_status_id: processedStatus.id })
+                        .in('id', orderIds);
+                }
+            }
+
             toast({
                 title: "Finalized Successfully",
                 description: "The delivery note is now finalized and closed.",
@@ -450,6 +475,7 @@ const DeliveryNote = () => {
             // Refresh queries
             queryClient.invalidateQueries({ queryKey: ['company-delivery-notes'] });
             queryClient.invalidateQueries({ queryKey: ['seller-company-delivery-notes'] });
+            queryClient.invalidateQueries({ queryKey: ['orders'] });
 
             // If the modal is open, update the local state
             if (selectedNote?.id === note.id) {
@@ -462,6 +488,101 @@ const DeliveryNote = () => {
                 description: error.message,
                 variant: "destructive"
             });
+        }
+    };
+
+    const handleReopenNote = async (note: any) => {
+        if (!note || !note.is_finalized) return;
+
+        const providerType = note.providers?.provider_type?.toLowerCase();
+        setIsReopening(true);
+
+        try {
+            if (providerType === 'ameex' || providerType === 'ozon') {
+                toast({
+                    title: "Réouverture en cours",
+                    description: "Ouverture du bon de livraison chez le prestataire...",
+                });
+
+                const { data: { session } } = await supabase.auth.getSession();
+                const REOPEN_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/reopen-delivery-note`;
+
+                const response = await fetch(REOPEN_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${session?.access_token}`
+                    },
+                    body: JSON.stringify({
+                        provider_id: note.provider_id,
+                        reference: note.reference,
+                        delivery_note_id: note.id
+                    })
+                });
+
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || `Erreur HTTP ${response.status}`);
+                }
+            } else {
+                toast({
+                    title: "Réouverture en cours",
+                    description: "Réouverture interne du bon de livraison...",
+                });
+
+                const { error } = await supabase
+                    .from('company_delivery_notes')
+                    .update({ is_finalized: false, updated_at: new Date().toISOString() })
+                    .eq('id', note.id);
+
+                if (error) throw error;
+            }
+
+            // Set all linked orders back to CONFIRMED → DB trigger restores stock
+            const { data: linkedParcels } = await supabase
+                .from('company_parcels')
+                .select('order_id')
+                .eq('company_delivery_note_id', note.id)
+                .not('order_id', 'is', null);
+
+            if (linkedParcels && linkedParcels.length > 0) {
+                const { data: confirmedStatus } = await supabase
+                    .from('order_statuses')
+                    .select('id')
+                    .eq('label', 'CONFIRMER')
+                    .single();
+
+                if (confirmedStatus) {
+                    const orderIds = linkedParcels.map(p => p.order_id);
+                    await supabase
+                        .from('orders')
+                        .update({ order_status_id: confirmedStatus.id })
+                        .in('id', orderIds);
+                }
+            }
+
+            toast({
+                title: "Bon réouvert",
+                description: `Le bon ${note.reference} a été réouvert avec succès.`,
+            });
+
+            queryClient.invalidateQueries({ queryKey: ['company-delivery-notes'] });
+            queryClient.invalidateQueries({ queryKey: ['seller-company-delivery-notes'] });
+            queryClient.invalidateQueries({ queryKey: ['orders'] });
+
+            if (selectedNote?.id === note.id) {
+                setSelectedNote({ ...note, is_finalized: false });
+            }
+
+        } catch (error: any) {
+            toast({
+                title: "Erreur de réouverture",
+                description: error.message,
+                variant: "destructive"
+            });
+        } finally {
+            setIsReopening(false);
         }
     };
 
@@ -810,6 +931,26 @@ const DeliveryNote = () => {
                         </Button>
                     </div>
 
+                    {/* Finalize / Reopen */}
+                    {!note.is_finalized && note.provider_id && (
+                        <Button
+                            onClick={() => handleFinalizeNote(note)}
+                            className="w-full bg-emerald-500/10 hover:bg-emerald-500 text-emerald-600 hover:text-white rounded-xl h-10 font-bold text-xs gap-2 transition-all"
+                        >
+                            <CheckCircle2 className="w-4 h-4" /> Finaliser le Bon
+                        </Button>
+                    )}
+                    {note.is_finalized && note.provider_id && (
+                        <Button
+                            onClick={() => handleReopenNote(note)}
+                            disabled={isReopening}
+                            className="w-full bg-amber-500/10 hover:bg-amber-500 text-amber-600 hover:text-white rounded-xl h-10 font-bold text-xs gap-2 transition-all disabled:opacity-50"
+                        >
+                            {isReopening ? <Loader2 className="w-4 h-4 animate-spin" /> : <Unlock className="w-4 h-4" />}
+                            {isReopening ? 'Réouverture...' : 'Réouvrir le Bon'}
+                        </Button>
+                    )}
+
                     {!note.is_finalized && note.provider_id && (
                         <Button
                             onClick={() => {
@@ -913,12 +1054,36 @@ const DeliveryNote = () => {
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
+                                                    onClick={() => handleFinalizeNote(note)}
+                                                    className="h-9 w-9 rounded-xl bg-emerald-500/10 hover:bg-emerald-500 text-emerald-600 hover:text-white transition-all shadow-sm"
+                                                    title="Finaliser le Bon"
+                                                >
+                                                    <CheckCircle2 className="w-4 h-4" />
+                                                </Button>
+                                            )}
+                                            {note.is_finalized && note.provider_id && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => handleReopenNote(note)}
+                                                    disabled={isReopening}
+                                                    className="h-9 w-9 rounded-xl bg-amber-500/10 hover:bg-amber-500 text-amber-600 hover:text-white transition-all shadow-sm disabled:opacity-50"
+                                                    title="Réouvrir le Bon"
+                                                >
+                                                    {isReopening ? <Loader2 className="w-4 h-4 animate-spin" /> : <Unlock className="w-4 h-4" />}
+                                                </Button>
+                                            )}
+                                            {!note.is_finalized && note.provider_id && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
                                                     onClick={() => {
                                                         setWizardZoneId(note.zone_id);
                                                         setWizardProviderId(note.provider_id);
                                                         setIsWizardOpen(true);
                                                     }}
                                                     className="h-9 w-9 rounded-xl bg-brand-navy/[0.04] hover:bg-emerald-500 text-brand-navy hover:text-white transition-all shadow-sm"
+                                                    title="Add Orders"
                                                 >
                                                     <PlusCircle className="w-4 h-4" />
                                                 </Button>
@@ -1178,6 +1343,21 @@ const DeliveryNote = () => {
                                 >
                                     <CheckCircle2 className="w-4 h-4" />
                                     Finaliser le Bon
+                                </Button>
+                            )}
+
+                            {selectedNote?.is_finalized && selectedNote?.provider_id && (
+                                <Button
+                                    onClick={() => handleReopenNote(selectedNote)}
+                                    disabled={isReopening}
+                                    className="bg-amber-500 hover:bg-amber-600 text-white rounded-2xl h-12 px-8 font-bold shadow-lg shadow-amber-500/10 transition-all flex items-center gap-2 disabled:opacity-50"
+                                >
+                                    {isReopening ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                        <Unlock className="w-4 h-4" />
+                                    )}
+                                    {isReopening ? 'Réouverture...' : 'Réouvrir le Bon'}
                                 </Button>
                             )}
 
