@@ -33,6 +33,7 @@ import OwnerSelectBusiness from "./pages/owner/SelectBusiness";
 import OwnerUsers from "./pages/owner/Users";
 import OwnerPlans from "./pages/owner/Plans";
 import OwnerPayments from "./pages/owner/Payments";
+import OwnerDashboard from "./pages/owner/OwnerDashboard";
 import OwnerLayout from "./components/layout/OwnerLayout";
 import Calculator from "./pages/Calculator";
 import AdminDemands from "./pages/Demands";
@@ -144,11 +145,12 @@ const App = () => (
             <ProtectedRoute allowedRoles={['owner']}>
               <OwnerLayout>
                 <Routes>
+                  <Route path="dashboard" element={<OwnerDashboard />} />
                   <Route path="businesses" element={<OwnerBusinesses />} />
                   <Route path="plans" element={<OwnerPlans />} />
                   <Route path="payments" element={<OwnerPayments />} />
                   <Route path="users" element={<OwnerUsers />} />
-                  <Route path="" element={<Navigate to="businesses" replace />} />
+                  <Route path="" element={<Navigate to="dashboard" replace />} />
                 </Routes>
               </OwnerLayout>
             </ProtectedRoute>

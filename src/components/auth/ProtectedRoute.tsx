@@ -52,7 +52,7 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
                     if (userProfile.role === 'seller' || userProfile.role === 'commercial') {
                         navigate('/seller/dashboard');
                     } else if (userProfile.role === 'owner') {
-                        navigate('/owner/businesses');
+                        navigate('/owner/dashboard');
                     } else {
                         navigate('/');
                     }

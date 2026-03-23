@@ -73,6 +73,8 @@ const Auth = () => {
 
             if (profile?.role === 'seller' || profile?.role === 'commercial') {
                 navigate('/seller/dashboard');
+            } else if (profile?.role === 'owner') {
+                navigate('/owner/dashboard');
             } else {
                 navigate('/');
             }

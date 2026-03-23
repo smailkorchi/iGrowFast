@@ -2,6 +2,7 @@ import React from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
     Building2,
+    LayoutDashboard,
     Users,
     CreditCard,
     Receipt,
@@ -21,6 +22,7 @@ type NavItem = {
 };
 
 const navigation: NavItem[] = [
+    { icon: LayoutDashboard, label: 'Dashboard', path: '/owner/dashboard' },
     { icon: Building2, label: 'Businesses', path: '/owner/businesses' },
     { icon: CreditCard, label: 'Plans', path: '/owner/plans' },
     { icon: Receipt, label: 'Payments', path: '/owner/payments' },
