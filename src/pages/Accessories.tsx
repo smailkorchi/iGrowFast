@@ -20,7 +20,8 @@ import {
     RotateCcw,
     LayoutGrid,
     List,
-    AlertTriangle
+    AlertTriangle,
+    Power
 } from 'lucide-react';
 import {
     Card,
@@ -281,6 +282,30 @@ const Accessories = () => {
         onError: (error: any) => {
             toast({ title: "Error", description: error.message, variant: "destructive" });
         }
+    });
+
+    const toggleAccessoryActiveMutation = useMutation({
+        mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
+            const { error } = await supabase
+                .from('accessories')
+                .update({ active })
+                .eq('id', id)
+                .eq('DigiCom Business', activeBusinessId);
+            if (error) throw error;
+        },
+        onSuccess: (_, { active }) => {
+            queryClient.invalidateQueries({ queryKey: ['accessories', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['accessories-minimal', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['accessories-dropdown-orders', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['accessories-import', activeBusinessId] });
+            toast({
+                title: active ? 'Accessory activated' : 'Accessory deactivated',
+                description: active ? 'Visible in order pickers.' : 'Hidden from order pickers.',
+            });
+        },
+        onError: (error: any) => {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        },
     });
 
     const updateStockMutation = useMutation({
@@ -582,6 +607,14 @@ const Accessories = () => {
                                                     <RotateCcw className="w-4 h-4" />
                                                     <span className="font-bold">Clear Stock (0)</span>
                                                 </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    onClick={() => toggleAccessoryActiveMutation.mutate({ id: accessory.id, active: !accessory.active })}
+                                                    disabled={toggleAccessoryActiveMutation.isPending}
+                                                    className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3"
+                                                >
+                                                    <Power className="w-4 h-4" />
+                                                    <span className="font-bold">{accessory.active ? 'Deactivate' : 'Activate'}</span>
+                                                </DropdownMenuItem>
                                                 <DropdownMenuSeparator />
                                                 <DropdownMenuItem onClick={() => setAccessoryToDelete(accessory)} className="rounded-xl p-3 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-3">
                                                     <Trash2 className="w-4 h-4" />
@@ -668,6 +701,16 @@ const Accessories = () => {
                                         className="h-12 w-12 rounded-2xl bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy hover:text-white transition-all"
                                     >
                                         <RotateCcw className="w-5 h-5" />
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => toggleAccessoryActiveMutation.mutate({ id: accessory.id, active: !accessory.active })}
+                                        disabled={toggleAccessoryActiveMutation.isPending}
+                                        title={accessory.active ? 'Deactivate' : 'Activate'}
+                                        className="h-12 w-12 rounded-2xl bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy hover:text-white transition-all"
+                                    >
+                                        <Power className="w-5 h-5" />
                                     </Button>
                                     <Button variant="ghost" size="icon" onClick={() => openModal(accessory)} className="h-12 w-12 rounded-2xl bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy hover:text-white transition-all">
                                         <Edit2 className="w-5 h-5" />

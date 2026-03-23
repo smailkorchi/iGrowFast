@@ -107,7 +107,7 @@ import {
     PopoverTrigger,
 } from "@/components/ui/popover";
 import { Check, ChevronsUpDown } from "lucide-react";
-import { buildOrderItemRecords, type ProductAccessoryRow } from '@/lib/buildOrderItemRecords';
+import { buildOrderItemRecords, type OrderLineForRecords, type ProductAccessoryRow } from '@/lib/buildOrderItemRecords';
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -148,6 +148,15 @@ const orderSchema = z.object({
 });
 
 type OrderFormValues = z.infer<typeof orderSchema>;
+
+function toOrderLineForRecords(item: OrderFormValues['items'][number]): OrderLineForRecords {
+    return {
+        product_id: item.product_id ?? null,
+        quantity: item.quantity ?? 0,
+        unit_price: item.unit_price ?? 0,
+        accessories: item.accessories ?? [],
+    };
+}
 
 const SALES_SOURCES = [
     "whatsapp",
@@ -571,6 +580,15 @@ const Orders = () => {
         },
     });
 
+    const productAccessoriesForOrders = useMemo(() => {
+        if (!productAccessories?.length || !products?.length || !accessories?.length) return [];
+        const pid = new Set((products as { id: string }[]).map((p) => p.id));
+        const aid = new Set((accessories as { id: string }[]).map((a) => a.id));
+        return (productAccessories as { product_id: string; accessory_id: string }[]).filter(
+            (pa) => pid.has(pa.product_id) && aid.has(pa.accessory_id)
+        );
+    }, [productAccessories, products, accessories]);
+
     const { data: packageStatuses } = useQuery({
         queryKey: ['package-statuses-dropdown', activeBusinessId],
         queryFn: async () => {
@@ -692,11 +710,11 @@ const Orders = () => {
             const noProvider = !o.company_id && !o.courier_id && o.master_city_id;
             const missingAccessories = o.items?.some((item: any) =>
                 item.product_id && !item.accessory_id &&
-                productAccessories?.some((pa: any) => pa.product_id === item.product_id)
+                productAccessoriesForOrders.some((pa: any) => pa.product_id === item.product_id)
             );
             return noProvider || missingAccessories;
         }).length;
-    }, [orders, productAccessories]);
+    }, [orders, productAccessoriesForOrders]);
 
     // --- Form ---
     const form = useForm<OrderFormValues>({
@@ -894,9 +912,9 @@ const Orders = () => {
                 itemRecords.push(
                     ...buildOrderItemRecords(
                         order.id,
-                        item,
+                        toOrderLineForRecords(item),
                         activeBusinessId!,
-                        (productAccessories ?? []) as ProductAccessoryRow[],
+                        (productAccessoriesForOrders ?? []) as ProductAccessoryRow[],
                         accessoryUnitPriceById
                     )
                 );
@@ -1016,9 +1034,9 @@ const Orders = () => {
                 itemRecords.push(
                     ...buildOrderItemRecords(
                         selectedOrder.id,
-                        item,
+                        toOrderLineForRecords(item),
                         activeBusinessId!,
-                        (productAccessories ?? []) as ProductAccessoryRow[],
+                        (productAccessoriesForOrders ?? []) as ProductAccessoryRow[],
                         accessoryUnitPriceById
                     )
                 );
@@ -3018,7 +3036,7 @@ const Orders = () => {
                                                                                         }
 
                                                                                         // Auto-select accessory if attached
-                                                                                        const attachments = productAccessories?.filter((pa: any) => pa.product_id === val);
+                                                                                        const attachments = productAccessoriesForOrders?.filter((pa: any) => pa.product_id === val);
                                                                                         if (attachments && attachments.length > 0) {
                                                                                             const currentAccessories = form.getValues(`items.${index}.accessories`) || [];
                                                                                             const newAccessories = [...currentAccessories];

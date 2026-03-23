@@ -156,6 +156,7 @@ const Sellers = () => {
         const { data: prodData } = await supabase
           .from('products')
           .select('id, name, image_url')
+          .eq('active', true)
           .in('id', allProductIds);
 
         (prodData || []).forEach(p => {
@@ -226,7 +227,9 @@ const Sellers = () => {
         const daysPresent = sellerPresences.length;
         const avgDailyDelivered = daysPresent > 0 ? delivered / daysPresent : 0;
 
-        const productNames = (seller.products || []).map((pid: string) => productsMap[pid] || { name: 'Unknown Product', image: null });
+        const productNames = (seller.products || [])
+          .map((pid: string) => productsMap[pid])
+          .filter((x): x is { name: string; image: string | null } => !!x);
 
         // Last active from presences
         const sortedPresences = [...sellerPresences].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -489,8 +492,8 @@ const Sellers = () => {
               </div>
               <div className="bg-gray-50 rounded-2xl p-4 text-center">
                 <Package className="w-5 h-5 text-indigo-500 mx-auto mb-2" />
-                <p className="text-lg font-semibold text-gray-900">{seller.products.length}</p>
-                <p className="text-[9px] uppercase tracking-widest font-bold text-gray-400">Products</p>
+                <p className="text-lg font-semibold text-gray-900">{k.productNames.length}</p>
+                <p className="text-[9px] uppercase tracking-widest font-bold text-gray-400">Active products</p>
               </div>
               <div className="bg-gray-50 rounded-2xl p-4 text-center">
                 <CalendarDays className="w-5 h-5 text-blue-500 mx-auto mb-2" />

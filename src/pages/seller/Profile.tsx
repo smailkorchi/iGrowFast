@@ -151,6 +151,7 @@ const SellerProfile = () => {
                     const { data: productsData } = await supabase
                         .from('products')
                         .select('id, name, image_url, code, label, description, selling_price, cost_price, stock')
+                        .eq('active', true)
                         .in('id', productIds);
 
                     const { data: orderItemsData } = await supabase

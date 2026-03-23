@@ -221,6 +221,7 @@ const AdsHistory = () => {
             const { data, error } = await supabase
                 .from('products')
                 .select('id, name, code, image_url')
+                .eq('active', true)
                 .eq('DigiCom Business', activeBusinessId)
                 .order('name');
             if (error) throw error;

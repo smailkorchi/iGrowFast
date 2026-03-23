@@ -107,6 +107,7 @@ const ImportOrders = () => {
             const { data, error } = await (supabase as any)
                 .from('products')
                 .select('id, code, name')
+                .eq('active', true)
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data;

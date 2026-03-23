@@ -535,7 +535,8 @@ const Orders = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await supabase
                 .from('product_accessories')
-                .select('*');
+                .select('*')
+                .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data;
         },
@@ -554,6 +555,15 @@ const Orders = () => {
             return data;
         },
     });
+
+    const productAccessoriesForOrders = useMemo(() => {
+        if (!productAccessories?.length || !products?.length || !accessories?.length) return [];
+        const pid = new Set((products as { id: string }[]).map((p) => p.id));
+        const aid = new Set((accessories as { id: string }[]).map((a) => a.id));
+        return (productAccessories as { product_id: string; accessory_id: string }[]).filter(
+            (pa) => pid.has(pa.product_id) && aid.has(pa.accessory_id)
+        );
+    }, [productAccessories, products, accessories]);
 
     // --- Form ---
     const form = useForm<OrderFormValues>({
@@ -2209,7 +2219,7 @@ const Orders = () => {
                                                                                         }
 
                                                                                         // Auto-select accessory if attached
-                                                                                        const attachments = productAccessories?.filter((pa: any) => pa.product_id === val);
+                                                                                        const attachments = productAccessoriesForOrders?.filter((pa: any) => pa.product_id === val);
                                                                                         if (attachments && attachments.length > 0) {
                                                                                             const currentAccessories = form.getValues(`items.${index}.accessories`) || [];
                                                                                             const newAccessories = [...currentAccessories];
