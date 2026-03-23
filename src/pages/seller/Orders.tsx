@@ -212,6 +212,7 @@ const Orders = () => {
 
     const statusCats = useStatusCategories();
     const REPORTED_STATUS_ID = statusCats.getOrderByCategory('postponed')?.id;
+    const defaultNewOrderStatusId = statusCats.getOrderByCategory('new')?.id ?? '';
     const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/provider-integration`;
 
     // Dropdown search states
@@ -567,14 +568,21 @@ const Orders = () => {
     const orderStatusesForModal = useMemo(() => {
         if (!orderStatuses?.length) return [];
         const list = orderStatuses as any[];
-        const eligible = list.filter((s) => s.show_in_order !== false);
+        let eligible = list.filter((s) => s.show_in_order !== false);
         const sid = selectedOrder?.order_status_id;
         if (sid && !eligible.some((s) => s.id === sid)) {
             const cur = list.find((s) => s.id === sid);
-            if (cur) return [cur, ...eligible];
+            if (cur) eligible = [cur, ...eligible];
+        }
+        if (
+            defaultNewOrderStatusId &&
+            !eligible.some((s) => s.id === defaultNewOrderStatusId)
+        ) {
+            const def = list.find((s) => s.id === defaultNewOrderStatusId);
+            if (def) eligible = [def, ...eligible];
         }
         return eligible;
-    }, [orderStatuses, selectedOrder?.order_status_id]);
+    }, [orderStatuses, selectedOrder?.order_status_id, defaultNewOrderStatusId]);
 
     const { data: packageStatuses } = useQuery({
         queryKey: ['package-statuses-dropdown', activeBusinessId],
@@ -927,6 +935,20 @@ const Orders = () => {
 
             if (itemsError) throw itemsError;
 
+            if (values.order_status_id && userId) {
+                try {
+                    await (supabase as any).from('order_status_history').insert({
+                        order_id: order.id,
+                        status_id: values.order_status_id,
+                        comment: (values.history_comment || '').trim(),
+                        changed_by: userId,
+                        'DigiCom Business': activeBusinessId
+                    });
+                } catch (err) {
+                    console.error('Initial order status history error:', err);
+                }
+            }
+
             return order;
         },
         onSuccess: () => {
@@ -943,7 +965,7 @@ const Orders = () => {
                 note: '',
                 delivery_note: '',
                 delivery_type: 'Home Delivery',
-                order_status_id: '',
+                order_status_id: defaultNewOrderStatusId,
                 items: [{ product_id: '', quantity: 1, unit_price: 0, accessories: [] }],
                 courier_id: null,
                 company_id: null,
@@ -1411,7 +1433,7 @@ const Orders = () => {
                                 note: '',
                                 delivery_note: '',
                                 delivery_type: 'Home Delivery',
-                                order_status_id: '',
+                                order_status_id: defaultNewOrderStatusId,
                                 items: [{ product_id: '', quantity: 1, unit_price: 0, accessories: [] }],
                                 courier_id: null,
                                 company_id: null,
@@ -2254,7 +2276,7 @@ const Orders = () => {
                             note: '',
                             delivery_note: '',
                             delivery_type: 'Home Delivery',
-                            order_status_id: '',
+                            order_status_id: defaultNewOrderStatusId,
                             items: [{ product_id: '', quantity: 1, unit_price: 0, accessories: [] }],
                             courier_id: null,
                             company_id: null,
@@ -2264,7 +2286,7 @@ const Orders = () => {
                     }
                 }}
             >
-                <DialogContent className="max-w-5xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden flex flex-col h-[90vh] md:h-auto md:max-h-[90vh]">
+                <DialogContent className="w-[min(96vw,1180px)] max-w-[1180px] p-0 gap-0 border-none bg-brand-white rounded-[28px] shadow-2xl overflow-hidden flex flex-col h-[min(92dvh,820px)] max-h-[92dvh]">
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit((v) => {
                             const targetStatusId = v.order_status_id;
@@ -2301,28 +2323,31 @@ const Orders = () => {
 
                             isEditModalOpen ? updateOrderMutation.mutate(v) : createOrderMutation.mutate(v);
                         })} className="flex flex-col h-full overflow-hidden">
-                            <DialogHeader className="p-8 pb-4">
-                                <DialogTitle className="text-3xl font-black text-brand-navy">
-                                    {isEditModalOpen ? 'Update Sales Order' : 'Capture New Order'}
+                            <DialogHeader className="px-5 py-3 pr-12 shrink-0 border-b border-brand-navy/[0.08] bg-brand-navy/[0.02]">
+                                <DialogTitle className="text-lg sm:text-xl font-black text-brand-navy tracking-tight leading-tight">
+                                    {isEditModalOpen ? 'Update order' : 'New order'}
                                 </DialogTitle>
-                                <DialogDescription className="text-muted-foreground text-lg"> Fill in the customer details and product requirements.</DialogDescription>
+                                <DialogDescription className="text-muted-foreground text-xs sm:text-sm mt-0.5 leading-snug">
+                                    Details left · Lines scroll on the right · Notes below
+                                </DialogDescription>
                             </DialogHeader>
 
-                            <div className="overflow-y-auto p-8 pt-4 space-y-8 flex-1 custom-scrollbar">
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                            <div className="flex flex-1 min-h-0 flex-col xl:flex-row overflow-hidden">
+                                <div className="min-w-0 flex-1 flex flex-col gap-4 min-h-0 overflow-y-auto xl:overflow-hidden xl:pr-1 px-4 sm:px-5 py-3 custom-scrollbar">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 shrink-0">
                                     {/* Column 1: Customer Data */}
-                                    <div className="space-y-6">
-                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40 border-b border-brand-navy/[0.05] pb-2 flex items-center gap-2">
-                                            <User className="w-3 h-3" /> Customer Profile
+                                    <div className="space-y-3.5">
+                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-brand-navy/45 border-b border-brand-navy/[0.08] pb-2 flex items-center gap-2">
+                                            <User className="w-3 h-3" /> Customer
                                         </h4>
                                         <FormField
                                             control={form.control}
                                             name="name"
                                             render={({ field }) => (
-                                                <FormItem className="space-y-1">
+                                                <FormItem className="space-y-2">
                                                     <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Full Name</FormLabel>
                                                     <FormControl>
-                                                        <Input placeholder="Client Name" {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
+                                                        <Input placeholder="Client Name" {...field} className="h-10 rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
                                                     </FormControl>
                                                     <FormMessage />
                                                 </FormItem>
@@ -2332,11 +2357,11 @@ const Orders = () => {
                                             control={form.control}
                                             name="phone"
                                             render={({ field }) => (
-                                                <FormItem className="space-y-1">
+                                                <FormItem className="space-y-2">
                                                     <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Contact Number</FormLabel>
                                                     <div className="relative">
                                                         <FormControl>
-                                                            <Input placeholder="+212..." {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner pr-12" />
+                                                            <Input placeholder="+212..." {...field} className="h-10 rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner pr-12" />
                                                         </FormControl>
                                                         {(field.value?.replace(/[^0-9+]/g, '') || '').length >= 6 && (
                                                             <Popover open={showCustomerInsights} onOpenChange={setShowCustomerInsights}>
@@ -2373,7 +2398,7 @@ const Orders = () => {
                                             control={form.control}
                                             name="city_id"
                                             render={({ field }) => (
-                                                <FormItem className="flex flex-col space-y-1">
+                                                <FormItem className="flex flex-col space-y-2">
                                                     <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Target City</FormLabel>
                                                     <Popover open={citySearchOpen} onOpenChange={setCitySearchOpen}>
                                                         <PopoverTrigger asChild>
@@ -2382,7 +2407,7 @@ const Orders = () => {
                                                                     variant="outline"
                                                                     role="combobox"
                                                                     className={cn(
-                                                                        "h-12 w-full justify-between rounded-2xl border-none bg-brand-navy/[0.04] text-brand-navy font-bold shadow-inner text-left px-4",
+                                                                        "h-10 w-full justify-between rounded-xl border-none bg-brand-navy/[0.04] text-sm text-brand-navy font-bold shadow-inner text-left px-3",
                                                                         !field.value && "text-muted-foreground"
                                                                     )}
                                                                 >
@@ -2434,10 +2459,10 @@ const Orders = () => {
                                             control={form.control}
                                             name="address"
                                             render={({ field }) => (
-                                                <FormItem className="space-y-1">
+                                                <FormItem className="space-y-2">
                                                     <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Full Address</FormLabel>
                                                     <FormControl>
-                                                        <Textarea placeholder="Street, building, floor..." {...field} className="min-h-[100px] rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner resize-none p-4" />
+                                                        <Textarea placeholder="Street, building, floor…" {...field} className="min-h-[72px] rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner resize-y p-3 leading-relaxed" />
                                                     </FormControl>
                                                     <FormMessage />
                                                 </FormItem>
@@ -2446,19 +2471,19 @@ const Orders = () => {
                                     </div>
 
                                     {/* Column 2: Logistics & Status */}
-                                    <div className="space-y-6">
-                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40 border-b border-brand-navy/[0.05] pb-2 flex items-center gap-2">
-                                            <Truck className="w-3 h-3" /> Logistics & Processing
+                                    <div className="space-y-3.5">
+                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-brand-navy/45 border-b border-brand-navy/[0.08] pb-2 flex items-center gap-2">
+                                            <Truck className="w-3 h-3" /> Logistics
                                         </h4>
                                         <FormField
                                             control={form.control}
                                             name="source_name"
                                             render={({ field }) => (
-                                                <FormItem className="space-y-1">
+                                                <FormItem className="space-y-2">
                                                     <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Sales Channel</FormLabel>
                                                     <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isEditModalOpen}>
                                                         <FormControl>
-                                                            <SelectTrigger className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner">
+                                                            <SelectTrigger className="h-10 rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy shadow-inner">
                                                                 <SelectValue placeholder="Select source" />
                                                             </SelectTrigger>
                                                         </FormControl>
@@ -2471,13 +2496,13 @@ const Orders = () => {
                                                 </FormItem>
                                             )}
                                         />
-                                        <div className="grid grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                                             {availableProviders.length > 0 && (
                                                 <FormField
                                                     control={form.control}
                                                     name="courier_id"
                                                     render={({ field }) => (
-                                                        <FormItem className="space-y-1 animate-in fade-in slide-in-from-top-1 duration-300">
+                                                        <FormItem className="space-y-2 animate-in fade-in slide-in-from-top-1 duration-300">
                                                             <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Shipping Provider</FormLabel>
                                                             <Select
                                                                 onValueChange={(val) => {
@@ -2498,7 +2523,7 @@ const Orders = () => {
                                                                 disabled={isEditModalOpen}
                                                             >
                                                                 <FormControl>
-                                                                    <SelectTrigger className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner">
+                                                                    <SelectTrigger className="h-10 rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy shadow-inner">
                                                                         <SelectValue placeholder="Choose provider..." />
                                                                     </SelectTrigger>
                                                                 </FormControl>
@@ -2522,11 +2547,11 @@ const Orders = () => {
                                                 control={form.control}
                                                 name="shipping_cost"
                                                 render={({ field }) => (
-                                                    <FormItem className="space-y-1">
+                                                    <FormItem className="space-y-2">
                                                         <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Shipping Fee</FormLabel>
                                                         <FormControl>
                                                             <div className="relative">
-                                                                <Input type="number" {...field} disabled={isEditModalOpen} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner pl-4 pr-10" />
+                                                                <Input type="number" {...field} disabled={isEditModalOpen} className="h-10 rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy shadow-inner pl-3 pr-10" />
                                                                 <div className="absolute right-4 top-1/2 -translate-y-1/2">
                                                                     <Button
                                                                         type="button"
@@ -2545,33 +2570,13 @@ const Orders = () => {
                                                     </FormItem>
                                                 )}
                                             />
-                                            <FormField
-                                                control={form.control}
-                                                name="delivery_type"
-                                                render={({ field }) => (
-                                                    <FormItem className="space-y-1">
-                                                        <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Delivery Option</FormLabel>
-                                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                            <FormControl>
-                                                                <SelectTrigger className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner">
-                                                                    <SelectValue placeholder="Select type" />
-                                                                </SelectTrigger>
-                                                            </FormControl>
-                                                            <SelectContent className="rounded-2xl border-none shadow-2xl">
-                                                                <SelectItem value="Home Delivery" className="rounded-xl font-bold">🏠 Home</SelectItem>
-                                                                <SelectItem value="Point Relais" className="rounded-xl font-bold">📦 Pick-up</SelectItem>
-                                                            </SelectContent>
-                                                        </Select>
-                                                    </FormItem>
-                                                )}
-                                            />
                                         </div>
 
                                         <FormField
                                             control={form.control}
                                             name="order_status_id"
                                             render={({ field }) => (
-                                                <FormItem className="flex flex-col space-y-1">
+                                                <FormItem className="flex flex-col space-y-2">
                                                     <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Pipeline Stage</FormLabel>
                                                     <Popover open={statusSearchOpen} onOpenChange={setStatusSearchOpen}>
                                                         <PopoverTrigger asChild>
@@ -2580,7 +2585,7 @@ const Orders = () => {
                                                                     variant="outline"
                                                                     role="combobox"
                                                                     className={cn(
-                                                                        "h-12 w-full justify-between rounded-2xl border-none bg-brand-navy/[0.04] text-brand-navy font-bold shadow-inner text-left px-4",
+                                                                        "h-10 w-full justify-between rounded-xl border-none bg-brand-navy/[0.04] text-sm text-brand-navy font-bold shadow-inner text-left px-3",
                                                                         !field.value && "text-muted-foreground"
                                                                     )}
                                                                 >
@@ -2679,12 +2684,12 @@ const Orders = () => {
                                                 control={form.control}
                                                 name="history_comment"
                                                 render={({ field }) => (
-                                                    <FormItem className="space-y-1 animate-in fade-in slide-in-from-top-2 duration-300">
+                                                    <FormItem className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
                                                         <FormLabel className="text-[10px] font-black uppercase tracking-wider text-brand-navy/60 flex items-center gap-1">
                                                             <MessageSquare className="w-3 h-3 text-brand-navy/40" /> Status change reason (required)
                                                         </FormLabel>
                                                         <FormControl>
-                                                            <Textarea placeholder="Explain why you are moving to this status…" {...field} className="min-h-[80px] resize-none rounded-2xl border-none bg-brand-navy/[0.03] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner focus-visible:ring-brand-navy/20" />
+                                                            <Textarea placeholder="Explain why you are moving to this status…" {...field} className="min-h-[56px] resize-y rounded-xl border-none bg-brand-navy/[0.03] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner focus-visible:ring-brand-navy/20" />
                                                         </FormControl>
                                                         <FormMessage />
                                                     </FormItem>
@@ -2692,10 +2697,10 @@ const Orders = () => {
                                             />
                                         )}
 
-                                        <div className="p-4 rounded-2xl bg-brand-navy/[0.02] border border-brand-navy/[0.03] flex items-center justify-between">
-                                            <div className="space-y-0.5">
-                                                <FormLabel className="text-sm font-bold text-brand-navy">Exchange Order</FormLabel>
-                                                <p className="text-[10px] text-muted-foreground">Is this replacing a previous client order?</p>
+                                        <div className="p-3 rounded-xl bg-brand-navy/[0.03] border border-brand-navy/[0.06] flex items-center justify-between gap-3">
+                                            <div className="space-y-0.5 min-w-0">
+                                                <FormLabel className="text-xs font-bold text-brand-navy">Exchange order</FormLabel>
+                                                <p className="text-[10px] text-muted-foreground leading-snug">Replacing a previous order?</p>
                                             </div>
                                             <FormField
                                                 control={form.control}
@@ -2708,20 +2713,26 @@ const Orders = () => {
                                             />
                                         </div>
                                     </div>
+                                </div>
 
-                                    {/* Column 3: Notes */}
-                                    <div className="space-y-6">
-                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40 border-b border-brand-navy/[0.05] pb-2 flex items-center gap-2">
-                                            <MessageSquare className="w-3 h-3" /> Communication
+                                <section className="rounded-xl border border-brand-navy/[0.08] bg-brand-navy/[0.02] p-3 sm:p-4 space-y-3 shrink-0">
+                                    <div className="space-y-0.5">
+                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-brand-navy/50 flex items-center gap-2">
+                                            <MessageSquare className="w-3 h-3 text-brand-navy/45" /> Notes
                                         </h4>
+                                        <p className="text-[10px] text-muted-foreground leading-snug">
+                                            Internal vs courier-facing. Optional.
+                                        </p>
+                                    </div>
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                                         <FormField
                                             control={form.control}
                                             name="note"
                                             render={({ field }) => (
-                                                <FormItem className="space-y-1">
+                                                <FormItem className="space-y-2">
                                                     <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Order Note (Internal)</FormLabel>
                                                     <FormControl>
-                                                        <Textarea placeholder="Packaging info, special gift..." {...field} className="min-h-[120px] rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner resize-none p-4" />
+                                                        <Textarea placeholder="Packaging, gifts…" {...field} className="min-h-[64px] rounded-xl border-none bg-white/90 text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner resize-y p-3 leading-relaxed" />
                                                     </FormControl>
                                                 </FormItem>
                                             )}
@@ -2730,48 +2741,66 @@ const Orders = () => {
                                             control={form.control}
                                             name="delivery_note"
                                             render={({ field }) => (
-                                                <FormItem className="space-y-1">
+                                                <FormItem className="space-y-2">
                                                     <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Courier Note (Public)</FormLabel>
                                                     <FormControl>
-                                                        <Textarea placeholder="Call before delivery, leave at door..." {...field} className="min-h-[120px] rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner resize-none p-4" />
+                                                        <Textarea placeholder="Courier instructions…" {...field} className="min-h-[64px] rounded-xl border-none bg-white/90 text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner resize-y p-3 leading-relaxed" />
                                                     </FormControl>
                                                 </FormItem>
                                             )}
                                         />
                                     </div>
-                                </div>
+                                </section>
+                                    </div>
 
-                                {/* Items Section */}
-                                <div className="space-y-6 pt-4">
-                                    <div className="flex items-center justify-between border-b border-brand-navy/[0.05] pb-2">
-                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40 flex items-center gap-2">
-                                            <ShoppingCart className="w-3 h-3" /> Cart Contents
-                                        </h4>
+                                    <aside className="w-full xl:w-[min(26rem,34vw)] xl:max-w-[420px] xl:shrink-0 flex flex-col min-h-0 border-t xl:border-t-0 xl:border-l border-brand-navy/[0.1] bg-brand-navy/[0.03]">
+                                    <div className="shrink-0 flex items-center justify-between gap-2 px-3 py-2.5 border-b border-brand-navy/[0.08] bg-brand-navy/[0.02]">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <div className="w-8 h-8 rounded-lg bg-brand-navy/10 flex items-center justify-center shrink-0">
+                                                <ShoppingBag className="w-4 h-4 text-brand-navy" />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <h4 className="text-[10px] font-black uppercase tracking-widest text-brand-navy leading-tight">Order lines</h4>
+                                                <p className="text-[9px] text-brand-navy/45 font-medium truncate">Scroll here only</p>
+                                            </div>
+                                        </div>
                                         <Button
                                             type="button"
-                                            variant="ghost"
+                                            variant="outline"
+                                            size="sm"
                                             onClick={() => append({ product_id: '', quantity: 1, unit_price: 0, accessories: [] })}
-                                            className="text-[10px] font-black uppercase text-brand-navy hover:bg-brand-navy/[0.05] gap-2 rounded-xl h-10 px-4"
+                                            className="text-[9px] font-black uppercase text-brand-navy border-brand-navy/15 bg-white h-8 px-2.5 gap-1 rounded-lg shrink-0"
                                         >
-                                            <Plus className="w-4 h-4" /> Add Product
+                                            <Plus className="w-3.5 h-3.5" /> Line
                                         </Button>
                                     </div>
 
-                                    <div className="space-y-4">
+                                    <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar px-3 py-3">
+                                    <div className="space-y-3">
                                         {fields.map((field, index) => {
                                             const hasProduct = !!form.watch(`items.${index}.product_id`) && form.watch(`items.${index}.product_id`) !== 'none';
                                             const productSubtotal = (form.watch(`items.${index}.quantity`) || 0) * (form.watch(`items.${index}.unit_price`) || 0);
                                             return (
-                                                <div key={field.id} className="p-5 rounded-[24px] bg-brand-navy/[0.015] border border-brand-navy/[0.04] space-y-4 animate-in slide-in-from-left-2 duration-300">
-                                                    {/* Product Row */}
-                                                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-                                                        <div className="md:col-span-5">
-                                                            <FormField
-                                                                control={form.control}
-                                                                name={`items.${index}.product_id`}
-                                                                render={({ field }) => (
-                                                                    <FormItem className="space-y-1">
-                                                                        <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground/60 flex items-center gap-1.5"><Package className="w-3 h-3" /> Product</FormLabel>
+                                                <div key={field.id} className="rounded-2xl border border-brand-navy/10 bg-white p-3 shadow-sm space-y-3 animate-in slide-in-from-left-2 duration-200">
+                                                    <div className="flex items-center justify-between gap-2 border-b border-brand-navy/[0.07] pb-2">
+                                                        <span className="text-[9px] font-black uppercase tracking-wider text-brand-navy/40 tabular-nums">Line {index + 1}</span>
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() => remove(index)}
+                                                            disabled={fields.length === 1}
+                                                            className="h-8 w-8 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 shrink-0"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </Button>
+                                                    </div>
+                                                    <FormField
+                                                        control={form.control}
+                                                        name={`items.${index}.product_id`}
+                                                        render={({ field }) => (
+                                                            <FormItem className="space-y-1.5">
+                                                                <FormLabel className="text-[9px] uppercase font-black text-brand-navy/50 tracking-wide flex items-center gap-1"><Package className="w-3 h-3 opacity-60" /> Product</FormLabel>
                                                                         <Select
                                                                             onValueChange={(val) => {
                                                                                 field.onChange(val);
@@ -2812,13 +2841,14 @@ const Orders = () => {
                                                                             value={field.value || ''}
                                                                         >
                                                                             <FormControl>
-                                                                                <SelectTrigger className="h-12 rounded-2xl border-none bg-white text-base font-bold text-brand-navy shadow-sm">
-                                                                                    <SelectValue placeholder="Select product" />
+                                                                                <SelectTrigger className="h-10 rounded-xl border border-brand-navy/10 bg-brand-navy/[0.03] text-sm font-bold text-brand-navy shadow-none">
+                                                                                    <SelectValue placeholder="Choose product…" />
                                                                                 </SelectTrigger>
                                                                             </FormControl>
-                                                                            <SelectContent className="rounded-2xl border-none shadow-2xl max-h-[250px] overflow-y-auto custom-scrollbar">
+                                                                            <SelectContent className="rounded-xl border-none shadow-2xl max-h-[220px] overflow-y-auto custom-scrollbar">
+                                                                                <SelectItem value="none" className="rounded-lg font-medium text-muted-foreground text-sm">— None —</SelectItem>
                                                                                 {products?.map((p: any) => (
-                                                                                    <SelectItem key={p.id} value={p.id} className="rounded-xl font-bold py-3">
+                                                                                    <SelectItem key={p.id} value={p.id} className="rounded-lg font-bold py-2 text-sm">
                                                                                         {productNameLabel(p)} <span className="text-[10px] opacity-40 ml-2">({p.code})</span>
                                                                                     </SelectItem>
                                                                                 ))}
@@ -2850,67 +2880,48 @@ const Orders = () => {
                                                                     </FormItem>
                                                                 )}
                                                             />
-                                                        </div>
-                                                        <div className="md:col-span-2">
-                                                            <FormField
-                                                                control={form.control}
-                                                                name={`items.${index}.unit_price`}
-                                                                render={({ field }) => (
-                                                                    <FormItem className="space-y-1">
-                                                                        <FormLabel className="text-[10px] uppercase font-black text-muted-foreground/60">Unit Price</FormLabel>
-                                                                        <Input type="number" {...field} disabled={!hasProduct} className="h-12 rounded-2xl border-none bg-white shadow-sm text-base font-bold text-brand-navy text-center" />
-                                                                    </FormItem>
-                                                                )}
-                                                            />
-                                                        </div>
-                                                        <div className="md:col-span-2">
-                                                            <FormField
-                                                                control={form.control}
-                                                                name={`items.${index}.quantity`}
-                                                                render={({ field }) => (
-                                                                    <FormItem className="space-y-1">
-                                                                        <FormLabel className="text-[10px] uppercase font-black text-muted-foreground/60">Qty</FormLabel>
-                                                                        <Input type="number" {...field} disabled={!hasProduct} className="h-12 rounded-2xl border-none bg-white shadow-sm text-base font-bold text-brand-navy text-center" />
-                                                                    </FormItem>
-                                                                )}
-                                                            />
-                                                        </div>
-                                                        <div className="md:col-span-2">
-                                                            <div className="h-12 flex flex-col items-center justify-center">
-                                                                <span className="text-[8px] font-black uppercase text-muted-foreground/40 leading-none mb-1">Product Total</span>
-                                                                <span className="text-sm font-black text-brand-navy">
-                                                                    {productSubtotal.toFixed(2)} DH
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                        <div className="md:col-span-1 flex justify-end">
-                                                            <Button
-                                                                type="button"
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                onClick={() => remove(index)}
-                                                                disabled={fields.length === 1}
-                                                                className="h-12 w-12 rounded-2xl text-red-300 hover:text-red-500 hover:bg-red-50 transition-all"
-                                                            >
-                                                                <Trash2 className="w-5 h-5" />
-                                                            </Button>
+
+                                                    <div className="grid grid-cols-3 gap-2">
+                                                        <FormField
+                                                            control={form.control}
+                                                            name={`items.${index}.unit_price`}
+                                                            render={({ field }) => (
+                                                                <FormItem className="space-y-1">
+                                                                    <FormLabel className="text-[8px] uppercase font-black text-brand-navy/45">Unit</FormLabel>
+                                                                    <Input type="number" {...field} disabled={!hasProduct} className="h-9 rounded-lg border border-brand-navy/10 bg-brand-navy/[0.03] text-sm font-bold text-brand-navy text-center px-1" />
+                                                                </FormItem>
+                                                            )}
+                                                        />
+                                                        <FormField
+                                                            control={form.control}
+                                                            name={`items.${index}.quantity`}
+                                                            render={({ field }) => (
+                                                                <FormItem className="space-y-1">
+                                                                    <FormLabel className="text-[8px] uppercase font-black text-brand-navy/45">Qty</FormLabel>
+                                                                    <Input type="number" {...field} disabled={!hasProduct} className="h-9 rounded-lg border border-brand-navy/10 bg-brand-navy/[0.03] text-sm font-bold text-brand-navy text-center px-1" />
+                                                                </FormItem>
+                                                            )}
+                                                        />
+                                                        <div className="rounded-lg bg-brand-navy/[0.08] px-1.5 py-1 flex flex-col justify-center items-center text-center">
+                                                            <span className="text-[7px] font-black uppercase text-brand-navy/50 leading-none">Total</span>
+                                                            <span className="text-xs font-black text-brand-navy tabular-nums leading-tight">{productSubtotal.toFixed(2)} <span className="text-[9px] font-bold text-brand-navy/65">DH</span></span>
                                                         </div>
                                                     </div>
 
-                                                    {/* Accessories List */}
-                                                    <div className="pt-2 border-t border-brand-navy/[0.04]">
+                                                    <div className="rounded-xl bg-brand-navy/[0.04] border border-brand-navy/[0.07] p-2.5 space-y-2">
+                                                        <p className="text-[9px] font-black uppercase tracking-wider text-brand-navy/35">Add-ons</p>
                                                         {(form.watch(`items.${index}.accessories`) || []).map((acc: any, accIdx: number) => {
                                                             const hasAccessory = !!form.watch(`items.${index}.accessories.${accIdx}.accessory_id`) && form.watch(`items.${index}.accessories.${accIdx}.accessory_id`) !== 'none';
 
                                                             return (
-                                                                <div key={accIdx} className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end mb-4 bg-brand-navy/[0.01] p-3 rounded-2xl">
-                                                                    <div className="md:col-span-7">
+                                                                <div key={accIdx} className="space-y-2 pb-2 border-b border-brand-navy/[0.08] last:border-0 last:pb-0">
+                                                                    <div className="flex gap-2 items-end">
                                                                         <FormField
                                                                             control={form.control}
                                                                             name={`items.${index}.accessories.${accIdx}.accessory_id`}
                                                                             render={({ field }) => (
-                                                                                <FormItem className="space-y-1">
-                                                                                    <FormLabel className="text-[10px] uppercase font-bold text-brand-navy/60 flex items-center gap-1.5"><Puzzle className="w-3 h-3" /> Accessory</FormLabel>
+                                                                                <FormItem className="space-y-1 flex-1 min-w-0">
+                                                                                    <FormLabel className="text-[8px] uppercase font-black text-brand-navy/45 flex items-center gap-1"><Puzzle className="w-3 h-3 opacity-60" /> Item</FormLabel>
                                                                                     <Select
                                                                                         onValueChange={(val) => {
                                                                                             field.onChange(val);
@@ -2930,36 +2941,33 @@ const Orders = () => {
                                                                                         value={field.value || ''}
                                                                                     >
                                                                                         <FormControl>
-                                                                                            <SelectTrigger className="h-12 rounded-xl border-none bg-white text-base font-bold text-brand-navy shadow-sm">
-                                                                                                <SelectValue placeholder="Add accessory (optional)" />
+                                                                                            <SelectTrigger className="h-9 rounded-lg border border-brand-navy/10 bg-white text-sm font-bold text-brand-navy shadow-none">
+                                                                                                <SelectValue placeholder="Accessory…" />
                                                                                             </SelectTrigger>
                                                                                         </FormControl>
-                                                                                        <SelectContent className="rounded-2xl border-none shadow-2xl max-h-[250px] overflow-y-auto custom-scrollbar">
-                                                                                            <SelectItem value="none" className="rounded-xl font-medium text-muted-foreground">— No accessory —</SelectItem>
+                                                                                        <SelectContent className="rounded-xl border-none shadow-2xl max-h-[200px] overflow-y-auto custom-scrollbar">
+                                                                                            <SelectItem value="none" className="rounded-lg font-medium text-muted-foreground text-sm">— None —</SelectItem>
                                                                                             {accessories?.map((a: any) => (
-                                                                                                <SelectItem key={a.id} value={a.id} className="rounded-xl font-medium">
-                                                                                                    {a.name} <span className="text-muted-foreground ml-2 text-xs">({a.code})</span>
+                                                                                                <SelectItem key={a.id} value={a.id} className="rounded-lg font-medium text-sm py-2">
+                                                                                                    {a.name} <span className="text-muted-foreground ml-1 text-xs">({a.code})</span>
                                                                                                 </SelectItem>
                                                                                             ))}
                                                                                         </SelectContent>
                                                                                     </Select>
                                                                                     <FormMessage />
-                                                                                    {/* Low Stock Alert for Accessory */}
                                                                                     {(() => {
                                                                                         const selectedAccessory = accessories?.find((a: any) => a.id === field.value);
                                                                                         if (selectedAccessory && selectedAccessory.stock !== null && selectedAccessory.stock !== undefined) {
                                                                                             if (selectedAccessory.stock === 0) {
                                                                                                 return (
-                                                                                                    <div className="mt-2 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-50 border border-red-200">
-                                                                                                        <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                                                                                                        <span className="text-[9px] font-bold text-red-600 uppercase tracking-wide">Out of Stock</span>
+                                                                                                    <div className="mt-1 flex items-center gap-1.5 px-2 py-1 rounded-md bg-red-50 border border-red-200">
+                                                                                                        <span className="text-[8px] font-bold text-red-600 uppercase">Out of stock</span>
                                                                                                     </div>
                                                                                                 );
                                                                                             } else if (selectedAccessory.stock < 10) {
                                                                                                 return (
-                                                                                                    <div className="mt-2 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200">
-                                                                                                        <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                                                                                                        <span className="text-[9px] font-bold text-amber-600 uppercase tracking-wide">Low Stock: {selectedAccessory.stock} left</span>
+                                                                                                    <div className="mt-1 flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-50 border border-amber-200">
+                                                                                                        <span className="text-[8px] font-bold text-amber-700 uppercase">Low: {selectedAccessory.stock}</span>
                                                                                                     </div>
                                                                                                 );
                                                                                             }
@@ -2969,27 +2977,6 @@ const Orders = () => {
                                                                                 </FormItem>
                                                                             )}
                                                                         />
-                                                                        <FormField
-                                                                            control={form.control}
-                                                                            name={`items.${index}.accessories.${accIdx}.accessory_unit_price`}
-                                                                            render={({ field }) => (
-                                                                                <input type="hidden" {...field} />
-                                                                            )}
-                                                                        />
-                                                                    </div>
-                                                                    <div className="md:col-span-2">
-                                                                        <FormField
-                                                                            control={form.control}
-                                                                            name={`items.${index}.accessories.${accIdx}.accessory_quantity`}
-                                                                            render={({ field }) => (
-                                                                                <FormItem className="space-y-1">
-                                                                                    <FormLabel className="text-[10px] uppercase font-black text-brand-navy/40">Qty</FormLabel>
-                                                                                    <Input type="number" {...field} disabled={!hasAccessory} className="h-12 rounded-xl border-none bg-white shadow-sm text-base font-bold text-brand-navy text-center" />
-                                                                                </FormItem>
-                                                                            )}
-                                                                        />
-                                                                    </div>
-                                                                    <div className="md:col-span-3 flex justify-end items-end">
                                                                         <Button
                                                                             type="button"
                                                                             variant="ghost"
@@ -2999,65 +2986,86 @@ const Orders = () => {
                                                                                 current.splice(accIdx, 1);
                                                                                 form.setValue(`items.${index}.accessories`, current);
                                                                             }}
-                                                                            className="h-12 w-12 rounded-xl text-red-300 hover:text-red-500 hover:bg-red-50 transition-all"
+                                                                            className="h-9 w-9 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 shrink-0"
                                                                         >
-                                                                            <Trash2 className="w-5 h-5" />
+                                                                            <Trash2 className="w-3.5 h-3.5" />
                                                                         </Button>
                                                                     </div>
+                                                                    <FormField
+                                                                        control={form.control}
+                                                                        name={`items.${index}.accessories.${accIdx}.accessory_unit_price`}
+                                                                        render={({ field }) => (
+                                                                            <input type="hidden" {...field} />
+                                                                        )}
+                                                                    />
+                                                                    <FormField
+                                                                        control={form.control}
+                                                                        name={`items.${index}.accessories.${accIdx}.accessory_quantity`}
+                                                                        render={({ field }) => (
+                                                                            <FormItem className="space-y-1 max-w-[140px]">
+                                                                                <FormLabel className="text-[8px] uppercase font-black text-brand-navy/40">Qty</FormLabel>
+                                                                                <Input type="number" {...field} disabled={!hasAccessory} className="h-9 rounded-lg border border-brand-navy/10 bg-white text-sm font-bold text-brand-navy text-center px-1" />
+                                                                            </FormItem>
+                                                                        )}
+                                                                    />
                                                                 </div>
                                                             );
                                                         })}
                                                         <Button
                                                             type="button"
-                                                            variant="ghost"
+                                                            variant="outline"
+                                                            size="sm"
                                                             onClick={() => {
                                                                 const current = form.getValues(`items.${index}.accessories`) || [];
                                                                 current.push({ accessory_id: 'none', accessory_quantity: 0, accessory_unit_price: 0 });
                                                                 form.setValue(`items.${index}.accessories`, current);
                                                             }}
-                                                            className="text-[10px] font-black uppercase text-brand-navy hover:bg-brand-navy/[0.05] gap-2 rounded-xl h-8 px-3 mt-2"
+                                                            className="text-[9px] font-black uppercase text-brand-navy border-brand-navy/15 h-7 rounded-lg gap-1 w-full bg-white/80"
                                                         >
-                                                            <Plus className="w-3 h-3" /> Add Accessory
+                                                            <Plus className="w-3 h-3" /> Add add-on
                                                         </Button>
                                                     </div>
                                                 </div>
                                             );
                                         })}
                                     </div>
-                                </div>
+                                    </div>
+                                    </aside>
                             </div>
 
-                            <DialogFooter className="p-8 shrink-0 bg-brand-white border-t border-brand-navy/[0.03] flex flex-col md:flex-row items-center justify-between gap-6">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-14 h-14 rounded-3xl bg-brand-navy flex items-center justify-center text-brand-white shadow-xl shadow-brand-navy/20 rotate-3">
-                                        <DollarSign className="w-7 h-7" />
+                            <DialogFooter className="px-4 py-2.5 sm:px-5 shrink-0 bg-brand-navy/[0.02] border-t border-brand-navy/[0.08] flex flex-row flex-wrap items-center justify-between gap-3">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                    <div className="w-9 h-9 rounded-xl bg-brand-navy flex items-center justify-center text-brand-white shadow-md shrink-0">
+                                        <DollarSign className="w-4 h-4" />
                                     </div>
-                                    <div>
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Grand Total Payable</p>
-                                        <h3 className="text-3xl font-black text-brand-navy leading-none">
+                                    <div className="min-w-0">
+                                        <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/70 leading-none">Total</p>
+                                        <p className="text-lg sm:text-xl font-black text-brand-navy tabular-nums leading-tight truncate">
                                             {(form.watch('items').reduce((acc, item) => acc + (item.quantity * item.unit_price), 0) + Number(form.watch('shipping_cost') || 0)).toFixed(2)} DH
-                                        </h3>
+                                        </p>
                                     </div>
                                 </div>
 
-                                <div className="flex items-center gap-3 w-full md:w-auto">
+                                <div className="flex items-center gap-2 shrink-0">
                                     <Button
                                         type="button"
                                         variant="ghost"
+                                        size="sm"
                                         onClick={() => {
                                             setIsAddModalOpen(false);
                                             setIsEditModalOpen(false);
                                         }}
-                                        className="rounded-2xl h-14 px-8 font-bold text-brand-navy hover:bg-muted m-0"
+                                        className="rounded-lg h-9 px-4 text-sm font-bold text-brand-navy hover:bg-brand-navy/10 m-0"
                                     >
                                         Discard
                                     </Button>
                                     <Button
                                         type="submit"
+                                        size="sm"
                                         disabled={createOrderMutation.isPending || updateOrderMutation.isPending}
-                                        className="flex-1 md:flex-none bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-14 px-12 font-bold shadow-2xl shadow-brand-navy/30 transition-all active:scale-95 flex items-center gap-3 m-0"
+                                        className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-lg h-9 px-6 sm:px-8 text-sm font-bold shadow-md transition-all active:scale-[0.98] flex items-center gap-2 m-0"
                                     >
-                                        {(createOrderMutation.isPending || updateOrderMutation.isPending) && <Loader2 className="w-5 h-5 animate-spin" />}
+                                        {(createOrderMutation.isPending || updateOrderMutation.isPending) && <Loader2 className="w-4 h-4 animate-spin" />}
                                         {isEditModalOpen ? 'Save Changes' : 'Confirm Order'}
                                     </Button>
                                 </div>
@@ -3592,7 +3600,7 @@ const Orders = () => {
                 </DialogContent>
             </Dialog>
 
-        </div >
+        </div>
     );
 };
 

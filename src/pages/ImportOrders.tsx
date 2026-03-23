@@ -247,6 +247,9 @@ const ImportOrders = () => {
                 return null;
             };
 
+            const userRes = await (supabase as any).auth.getUser();
+            const importerId = userRes.data.user?.id;
+
             for (const order of validOrders) {
                 // --- Provider resolution ---
                 let bestProviderId: string | null = null;
@@ -319,6 +322,19 @@ const ImportOrders = () => {
                 if (orderError) {
                     console.error("Failed to import order", order, orderError);
                     continue;
+                }
+
+                if (defaultStatusId && orderData?.id) {
+                    const { error: historyError } = await (supabase as any).from('order_status_history').insert({
+                        order_id: orderData.id,
+                        status_id: defaultStatusId,
+                        comment: 'Imported',
+                        changed_by: importerId,
+                        'DigiCom Business': activeBusinessId
+                    });
+                    if (historyError) {
+                        console.error('Import order status history error:', orderData.id, historyError);
+                    }
                 }
 
                 // 2. Create Order Item + default accessories
