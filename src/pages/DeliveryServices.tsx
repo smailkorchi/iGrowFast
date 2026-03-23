@@ -496,24 +496,41 @@ function CourierCard({ person, onEdit, onZones, onFees, onDelete }: any) {
 
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="rounded-xl h-10 w-10 hover:bg-slate-50">
-                            <MoreVertical className="w-5 h-5 text-slate-400" />
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="rounded-xl h-10 w-10 shrink-0 text-brand-navy/55 hover:bg-primary hover:text-primary-foreground focus-visible:bg-primary focus-visible:text-primary-foreground"
+                        >
+                            <MoreVertical className="w-5 h-5" />
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[180px]">
-                        <DropdownMenuItem onClick={onEdit} className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy focus:bg-slate-50">
-                            <Edit2 className="w-4 h-4 mr-3 text-brand-navy/40" /> Edit Profile
+                        <DropdownMenuItem
+                            onClick={onEdit}
+                            className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground focus:bg-primary focus:text-primary-foreground"
+                        >
+                            <Edit2 className="w-4 h-4 mr-3 shrink-0" /> Edit Profile
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={onZones} className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy focus:bg-slate-50">
-                            <MapPin className="w-4 h-4 mr-3 text-brand-navy/40" /> Manage Zones
+                        <DropdownMenuItem
+                            onClick={onZones}
+                            className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground focus:bg-primary focus:text-primary-foreground"
+                        >
+                            <MapPin className="w-4 h-4 mr-3 shrink-0" /> Manage Zones
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={onFees} className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy focus:bg-slate-50">
-                            <Coins className="w-4 h-4 mr-3 text-brand-navy/40" /> Set City Fees
+                        <DropdownMenuItem
+                            onClick={onFees}
+                            className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground focus:bg-primary focus:text-primary-foreground"
+                        >
+                            <Coins className="w-4 h-4 mr-3 shrink-0" /> Set City Fees
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={onDelete} className="rounded-xl p-3 cursor-pointer font-bold text-red-500 hover:bg-red-50 focus:bg-red-50">
-                            <Trash2 className="w-4 h-4 mr-3 text-red-400" /> Terminate Agent
+                        <DropdownMenuItem
+                            onClick={onDelete}
+                            className="rounded-xl p-3 cursor-pointer font-bold text-red-600 data-[highlighted]:bg-red-50 data-[highlighted]:text-red-700 focus:bg-red-50 focus:text-red-700"
+                        >
+                            <Trash2 className="w-4 h-4 mr-3 text-red-500" /> Terminate Agent
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
@@ -576,24 +593,41 @@ function PartnerCard({ company, onEdit, onZones, onFees, onDelete }: any) {
 
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="rounded-xl h-10 w-10 hover:bg-slate-50">
-                            <MoreVertical className="w-5 h-5 text-slate-400" />
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="rounded-xl h-10 w-10 shrink-0 text-brand-navy/55 hover:bg-primary hover:text-primary-foreground focus-visible:bg-primary focus-visible:text-primary-foreground"
+                        >
+                            <MoreVertical className="w-5 h-5" />
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[200px]">
-                        <DropdownMenuItem onClick={onEdit} className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy focus:bg-slate-50">
-                            <Edit2 className="w-4 h-4 mr-3 text-brand-navy/40" /> API Configurations
+                        <DropdownMenuItem
+                            onClick={onEdit}
+                            className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground focus:bg-primary focus:text-primary-foreground"
+                        >
+                            <Edit2 className="w-4 h-4 mr-3 shrink-0" /> API Configurations
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={onZones} className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy focus:bg-slate-50">
-                            <MapPin className="w-4 h-4 mr-3 text-brand-navy/40" /> Service Zones
+                        <DropdownMenuItem
+                            onClick={onZones}
+                            className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground focus:bg-primary focus:text-primary-foreground"
+                        >
+                            <MapPin className="w-4 h-4 mr-3 shrink-0" /> Service Zones
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={onFees} className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy focus:bg-slate-50">
-                            <Coins className="w-4 h-4 mr-3 text-brand-navy/40" /> Delivery Fees
+                        <DropdownMenuItem
+                            onClick={onFees}
+                            className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground focus:bg-primary focus:text-primary-foreground"
+                        >
+                            <Coins className="w-4 h-4 mr-3 shrink-0" /> Delivery Fees
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={onDelete} className="rounded-xl p-3 cursor-pointer font-bold text-red-500 hover:bg-red-50 focus:bg-red-50">
-                            <Trash2 className="w-4 h-4 mr-3 text-red-400" /> Delete Connection
+                        <DropdownMenuItem
+                            onClick={onDelete}
+                            className="rounded-xl p-3 cursor-pointer font-bold text-red-600 data-[highlighted]:bg-red-50 data-[highlighted]:text-red-700 focus:bg-red-50 focus:text-red-700"
+                        >
+                            <Trash2 className="w-4 h-4 mr-3 text-red-500" /> Delete Connection
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
@@ -1294,7 +1328,13 @@ function FeesModal({ isOpen, onClose, courier }: any) {
                 </div>
 
                 <div className="p-10 pt-0 shrink-0 bg-brand-white border-t border-brand-navy/5">
-                    <Button onClick={onClose} variant="ghost" className="w-full h-14 rounded-2xl font-black bg-brand-navy text-white hover:bg-brand-navy/90 shadow-xl shadow-brand-navy/20">Finish Pricing</Button>
+                    <Button
+                        type="button"
+                        onClick={onClose}
+                        className="w-full h-14 rounded-2xl font-black bg-brand-navy text-white shadow-xl shadow-brand-navy/20 hover:bg-brand-navy/90 hover:text-white focus-visible:text-white"
+                    >
+                        Finish Pricing
+                    </Button>
                 </div>
             </DialogContent>
         </Dialog>
@@ -1546,7 +1586,13 @@ function CompanyFeesModal({ isOpen, onClose, company }: any) {
                 </div>
 
                 <div className="p-10 pt-0 shrink-0 bg-brand-white border-t border-brand-navy/5">
-                    <Button onClick={onClose} variant="ghost" className="w-full h-14 rounded-2xl font-black bg-brand-navy text-white hover:bg-brand-navy/90 shadow-xl shadow-brand-navy/20">Finish Pricing</Button>
+                    <Button
+                        type="button"
+                        onClick={onClose}
+                        className="w-full h-14 rounded-2xl font-black bg-brand-navy text-white shadow-xl shadow-brand-navy/20 hover:bg-brand-navy/90 hover:text-white focus-visible:text-white"
+                    >
+                        Finish Pricing
+                    </Button>
                 </div>
             </DialogContent>
         </Dialog>
