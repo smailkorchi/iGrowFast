@@ -17,6 +17,8 @@ import {
     CircleDot,
     Truck,
     ClipboardCheck,
+    LayoutGrid,
+    List,
 } from 'lucide-react';
 import {
     Card,
@@ -77,6 +79,8 @@ const statusSchema = z.object({
     color: z.string().default("#6366f1"),
     recheck: z.boolean().default(false),
     active: z.boolean().default(true),
+    /** order_statuses only: shown in add/edit order modals */
+    show_in_order: z.boolean().default(true),
     delivery_service_statuses: z.array(z.object({
         value: z.string().min(1, "Status code is required")
     })).optional().default([]),
@@ -92,6 +96,7 @@ const Status = () => {
     const [viewingStatus, setViewingStatus] = useState<any>(null);
     const [statusToDelete, setStatusToDelete] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState("");
+    const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
 
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -139,6 +144,7 @@ const Status = () => {
             color: '#6366f1',
             recheck: false,
             active: true,
+            show_in_order: true,
             delivery_service_statuses: [],
         }
     });
@@ -258,6 +264,73 @@ const Status = () => {
         s.code.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
+    const renderStatusSection = () => {
+        if (isLoading) {
+            if (viewMode === 'grid') {
+                return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        {Array.from({ length: 4 }).map((_, i) => (
+                            <Skeleton key={i} className="h-48 w-full rounded-[32px]" />
+                        ))}
+                    </div>
+                );
+            }
+            return (
+                <div className="rounded-[24px] border border-brand-navy/[0.06] bg-white overflow-hidden divide-y divide-brand-navy/[0.06]">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                        <Skeleton key={i} className="h-16 w-full rounded-none" />
+                    ))}
+                </div>
+            );
+        }
+
+        if (!filteredStatuses?.length) {
+            return (
+                <div className="rounded-[32px] border border-dashed border-brand-navy/[0.12] bg-brand-navy/[0.02] p-12 text-center">
+                    <p className="text-sm font-bold text-brand-navy/50">
+                        {searchQuery.trim()
+                            ? 'No statuses match your search.'
+                            : 'No statuses yet. Add one to get started.'}
+                    </p>
+                </div>
+            );
+        }
+
+        if (viewMode === 'grid') {
+            return (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {filteredStatuses.map((status) => (
+                        <StatusCard
+                            key={status.id}
+                            status={status}
+                            activeTab={activeTab}
+                            isOwner={isOwner}
+                            onEdit={() => openUpsert(status)}
+                            onView={() => { setViewingStatus(status); setIsViewOpen(true); }}
+                            onDelete={() => setStatusToDelete(status)}
+                        />
+                    ))}
+                </div>
+            );
+        }
+
+        return (
+            <div className="rounded-[24px] border border-brand-navy/[0.08] bg-white shadow-sm overflow-hidden divide-y divide-brand-navy/[0.06]">
+                {filteredStatuses.map((status) => (
+                    <StatusListRow
+                        key={status.id}
+                        status={status}
+                        activeTab={activeTab}
+                        isOwner={isOwner}
+                        onEdit={() => openUpsert(status)}
+                        onView={() => { setViewingStatus(status); setIsViewOpen(true); }}
+                        onDelete={() => setStatusToDelete(status)}
+                    />
+                ))}
+            </div>
+        );
+    };
+
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
             {/* Header Section */}
@@ -294,69 +367,63 @@ const Status = () => {
             </div>
 
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="space-y-8">
-                <TabsList className="bg-brand-navy/[0.03] p-1.5 rounded-[24px] h-auto gap-2">
-                    <TabsTrigger
-                        value="orders"
-                        className="rounded-2xl px-8 py-3 font-bold data-[state=active]:bg-brand-white data-[state=active]:text-brand-navy data-[state=active]:shadow-lg transition-all gap-2"
-                    >
-                        <ClipboardCheck className="w-4 h-4" />
-                        Order Statuses
-                    </TabsTrigger>
-                    <TabsTrigger
-                        value="packages"
-                        className="rounded-2xl px-8 py-3 font-bold data-[state=active]:bg-brand-white data-[state=active]:text-brand-navy data-[state=active]:shadow-lg transition-all gap-2"
-                    >
-                        <Truck className="w-4 h-4" />
-                        Package Statuses
-                    </TabsTrigger>
-                </TabsList>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <TabsList className="bg-brand-navy/[0.03] p-1.5 rounded-[24px] h-auto gap-2 w-fit">
+                        <TabsTrigger
+                            value="orders"
+                            className="rounded-2xl px-8 py-3 font-bold data-[state=active]:bg-brand-white data-[state=active]:text-brand-navy data-[state=active]:shadow-lg transition-all gap-2"
+                        >
+                            <ClipboardCheck className="w-4 h-4" />
+                            Order Statuses
+                        </TabsTrigger>
+                        <TabsTrigger
+                            value="packages"
+                            className="rounded-2xl px-8 py-3 font-bold data-[state=active]:bg-brand-white data-[state=active]:text-brand-navy data-[state=active]:shadow-lg transition-all gap-2"
+                        >
+                            <Truck className="w-4 h-4" />
+                            Package Statuses
+                        </TabsTrigger>
+                    </TabsList>
+                    <div className="flex items-center gap-1 p-1 rounded-2xl bg-brand-navy/[0.03] w-fit">
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setViewMode('grid')}
+                            className={cn(
+                                'h-9 w-9 p-0 rounded-xl transition-all duration-300',
+                                viewMode === 'grid'
+                                    ? 'bg-brand-navy text-brand-white shadow-lg'
+                                    : 'text-brand-navy/30 hover:text-brand-navy hover:bg-brand-navy/5'
+                            )}
+                            aria-label="Grid view"
+                        >
+                            <LayoutGrid className="w-4 h-4" />
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setViewMode('list')}
+                            className={cn(
+                                'h-9 w-9 p-0 rounded-xl transition-all duration-300',
+                                viewMode === 'list'
+                                    ? 'bg-brand-navy text-brand-white shadow-lg'
+                                    : 'text-brand-navy/30 hover:text-brand-navy hover:bg-brand-navy/5'
+                            )}
+                            aria-label="List view"
+                        >
+                            <List className="w-4 h-4" />
+                        </Button>
+                    </div>
+                </div>
 
-                <TabsContent value="orders" className="space-y-6">
-                    {isLoading ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                            {Array.from({ length: 4 }).map((_, i) => (
-                                <Skeleton key={i} className="h-48 w-full rounded-[32px]" />
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                            {filteredStatuses?.map((status) => (
-                                <StatusCard
-                                    key={status.id}
-                                    status={status}
-                                    activeTab={activeTab}
-                                    isOwner={isOwner}
-                                    onEdit={() => openUpsert(status)}
-                                    onView={() => { setViewingStatus(status); setIsViewOpen(true); }}
-                                    onDelete={() => setStatusToDelete(status)}
-                                />
-                            ))}
-                        </div>
-                    )}
+                <TabsContent value="orders" className="space-y-6 mt-0">
+                    {renderStatusSection()}
                 </TabsContent>
 
-                <TabsContent value="packages" className="space-y-6">
-                    {isLoading ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                            {Array.from({ length: 4 }).map((_, i) => (
-                                <Skeleton key={i} className="h-48 w-full rounded-[32px]" />
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                            {filteredStatuses?.map((status) => (
-                                <StatusCard
-                                    key={status.id}
-                                    status={status}
-                                    activeTab={activeTab}
-                                    isOwner={isOwner}
-                                    onEdit={() => openUpsert(status)}
-                                    onView={() => { setViewingStatus(status); setIsViewOpen(true); }}
-                                    onDelete={() => setStatusToDelete(status)}
-                                />
-                            ))}
-                        </div>
-                    )}
+                <TabsContent value="packages" className="space-y-6 mt-0">
+                    {renderStatusSection()}
                 </TabsContent>
             </Tabs>
 
@@ -677,6 +744,81 @@ const Status = () => {
 
 // --- Sub-components ---
 
+const StatusListRow = ({ status, activeTab, isOwner, onEdit, onView, onDelete }: any) => {
+    return (
+        <div
+            className={cn(
+                'flex items-center gap-3 sm:gap-4 px-3 sm:px-5 py-3 bg-white hover:bg-brand-navy/[0.02] transition-colors',
+                !status.active && 'opacity-60'
+            )}
+        >
+            <div
+                className="w-1 self-stretch min-h-[44px] rounded-full shrink-0"
+                style={{ backgroundColor: status.color || '#6366f1' }}
+            />
+            <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-sm shadow-md shrink-0"
+                style={{ backgroundColor: status.color || '#6366f1' }}
+            >
+                {status.label.charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-base font-bold text-brand-navy truncate">{status.label}</h3>
+                    {!status.active && (
+                        <Badge variant="secondary" className="text-[9px] font-black uppercase shrink-0">
+                            Inactive
+                        </Badge>
+                    )}
+                </div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 truncate">{status.code}</p>
+            </div>
+            <div className="hidden sm:flex items-center gap-3 shrink-0 text-brand-navy/80">
+                <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/60">Rank</span>
+                    <span className="font-bold text-brand-navy">#{status.ranking}</span>
+                </div>
+                {status.recheck && (
+                    <Badge variant="outline" className="h-6 gap-1 bg-amber-50 text-amber-600 border-amber-100 font-bold px-2 rounded-lg text-[9px]">
+                        <RefreshCcw className="w-3 h-3" /> RECHECK
+                    </Badge>
+                )}
+                {activeTab === 'packages' && status.delivery_service_statuses?.length > 0 && (
+                    <Badge variant="outline" className="text-[9px] font-black border-brand-navy/10 bg-brand-navy/[0.02]">
+                        {status.delivery_service_statuses.length} codes
+                    </Badge>
+                )}
+            </div>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl bg-brand-navy/[0.02] text-brand-navy hover:bg-brand-navy/5 shrink-0">
+                        <MoreVertical className="w-4 h-4" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[160px]">
+                    <DropdownMenuItem onClick={onView} className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3">
+                        <Eye className="w-4 h-4" />
+                        <span className="font-bold">Summary</span>
+                    </DropdownMenuItem>
+                    {isOwner && (
+                        <>
+                            <DropdownMenuItem onClick={onEdit} className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3">
+                                <Edit2 className="w-4 h-4" />
+                                <span className="font-bold">Edit</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={onDelete} className="rounded-xl p-3 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-3">
+                                <Trash2 className="w-4 h-4" />
+                                <span className="font-bold">Delete</span>
+                            </DropdownMenuItem>
+                        </>
+                    )}
+                </DropdownMenuContent>
+            </DropdownMenu>
+        </div>
+    );
+};
+
 const StatusCard = ({ status, activeTab, isOwner, onEdit, onView, onDelete }: any) => {
     return (
         <Card
@@ -708,7 +850,7 @@ const StatusCard = ({ status, activeTab, isOwner, onEdit, onView, onDelete }: an
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl bg-brand-navy/[0.02] text-brand-navy hover:bg-brand-navy/5">
-                                <MoreVertical className="h-4 h-4" />
+                                <MoreVertical className="w-4 h-4" />
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[160px] animate-in slide-in-from-top-2">
