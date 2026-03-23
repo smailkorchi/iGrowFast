@@ -186,6 +186,18 @@ function orderMatchesTrackingFilter(order: any, raw: string): boolean {
     return codes.some((c) => c.toLowerCase().replace(/\s+/g, '').includes(needle));
 }
 
+/** True if the order has any tracking identifier (column or parcel/courier codes). */
+function orderHasTrackingNumber(order: any): boolean {
+    if (order?.tracking_number && String(order.tracking_number).trim()) return true;
+    for (const p of order?.parcels || []) {
+        if (p?.tracking_code && String(p.tracking_code).trim()) return true;
+    }
+    for (const p of order?.courier_parcels || []) {
+        if (p?.tracking_code && String(p.tracking_code).trim()) return true;
+    }
+    return false;
+}
+
 const Orders = () => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -1159,19 +1171,32 @@ const Orders = () => {
 
     const isOrderInTab = (o: any, tab: string) => {
         const newStatusId = statusCats.getOrderByCategory('new')?.id;
+        const isReported = !!(REPORTED_STATUS_ID && o.order_status_id === REPORTED_STATUS_ID);
+        const isNew = !!(newStatusId && o.order_status_id === newStatusId);
+
+        const orderStatusRecheckActive =
+            o.status?.recheck === true && o.status?.active !== false;
+
+        // DB: package_statuses.recheck + active (see Supabase); category 'recheck' counts when flag not set.
+        const packageRecheckActive =
+            !!o.package_status_id &&
+            (o.package_status?.active !== false) &&
+            (o.package_status?.recheck === true ||
+                statusCats.isPkgCategory(o.package_status_id, 'recheck'));
+
         switch (tab) {
             case 'new':
-                return newStatusId ? o.order_status_id === newStatusId : false;
+                return isNew;
             case 'confirmation':
-                return !statusCats.callbackIds.has(o.order_status_id) &&
-                    !statusCats.cancelledIds.has(o.order_status_id) &&
-                    !statusCats.pendingIds.has(o.order_status_id) &&
-                    !(REPORTED_STATUS_ID && o.order_status_id === REPORTED_STATUS_ID) &&
-                    !o.package_status?.recheck;
+                if (isReported || isNew) return false;
+                if (orderHasTrackingNumber(o)) return false;
+                return orderStatusRecheckActive;
             case 'suivi':
-                return o.package_status?.recheck === true;
+                if (isReported) return false;
+                if (!orderHasTrackingNumber(o)) return false;
+                return packageRecheckActive;
             case 'reported':
-                return REPORTED_STATUS_ID ? o.order_status_id === REPORTED_STATUS_ID : false;
+                return isReported;
             default:
                 return false;
         }
