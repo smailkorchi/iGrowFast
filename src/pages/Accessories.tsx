@@ -17,7 +17,9 @@ import {
     Hash,
     Link2,
     Package,
-    RotateCcw
+    RotateCcw,
+    LayoutGrid,
+    List
 } from 'lucide-react';
 import {
     Card,
@@ -50,6 +52,7 @@ import {
     FormDescription
 } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
+import { useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -79,13 +82,19 @@ const accessorySchema = z.object({
 type AccessoryFormValues = z.infer<typeof accessorySchema>;
 
 const Accessories = () => {
+    const location = useLocation();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingAccessory, setEditingAccessory] = useState<any>(null);
     const [accessoryToDelete, setAccessoryToDelete] = useState<any>(null);
     const [accessoryToResetStock, setAccessoryToResetStock] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [isUploading, setIsUploading] = useState(false);
+    const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        setViewMode('list');
+    }, [location.key]);
 
     // Product attachment state
     const [attachedProducts, setAttachedProducts] = useState<{ product_id: string; default_quantity: number }[]>([]);
@@ -395,6 +404,30 @@ const Accessories = () => {
                             <p className="text-gray-500 font-light">Manage your product accessories and attachments.</p>
                         </div>
                         <div className="flex flex-col sm:flex-row gap-3 items-center">
+                            <div className="flex bg-white/80 p-1 rounded-2xl border border-gray-100 shadow-sm">
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => setViewMode('list')}
+                                    className={cn(
+                                        "rounded-xl w-10 h-10 transition-all",
+                                        viewMode === 'list' ? "bg-white shadow-xl text-primary font-bold" : "text-gray-400 hover:text-primary"
+                                    )}
+                                >
+                                    <List className="w-5 h-5" />
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => setViewMode('grid')}
+                                    className={cn(
+                                        "rounded-xl w-10 h-10 transition-all",
+                                        viewMode === 'grid' ? "bg-white shadow-xl text-primary font-bold" : "text-gray-400 hover:text-primary"
+                                    )}
+                                >
+                                    <LayoutGrid className="w-5 h-5" />
+                                </Button>
+                            </div>
                             <div className="relative group sm:w-80">
                                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
                                 <Input
@@ -418,19 +451,33 @@ const Accessories = () => {
 
             {/* Content Section */}
             {isLoading ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <div className={cn(
+                    "grid gap-6",
+                    viewMode === 'grid' ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1"
+                )}>
                     {Array.from({ length: 8 }).map((_, i) => (
-                        <Card key={i} className="border-none bg-white/50 backdrop-blur-sm rounded-[24px] overflow-hidden shadow-sm">
-                            <Skeleton className="h-48 w-full" />
-                            <CardContent className="p-6 space-y-4">
-                                <Skeleton className="h-6 w-3/4" />
-                                <Skeleton className="h-4 w-1/2" />
-                                <div className="flex justify-between pt-4">
-                                    <Skeleton className="h-8 w-20" />
-                                    <Skeleton className="h-8 w-20" />
+                        viewMode === 'grid' ? (
+                            <Card key={i} className="border-none bg-white/50 backdrop-blur-sm rounded-[24px] overflow-hidden shadow-sm">
+                                <Skeleton className="h-48 w-full" />
+                                <CardContent className="p-6 space-y-4">
+                                    <Skeleton className="h-6 w-3/4" />
+                                    <Skeleton className="h-4 w-1/2" />
+                                    <div className="flex justify-between pt-4">
+                                        <Skeleton className="h-8 w-20" />
+                                        <Skeleton className="h-8 w-20" />
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        ) : (
+                            <Card key={i} className="border-none bg-white/50 backdrop-blur-sm rounded-[24px] overflow-hidden shadow-sm flex flex-col sm:flex-row items-center p-4 gap-6">
+                                <Skeleton className="h-32 w-32 rounded-[20px] shrink-0" />
+                                <div className="flex-1 space-y-4 w-full">
+                                    <Skeleton className="h-6 w-1/3" />
+                                    <Skeleton className="h-4 w-1/4" />
+                                    <Skeleton className="h-4 w-1/2" />
                                 </div>
-                            </CardContent>
-                        </Card>
+                            </Card>
+                        )
                     ))}
                 </div>
             ) : filteredAccessories?.length === 0 ? (
@@ -447,86 +494,143 @@ const Accessories = () => {
                     </Button>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <div className={cn(
+                    "grid gap-6",
+                    viewMode === 'grid' ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1"
+                )}>
                     {filteredAccessories?.map((accessory) => (
-                        <Card
-                            key={accessory.id}
-                            className="group relative overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-2xl transition-all duration-300 rounded-[32px]"
-                        >
-                            {/* Accessory Image */}
-                            <div className="relative h-48 w-full overflow-hidden bg-brand-navy/[0.02]">
-                                {accessory.image_url ? (
-                                    <img
-                                        src={accessory.image_url}
-                                        alt={accessory.name}
-                                        className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
-                                    />
-                                ) : (
-                                    <div className="flex items-center justify-center h-full w-full text-brand-navy/10">
-                                        <Puzzle className="w-16 h-16" />
+                        viewMode === 'grid' ? (
+                            <Card
+                                key={accessory.id}
+                                className="group relative overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-2xl transition-all duration-300 rounded-[32px]"
+                            >
+                                <div className="relative h-48 w-full overflow-hidden bg-brand-navy/[0.02]">
+                                    {accessory.image_url ? (
+                                        <img
+                                            src={accessory.image_url}
+                                            alt={accessory.name}
+                                            className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
+                                        />
+                                    ) : (
+                                        <div className="flex items-center justify-center h-full w-full text-brand-navy/10">
+                                            <Puzzle className="w-16 h-16" />
+                                        </div>
+                                    )}
+                                    <div className="absolute top-4 right-4 z-10">
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="secondary" size="icon" className="h-10 w-10 rounded-xl bg-white/80 backdrop-blur-md border-none shadow-lg text-brand-navy hover:bg-white transition-all">
+                                                    <MoreVertical className="h-5 w-5" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[160px]">
+                                                <DropdownMenuItem onClick={() => openModal(accessory)} className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3">
+                                                    <Edit2 className="w-4 h-4" />
+                                                    <span className="font-bold">Edit Accessory</span>
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    onClick={() => setAccessoryToResetStock(accessory)}
+                                                    className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3"
+                                                >
+                                                    <RotateCcw className="w-4 h-4" />
+                                                    <span className="font-bold">Clear Stock (0)</span>
+                                                </DropdownMenuItem>
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuItem onClick={() => setAccessoryToDelete(accessory)} className="rounded-xl p-3 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-3">
+                                                    <Trash2 className="w-4 h-4" />
+                                                    <span className="font-bold">Delete</span>
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
                                     </div>
-                                )}
-                                <div className="absolute top-4 right-4 z-10">
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button variant="secondary" size="icon" className="h-10 w-10 rounded-xl bg-white/80 backdrop-blur-md border-none shadow-lg text-brand-navy hover:bg-white transition-all">
-                                                <MoreVertical className="h-5 w-5" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[160px]">
-                                            <DropdownMenuItem onClick={() => openModal(accessory)} className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3">
-                                                <Edit2 className="w-4 h-4" />
-                                                <span className="font-bold">Edit</span>
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                onClick={() => setAccessoryToResetStock(accessory)}
-                                                className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3"
-                                            >
-                                                <RotateCcw className="w-4 h-4" />
-                                                <span className="font-bold">Clear Stock (0)</span>
-                                            </DropdownMenuItem>
-                                            <DropdownMenuSeparator />
-                                            <DropdownMenuItem onClick={() => setAccessoryToDelete(accessory)} className="rounded-xl p-3 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-3">
-                                                <Trash2 className="w-4 h-4" />
-                                                <span className="font-bold">Delete</span>
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
+                                    {!accessory.active && (
+                                        <div className="absolute inset-0 bg-brand-navy/40 backdrop-blur-[2px] flex items-center justify-center">
+                                            <Badge variant="secondary" className="bg-brand-white text-brand-navy font-bold text-xs px-4 py-1.5 rounded-full shadow-lg">INACTIVE</Badge>
+                                        </div>
+                                    )}
                                 </div>
-                                {!accessory.active && (
-                                    <div className="absolute inset-0 bg-brand-navy/40 backdrop-blur-[2px] flex items-center justify-center">
-                                        <Badge variant="secondary" className="bg-brand-white text-brand-navy font-bold text-xs px-4 py-1.5 rounded-full shadow-lg">INACTIVE</Badge>
+
+                                <CardContent className="p-6 space-y-4">
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">{accessory.code}</p>
+                                        <h3 className="text-xl font-bold text-brand-navy truncate">{accessory.name}</h3>
                                     </div>
-                                )}
-                            </div>
 
-                            <CardContent className="p-6 space-y-4">
-                                <div className="space-y-1">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">{accessory.code}</p>
-                                    <h3 className="text-xl font-bold text-brand-navy truncate">{accessory.name}</h3>
-                                </div>
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Cost Price</p>
+                                        <p className="text-lg font-bold text-brand-navy">{accessory.cost_price} DH</p>
+                                    </div>
 
-                                <div className="space-y-1">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Cost Price</p>
-                                    <p className="text-lg font-bold text-brand-navy">{accessory.cost_price} DH</p>
-                                </div>
-
-                                <div className="pt-2 flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <div className={cn(
-                                            "w-2 h-2 rounded-full",
-                                            (accessory.stock || 0) > 10 ? "bg-emerald-500" : (accessory.stock || 0) > 0 ? "bg-amber-500" : "bg-red-500"
-                                        )} />
+                                    <div className="pt-2 flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <div className={cn(
+                                                "w-2 h-2 rounded-full",
+                                                (accessory.stock || 0) > 10 ? "bg-emerald-500" : (accessory.stock || 0) > 0 ? "bg-amber-500" : "bg-red-500"
+                                            )} />
+                                            <span className="text-[10px] font-black text-brand-navy/60 tracking-wider uppercase">
+                                                {accessory.stock || 0} in stock
+                                            </span>
+                                        </div>
                                         <span className="text-[10px] font-black text-brand-navy/60 tracking-wider uppercase">
-                                            {accessory.stock || 0} in stock
+                                            {accessory.active ? 'Active' : 'Hidden'}
                                         </span>
                                     </div>
-                                    <span className="text-[10px] font-black text-brand-navy/60 tracking-wider uppercase">
-                                        {accessory.active ? 'Active' : 'Hidden'}
-                                    </span>
+                                </CardContent>
+                            </Card>
+                        ) : (
+                            <Card key={accessory.id} className="group overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-xl transition-all duration-300 rounded-[24px] flex flex-col sm:flex-row items-center p-4 gap-6 sm:pr-6">
+                                <div className="relative h-32 w-full sm:w-32 shrink-0 rounded-[20px] overflow-hidden bg-brand-navy/[0.02] shadow-inner">
+                                    {accessory.image_url ? (
+                                        <img src={accessory.image_url} alt={accessory.name} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                                    ) : (
+                                        <div className="flex items-center justify-center h-full w-full text-brand-navy/10">
+                                            <Puzzle className="w-10 h-10" />
+                                        </div>
+                                    )}
+                                    {!accessory.active && (
+                                        <div className="absolute inset-0 bg-brand-navy/40 backdrop-blur-[2px] flex items-center justify-center">
+                                            <Badge variant="secondary" className="bg-brand-white text-brand-navy font-bold text-[10px] px-3 py-1 rounded-full shadow-sm">INACTIVE</Badge>
+                                        </div>
+                                    )}
                                 </div>
-                            </CardContent>
-                        </Card>
+
+                                <div className="flex-1 min-w-0 space-y-2 w-full">
+                                    <h3 className="text-xl font-bold text-brand-navy truncate">{accessory.name}</h3>
+                                    <p className="text-xs font-black uppercase tracking-widest text-brand-navy/40">{accessory.code}</p>
+
+                                    <div className="flex flex-wrap items-center gap-4 sm:gap-6 pt-2">
+                                        <div className="flex items-center gap-2">
+                                            <div className={cn("w-2 h-2 rounded-full", (accessory.stock || 0) > 10 ? "bg-emerald-500" : (accessory.stock || 0) > 0 ? "bg-amber-500" : "bg-red-500")} />
+                                            <span className="text-[10px] font-black text-brand-navy/60 tracking-wider uppercase">{accessory.stock || 0} in stock</span>
+                                        </div>
+                                        <div className="hidden sm:block h-4 w-px bg-brand-navy/10"></div>
+                                        <div className="flex gap-4">
+                                            <span className="text-xs font-bold text-brand-navy">
+                                                <span className="text-[10px] uppercase font-black mr-1 text-brand-navy/40">Cost</span> {accessory.cost_price} DH
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="shrink-0 flex items-center gap-2 mt-4 sm:mt-0 w-full sm:w-auto justify-end border-t sm:border-t-0 border-brand-navy/5 sm:pt-0 pt-4">
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => setAccessoryToResetStock(accessory)}
+                                        title="Clear Stock (0)"
+                                        className="h-12 w-12 rounded-2xl bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy hover:text-white transition-all"
+                                    >
+                                        <RotateCcw className="w-5 h-5" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" onClick={() => openModal(accessory)} className="h-12 w-12 rounded-2xl bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy hover:text-white transition-all">
+                                        <Edit2 className="w-5 h-5" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" onClick={() => setAccessoryToDelete(accessory)} className="h-12 w-12 rounded-2xl bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all">
+                                        <Trash2 className="w-5 h-5" />
+                                    </Button>
+                                </div>
+                            </Card>
+                        )
                     ))}
                 </div>
             )}
