@@ -19,7 +19,8 @@ import {
     Package,
     RotateCcw,
     LayoutGrid,
-    List
+    List,
+    AlertTriangle
 } from 'lucide-react';
 import {
     Card,
@@ -342,6 +343,8 @@ const Accessories = () => {
         a.code.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
+    const lowStockAccessories = accessories?.filter(a => (a.stock || 0) <= 10) || [];
+
     const openModal = async (accessory: any = null) => {
         if (accessory) {
             setEditingAccessory(accessory);
@@ -448,6 +451,38 @@ const Accessories = () => {
                     </div>
                 </div>
             </div>
+
+            {lowStockAccessories.length > 0 && (
+                <div className="bg-red-50 border border-red-100/50 rounded-[32px] p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-sm">
+                    <div className="flex items-start md:items-center gap-4">
+                        <div className="w-14 h-14 bg-red-100 rounded-2xl flex items-center justify-center shrink-0 text-red-500 shadow-inner">
+                            <AlertTriangle className="w-7 h-7" />
+                        </div>
+                        <div className="space-y-1">
+                            <h3 className="text-xl font-bold text-red-600">Low Stock Alert</h3>
+                            <p className="text-red-500/80 font-medium">You have {lowStockAccessories.length} {lowStockAccessories.length === 1 ? 'accessory' : 'accessories'} running low on inventory (10 items or fewer).</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center -space-x-3 shrink-0">
+                        {lowStockAccessories.slice(0, 5).map((a) => (
+                            <div key={a.id} className="w-12 h-12 rounded-2xl border-2 border-red-50 bg-white shadow-sm overflow-hidden shrink-0" title={`${a.name} (Stock: ${a.stock || 0})`}>
+                                {a.image_url ? (
+                                    <img src={a.image_url} alt={a.name} className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className="w-full h-full bg-brand-navy/5 flex items-center justify-center">
+                                        <Puzzle className="w-5 h-5 text-brand-navy/20" />
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                        {lowStockAccessories.length > 5 && (
+                            <div className="w-12 h-12 rounded-2xl border-2 border-red-50 bg-white flex items-center justify-center shadow-sm z-10 text-xs font-black text-red-500 shrink-0">
+                                +{lowStockAccessories.length - 5}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* Content Section */}
             {isLoading ? (
