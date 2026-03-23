@@ -145,6 +145,7 @@ const orderSchema = z.object({
     address: z.string().min(5, "Address is required"),
     source_name: z.string().min(1, "Source is required"),
     shipping_cost: z.coerce.number().min(0),
+    include_delivery_in_total: z.boolean().default(true),
     replace: z.boolean().default(false), // "extchange" in request
     note: z.string().optional(),
     delivery_note: z.string().optional(),
@@ -774,6 +775,7 @@ const Orders = () => {
             address: '',
             source_name: 'facebook',
             shipping_cost: 0,
+            include_delivery_in_total: true,
             replace: false,
             note: '',
             delivery_note: '',
@@ -800,6 +802,7 @@ const Orders = () => {
     const selectedCityId = form.watch('city_id');
     const selectedCourierId = form.watch('courier_id');
     const selectedCompanyId = form.watch('company_id');
+    const shippingFeeLockedByProvider = !!(selectedCourierId || selectedCompanyId);
 
     // Helper: find fee for a provider+city, with zone fallback.
     // 1) Exact match on master_city_id
@@ -933,6 +936,9 @@ const Orders = () => {
         mutationFn: async (values: OrderFormValues) => {
             // 1. Insert order
             const totalPrice = values.items.reduce((acc, item) => acc + (item.quantity * item.unit_price), 0);
+            const ship = Number(values.shipping_cost) || 0;
+            const includeDelivery = values.include_delivery_in_total !== false;
+            const orderPrice = includeDelivery ? totalPrice + ship : totalPrice;
 
             const { data: order, error: orderError } = await (supabase as any)
                 .from('orders')
@@ -943,6 +949,7 @@ const Orders = () => {
                     address: values.address,
                     source_name: values.source_name,
                     shipping_cost: values.shipping_cost,
+                    include_delivery_in_total: includeDelivery,
                     replace: values.replace,
                     note: values.note,
                     delivery_note: values.delivery_note,
@@ -950,7 +957,7 @@ const Orders = () => {
                     order_status_id: values.order_status_id,
                     courier_id: values.courier_id,
                     company_id: values.company_id,
-                    price: totalPrice + values.shipping_cost,
+                    price: orderPrice,
                     raw_price: totalPrice,
                     date: new Date().toISOString(),
                     'DigiCom Business': activeBusinessId
@@ -1014,6 +1021,7 @@ const Orders = () => {
                 address: '',
                 source_name: 'facebook',
                 shipping_cost: 0,
+                include_delivery_in_total: true,
                 replace: false,
                 note: '',
                 delivery_note: '',
@@ -1037,6 +1045,9 @@ const Orders = () => {
             if (!selectedOrder) return;
 
             const totalPrice = values.items.reduce((acc, item) => acc + (item.quantity * item.unit_price), 0);
+            const ship = Number(values.shipping_cost) || 0;
+            const includeDelivery = values.include_delivery_in_total !== false;
+            const orderPrice = includeDelivery ? totalPrice + ship : totalPrice;
 
             // Get current user
             const userRes = await (supabase as any).auth.getUser();
@@ -1050,6 +1061,7 @@ const Orders = () => {
                 address: values.address,
                 source_name: values.source_name,
                 shipping_cost: values.shipping_cost,
+                include_delivery_in_total: includeDelivery,
                 replace: values.replace,
                 note: values.note,
                 delivery_note: values.delivery_note,
@@ -1057,7 +1069,7 @@ const Orders = () => {
                 order_status_id: values.order_status_id,
                 courier_id: values.courier_id,
                 company_id: values.company_id,
-                price: totalPrice + values.shipping_cost,
+                price: orderPrice,
                 raw_price: totalPrice,
                 updated_at: new Date().toISOString()
             };
@@ -1431,6 +1443,7 @@ const Orders = () => {
             address: order.address,
             source_name: order.source_name,
             shipping_cost: Number(order.shipping_cost),
+            include_delivery_in_total: order.include_delivery_in_total !== false,
             replace: order.replace,
             note: order.note || '',
             delivery_note: order.delivery_note || '',
@@ -1527,6 +1540,7 @@ const Orders = () => {
                                 address: '',
                                 source_name: 'facebook',
                                 shipping_cost: 0,
+                                include_delivery_in_total: true,
                                 replace: false,
                                 note: '',
                                 delivery_note: '',
@@ -2650,6 +2664,7 @@ const Orders = () => {
                             address: '',
                             source_name: 'facebook',
                             shipping_cost: 0,
+                            include_delivery_in_total: true,
                             replace: false,
                             note: '',
                             delivery_note: '',
@@ -2927,7 +2942,12 @@ const Orders = () => {
                                                         <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Shipping Fee</FormLabel>
                                                         <FormControl>
                                                             <div className="relative">
-                                                                <Input type="number" {...field} className="h-10 rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy shadow-inner pl-3 pr-10" />
+                                                                <Input
+                                                                    type="number"
+                                                                    {...field}
+                                                                    readOnly={shippingFeeLockedByProvider}
+                                                                    className={`h-10 rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy shadow-inner pl-3 pr-10 ${shippingFeeLockedByProvider ? 'cursor-not-allowed opacity-90' : ''}`}
+                                                                />
                                                                 <div className="absolute right-4 top-1/2 -translate-y-1/2">
                                                                     <Button
                                                                         type="button"
@@ -2936,7 +2956,11 @@ const Orders = () => {
                                                                         onClick={calculateShippingFee}
                                                                         className="h-6 w-6 text-brand-navy/30 hover:text-brand-navy"
                                                                         title="Calculate Fees"
-                                                                        disabled={!selectedCityId || (!selectedCourierId && !selectedCompanyId)}
+                                                                        disabled={
+                                                                            !selectedCityId ||
+                                                                            shippingFeeLockedByProvider ||
+                                                                            (!selectedCourierId && !selectedCompanyId)
+                                                                        }
                                                                     >
                                                                         <RefreshCcw className="w-3 h-3" />
                                                                     </Button>
@@ -3073,20 +3097,37 @@ const Orders = () => {
                                             />
                                         )}
 
-                                        <div className="p-3 rounded-xl bg-brand-navy/[0.03] border border-brand-navy/[0.06] flex items-center justify-between gap-3">
-                                            <div className="space-y-0.5 min-w-0">
-                                                <FormLabel className="text-xs font-bold text-brand-navy">Exchange order</FormLabel>
-                                                <p className="text-[10px] text-muted-foreground leading-snug">Replacing a previous order?</p>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div className="p-3 rounded-xl bg-brand-navy/[0.03] border border-brand-navy/[0.06] flex items-center justify-between gap-3">
+                                                <div className="space-y-0.5 min-w-0">
+                                                    <FormLabel className="text-xs font-bold text-brand-navy">Exchange order</FormLabel>
+                                                    <p className="text-[10px] text-muted-foreground leading-snug">Replacing a previous order?</p>
+                                                </div>
+                                                <FormField
+                                                    control={form.control}
+                                                    name="replace"
+                                                    render={({ field }) => (
+                                                        <FormControl>
+                                                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                                        </FormControl>
+                                                    )}
+                                                />
                                             </div>
-                                            <FormField
-                                                control={form.control}
-                                                name="replace"
-                                                render={({ field }) => (
-                                                    <FormControl>
-                                                        <Switch checked={field.value} onCheckedChange={field.onChange} />
-                                                    </FormControl>
-                                                )}
-                                            />
+                                            <div className="p-3 rounded-xl bg-brand-navy/[0.03] border border-brand-navy/[0.06] flex items-center justify-between gap-3">
+                                                <div className="space-y-0.5 min-w-0">
+                                                    <FormLabel className="text-xs font-bold text-brand-navy">Include delivery fees</FormLabel>
+                                                    <p className="text-[10px] text-muted-foreground leading-snug">Add shipping to order total</p>
+                                                </div>
+                                                <FormField
+                                                    control={form.control}
+                                                    name="include_delivery_in_total"
+                                                    render={({ field }) => (
+                                                        <FormControl>
+                                                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                                        </FormControl>
+                                                    )}
+                                                />
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -3427,7 +3468,7 @@ const Orders = () => {
                                     <div className="min-w-0">
                                         <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/70 leading-none">Total</p>
                                         <p className="text-lg sm:text-xl font-black text-brand-navy tabular-nums leading-tight truncate">
-                                            {(form.watch('items').reduce((acc, item) => acc + (item.quantity * item.unit_price), 0) + Number(form.watch('shipping_cost') || 0)).toFixed(2)} DH
+                                            {(form.watch('items').reduce((acc, item) => acc + (item.quantity * item.unit_price), 0) + (form.watch('include_delivery_in_total') !== false ? Number(form.watch('shipping_cost') || 0) : 0)).toFixed(2)} DH
                                         </p>
                                     </div>
                                 </div>
