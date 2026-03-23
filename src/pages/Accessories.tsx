@@ -21,7 +21,8 @@ import {
     LayoutGrid,
     List,
     AlertTriangle,
-    Power
+    Power,
+    Eye,
 } from 'lucide-react';
 import {
     Card,
@@ -72,6 +73,10 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+    AccessoryPreviewDialog,
+    type AccessoryPreviewRow,
+} from '@/components/catalog/AccessoryPreviewDialog';
 
 const accessorySchema = z.object({
     name: z.string().min(2, "Name must be at least 2 characters"),
@@ -89,6 +94,7 @@ const Accessories = () => {
     const [editingAccessory, setEditingAccessory] = useState<any>(null);
     const [accessoryToDelete, setAccessoryToDelete] = useState<any>(null);
     const [accessoryToResetStock, setAccessoryToResetStock] = useState<any>(null);
+    const [previewAccessory, setPreviewAccessory] = useState<AccessoryPreviewRow | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [isUploading, setIsUploading] = useState(false);
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
@@ -234,6 +240,7 @@ const Accessories = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['accessories', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['seller-view-accessories'] });
             setIsModalOpen(false);
             setEditingAccessory(null);
             setAttachedProducts([]);
@@ -272,6 +279,7 @@ const Accessories = () => {
         },
         onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: ['accessories', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['seller-view-accessories'] });
             setAccessoryToDelete(null);
             if (data?.softDeleted) {
                 toast({ title: "Accessory Deactivated", description: "This accessory is used in existing orders, so it was deactivated instead of permanently deleted." });
@@ -298,6 +306,7 @@ const Accessories = () => {
             queryClient.invalidateQueries({ queryKey: ['accessories-minimal', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['accessories-dropdown-orders', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['accessories-import', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['seller-view-accessories'] });
             toast({
                 title: active ? 'Accessory activated' : 'Accessory deactivated',
                 description: active ? 'Visible in order pickers.' : 'Hidden from order pickers.',
@@ -322,6 +331,7 @@ const Accessories = () => {
             queryClient.invalidateQueries({ queryKey: ['accessories', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['accessories-minimal', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['accessories-dropdown-orders', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['seller-view-accessories'] });
             setAccessoryToResetStock(null);
             toast({ title: "Stock Updated", description: "Accessory stock has been modified." });
         },
@@ -588,7 +598,19 @@ const Accessories = () => {
                                             <Puzzle className="w-16 h-16" />
                                         </div>
                                     )}
-                                    <div className="absolute top-4 right-4 z-10">
+                                    <div className="absolute top-4 left-4 z-20">
+                                        <Button
+                                            type="button"
+                                            variant="secondary"
+                                            size="icon"
+                                            title="Preview"
+                                            onClick={() => setPreviewAccessory(accessory)}
+                                            className="h-10 w-10 rounded-xl bg-white/80 backdrop-blur-md border-none shadow-lg text-brand-navy hover:bg-white transition-all"
+                                        >
+                                            <Eye className="h-5 w-5" />
+                                        </Button>
+                                    </div>
+                                    <div className="absolute top-4 right-4 z-20">
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
                                                 <Button variant="secondary" size="icon" className="h-10 w-10 rounded-xl bg-white/80 backdrop-blur-md border-none shadow-lg text-brand-navy hover:bg-white transition-all">
@@ -596,6 +618,10 @@ const Accessories = () => {
                                                 </Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[160px]">
+                                                <DropdownMenuItem onClick={() => setPreviewAccessory(accessory)} className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3">
+                                                    <Eye className="w-4 h-4" />
+                                                    <span className="font-bold">Preview</span>
+                                                </DropdownMenuItem>
                                                 <DropdownMenuItem onClick={() => openModal(accessory)} className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3">
                                                     <Edit2 className="w-4 h-4" />
                                                     <span className="font-bold">Edit Accessory</span>
@@ -624,7 +650,7 @@ const Accessories = () => {
                                         </DropdownMenu>
                                     </div>
                                     {!accessory.active && (
-                                        <div className="absolute inset-0 bg-brand-navy/40 backdrop-blur-[2px] flex items-center justify-center">
+                                        <div className="absolute inset-0 z-[1] pointer-events-none bg-brand-navy/40 backdrop-blur-[2px] flex items-center justify-center">
                                             <Badge variant="secondary" className="bg-brand-white text-brand-navy font-bold text-xs px-4 py-1.5 rounded-full shadow-lg">INACTIVE</Badge>
                                         </div>
                                     )}
@@ -696,6 +722,15 @@ const Accessories = () => {
                                     <Button
                                         variant="ghost"
                                         size="icon"
+                                        title="Preview"
+                                        onClick={() => setPreviewAccessory(accessory)}
+                                        className="h-12 w-12 rounded-2xl bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy hover:text-white transition-all"
+                                    >
+                                        <Eye className="w-5 h-5" />
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
                                         onClick={() => setAccessoryToResetStock(accessory)}
                                         title="Clear Stock (0)"
                                         className="h-12 w-12 rounded-2xl bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy hover:text-white transition-all"
@@ -724,6 +759,28 @@ const Accessories = () => {
                     ))}
                 </div>
             )}
+
+            <AccessoryPreviewDialog
+                open={!!previewAccessory}
+                onOpenChange={(open) => !open && setPreviewAccessory(null)}
+                accessory={previewAccessory}
+                variant="admin"
+                adminActions={
+                    previewAccessory
+                        ? {
+                              onEdit: () => openModal(previewAccessory),
+                              onClearStock: () => setAccessoryToResetStock(previewAccessory),
+                              onToggleActive: () =>
+                                  toggleAccessoryActiveMutation.mutate({
+                                      id: previewAccessory.id,
+                                      active: !previewAccessory.active,
+                                  }),
+                              onDelete: () => setAccessoryToDelete(previewAccessory),
+                              toggleActivePending: toggleAccessoryActiveMutation.isPending,
+                          }
+                        : undefined
+                }
+            />
 
             {/* Upsert Modal */}
             <Dialog open={isModalOpen} onOpenChange={(open) => {

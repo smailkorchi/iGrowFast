@@ -20,7 +20,8 @@ import {
     List,
     AlertTriangle,
     RotateCcw,
-    Power
+    Power,
+    Eye,
 } from 'lucide-react';
 import {
     Card,
@@ -71,6 +72,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ProductPreviewDialog } from '@/components/catalog/ProductPreviewDialog';
 
 const productSchema = z.object({
     name: z.string().min(2, "Name must be at least 2 characters"),
@@ -90,6 +92,7 @@ const Products = () => {
     const [editingProduct, setEditingProduct] = useState<any>(null);
     const [productToDelete, setProductToDelete] = useState<any>(null);
     const [productToResetStock, setProductToResetStock] = useState<any>(null);
+    const [previewProduct, setPreviewProduct] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [isUploading, setIsUploading] = useState(false);
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
@@ -179,6 +182,8 @@ const Products = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['products', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['seller-view-products'] });
+            queryClient.invalidateQueries({ queryKey: ['seller-view-accessories'] });
             setIsModalOpen(false);
             setEditingProduct(null);
             toast({
@@ -215,6 +220,8 @@ const Products = () => {
         },
         onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: ['products', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['seller-view-products'] });
+            queryClient.invalidateQueries({ queryKey: ['seller-view-accessories'] });
             setProductToDelete(null);
             if (data?.softDeleted) {
                 toast({ title: "Product Deactivated", description: "This product is used in existing orders, so it was deactivated instead of permanently deleted." });
@@ -242,6 +249,8 @@ const Products = () => {
             queryClient.invalidateQueries({ queryKey: ['products-user-modal', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['products-minimal', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['products'] });
+            queryClient.invalidateQueries({ queryKey: ['seller-view-products'] });
+            queryClient.invalidateQueries({ queryKey: ['seller-view-accessories'] });
             toast({
                 title: active ? 'Product activated' : 'Product deactivated',
                 description: active ? 'Visible in pickers and seller profile.' : 'Hidden from pickers and seller profile.',
@@ -264,6 +273,7 @@ const Products = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['products', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['seller-view-products'] });
             setProductToResetStock(null);
             toast({ title: "Stock Updated", description: "Product stock has been modified." });
         },
@@ -510,7 +520,19 @@ const Products = () => {
                                             <ImageIcon className="w-16 h-16" />
                                         </div>
                                     )}
-                                    <div className="absolute top-4 right-4 z-10">
+                                    <div className="absolute top-4 left-4 z-20">
+                                        <Button
+                                            type="button"
+                                            variant="secondary"
+                                            size="icon"
+                                            title="Preview"
+                                            onClick={() => setPreviewProduct(product)}
+                                            className="h-10 w-10 rounded-xl bg-white/80 backdrop-blur-md border-none shadow-lg text-brand-navy hover:bg-white transition-all"
+                                        >
+                                            <Eye className="h-5 w-5" />
+                                        </Button>
+                                    </div>
+                                    <div className="absolute top-4 right-4 z-20">
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
                                                 <Button variant="secondary" size="icon" className="h-10 w-10 rounded-xl bg-white/80 backdrop-blur-md border-none shadow-lg text-brand-navy hover:bg-white transition-all">
@@ -518,6 +540,10 @@ const Products = () => {
                                                 </Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[160px]">
+                                                <DropdownMenuItem onClick={() => setPreviewProduct(product)} className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3">
+                                                    <Eye className="w-4 h-4" />
+                                                    <span className="font-bold">Preview</span>
+                                                </DropdownMenuItem>
                                                 <DropdownMenuItem onClick={() => openModal(product)} className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3">
                                                     <Edit2 className="w-4 h-4" />
                                                     <span className="font-bold">Edit Product</span>
@@ -545,7 +571,7 @@ const Products = () => {
                                         </DropdownMenu>
                                     </div>
                                     {!product.active && (
-                                        <div className="absolute inset-0 bg-brand-navy/40 backdrop-blur-[2px] flex items-center justify-center">
+                                        <div className="absolute inset-0 z-[1] pointer-events-none bg-brand-navy/40 backdrop-blur-[2px] flex items-center justify-center">
                                             <Badge variant="secondary" className="bg-brand-white text-brand-navy font-bold text-xs px-4 py-1.5 rounded-full shadow-lg">INACTIVE</Badge>
                                         </div>
                                     )}
@@ -628,6 +654,15 @@ const Products = () => {
                                     <Button
                                         variant="ghost"
                                         size="icon"
+                                        title="Preview"
+                                        onClick={() => setPreviewProduct(product)}
+                                        className="h-12 w-12 rounded-2xl bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy hover:text-white transition-all"
+                                    >
+                                        <Eye className="w-5 h-5" />
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
                                         onClick={() => {
                                             setProductToResetStock(product);
                                         }}
@@ -657,6 +692,28 @@ const Products = () => {
                     ))}
                 </div>
             )}
+
+            <ProductPreviewDialog
+                open={!!previewProduct}
+                onOpenChange={(open) => !open && setPreviewProduct(null)}
+                product={previewProduct}
+                variant="admin"
+                adminActions={
+                    previewProduct
+                        ? {
+                              onEdit: () => openModal(previewProduct),
+                              onClearStock: () => setProductToResetStock(previewProduct),
+                              onToggleActive: () =>
+                                  toggleProductActiveMutation.mutate({
+                                      id: previewProduct.id,
+                                      active: !previewProduct.active,
+                                  }),
+                              onDelete: () => setProductToDelete(previewProduct),
+                              toggleActivePending: toggleProductActiveMutation.isPending,
+                          }
+                        : undefined
+                }
+            />
 
             {/* Upsert Modal */}
             <Dialog open={isModalOpen} onOpenChange={(open) => {

@@ -14,7 +14,9 @@ import {
     ChevronRight,
     BarChart2,
     Truck,
-    FileText
+    FileText,
+    Package,
+    Puzzle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
@@ -34,6 +36,8 @@ type NavSection = {
 const navigation: NavItem[] = [
     { icon: Home, label: 'Dashboard', path: '/seller/dashboard' },
     { icon: ShoppingBag, label: 'Orders', path: '/seller/orders' },
+    { icon: Package, label: 'Products', path: '/seller/products' },
+    { icon: Puzzle, label: 'Accessories', path: '/seller/accessories' },
     { icon: Truck, label: 'Delivery notes', path: '/seller/delivery-note' },
     { icon: FileText, label: 'Return notes', path: '/seller/return-note' },
     { icon: BarChart2, label: 'Statistics', path: '/seller/statistics' },
