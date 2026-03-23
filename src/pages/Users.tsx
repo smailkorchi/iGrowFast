@@ -115,6 +115,22 @@ const userSchema = z.object({
 
 type UserFormValues = z.infer<typeof userSchema>;
 
+/** Row shape from `users` when editing; keeps `avatar_url` typed for preview state. */
+type UserModalInitialData = Partial<UserFormValues> & {
+    id?: string;
+    avatar_url?: string | null;
+};
+
+interface UserModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    onSubmit: (values: UserFormValues) => void;
+    initialData?: UserModalInitialData;
+    loading?: boolean;
+    title: string;
+    activeBusinessId: string | null;
+}
+
 const pages = [
     { label: 'Dashboard', path: '/', icon: Home },
     { label: 'Orders', path: '/orders', icon: ShoppingBag },
@@ -342,6 +358,7 @@ const Users = () => {
                 onSubmit={(values) => addUserMutation.mutate(values)}
                 loading={addUserMutation.isPending}
                 title="Create New User"
+                activeBusinessId={activeBusinessId}
             />
 
             {editingUser && (
@@ -352,6 +369,7 @@ const Users = () => {
                     initialData={editingUser}
                     loading={updateUserMutation.isPending}
                     title="Edit User"
+                    activeBusinessId={activeBusinessId}
                 />
             )}
         </div>
@@ -460,9 +478,19 @@ const UserCard = ({ user, onEdit, onDelete }: { user: any, onEdit: () => void, o
     );
 };
 
-const UserModal = ({ isOpen, onClose, onSubmit, initialData, loading, title }: any) => {
+const UserModal = ({
+    isOpen,
+    onClose,
+    onSubmit,
+    initialData,
+    loading,
+    title,
+    activeBusinessId,
+}: UserModalProps) => {
     const [avatar, setAvatar] = useState<File | null>(null);
-    const [avatarPreview, setAvatarPreview] = useState<string | null>(initialData?.avatar_url || null);
+    const [avatarPreview, setAvatarPreview] = useState<string | null>(
+        initialData?.avatar_url ?? null,
+    );
 
     const form = useForm<UserFormValues>({
         resolver: zodResolver(userSchema),
@@ -480,17 +508,20 @@ const UserModal = ({ isOpen, onClose, onSubmit, initialData, loading, title }: a
         }
     });
 
-    const { data: products } = useQuery({
-        queryKey: ['products'],
+    const { data: products, isLoading: isProductsLoading } = useQuery({
+        queryKey: ['products-user-modal', activeBusinessId],
         queryFn: async () => {
+            if (!activeBusinessId) return [];
             const { data, error } = await supabase
                 .from('products')
                 .select('id, name, image_url, code')
                 .eq('active', true)
+                .eq('DigiCom Business', activeBusinessId)
                 .order('name');
             if (error) throw error;
-            return data;
-        }
+            return data ?? [];
+        },
+        enabled: !!activeBusinessId && isOpen,
     });
 
     const [productSearch, setProductSearch] = useState("");
@@ -508,7 +539,7 @@ const UserModal = ({ isOpen, onClose, onSubmit, initialData, loading, title }: a
                     products: Array.isArray(initialData.products) ? initialData.products : [],
                     permissions: initialData.permissions || {},
                 });
-                setAvatarPreview(initialData.avatar_url);
+                setAvatarPreview(initialData.avatar_url ?? null);
             } else {
                 form.reset({
                     name: '',
@@ -834,41 +865,55 @@ const UserModal = ({ isOpen, onClose, onSubmit, initialData, loading, title }: a
                                                             className="h-11 pl-11 rounded-2xl border-none bg-white shadow-sm text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium"
                                                         />
                                                     </div>
-                                                    <div className="space-y-2 max-h-[400px]">
-                                                        {filteredProducts?.map((product) => {
-                                                            const isSelected = form.watch('products')?.includes(product.id);
-                                                            return (
-                                                                <div
-                                                                    key={product.id}
-                                                                    onClick={() => {
-                                                                        const current = form.getValues('products') || [];
-                                                                        const next = isSelected
-                                                                            ? current.filter(id => id !== product.id)
-                                                                            : [...current, product.id];
-                                                                        form.setValue('products', next, { shouldDirty: true });
-                                                                    }}
-                                                                    className={cn(
-                                                                        "flex items-center gap-3 p-3 rounded-2xl transition-all cursor-pointer border-2 group",
-                                                                        isSelected ? "bg-brand-navy border-brand-navy text-white" : "bg-white border-transparent hover:border-brand-navy/10"
-                                                                    )}
-                                                                >
-                                                                    <Avatar className="h-10 w-10 rounded-xl border border-muted group-hover:scale-105 transition-transform">
-                                                                        <AvatarImage src={product.image_url || ''} className="object-cover" />
-                                                                        <AvatarFallback className="text-[10px] font-bold">PR</AvatarFallback>
-                                                                    </Avatar>
-                                                                    <div className="flex flex-col min-w-0 flex-1">
-                                                                        <span className="text-xs font-bold truncate">{product.name}</span>
-                                                                        <span className={cn("text-[10px] font-medium", isSelected ? "text-white/60" : "text-muted-foreground")}>{product.code}</span>
+                                                    <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                                                        {!activeBusinessId ? (
+                                                            <p className="text-xs text-muted-foreground text-center py-8 px-2">
+                                                                No business selected. Open the app with an active business (e.g. from your profile or business switcher) before assigning products.
+                                                            </p>
+                                                        ) : isProductsLoading ? (
+                                                            <div className="flex justify-center py-12">
+                                                                <Loader2 className="w-8 h-8 animate-spin text-brand-navy/40" />
+                                                            </div>
+                                                        ) : !filteredProducts?.length ? (
+                                                            <p className="text-xs text-muted-foreground text-center py-8">
+                                                                No active products for this business.
+                                                            </p>
+                                                        ) : (
+                                                            filteredProducts.map((product) => {
+                                                                const isSelected = form.watch('products')?.includes(product.id);
+                                                                return (
+                                                                    <div
+                                                                        key={product.id}
+                                                                        onClick={() => {
+                                                                            const current = form.getValues('products') || [];
+                                                                            const next = isSelected
+                                                                                ? current.filter(id => id !== product.id)
+                                                                                : [...current, product.id];
+                                                                            form.setValue('products', next, { shouldDirty: true });
+                                                                        }}
+                                                                        className={cn(
+                                                                            "flex items-center gap-3 p-3 rounded-2xl transition-all cursor-pointer border-2 group",
+                                                                            isSelected ? "bg-brand-navy border-brand-navy text-white" : "bg-white border-transparent hover:border-brand-navy/10"
+                                                                        )}
+                                                                    >
+                                                                        <Avatar className="h-10 w-10 rounded-xl border border-muted group-hover:scale-105 transition-transform">
+                                                                            <AvatarImage src={product.image_url || ''} className="object-cover" />
+                                                                            <AvatarFallback className="text-[10px] font-bold">PR</AvatarFallback>
+                                                                        </Avatar>
+                                                                        <div className="flex flex-col min-w-0 flex-1">
+                                                                            <span className="text-xs font-bold truncate">{product.name}</span>
+                                                                            <span className={cn("text-[10px] font-medium", isSelected ? "text-white/60" : "text-muted-foreground")}>{product.code}</span>
+                                                                        </div>
+                                                                        <div className={cn(
+                                                                            "w-5 h-5 rounded-full flex items-center justify-center border-2 transition-all",
+                                                                            isSelected ? "bg-white border-white text-brand-navy" : "border-brand-navy/10 text-transparent"
+                                                                        )}>
+                                                                            <Check className="w-3 h-3" />
+                                                                        </div>
                                                                     </div>
-                                                                    <div className={cn(
-                                                                        "w-5 h-5 rounded-full flex items-center justify-center border-2 transition-all",
-                                                                        isSelected ? "bg-white border-white text-brand-navy" : "border-brand-navy/10 text-transparent"
-                                                                    )}>
-                                                                        <Check className="w-3 h-3" />
-                                                                    </div>
-                                                                </div>
-                                                            );
-                                                        })}
+                                                                );
+                                                            })
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
