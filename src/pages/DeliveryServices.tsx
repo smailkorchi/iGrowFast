@@ -1525,6 +1525,11 @@ function CompanyFeesModal({ isOpen, onClose, company }: any) {
     const activeBusinessId = localStorage.getItem('activeBusinessId');
     const [fees, setFees] = useState<Record<string, string>>({});
     const [bulkPrice, setBulkPrice] = useState("");
+    const [citySearch, setCitySearch] = useState("");
+
+    useEffect(() => {
+        if (!isOpen) setCitySearch("");
+    }, [isOpen]);
 
     const { data: cities, isLoading: loadingCities } = useQuery({
         queryKey: ['company_fees_cities', company?.id],
@@ -1607,6 +1612,18 @@ function CompanyFeesModal({ isOpen, onClose, company }: any) {
         }
     };
 
+    const filteredCities = useMemo(() => {
+        const list = cities || [];
+        const q = citySearch.trim().toLowerCase();
+        if (!q) return list;
+        return list.filter(
+            (c: any) =>
+                (c.name || '').toLowerCase().includes(q) ||
+                (c.name_ar || '').toLowerCase().includes(q) ||
+                (c.region || '').toLowerCase().includes(q)
+        );
+    }, [cities, citySearch]);
+
     return (
         <Dialog open={isOpen} onOpenChange={(v) => !v && onClose()}>
             <DialogContent className="max-w-2xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -1621,17 +1638,32 @@ function CompanyFeesModal({ isOpen, onClose, company }: any) {
                         </div>
                     </div>
 
-                    <div className="mt-6 flex items-center gap-3 p-4 bg-brand-navy/5 rounded-2xl border border-brand-navy/10">
-                        <div className="relative flex-1">
-                            <Coins className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-navy/30" />
+                    <div className="mt-6 flex flex-row items-center gap-2 sm:gap-2.5 p-3 sm:p-3.5 bg-brand-navy/5 rounded-2xl border border-brand-navy/10 min-w-0">
+                        <div className="relative flex-1 min-w-0">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-navy/35 pointer-events-none" />
                             <Input
-                                placeholder="Unified Price..."
-                                value={bulkPrice}
-                                onChange={(e) => setBulkPrice(e.target.value)}
-                                className="h-12 pl-10 rounded-xl border-none bg-white font-bold text-brand-navy shadow-sm"
+                                type="search"
+                                placeholder="Search cities..."
+                                value={citySearch}
+                                onChange={(e) => setCitySearch(e.target.value)}
+                                className="h-10 pl-9 pr-3 rounded-xl border border-brand-navy/10 bg-white text-sm font-semibold text-brand-navy placeholder:text-brand-navy/35 shadow-sm focus-visible:ring-brand-navy/20"
                             />
                         </div>
-                        <Button onClick={handleBulkApply} className="h-12 px-6 rounded-xl bg-brand-navy text-white font-bold shadow-lg hover:bg-brand-navy/90">
+                        <div className="relative w-[5.5rem] sm:w-24 shrink-0">
+                            <Coins className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-navy/30 pointer-events-none" />
+                            <Input
+                                inputMode="decimal"
+                                placeholder="Price"
+                                value={bulkPrice}
+                                onChange={(e) => setBulkPrice(e.target.value)}
+                                className="h-10 pl-8 pr-2 rounded-xl border border-brand-navy/10 bg-white text-sm font-bold text-brand-navy text-right shadow-sm focus-visible:ring-brand-navy/20"
+                            />
+                        </div>
+                        <Button
+                            type="button"
+                            onClick={handleBulkApply}
+                            className="h-10 px-2.5 sm:px-3 shrink-0 rounded-xl bg-brand-navy text-white text-[11px] sm:text-xs font-bold shadow-md hover:bg-brand-navy/90 whitespace-nowrap"
+                        >
                             Auto Fill All
                         </Button>
                     </div>
@@ -1646,9 +1678,14 @@ function CompanyFeesModal({ isOpen, onClose, company }: any) {
                             <p className="font-bold text-brand-navy/40">No cities found in assigned zones.</p>
                             <p className="text-xs font-bold text-brand-navy/20 uppercase mt-1">Assign zones first</p>
                         </div>
+                    ) : filteredCities.length === 0 ? (
+                        <div className="text-center py-16 bg-brand-navy/5 rounded-[32px] border border-dashed border-brand-navy/10">
+                            <Search className="w-10 h-10 text-brand-navy/25 mx-auto mb-3" />
+                            <p className="font-bold text-brand-navy/50 text-sm">No cities match your search</p>
+                        </div>
                     ) : (
                         <div className="grid grid-cols-1 gap-2">
-                            {cities?.map((city: any) => (
+                            {filteredCities.map((city: any) => (
                                 <div key={city.id} className="flex items-center justify-between p-4 rounded-2xl bg-brand-navy/5 border border-brand-navy/[0.03] group hover:bg-brand-navy/[0.08] transition-all">
                                     <div>
                                         <p className="font-bold text-brand-navy text-lg">{city.name}</p>
