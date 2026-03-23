@@ -170,6 +170,20 @@ function productNameLabel(p: { name?: unknown; code?: string | null; id?: string
     return String(p.code || p.id || 'Product');
 }
 
+function orderMatchesTrackingFilter(order: any, raw: string): boolean {
+    const needle = raw.trim().toLowerCase().replace(/\s+/g, '');
+    if (!needle) return true;
+    const codes: string[] = [];
+    if (order?.tracking_number) codes.push(String(order.tracking_number));
+    for (const p of order?.parcels || []) {
+        if (p?.tracking_code) codes.push(String(p.tracking_code));
+    }
+    for (const p of order?.courier_parcels || []) {
+        if (p?.tracking_code) codes.push(String(p.tracking_code));
+    }
+    return codes.some((c) => c.toLowerCase().replace(/\s+/g, '').includes(needle));
+}
+
 const Orders = () => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -230,6 +244,7 @@ const Orders = () => {
     const [showCalendar, setShowCalendar] = useState(false);
     const [filterCustomerName, setFilterCustomerName] = useState('');
     const [filterPhone, setFilterPhone] = useState('');
+    const [filterTracking, setFilterTracking] = useState('');
     const [filterProduct, setFilterProduct] = useState<string>('all');
     const [filterPackageStatus, setFilterPackageStatus] = useState<string>('all');
     const [filterExchange, setFilterExchange] = useState<string>('all');
@@ -1133,14 +1148,15 @@ const Orders = () => {
 
             const matchesCustomerName = !filterCustomerName || o.name?.toLowerCase().includes(filterCustomerName.toLowerCase());
             const matchesPhone = !filterPhone || o.phone?.includes(filterPhone);
+            const matchesTracking = orderMatchesTrackingFilter(o, filterTracking);
             const matchesProduct = filterProduct === 'all' || o.items?.some((item: any) => item.product_id === filterProduct);
             const matchesPackageStatus = filterPackageStatus === 'all' || o.package_status_id === filterPackageStatus;
             const matchesExchange = filterExchange === 'all' || (filterExchange === 'yes' && o.replace) || (filterExchange === 'no' && !o.replace);
 
             return matchesSearch && matchesStatus && matchesCity && matchesSource && matchesProvider
-                && matchesDate && matchesCustomerName && matchesPhone && matchesProduct && matchesPackageStatus && matchesExchange;
+                && matchesDate && matchesCustomerName && matchesPhone && matchesTracking && matchesProduct && matchesPackageStatus && matchesExchange;
         });
-    }, [orders, searchQuery, filterStatus, filterCity, filterSource, filterProvider, getDateRange, filterDateField, filterCustomerName, filterPhone, filterProduct, filterPackageStatus, filterExchange]);
+    }, [orders, searchQuery, filterStatus, filterCity, filterSource, filterProvider, getDateRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterPackageStatus, filterExchange]);
 
     const activeFilterCount = useMemo(() => {
         let count = 0;
@@ -1151,11 +1167,12 @@ const Orders = () => {
         if (filterTimeRange !== 'all') count++;
         if (filterCustomerName) count++;
         if (filterPhone) count++;
+        if (filterTracking.trim()) count++;
         if (filterProduct !== 'all') count++;
         if (filterPackageStatus !== 'all') count++;
         if (filterExchange !== 'all') count++;
         return count;
-    }, [filterStatus, filterCity, filterSource, filterProvider, filterTimeRange, filterCustomerName, filterPhone, filterProduct, filterPackageStatus, filterExchange]);
+    }, [filterStatus, filterCity, filterSource, filterProvider, filterTimeRange, filterCustomerName, filterPhone, filterTracking, filterProduct, filterPackageStatus, filterExchange]);
 
     const clearAllFilters = () => {
         setFilterStatus('all');
@@ -1167,6 +1184,7 @@ const Orders = () => {
         setFilterDateField('date');
         setFilterCustomerName('');
         setFilterPhone('');
+        setFilterTracking('');
         setFilterProduct('all');
         setFilterPackageStatus('all');
         setFilterExchange('all');
@@ -1560,6 +1578,13 @@ const Orders = () => {
                                         <button type="button" onClick={() => setFilterPhone('')} className="ml-0.5 hover:bg-slate-200 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
                                     </span>
                                 )}
+                                {filterTracking.trim() && (
+                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold border border-slate-200 max-w-[220px]">
+                                        <Hash className="w-3 h-3 shrink-0" />
+                                        <span className="truncate">{filterTracking.trim()}</span>
+                                        <button type="button" onClick={() => setFilterTracking('')} className="ml-0.5 hover:bg-slate-200 rounded-full p-0.5 transition-colors shrink-0"><X className="w-2.5 h-2.5" /></button>
+                                    </span>
+                                )}
                                 {filterSource !== 'all' && (
                                     <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-cyan-50 text-cyan-700 text-[10px] font-bold border border-cyan-100 capitalize">
                                         <ExternalLink className="w-3 h-3" />
@@ -1707,6 +1732,15 @@ const Orders = () => {
                                         value={filterPhone}
                                         onChange={(e) => setFilterPhone(e.target.value)}
                                         className="h-10 w-[180px] pl-9 rounded-xl border-brand-navy/[0.06] bg-brand-navy/[0.02] text-xs font-medium hover:border-brand-navy/10 focus-visible:ring-1 focus-visible:ring-brand-navy/10"
+                                    />
+                                </div>
+                                <div className="relative group">
+                                    <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-navy/20 group-focus-within:text-brand-navy/50 transition-colors" />
+                                    <Input
+                                        placeholder="Tracking number..."
+                                        value={filterTracking}
+                                        onChange={(e) => setFilterTracking(e.target.value)}
+                                        className="h-10 w-[200px] pl-9 rounded-xl border-brand-navy/[0.06] bg-brand-navy/[0.02] text-xs font-medium hover:border-brand-navy/10 focus-visible:ring-1 focus-visible:ring-brand-navy/10"
                                     />
                                 </div>
                             </div>
