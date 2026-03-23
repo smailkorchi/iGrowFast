@@ -44,6 +44,15 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import {
+    AlertDialog,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
@@ -56,6 +65,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { DeliveryNoteWizard } from '@/components/delivery/DeliveryNoteWizard';
+import { removeCompanyParcelFromDeliveryNote } from '@/lib/removeCompanyParcelFromDeliveryNote';
+import { deleteOpenCompanyDeliveryNote } from '@/lib/deleteOpenCompanyDeliveryNote';
 
 const DeliveryNote = () => {
     const { toast } = useToast();
@@ -77,6 +88,8 @@ const DeliveryNote = () => {
     const [wizardZoneId, setWizardZoneId] = useState<string | undefined>(undefined);
     const [wizardProviderId, setWizardProviderId] = useState<string | undefined>(undefined);
     const [isReopening, setIsReopening] = useState(false);
+    const [removingParcelId, setRemovingParcelId] = useState<string | null>(null);
+    const [parcelPendingRemove, setParcelPendingRemove] = useState<{ id: string } | null>(null);
     const activeBusinessId = localStorage.getItem('activeBusinessId');
 
     const { data: sellerShippingCtx } = useQuery({
@@ -208,6 +221,60 @@ const DeliveryNote = () => {
             setIsTrackingModalOpen(false);
         } finally {
             setIsTrackingLoading(false);
+        }
+    };
+
+    const openRemoveParcelDialog = (parcel: { id: string }) => {
+        setParcelPendingRemove({ id: parcel.id });
+    };
+
+    const confirmRemoveParcelFromNote = async () => {
+        const parcelId = parcelPendingRemove?.id;
+        if (!parcelId || !selectedNote?.id || !selectedNote?.provider_id) return;
+        setRemovingParcelId(parcelId);
+        try {
+            await removeCompanyParcelFromDeliveryNote(parcelId, selectedNote.id);
+            toast({
+                title: 'Colis retiré',
+                description: 'La commande est repassée en confirmée.',
+            });
+            setParcelPendingRemove(null);
+            setNoteDetails((prev: any) =>
+                prev ? { ...prev, parcels: prev.parcels.filter((p: any) => p.id !== parcelId) } : null
+            );
+            setSelectedNote((prev: any) =>
+                prev
+                    ? {
+                          ...prev,
+                          parcel_count: Math.max(0, (prev.parcel_count ?? 1) - 1),
+                      }
+                    : null
+            );
+            queryClient.invalidateQueries({ queryKey: ['company-delivery-notes'] });
+            queryClient.invalidateQueries({ queryKey: ['seller-company-delivery-notes'] });
+            queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['orders'] });
+            queryClient.invalidateQueries({ queryKey: ['confirmed-orders-by-zone'] });
+        } catch (error: any) {
+            const blob = `${error?.message ?? ''} ${error?.details ?? ''}`;
+            let description = error?.message ?? 'Échec du retrait du colis.';
+            if (blob.includes('order_has_multiple_parcels')) {
+                description =
+                    'Impossible : cette commande a plusieurs colis. Retirez-les tous ou ajustez autrement.';
+            } else if (blob.includes('note_finalized')) {
+                description = 'Le bon est finalisé.';
+            } else if (blob.includes('forbidden')) {
+                description = 'Action non autorisée.';
+            } else if (blob.includes('parcel_not_found')) {
+                description = 'Colis introuvable.';
+            }
+            toast({
+                title: 'Erreur',
+                description,
+                variant: 'destructive',
+            });
+        } finally {
+            setRemovingParcelId(null);
         }
     };
 
@@ -590,30 +657,19 @@ const DeliveryNote = () => {
     const handleDeleteNote = async () => {
         if (!selectedNote) return;
 
+        const isCompanyNote = selectedNote.provider_id != null;
+
         try {
-            const isCompanyNote = selectedNote.provider_id != null;
-            const parcelsTable = isCompanyNote ? 'company_parcels' : 'courier_parcels';
-            const noteTable = isCompanyNote ? 'company_delivery_notes' : 'courier_delivery_notes';
-            const noteIdField = isCompanyNote ? 'company_delivery_note_id' : 'courier_delivery_note_id';
-
-            // 1. Delete associated parcels first
-            const { error: parcelsError } = await supabase
-                .from(parcelsTable)
-                .delete()
-                .eq(noteIdField, selectedNote.id);
-
-            if (parcelsError) throw parcelsError;
-
-            // 2. Delete the delivery note itself
-            const { error: noteError } = await supabase
-                .from(noteTable)
-                .delete()
-                .eq('id', selectedNote.id);
-
-            if (noteError) throw noteError;
-
-            // 3. Optional: Call provider to cancel if it was a provider note
             if (isCompanyNote) {
+                if (selectedNote.is_finalized) {
+                    toast({
+                        title: 'Suppression impossible',
+                        description: 'Seuls les bons ouverts (non finalisés) peuvent être supprimés.',
+                        variant: 'destructive',
+                    });
+                    return;
+                }
+                await deleteOpenCompanyDeliveryNote(selectedNote.id);
                 try {
                     const { data: { session } } = await supabase.auth.getSession();
                     await fetch(EDGE_FUNCTION_URL, {
@@ -634,25 +690,52 @@ const DeliveryNote = () => {
                 } catch (e) {
                     console.error("Provider deletion failed (non-critical):", e);
                 }
+            } else {
+                const { error: parcelsError } = await supabase
+                    .from('courier_parcels')
+                    .delete()
+                    .eq('courier_delivery_note_id', selectedNote.id);
+                if (parcelsError) throw parcelsError;
+                const { error: noteError } = await supabase
+                    .from('courier_delivery_notes')
+                    .delete()
+                    .eq('id', selectedNote.id);
+                if (noteError) throw noteError;
             }
 
             toast({
-                title: "Deleted Successfully",
-                description: "The delivery note and its parcels have been removed from the database.",
+                title: 'Supprimé',
+                description: isCompanyNote
+                    ? 'Le bon a été supprimé. Les commandes concernées ont été remises en confirmée lorsque applicable.'
+                    : 'Le bon coursier et ses colis ont été supprimés.',
             });
 
             setIsDeleteModalOpen(false);
+            setIsViewModalOpen(false);
+            setNoteDetails(null);
             setSelectedNote(null);
 
-            // Invalidate queries to refresh the list
             queryClient.invalidateQueries({ queryKey: ['company-delivery-notes'] });
             queryClient.invalidateQueries({ queryKey: ['seller-company-delivery-notes'] });
+            queryClient.invalidateQueries({ queryKey: ['courier-delivery-notes'] });
+            queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['orders'] });
+            queryClient.invalidateQueries({ queryKey: ['confirmed-orders-by-zone'] });
 
         } catch (error: any) {
+            const blob = `${error?.message ?? ''} ${error?.details ?? ''}`;
+            let description = error?.message ?? 'Échec de la suppression.';
+            if (blob.includes('note_finalized')) {
+                description = 'Ce bon est finalisé et ne peut pas être supprimé.';
+            } else if (blob.includes('forbidden')) {
+                description = 'Action non autorisée.';
+            } else if (blob.includes('note_not_found')) {
+                description = 'Bon introuvable.';
+            }
             toast({
-                title: "Delete Error",
-                description: error.message,
-                variant: "destructive"
+                title: 'Erreur',
+                description,
+                variant: 'destructive'
             });
         }
     };
@@ -918,17 +1001,20 @@ const DeliveryNote = () => {
                             <Eye className="w-4 h-4" /> Preview
                         </Button>
 
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                                setSelectedNote(note);
-                                setIsDeleteModalOpen(true);
-                            }}
-                            className="w-11 h-11 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50"
-                        >
-                            <Trash2 className="w-4 h-4" />
-                        </Button>
+                        {(type === 'courier' || (type === 'company' && !note.is_finalized)) && (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                    setSelectedNote(note);
+                                    setIsDeleteModalOpen(true);
+                                }}
+                                className="w-11 h-11 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50"
+                                title="Supprimer le bon"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                            </Button>
+                        )}
                     </div>
 
                     {/* Finalize / Reopen */}
@@ -1088,17 +1174,20 @@ const DeliveryNote = () => {
                                                     <PlusCircle className="w-4 h-4" />
                                                 </Button>
                                             )}
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => {
-                                                    setSelectedNote(note);
-                                                    setIsDeleteModalOpen(true);
-                                                }}
-                                                className="h-9 w-9 rounded-xl bg-brand-navy/[0.04] text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all shadow-sm"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </Button>
+                                            {(type === 'courier' || (type === 'company' && !note.is_finalized)) && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => {
+                                                        setSelectedNote(note);
+                                                        setIsDeleteModalOpen(true);
+                                                    }}
+                                                    className="h-9 w-9 rounded-xl bg-brand-navy/[0.04] text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all shadow-sm"
+                                                    title="Supprimer le bon"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </Button>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>
@@ -1316,17 +1405,39 @@ const DeliveryNote = () => {
                                                     )}
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
-                                                    {parcel.tracking_code && (
-                                                        <Button
-                                                            size="sm"
-                                                            variant="ghost"
-                                                            className="h-8 text-xs font-bold text-brand-navy hover:bg-brand-navy/5"
-                                                            onClick={() => handleTrackParcel(parcel)}
-                                                        >
-                                                            <Clock className="w-3 h-3 mr-1" />
-                                                            Suivi
-                                                        </Button>
-                                                    )}
+                                                    <div className="flex flex-nowrap items-center justify-end gap-0.5">
+                                                        {parcel.tracking_code && (
+                                                            <Button
+                                                                type="button"
+                                                                size="icon"
+                                                                variant="ghost"
+                                                                className="h-8 w-8 shrink-0 rounded-lg text-brand-navy hover:bg-slate-200/90 hover:text-brand-navy focus-visible:text-brand-navy"
+                                                                title="Suivi"
+                                                                aria-label="Suivi"
+                                                                onClick={() => handleTrackParcel(parcel)}
+                                                            >
+                                                                <Clock className="h-4 w-4" />
+                                                            </Button>
+                                                        )}
+                                                        {selectedNote?.provider_id && !selectedNote?.is_finalized && (
+                                                            <Button
+                                                                type="button"
+                                                                size="icon"
+                                                                variant="ghost"
+                                                                className="h-8 w-8 shrink-0 rounded-lg text-red-600 hover:bg-red-100 hover:text-red-700 focus-visible:text-red-700"
+                                                                title="Retirer du bon"
+                                                                aria-label="Retirer du bon"
+                                                                disabled={removingParcelId === parcel.id}
+                                                                onClick={() => openRemoveParcelDialog(parcel)}
+                                                            >
+                                                                {removingParcelId === parcel.id ? (
+                                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                                ) : (
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                )}
+                                                            </Button>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))
@@ -1560,9 +1671,23 @@ const DeliveryNote = () => {
                         <Trash2 className="w-10 h-10" />
                     </div>
                     <div className="space-y-2">
-                        <DialogTitle className="text-2xl font-black text-brand-navy">Discard Note?</DialogTitle>
+                        <DialogTitle className="text-2xl font-black text-brand-navy">Supprimer le bon ?</DialogTitle>
                         <DialogDescription className="text-muted-foreground font-medium">
-                            This action cannot be undone. The delivery note <span className="font-bold text-brand-navy">{selectedNote?.reference}</span> will be permanently removed.
+                            {selectedNote?.provider_id != null ? (
+                                <>
+                                    Le bon{' '}
+                                    <span className="font-bold text-brand-navy">{selectedNote?.reference}</span> sera
+                                    supprimé. Les commandes qui n’ont plus d’autre colis repasseront en{' '}
+                                    <span className="font-bold text-brand-navy">confirmée</span> et leur logistique sera
+                                    effacée.
+                                </>
+                            ) : (
+                                <>
+                                    Cette action est définitive. Le bon coursier{' '}
+                                    <span className="font-bold text-brand-navy">{selectedNote?.reference}</span> et ses
+                                    colis seront supprimés.
+                                </>
+                            )}
                         </DialogDescription>
                     </div>
                     <div className="flex flex-col gap-3">
@@ -1579,6 +1704,42 @@ const DeliveryNote = () => {
                     </div>
                 </DialogContent>
             </Dialog>
+
+            <AlertDialog
+                open={!!parcelPendingRemove}
+                onOpenChange={(open) => {
+                    if (!open) setParcelPendingRemove(null);
+                }}
+            >
+                <AlertDialogContent className="rounded-[32px] border-none shadow-2xl max-w-md p-8">
+                    <AlertDialogHeader className="space-y-3">
+                        <AlertDialogTitle className="text-2xl font-black text-brand-navy tracking-tight">
+                            Retirer ce colis du bon ?
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="text-base text-brand-navy/60 font-medium leading-relaxed">
+                            La commande repassera en confirmée et la logistique (transporteur, suivi, statuts) sera
+                            effacée.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="flex-col-reverse sm:flex-row gap-2 sm:gap-3 pt-2">
+                        <AlertDialogCancel className="rounded-2xl h-12 font-bold border border-brand-navy/10 bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy/[0.08] hover:text-brand-navy m-0">
+                            Annuler
+                        </AlertDialogCancel>
+                        <Button
+                            type="button"
+                            variant="destructive"
+                            className="rounded-2xl h-12 font-bold shadow-lg m-0 w-full sm:w-auto"
+                            disabled={!!removingParcelId}
+                            onClick={() => void confirmRemoveParcelFromNote()}
+                        >
+                            {removingParcelId === parcelPendingRemove?.id ? (
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : null}
+                            Retirer
+                        </Button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 };
