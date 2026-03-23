@@ -74,8 +74,9 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
+import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, subMonths, isWithinInterval } from 'date-fns';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import type { DateRange } from 'react-day-picker';
 import CustomerInsights from '@/components/CustomerInsights';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { Badge } from "@/components/ui/badge";
@@ -150,6 +151,25 @@ const SALES_SOURCES = [
     "other"
 ];
 
+const DATE_FIELD_MAP: Record<string, string> = {
+    date: 'date',
+    created_at: 'created_at',
+    updated_at: 'updated_at',
+    assignment_date: 'assignment_date',
+    confirmation_date: 'confirmation_date',
+    annulation_date: 'annulation_date',
+    date_livraison: 'date_livraison',
+    reported_date: 'reported_date',
+};
+
+function productNameLabel(p: { name?: unknown; code?: string | null; id?: string } | null | undefined): string {
+    if (!p) return 'Product';
+    const n = p.name as any;
+    if (typeof n === 'string') return n;
+    if (n && typeof n === 'object') return String(n.en || n.fr || n.ar || p.code || p.id || 'Product');
+    return String(p.code || p.id || 'Product');
+}
+
 const Orders = () => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -204,6 +224,16 @@ const Orders = () => {
     const [filterCity, setFilterCity] = useState<string>("all");
     const [filterSource, setFilterSource] = useState<string>("all");
     const [filterProvider, setFilterProvider] = useState<string>("all");
+    const [filterDateField, setFilterDateField] = useState<string>('date');
+    const [filterTimeRange, setFilterTimeRange] = useState<string>('all');
+    const [filterCustomRange, setFilterCustomRange] = useState<DateRange | undefined>(undefined);
+    const [showCalendar, setShowCalendar] = useState(false);
+    const [filterCustomerName, setFilterCustomerName] = useState('');
+    const [filterPhone, setFilterPhone] = useState('');
+    const [filterProduct, setFilterProduct] = useState<string>('all');
+    const [filterPackageStatus, setFilterPackageStatus] = useState<string>('all');
+    const [filterExchange, setFilterExchange] = useState<string>('all');
+    const [showAllFilters, setShowAllFilters] = useState(false);
 
     // Add custom scrollbar styles to head
     React.useEffect(() => {
@@ -514,19 +544,56 @@ const Orders = () => {
         },
     });
 
-    const { data: products } = useQuery({
-        queryKey: ['products-dropdown', activeBusinessId],
+    const { data: packageStatuses } = useQuery({
+        queryKey: ['package-statuses-dropdown', activeBusinessId],
         queryFn: async () => {
             if (!activeBusinessId) return [];
+            const { data, error } = await (supabase as any)
+                .from('package_statuses')
+                .select('id, code, label, color')
+                .eq('active', true)
+                .order('ranking', { ascending: true });
+            if (error) throw error;
+            return data;
+        },
+    });
+
+    const { data: sellerProfile } = useQuery({
+        queryKey: ['seller-user-products', userId, activeBusinessId],
+        queryFn: async () => {
+            if (!userId) return null;
+            const { data, error } = await supabase
+                .from('users')
+                .select('products')
+                .eq('id', userId)
+                .maybeSingle();
+            if (error) throw error;
+            return data as { products: string[] | null } | null;
+        },
+        enabled: !!userId && !!activeBusinessId,
+    });
+
+    const sellerProductIds = useMemo(() => {
+        const p = sellerProfile?.products;
+        if (!Array.isArray(p)) return [] as string[];
+        return p.filter((id): id is string => typeof id === 'string' && id.length > 0);
+    }, [sellerProfile]);
+
+    const { data: products } = useQuery({
+        queryKey: ['products-dropdown-seller', activeBusinessId, sellerProductIds],
+        queryFn: async () => {
+            if (!activeBusinessId || sellerProductIds.length === 0) return [];
             const { data, error } = await (supabase as any)
                 .from('products')
                 .select('id, name, code, selling_price, stock')
                 .eq('active', true)
                 .eq('DigiCom Business', activeBusinessId)
+                .in('id', sellerProductIds)
                 .order('name');
             if (error) throw error;
             return data;
         },
+        enabled: !!activeBusinessId && sellerProductIds.length > 0,
     });
 
     const { data: productAccessories } = useQuery({
@@ -635,6 +702,56 @@ const Orders = () => {
         const comp = companies?.map((p: any) => ({ ...p, type: 'company' })) || [];
         return [...c, ...comp];
     }, [couriers, companies]);
+
+    const getDateRange = useMemo(() => {
+        const now = new Date();
+        switch (filterTimeRange) {
+            case 'today': return { from: startOfDay(now), to: endOfDay(now) };
+            case 'yesterday': return { from: startOfDay(subDays(now, 1)), to: endOfDay(subDays(now, 1)) };
+            case 'last7': return { from: startOfDay(subDays(now, 6)), to: endOfDay(now) };
+            case 'last30': return { from: startOfDay(subDays(now, 29)), to: endOfDay(now) };
+            case 'thisMonth': return { from: startOfMonth(now), to: endOfDay(now) };
+            case 'lastMonth': { const lm = subMonths(now, 1); return { from: startOfMonth(lm), to: endOfMonth(lm) }; }
+            case 'custom': return filterCustomRange?.from && filterCustomRange?.to ? { from: startOfDay(filterCustomRange.from), to: endOfDay(filterCustomRange.to) } : null;
+            default: return null;
+        }
+    }, [filterTimeRange, filterCustomRange]);
+
+    /** Cities that appear on this seller's orders (filter dropdown only; form still uses full `cities`). */
+    const sellerFilterCities = useMemo(() => {
+        if (!orders?.length) return [] as { id: string; name: string }[];
+        const byId = new Map<string, { id: string; name: string }>();
+        for (const o of orders as any[]) {
+            const cid = o.master_city_id || o.city_id;
+            if (!cid) continue;
+            const embedded = o.city as { id?: string; name?: string } | null | undefined;
+            const name = embedded?.name || (cities as any[])?.find((c: any) => c.id === cid)?.name;
+            if (name) byId.set(cid, { id: cid, name });
+        }
+        return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name));
+    }, [orders, cities]);
+
+    /** Couriers / companies that appear on this seller's orders (filter dropdown only). */
+    const sellerFilterProviders = useMemo(() => {
+        if (!orders?.length) return [] as { id: string; name: string; type: 'courier' | 'company' }[];
+        const list: { id: string; name: string; type: 'courier' | 'company' }[] = [];
+        const seen = new Set<string>();
+        for (const o of orders as any[]) {
+            if (o.courier_id && !seen.has(`c-${o.courier_id}`)) {
+                seen.add(`c-${o.courier_id}`);
+                const emb = o.courier as { name?: string } | null | undefined;
+                const name = emb?.name || (couriers as any[])?.find((c: any) => c.id === o.courier_id)?.name || 'Courier';
+                list.push({ id: o.courier_id, name, type: 'courier' });
+            }
+            if (o.company_id && !seen.has(`co-${o.company_id}`)) {
+                seen.add(`co-${o.company_id}`);
+                const emb = o.company as { name?: string } | null | undefined;
+                const name = emb?.name || (companies as any[])?.find((c: any) => c.id === o.company_id)?.name || 'Company';
+                list.push({ id: o.company_id, name, type: 'company' });
+            }
+        }
+        return list.sort((a, b) => a.name.localeCompare(b.name));
+    }, [orders, couriers, companies]);
 
     // Auto-select best provider and set fee when city changes
     React.useEffect(() => {
@@ -992,7 +1109,7 @@ const Orders = () => {
 
     const baseFilteredOrders = useMemo(() => {
         if (!orders) return [];
-        return orders.filter(o => {
+        return orders.filter((o: any) => {
             const matchesSearch =
                 o.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 o.phone?.includes(searchQuery) ||
@@ -1003,9 +1120,58 @@ const Orders = () => {
             const matchesSource = filterSource === "all" || o.source_name === filterSource;
             const matchesProvider = filterProvider === "all" || o.courier_id === filterProvider || o.company_id === filterProvider;
 
-            return matchesSearch && matchesStatus && matchesCity && matchesSource && matchesProvider;
+            let matchesDate = true;
+            if (getDateRange) {
+                const fieldKey = DATE_FIELD_MAP[filterDateField] || 'date';
+                const dateVal = o[fieldKey];
+                if (dateVal) {
+                    matchesDate = isWithinInterval(new Date(dateVal), { start: getDateRange.from, end: getDateRange.to });
+                } else {
+                    matchesDate = false;
+                }
+            }
+
+            const matchesCustomerName = !filterCustomerName || o.name?.toLowerCase().includes(filterCustomerName.toLowerCase());
+            const matchesPhone = !filterPhone || o.phone?.includes(filterPhone);
+            const matchesProduct = filterProduct === 'all' || o.items?.some((item: any) => item.product_id === filterProduct);
+            const matchesPackageStatus = filterPackageStatus === 'all' || o.package_status_id === filterPackageStatus;
+            const matchesExchange = filterExchange === 'all' || (filterExchange === 'yes' && o.replace) || (filterExchange === 'no' && !o.replace);
+
+            return matchesSearch && matchesStatus && matchesCity && matchesSource && matchesProvider
+                && matchesDate && matchesCustomerName && matchesPhone && matchesProduct && matchesPackageStatus && matchesExchange;
         });
-    }, [orders, searchQuery, filterStatus, filterCity, filterSource, filterProvider]);
+    }, [orders, searchQuery, filterStatus, filterCity, filterSource, filterProvider, getDateRange, filterDateField, filterCustomerName, filterPhone, filterProduct, filterPackageStatus, filterExchange]);
+
+    const activeFilterCount = useMemo(() => {
+        let count = 0;
+        if (filterStatus !== 'all') count++;
+        if (filterCity !== 'all') count++;
+        if (filterSource !== 'all') count++;
+        if (filterProvider !== 'all') count++;
+        if (filterTimeRange !== 'all') count++;
+        if (filterCustomerName) count++;
+        if (filterPhone) count++;
+        if (filterProduct !== 'all') count++;
+        if (filterPackageStatus !== 'all') count++;
+        if (filterExchange !== 'all') count++;
+        return count;
+    }, [filterStatus, filterCity, filterSource, filterProvider, filterTimeRange, filterCustomerName, filterPhone, filterProduct, filterPackageStatus, filterExchange]);
+
+    const clearAllFilters = () => {
+        setFilterStatus('all');
+        setFilterCity('all');
+        setFilterSource('all');
+        setFilterProvider('all');
+        setFilterTimeRange('all');
+        setFilterCustomRange(undefined);
+        setFilterDateField('date');
+        setFilterCustomerName('');
+        setFilterPhone('');
+        setFilterProduct('all');
+        setFilterPackageStatus('all');
+        setFilterExchange('all');
+        setShowCalendar(false);
+    };
 
     const tabCounts = useMemo(() => {
         const counts = { new: 0, confirmation: 0, suivi: 0, reported: 0, reportedToday: false, reportedNow: false };
@@ -1289,132 +1455,407 @@ const Orders = () => {
                 })}
             </div>
 
-            {/* Filters Toolbar */}
-            <div className="flex flex-col md:flex-row gap-4 items-center justify-between pb-4">
-                <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
-                    {/* View Switcher */}
-                    <div className="flex bg-white p-1 rounded-xl shadow-sm border border-brand-navy/5 shrink-0">
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setViewMode('grid')}
-                            className={cn(
-                                "h-8 px-3 rounded-lg gap-2 transition-all duration-300",
-                                viewMode === 'grid'
-                                    ? "bg-brand-navy text-brand-white shadow-lg"
-                                    : "text-brand-navy/40 hover:text-brand-navy hover:bg-brand-navy/5"
-                            )}
-                        >
-                            <LayoutGrid className="w-4 h-4" />
-                            <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Grid</span>
-                        </Button>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setViewMode('list')}
-                            className={cn(
-                                "h-8 px-3 rounded-lg gap-2 transition-all duration-300",
-                                viewMode === 'list'
-                                    ? "bg-brand-navy text-brand-white shadow-lg"
-                                    : "text-brand-navy/40 hover:text-brand-navy hover:bg-brand-navy/5"
-                            )}
-                        >
-                            <List className="w-4 h-4" />
-                            <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">List</span>
-                        </Button>
-                    </div>
-
-                    <div className="flex items-center gap-2 bg-white p-1 pr-4 rounded-xl shadow-sm border border-brand-navy/5">
-                        <div className="h-8 w-8 rounded-lg bg-brand-navy/5 flex items-center justify-center text-brand-navy/50">
-                            <Filter className="w-4 h-4" />
+            {/* Filters Toolbar (admin parity; seller-scoped city/provider/product; no Confirmed By / Assigned To) */}
+            <div className="space-y-4 pb-4">
+                <div className="flex flex-col xl:flex-row gap-4 items-start xl:items-center justify-between">
+                    <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
+                        <div className="flex bg-white p-1 rounded-xl shadow-sm border border-brand-navy/5 shrink-0">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setViewMode('grid')}
+                                className={cn(
+                                    "h-8 w-8 p-0 rounded-lg transition-all duration-300",
+                                    viewMode === 'grid' ? "bg-brand-navy text-brand-white shadow-lg" : "text-brand-navy/30 hover:text-brand-navy hover:bg-brand-navy/5"
+                                )}
+                            >
+                                <LayoutGrid className="w-4 h-4" />
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setViewMode('list')}
+                                className={cn(
+                                    "h-8 w-8 p-0 rounded-lg transition-all duration-300",
+                                    viewMode === 'list' ? "bg-brand-navy text-brand-white shadow-lg" : "text-brand-navy/30 hover:text-brand-navy hover:bg-brand-navy/5"
+                                )}
+                            >
+                                <List className="w-4 h-4" />
+                            </Button>
                         </div>
-                        <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest hidden sm:inline-block md:hidden lg:inline-block">Filter By:</span>
 
-                        <Select value={filterStatus} onValueChange={setFilterStatus}>
-                            <SelectTrigger className="h-8 w-[140px] border-none bg-transparent hover:bg-brand-navy/5 focus:ring-0 rounded-lg text-xs font-bold text-brand-navy">
-                                <SelectValue placeholder="All Statuses" />
-                            </SelectTrigger>
-                            <SelectContent className="rounded-xl border-none shadow-xl">
-                                <SelectItem value="all" className="font-bold text-xs">All Statuses</SelectItem>
-                                {orderStatuses?.map((s: any) => (
-                                    <SelectItem key={s.id} value={s.id} className="font-bold text-xs">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
-                                            {s.label}
-                                        </div>
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-
-                        <div className="w-[1px] h-4 bg-brand-navy/10" />
-
-                        <Select value={filterCity} onValueChange={setFilterCity}>
-                            <SelectTrigger className="h-8 w-[130px] border-none bg-transparent hover:bg-brand-navy/5 focus:ring-0 rounded-lg text-xs font-bold text-brand-navy">
-                                <SelectValue placeholder="All Cities" />
-                            </SelectTrigger>
-                            <SelectContent className="rounded-xl border-none shadow-xl max-h-[300px]">
-                                <SelectItem value="all" className="font-bold text-xs">All Cities</SelectItem>
-                                {cities?.map((c: any) => (
-                                    <SelectItem key={c.id} value={c.id} className="font-bold text-xs">{c.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-
-                        <div className="w-[1px] h-4 bg-brand-navy/10" />
-
-                        <Select value={filterSource} onValueChange={setFilterSource}>
-                            <SelectTrigger className="h-8 w-[130px] border-none bg-transparent hover:bg-brand-navy/5 focus:ring-0 rounded-lg text-xs font-bold text-brand-navy">
-                                <SelectValue placeholder="All Sources" />
-                            </SelectTrigger>
-                            <SelectContent className="rounded-xl border-none shadow-xl">
-                                <SelectItem value="all" className="font-bold text-xs">All Sources</SelectItem>
-                                {SALES_SOURCES.map((s) => (
-                                    <SelectItem key={s} value={s} className="font-bold text-xs capitalize">{s}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-
-                        <div className="w-[1px] h-4 bg-brand-navy/10" />
-
-                        <Select value={filterProvider} onValueChange={setFilterProvider}>
-                            <SelectTrigger className="h-8 w-[150px] border-none bg-transparent hover:bg-brand-navy/5 focus:ring-0 rounded-lg text-xs font-bold text-brand-navy">
-                                <SelectValue placeholder="All Providers" />
-                            </SelectTrigger>
-                            <SelectContent className="rounded-xl border-none shadow-xl max-h-[300px]">
-                                <SelectItem value="all" className="font-bold text-xs">All Providers</SelectItem>
-                                {allProviders.map((p: any) => (
-                                    <SelectItem key={p.id} value={p.id} className="font-bold text-xs">
-                                        <div className="flex items-center gap-2">
-                                            {p.type === 'courier' ? <Truck className="w-3 h-3 text-orange-500" /> : <Building2 className="w-3 h-3 text-blue-500" />}
-                                            {p.name}
-                                        </div>
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    {(filterStatus !== 'all' || filterCity !== 'all' || filterSource !== 'all' || filterProvider !== 'all') && (
                         <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => {
-                                setFilterStatus('all');
-                                setFilterCity('all');
-                                setFilterSource('all');
-                                setFilterProvider('all');
-                            }}
-                            className="h-10 px-4 rounded-xl text-red-500 hover:bg-red-50 hover:text-red-600 font-bold text-xs gap-2 animate-in fade-in"
+                            onClick={() => setShowAllFilters(!showAllFilters)}
+                            className={cn(
+                                "h-9 px-4 rounded-2xl gap-2 text-xs font-bold transition-all duration-300",
+                                showAllFilters
+                                    ? "bg-brand-navy text-brand-white shadow-xl shadow-brand-navy/20"
+                                    : "bg-white text-brand-navy/60 border border-brand-navy/[0.06] hover:border-brand-navy/10 hover:text-brand-navy shadow-sm"
+                            )}
                         >
-                            <X className="w-3 h-3" /> Clear
+                            <Filter className="w-3.5 h-3.5" />
+                            Filters
+                            {activeFilterCount > 0 && (
+                                <span className={cn(
+                                    "ml-0.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full text-[10px] font-black leading-none",
+                                    showAllFilters ? "bg-brand-white/25 text-brand-white" : "bg-brand-navy text-brand-white"
+                                )}>
+                                    {activeFilterCount}
+                                </span>
+                            )}
                         </Button>
-                    )}
+
+                        {activeFilterCount > 0 && (
+                            <div className="flex flex-wrap items-center gap-1.5 animate-in fade-in duration-300">
+                                {filterTimeRange !== 'all' && (
+                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-bold border border-blue-100">
+                                        <Clock className="w-3 h-3" />
+                                        {filterTimeRange === 'custom' && filterCustomRange?.from
+                                            ? `${format(filterCustomRange.from, 'dd/MM')}–${filterCustomRange.to ? format(filterCustomRange.to, 'dd/MM') : '...'}`
+                                            : filterTimeRange.replace(/([A-Z])/g, ' $1').trim()}
+                                        <button type="button" onClick={() => { setFilterTimeRange('all'); setFilterCustomRange(undefined); setShowCalendar(false); }} className="ml-0.5 hover:bg-blue-100 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
+                                    </span>
+                                )}
+                                {filterStatus !== 'all' && (
+                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-purple-50 text-purple-700 text-[10px] font-bold border border-purple-100">
+                                        <ShieldCheck className="w-3 h-3" />
+                                        {orderStatuses?.find((s: any) => s.id === filterStatus)?.label || 'Status'}
+                                        <button type="button" onClick={() => setFilterStatus('all')} className="ml-0.5 hover:bg-purple-100 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
+                                    </span>
+                                )}
+                                {filterPackageStatus !== 'all' && (
+                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-orange-50 text-orange-700 text-[10px] font-bold border border-orange-100">
+                                        <Package className="w-3 h-3" />
+                                        {packageStatuses?.find((s: any) => s.id === filterPackageStatus)?.label || 'Package'}
+                                        <button type="button" onClick={() => setFilterPackageStatus('all')} className="ml-0.5 hover:bg-orange-100 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
+                                    </span>
+                                )}
+                                {filterCity !== 'all' && (
+                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-100">
+                                        <MapPin className="w-3 h-3" />
+                                        {sellerFilterCities.find((c) => c.id === filterCity)?.name || cities?.find((c: any) => c.id === filterCity)?.name || 'City'}
+                                        <button type="button" onClick={() => setFilterCity('all')} className="ml-0.5 hover:bg-emerald-100 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
+                                    </span>
+                                )}
+                                {filterProduct !== 'all' && (
+                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-pink-50 text-pink-700 text-[10px] font-bold border border-pink-100 max-w-[200px]">
+                                        <ShoppingBag className="w-3 h-3 shrink-0" />
+                                        <span className="truncate">{productNameLabel((products as any[])?.find((p: any) => p.id === filterProduct))}</span>
+                                        <button type="button" onClick={() => setFilterProduct('all')} className="ml-0.5 hover:bg-pink-100 rounded-full p-0.5 transition-colors shrink-0"><X className="w-2.5 h-2.5" /></button>
+                                    </span>
+                                )}
+                                {filterCustomerName && (
+                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold border border-slate-200 max-w-[180px]">
+                                        <User className="w-3 h-3 shrink-0" />
+                                        <span className="truncate">&quot;{filterCustomerName}&quot;</span>
+                                        <button type="button" onClick={() => setFilterCustomerName('')} className="ml-0.5 hover:bg-slate-200 rounded-full p-0.5 transition-colors shrink-0"><X className="w-2.5 h-2.5" /></button>
+                                    </span>
+                                )}
+                                {filterPhone && (
+                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold border border-slate-200">
+                                        <Phone className="w-3 h-3" />
+                                        {filterPhone}
+                                        <button type="button" onClick={() => setFilterPhone('')} className="ml-0.5 hover:bg-slate-200 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
+                                    </span>
+                                )}
+                                {filterSource !== 'all' && (
+                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-cyan-50 text-cyan-700 text-[10px] font-bold border border-cyan-100 capitalize">
+                                        <ExternalLink className="w-3 h-3" />
+                                        {filterSource}
+                                        <button type="button" onClick={() => setFilterSource('all')} className="ml-0.5 hover:bg-cyan-100 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
+                                    </span>
+                                )}
+                                {filterProvider !== 'all' && (
+                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-amber-50 text-amber-700 text-[10px] font-bold border border-amber-100 max-w-[200px]">
+                                        <Truck className="w-3 h-3 shrink-0" />
+                                        <span className="truncate">{sellerFilterProviders.find((p) => p.id === filterProvider)?.name || allProviders.find((p: any) => p.id === filterProvider)?.name || 'Service'}</span>
+                                        <button type="button" onClick={() => setFilterProvider('all')} className="ml-0.5 hover:bg-amber-100 rounded-full p-0.5 transition-colors shrink-0"><X className="w-2.5 h-2.5" /></button>
+                                    </span>
+                                )}
+                                {filterExchange !== 'all' && (
+                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-red-50 text-red-700 text-[10px] font-bold border border-red-100">
+                                        <RefreshCcw className="w-3 h-3" />
+                                        {filterExchange === 'yes' ? 'Exchange: Yes' : 'Exchange: No'}
+                                        <button type="button" onClick={() => setFilterExchange('all')} className="ml-0.5 hover:bg-red-100 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
+                                    </span>
+                                )}
+                                <button type="button" onClick={clearAllFilters} className="h-7 px-2 rounded-full text-[10px] font-bold text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors">
+                                    Clear all
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                        <div className="h-7 px-3 rounded-full bg-brand-navy/[0.04] flex items-center">
+                            <span className="text-[11px] font-bold text-brand-navy/60">
+                                {filteredOrders.length} <span className="text-brand-navy/30 font-medium">records</span>
+                            </span>
+                        </div>
+                    </div>
                 </div>
 
-                <span className="text-xs font-bold text-brand-navy">
-                    {filteredOrders.length} records found
-                </span>
+                {showAllFilters && (
+                    <div className="bg-white/80 backdrop-blur-xl rounded-[28px] border border-brand-navy/[0.04] shadow-xl shadow-brand-navy/[0.03] overflow-hidden animate-in slide-in-from-top-2 fade-in duration-400">
+                        <div className="p-5 border-b border-brand-navy/[0.04]">
+                            <div className="flex items-center gap-2 mb-3.5">
+                                <div className="w-6 h-6 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                                    <Calendar className="w-3.5 h-3.5 text-blue-500" />
+                                </div>
+                                <span className="text-[11px] font-black uppercase tracking-widest text-brand-navy/40">Date &amp; Time</span>
+                            </div>
+                            <div className="flex flex-wrap items-end gap-4">
+                                <div className="space-y-1.5 min-w-[140px]">
+                                    <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider">Filter By</span>
+                                    <Select value={filterDateField} onValueChange={setFilterDateField}>
+                                        <SelectTrigger className="h-10 rounded-xl border-brand-navy/[0.06] bg-brand-navy/[0.02] text-xs font-bold text-brand-navy hover:border-brand-navy/10 transition-colors">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent className="rounded-2xl border-none shadow-2xl shadow-brand-navy/10">
+                                            <SelectItem value="date" className="text-xs font-bold rounded-xl">Order Date</SelectItem>
+                                            <SelectItem value="created_at" className="text-xs font-bold rounded-xl">Created Date</SelectItem>
+                                            <SelectItem value="updated_at" className="text-xs font-bold rounded-xl">Updated Date</SelectItem>
+                                            <SelectItem value="assignment_date" className="text-xs font-bold rounded-xl">Assigned Date</SelectItem>
+                                            <SelectItem value="confirmation_date" className="text-xs font-bold rounded-xl">Confirmed Date</SelectItem>
+                                            <SelectItem value="annulation_date" className="text-xs font-bold rounded-xl">Cancelled Date</SelectItem>
+                                            <SelectItem value="date_livraison" className="text-xs font-bold rounded-xl">Delivered Date</SelectItem>
+                                            <SelectItem value="reported_date" className="text-xs font-bold rounded-xl">Reported Date</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider">Range</span>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {([
+                                            { v: 'all', l: 'All' },
+                                            { v: 'today', l: 'Today' },
+                                            { v: 'yesterday', l: 'Yesterday' },
+                                            { v: 'last7', l: '7 Days' },
+                                            { v: 'last30', l: '30 Days' },
+                                            { v: 'thisMonth', l: 'This Month' },
+                                            { v: 'lastMonth', l: 'Last Month' },
+                                            { v: 'custom', l: 'Custom' },
+                                        ] as const).map((opt) => (
+                                            <button
+                                                key={opt.v}
+                                                type="button"
+                                                onClick={() => { setFilterTimeRange(opt.v); if (opt.v !== 'custom') setShowCalendar(false); else setShowCalendar(true); }}
+                                                className={cn(
+                                                    "h-10 px-3.5 rounded-xl text-[11px] font-bold transition-all duration-200 border",
+                                                    filterTimeRange === opt.v
+                                                        ? "bg-brand-navy text-brand-white border-brand-navy shadow-lg shadow-brand-navy/20"
+                                                        : "bg-brand-navy/[0.02] text-brand-navy/50 border-brand-navy/[0.06] hover:border-brand-navy/10 hover:text-brand-navy/70 hover:bg-brand-navy/[0.04]"
+                                                )}
+                                            >
+                                                {opt.l}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                {filterTimeRange === 'custom' && (
+                                    <div className="space-y-1.5">
+                                        <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider">Pick Dates</span>
+                                        <Popover open={showCalendar} onOpenChange={setShowCalendar}>
+                                            <PopoverTrigger asChild>
+                                                <Button variant="outline" className="h-10 rounded-xl border-brand-navy/[0.06] bg-brand-navy/[0.02] text-xs font-bold text-brand-navy gap-2 px-4 hover:border-brand-navy/10">
+                                                    <Calendar className="w-3.5 h-3.5 text-blue-500" />
+                                                    {filterCustomRange?.from ? (
+                                                        filterCustomRange.to ? (
+                                                            <>{format(filterCustomRange.from, 'MMM dd')} — {format(filterCustomRange.to, 'MMM dd, yyyy')}</>
+                                                        ) : format(filterCustomRange.from, 'MMM dd, yyyy')
+                                                    ) : 'Select range...'}
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-auto p-0 rounded-[24px] border-none shadow-2xl shadow-brand-navy/10" align="start">
+                                                <CalendarComponent
+                                                    mode="range"
+                                                    selected={filterCustomRange}
+                                                    onSelect={setFilterCustomRange}
+                                                    numberOfMonths={2}
+                                                    className="rounded-[24px] p-4"
+                                                />
+                                            </PopoverContent>
+                                        </Popover>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="p-5 border-b border-brand-navy/[0.04]">
+                            <div className="flex items-center gap-2 mb-3.5">
+                                <div className="w-6 h-6 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                                    <Search className="w-3.5 h-3.5 text-emerald-500" />
+                                </div>
+                                <span className="text-[11px] font-black uppercase tracking-widest text-brand-navy/40">Customer Search</span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3">
+                                <div className="relative group">
+                                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-navy/20 group-focus-within:text-brand-navy/50 transition-colors" />
+                                    <Input
+                                        placeholder="Customer name..."
+                                        value={filterCustomerName}
+                                        onChange={(e) => setFilterCustomerName(e.target.value)}
+                                        className="h-10 w-[200px] pl-9 rounded-xl border-brand-navy/[0.06] bg-brand-navy/[0.02] text-xs font-medium hover:border-brand-navy/10 focus-visible:ring-1 focus-visible:ring-brand-navy/10"
+                                    />
+                                </div>
+                                <div className="relative group">
+                                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-navy/20 group-focus-within:text-brand-navy/50 transition-colors" />
+                                    <Input
+                                        placeholder="Phone number..."
+                                        value={filterPhone}
+                                        onChange={(e) => setFilterPhone(e.target.value)}
+                                        className="h-10 w-[180px] pl-9 rounded-xl border-brand-navy/[0.06] bg-brand-navy/[0.02] text-xs font-medium hover:border-brand-navy/10 focus-visible:ring-1 focus-visible:ring-brand-navy/10"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-5">
+                            <div className="flex items-center gap-2 mb-3.5">
+                                <div className="w-6 h-6 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                                    <Filter className="w-3.5 h-3.5 text-purple-500" />
+                                </div>
+                                <span className="text-[11px] font-black uppercase tracking-widest text-brand-navy/40">Filters</span>
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                                <div className="space-y-1.5">
+                                    <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider flex items-center gap-1">
+                                        <ShieldCheck className="w-3 h-3" /> Status
+                                    </span>
+                                    <Select value={filterStatus} onValueChange={setFilterStatus}>
+                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterStatus !== 'all' ? "border-purple-200 bg-purple-50/50 text-purple-700" : "border-brand-navy/[0.06] bg-brand-navy/[0.02] text-brand-navy")}>
+                                            <SelectValue placeholder="All" />
+                                        </SelectTrigger>
+                                        <SelectContent className="rounded-2xl border-none shadow-2xl shadow-brand-navy/10 max-h-[300px]">
+                                            <SelectItem value="all" className="font-bold text-xs rounded-xl">All Statuses</SelectItem>
+                                            {orderStatuses?.map((s: any) => (
+                                                <SelectItem key={s.id} value={s.id} className="font-bold text-xs rounded-xl">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                                                        {s.label}
+                                                    </div>
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider flex items-center gap-1">
+                                        <Package className="w-3 h-3" /> Package
+                                    </span>
+                                    <Select value={filterPackageStatus} onValueChange={setFilterPackageStatus}>
+                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterPackageStatus !== 'all' ? "border-orange-200 bg-orange-50/50 text-orange-700" : "border-brand-navy/[0.06] bg-brand-navy/[0.02] text-brand-navy")}>
+                                            <SelectValue placeholder="All" />
+                                        </SelectTrigger>
+                                        <SelectContent className="rounded-2xl border-none shadow-2xl shadow-brand-navy/10 max-h-[300px]">
+                                            <SelectItem value="all" className="font-bold text-xs rounded-xl">All Packages</SelectItem>
+                                            {packageStatuses?.map((s: any) => (
+                                                <SelectItem key={s.id} value={s.id} className="font-bold text-xs rounded-xl">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                                                        {s.label}
+                                                    </div>
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider flex items-center gap-1">
+                                        <MapPin className="w-3 h-3" /> City
+                                    </span>
+                                    <Select value={filterCity} onValueChange={setFilterCity}>
+                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterCity !== 'all' ? "border-emerald-200 bg-emerald-50/50 text-emerald-700" : "border-brand-navy/[0.06] bg-brand-navy/[0.02] text-brand-navy")}>
+                                            <SelectValue placeholder="All" />
+                                        </SelectTrigger>
+                                        <SelectContent className="rounded-2xl border-none shadow-2xl shadow-brand-navy/10 max-h-[300px]">
+                                            <SelectItem value="all" className="font-bold text-xs rounded-xl">All Cities</SelectItem>
+                                            {sellerFilterCities.map((c) => (
+                                                <SelectItem key={c.id} value={c.id} className="font-bold text-xs rounded-xl">{c.name}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider flex items-center gap-1">
+                                        <ShoppingBag className="w-3 h-3" /> Product
+                                    </span>
+                                    <Select value={filterProduct} onValueChange={setFilterProduct}>
+                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterProduct !== 'all' ? "border-pink-200 bg-pink-50/50 text-pink-700" : "border-brand-navy/[0.06] bg-brand-navy/[0.02] text-brand-navy")}>
+                                            <SelectValue placeholder="All" />
+                                        </SelectTrigger>
+                                        <SelectContent className="rounded-2xl border-none shadow-2xl shadow-brand-navy/10 max-h-[300px]">
+                                            <SelectItem value="all" className="font-bold text-xs rounded-xl">All Products</SelectItem>
+                                            {(products as any[])?.map((p: any) => (
+                                                <SelectItem key={p.id} value={p.id} className="font-bold text-xs rounded-xl">{productNameLabel(p)}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider flex items-center gap-1">
+                                        <ExternalLink className="w-3 h-3" /> Source
+                                    </span>
+                                    <Select value={filterSource} onValueChange={setFilterSource}>
+                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterSource !== 'all' ? "border-cyan-200 bg-cyan-50/50 text-cyan-700" : "border-brand-navy/[0.06] bg-brand-navy/[0.02] text-brand-navy")}>
+                                            <SelectValue placeholder="All" />
+                                        </SelectTrigger>
+                                        <SelectContent className="rounded-2xl border-none shadow-2xl shadow-brand-navy/10">
+                                            <SelectItem value="all" className="font-bold text-xs rounded-xl">All Sources</SelectItem>
+                                            {SALES_SOURCES.map((s) => (
+                                                <SelectItem key={s} value={s} className="font-bold text-xs capitalize rounded-xl">{s}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider flex items-center gap-1">
+                                        <Truck className="w-3 h-3" /> Delivery
+                                    </span>
+                                    <Select value={filterProvider} onValueChange={setFilterProvider}>
+                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterProvider !== 'all' ? "border-amber-200 bg-amber-50/50 text-amber-700" : "border-brand-navy/[0.06] bg-brand-navy/[0.02] text-brand-navy")}>
+                                            <SelectValue placeholder="All" />
+                                        </SelectTrigger>
+                                        <SelectContent className="rounded-2xl border-none shadow-2xl shadow-brand-navy/10 max-h-[300px]">
+                                            <SelectItem value="all" className="font-bold text-xs rounded-xl">All Services</SelectItem>
+                                            {sellerFilterProviders.map((p) => (
+                                                <SelectItem key={`${p.type}-${p.id}`} value={p.id} className="font-bold text-xs rounded-xl">
+                                                    <div className="flex items-center gap-2">
+                                                        {p.type === 'courier' ? <Truck className="w-3 h-3 text-orange-500" /> : <Building2 className="w-3 h-3 text-blue-500" />}
+                                                        {p.name}
+                                                    </div>
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider flex items-center gap-1">
+                                        <RefreshCcw className="w-3 h-3" /> Exchange
+                                    </span>
+                                    <Select value={filterExchange} onValueChange={setFilterExchange}>
+                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterExchange !== 'all' ? "border-red-200 bg-red-50/50 text-red-700" : "border-brand-navy/[0.06] bg-brand-navy/[0.02] text-brand-navy")}>
+                                            <SelectValue placeholder="All" />
+                                        </SelectTrigger>
+                                        <SelectContent className="rounded-2xl border-none shadow-2xl shadow-brand-navy/10">
+                                            <SelectItem value="all" className="font-bold text-xs rounded-xl">All Orders</SelectItem>
+                                            <SelectItem value="yes" className="font-bold text-xs rounded-xl">Yes (Exchange)</SelectItem>
+                                            <SelectItem value="no" className="font-bold text-xs rounded-xl">No (Normal)</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Content Section */}
@@ -2254,7 +2695,7 @@ const Orders = () => {
                                                                             <SelectContent className="rounded-2xl border-none shadow-2xl max-h-[250px] overflow-y-auto custom-scrollbar">
                                                                                 {products?.map((p: any) => (
                                                                                     <SelectItem key={p.id} value={p.id} className="rounded-xl font-bold py-3">
-                                                                                        {p.name} <span className="text-[10px] opacity-40 ml-2">({p.code})</span>
+                                                                                        {productNameLabel(p)} <span className="text-[10px] opacity-40 ml-2">({p.code})</span>
                                                                                     </SelectItem>
                                                                                 ))}
                                                                             </SelectContent>
