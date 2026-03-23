@@ -16,7 +16,8 @@ import {
     Tag,
     Hash,
     Link2,
-    Package
+    Package,
+    RotateCcw
 } from 'lucide-react';
 import {
     Card,
@@ -81,6 +82,7 @@ const Accessories = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingAccessory, setEditingAccessory] = useState<any>(null);
     const [accessoryToDelete, setAccessoryToDelete] = useState<any>(null);
+    const [accessoryToResetStock, setAccessoryToResetStock] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -271,6 +273,28 @@ const Accessories = () => {
         }
     });
 
+    const updateStockMutation = useMutation({
+        mutationFn: async ({ id, stock }: { id: string; stock: number }) => {
+            const { error } = await supabase
+                .from('accessories')
+                .update({ stock })
+                .eq('id', id)
+                .eq('DigiCom Business', activeBusinessId);
+
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['accessories', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['accessories-minimal', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['accessories-dropdown-orders', activeBusinessId] });
+            setAccessoryToResetStock(null);
+            toast({ title: "Stock Updated", description: "Accessory stock has been modified." });
+        },
+        onError: (error: any) => {
+            toast({ title: "Error", description: error.message, variant: "destructive" });
+        }
+    });
+
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -453,6 +477,13 @@ const Accessories = () => {
                                             <DropdownMenuItem onClick={() => openModal(accessory)} className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3">
                                                 <Edit2 className="w-4 h-4" />
                                                 <span className="font-bold">Edit</span>
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                onClick={() => setAccessoryToResetStock(accessory)}
+                                                className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3"
+                                            >
+                                                <RotateCcw className="w-4 h-4" />
+                                                <span className="font-bold">Clear Stock (0)</span>
                                             </DropdownMenuItem>
                                             <DropdownMenuSeparator />
                                             <DropdownMenuItem onClick={() => setAccessoryToDelete(accessory)} className="rounded-xl p-3 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-3">
@@ -787,6 +818,38 @@ const Accessories = () => {
                             >
                                 {deleteAccessoryMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                                 Confirm Removal
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </div>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog open={!!accessoryToResetStock} onOpenChange={() => setAccessoryToResetStock(null)}>
+                <AlertDialogContent className="rounded-[40px] border-none p-10 max-w-md">
+                    <div className="flex flex-col items-center text-center space-y-6">
+                        <div className="w-20 h-20 bg-brand-navy/[0.06] rounded-full flex items-center justify-center text-brand-navy">
+                            <RotateCcw className="w-10 h-10" />
+                        </div>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle className="text-3xl font-bold text-brand-navy">Clear Stock?</AlertDialogTitle>
+                            <AlertDialogDescription className="text-lg text-muted-foreground pt-2">
+                                This will instantly reset the stock for{' '}
+                                <span className="font-black text-brand-navy italic">"{accessoryToResetStock?.name}"</span> to 0.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter className="w-full flex flex-col sm:flex-row gap-3 mt-4">
+                            <AlertDialogCancel className="w-full rounded-2xl h-14 font-bold border-none bg-brand-navy/[0.04] hover:bg-brand-navy/[0.08] text-brand-navy m-0">
+                                Cancel
+                            </AlertDialogCancel>
+                            <AlertDialogAction
+                                onClick={() =>
+                                    accessoryToResetStock &&
+                                    updateStockMutation.mutate({ id: accessoryToResetStock.id, stock: 0 })
+                                }
+                                className="w-full rounded-2xl h-14 font-bold bg-brand-navy hover:bg-brand-navy/90 text-brand-white shadow-xl shadow-brand-navy/20 m-0"
+                            >
+                                {updateStockMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                                Yes, Clear Stock
                             </AlertDialogAction>
                         </AlertDialogFooter>
                     </div>

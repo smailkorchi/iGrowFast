@@ -107,6 +107,7 @@ import {
     PopoverTrigger,
 } from "@/components/ui/popover";
 import { Check, ChevronsUpDown } from "lucide-react";
+import { buildOrderItemRecords, type ProductAccessoryRow } from '@/lib/buildOrderItemRecords';
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -563,7 +564,7 @@ const Orders = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('product_accessories')
-                .select('product_id, accessory_id, default_quantity')
+                .select('product_id, accessory_id, default_quantity, created_at')
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data;
@@ -881,34 +882,24 @@ const Orders = () => {
 
             if (orderError) throw orderError;
 
-            // 2. Insert items
+            // 2. Insert items (expand default product_accessories when accessories[] empty — matches sync_imported_orders)
+            const accessoryUnitPriceById = new Map<string, number>(
+                (accessories ?? []).map((a: { id: string; cost_price?: number }) => [
+                    a.id,
+                    Number(a.cost_price ?? 0),
+                ])
+            );
             const itemRecords: any[] = [];
-            values.items.forEach(item => {
-                if (item.accessories && item.accessories.length > 0) {
-                    item.accessories.forEach((acc, i) => {
-                        itemRecords.push({
-                            order_id: order.id,
-                            product_id: (item.product_id && item.product_id !== 'none') ? item.product_id : null,
-                            quantity: i === 0 ? item.quantity : 0,
-                            unit_price: i === 0 ? item.unit_price : 0,
-                            accessory_id: (acc.accessory_id && acc.accessory_id !== 'none') ? acc.accessory_id : null,
-                            accessory_quantity: acc.accessory_quantity || 0,
-                            accessory_unit_price: acc.accessory_unit_price || 0,
-                            'DigiCom Business': activeBusinessId
-                        });
-                    });
-                } else {
-                    itemRecords.push({
-                        order_id: order.id,
-                        product_id: (item.product_id && item.product_id !== 'none') ? item.product_id : null,
-                        quantity: item.quantity,
-                        unit_price: item.unit_price,
-                        accessory_id: null,
-                        accessory_quantity: 0,
-                        accessory_unit_price: 0,
-                        'DigiCom Business': activeBusinessId
-                    });
-                }
+            values.items.forEach((item) => {
+                itemRecords.push(
+                    ...buildOrderItemRecords(
+                        order.id,
+                        item,
+                        activeBusinessId!,
+                        (productAccessories ?? []) as ProductAccessoryRow[],
+                        accessoryUnitPriceById
+                    )
+                );
             });
 
             const { error: itemsError } = await (supabase as any)
@@ -1014,33 +1005,23 @@ const Orders = () => {
 
             if (deleteError) throw deleteError;
 
+            const accessoryUnitPriceById = new Map<string, number>(
+                (accessories ?? []).map((a: { id: string; cost_price?: number }) => [
+                    a.id,
+                    Number(a.cost_price ?? 0),
+                ])
+            );
             const itemRecords: any[] = [];
-            values.items.forEach(item => {
-                if (item.accessories && item.accessories.length > 0) {
-                    item.accessories.forEach((acc, i) => {
-                        itemRecords.push({
-                            order_id: selectedOrder.id,
-                            product_id: (item.product_id && item.product_id !== 'none') ? item.product_id : null,
-                            quantity: i === 0 ? item.quantity : 0,
-                            unit_price: i === 0 ? item.unit_price : 0,
-                            accessory_id: (acc.accessory_id && acc.accessory_id !== 'none') ? acc.accessory_id : null,
-                            accessory_quantity: acc.accessory_quantity || 0,
-                            accessory_unit_price: acc.accessory_unit_price || 0,
-                            'DigiCom Business': activeBusinessId
-                        });
-                    });
-                } else {
-                    itemRecords.push({
-                        order_id: selectedOrder.id,
-                        product_id: (item.product_id && item.product_id !== 'none') ? item.product_id : null,
-                        quantity: item.quantity,
-                        unit_price: item.unit_price,
-                        accessory_id: null,
-                        accessory_quantity: 0,
-                        accessory_unit_price: 0,
-                        'DigiCom Business': activeBusinessId
-                    });
-                }
+            values.items.forEach((item) => {
+                itemRecords.push(
+                    ...buildOrderItemRecords(
+                        selectedOrder.id,
+                        item,
+                        activeBusinessId!,
+                        (productAccessories ?? []) as ProductAccessoryRow[],
+                        accessoryUnitPriceById
+                    )
+                );
             });
 
             const { error: itemsError } = await (supabase as any)

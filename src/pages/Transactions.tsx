@@ -222,37 +222,6 @@ const Transactions = () => {
 
             if (itemsError) throw itemsError;
 
-            // 3. Update stock for products and accessories
-            for (const item of values.items) {
-                if (item.type === 'product' && item.product_id && item.product_id !== 'none' && item.quantity > 0) {
-                    const { data: prod } = await supabase
-                        .from('products')
-                        .select('stock')
-                        .eq('id', item.product_id)
-                        .single();
-                    if (prod) {
-                        await supabase
-                            .from('products')
-                            .update({ stock: (prod.stock || 0) + item.quantity })
-                            .eq('id', item.product_id);
-                    }
-                }
-
-                if (item.type === 'accessory' && item.accessory_id && item.accessory_id !== 'none' && item.quantity > 0) {
-                    const { data: acc } = await supabase
-                        .from('accessories')
-                        .select('stock')
-                        .eq('id', item.accessory_id)
-                        .single();
-                    if (acc) {
-                        await supabase
-                            .from('accessories')
-                            .update({ stock: (acc.stock || 0) + item.quantity })
-                            .eq('id', item.accessory_id);
-                    }
-                }
-            }
-
             return tx;
         },
         onSuccess: () => {
