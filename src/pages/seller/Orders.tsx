@@ -2660,7 +2660,7 @@ const Orders = () => {
                                         <Button
                                             type="button"
                                             variant="ghost"
-                                            onClick={() => append({ product_id: '', quantity: 1, unit_price: 0 })}
+                                            onClick={() => append({ product_id: '', quantity: 1, unit_price: 0, accessories: [] })}
                                             className="text-[10px] font-black uppercase text-brand-navy hover:bg-brand-navy/[0.05] gap-2 rounded-xl h-10 px-4"
                                         >
                                             <Plus className="w-4 h-4" /> Add Product
@@ -2761,14 +2761,18 @@ const Orders = () => {
                                                                 )}
                                                             />
                                                         </div>
-                                                        {/* Hidden unit price field */}
-                                                        <FormField
-                                                            control={form.control}
-                                                            name={`items.${index}.unit_price`}
-                                                            render={({ field }) => (
-                                                                <input type="hidden" {...field} />
-                                                            )}
-                                                        />
+                                                        <div className="md:col-span-2">
+                                                            <FormField
+                                                                control={form.control}
+                                                                name={`items.${index}.unit_price`}
+                                                                render={({ field }) => (
+                                                                    <FormItem className="space-y-1">
+                                                                        <FormLabel className="text-[10px] uppercase font-black text-muted-foreground/60">Unit Price</FormLabel>
+                                                                        <Input type="number" {...field} disabled={!hasProduct} className="h-12 rounded-2xl border-none bg-white shadow-sm text-base font-bold text-brand-navy text-center" />
+                                                                    </FormItem>
+                                                                )}
+                                                            />
+                                                        </div>
                                                         <div className="md:col-span-2">
                                                             <FormField
                                                                 control={form.control}
@@ -2781,7 +2785,7 @@ const Orders = () => {
                                                                 )}
                                                             />
                                                         </div>
-                                                        <div className="md:col-span-4">
+                                                        <div className="md:col-span-2">
                                                             <div className="h-12 flex flex-col items-center justify-center">
                                                                 <span className="text-[8px] font-black uppercase text-muted-foreground/40 leading-none mb-1">Product Total</span>
                                                                 <span className="text-sm font-black text-brand-navy">
@@ -2806,12 +2810,11 @@ const Orders = () => {
                                                     {/* Accessories List */}
                                                     <div className="pt-2 border-t border-brand-navy/[0.04]">
                                                         {(form.watch(`items.${index}.accessories`) || []).map((acc: any, accIdx: number) => {
-                                                            const accSubtotal = (form.watch(`items.${index}.accessories.${accIdx}.accessory_quantity`) || 0) * (form.watch(`items.${index}.accessories.${accIdx}.accessory_unit_price`) || 0);
                                                             const hasAccessory = !!form.watch(`items.${index}.accessories.${accIdx}.accessory_id`) && form.watch(`items.${index}.accessories.${accIdx}.accessory_id`) !== 'none';
 
                                                             return (
                                                                 <div key={accIdx} className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end mb-4 bg-brand-navy/[0.01] p-3 rounded-2xl">
-                                                                    <div className="md:col-span-5">
+                                                                    <div className="md:col-span-7">
                                                                         <FormField
                                                                             control={form.control}
                                                                             name={`items.${index}.accessories.${accIdx}.accessory_id`}
@@ -2876,15 +2879,14 @@ const Orders = () => {
                                                                                 </FormItem>
                                                                             )}
                                                                         />
+                                                                        <FormField
+                                                                            control={form.control}
+                                                                            name={`items.${index}.accessories.${accIdx}.accessory_unit_price`}
+                                                                            render={({ field }) => (
+                                                                                <input type="hidden" {...field} />
+                                                                            )}
+                                                                        />
                                                                     </div>
-                                                                    {/* Hidden accessory unit price field */}
-                                                                    <FormField
-                                                                        control={form.control}
-                                                                        name={`items.${index}.accessories.${accIdx}.accessory_unit_price`}
-                                                                        render={({ field }) => (
-                                                                            <input type="hidden" {...field} />
-                                                                        )}
-                                                                    />
                                                                     <div className="md:col-span-2">
                                                                         <FormField
                                                                             control={form.control}
@@ -2897,15 +2899,7 @@ const Orders = () => {
                                                                             )}
                                                                         />
                                                                     </div>
-                                                                    <div className="md:col-span-4">
-                                                                        <div className="h-12 flex flex-col items-center justify-center">
-                                                                            <span className="text-[8px] font-black uppercase text-brand-navy/30 leading-none mb-1">Row Total</span>
-                                                                            <span className="text-sm font-black text-brand-navy/70">
-                                                                                {accSubtotal.toFixed(2)} DH
-                                                                            </span>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div className="md:col-span-1 flex justify-end">
+                                                                    <div className="md:col-span-3 flex justify-end items-end">
                                                                         <Button
                                                                             type="button"
                                                                             variant="ghost"
@@ -3185,9 +3179,7 @@ const Orders = () => {
                                                         )}
 
                                                         {/* Accessory Info List */}
-                                                        {item.accessoriesList && item.accessoriesList.length > 0 && item.accessoriesList.map((accItem: any, idx: number) => {
-                                                            const accTotal = (accItem.accessory_quantity || 0) * (accItem.accessory_unit_price || 0);
-                                                            return (
+                                                        {item.accessoriesList && item.accessoriesList.length > 0 && item.accessoriesList.map((accItem: any, idx: number) => (
                                                                 <div key={accItem.id || idx} className="flex flex-col md:flex-row justify-between items-center gap-4 pt-4 border-t border-brand-navy/[0.04]">
                                                                     <div className="flex items-center gap-5 flex-1 w-full md:w-auto">
                                                                         <div className="w-12 h-12 rounded-[16px] bg-brand-navy/5 flex items-center justify-center overflow-hidden shrink-0 md:ml-4">
@@ -3204,23 +3196,14 @@ const Orders = () => {
                                                                             <p className="text-[10px] font-bold text-muted-foreground/60 tracking-widest bg-brand-navy/5 px-2 py-0.5 rounded-md inline-block">{accItem.accessory?.code}</p>
                                                                         </div>
                                                                     </div>
-                                                                    <div className="flex items-center justify-between md:justify-end w-full md:w-auto gap-8 md:gap-12 text-right">
-                                                                        <div>
-                                                                            <p className="text-[10px] font-black uppercase text-muted-foreground/40 tracking-widest mb-1">Unit Cost</p>
-                                                                            <p className="text-sm font-black text-brand-navy/80">{accItem.accessory_unit_price} DH</p>
-                                                                        </div>
+                                                                    <div className="flex items-center justify-end w-full md:w-auto text-right">
                                                                         <div>
                                                                             <p className="text-[10px] font-black uppercase text-muted-foreground/40 tracking-widest mb-1">Qty</p>
                                                                             <p className="text-sm font-black text-brand-navy/80">x{accItem.accessory_quantity}</p>
                                                                         </div>
-                                                                        <div className="min-w-[80px] md:min-w-[100px]">
-                                                                            <p className="text-[10px] font-black uppercase text-muted-foreground/40 tracking-widest mb-1">Cost Total</p>
-                                                                            <p className="text-sm font-black text-brand-navy/80">{accTotal} DH</p>
-                                                                        </div>
                                                                     </div>
                                                                 </div>
-                                                            );
-                                                        })}
+                                                            ))}
 
                                                         {item.product && (
                                                             <div className="pt-3 border-t border-brand-navy/[0.04] flex justify-end">
