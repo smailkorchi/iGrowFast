@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
@@ -108,6 +108,7 @@ import {
 } from "@/components/ui/popover";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { buildOrderItemRecords, type OrderLineForRecords, type ProductAccessoryRow } from '@/lib/buildOrderItemRecords';
+import { statusRequiresHistoryComment } from '@/lib/orderHistoryCommentPolicy';
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -196,12 +197,14 @@ const Orders = () => {
     const [isAttributionModalOpen, setIsAttributionModalOpen] = useState(false);
     const [isBulkStatusModalOpen, setIsBulkStatusModalOpen] = useState(false);
     const [bulkStatusComment, setBulkStatusComment] = useState("");
+    const [bulkCommentSectionVisible, setBulkCommentSectionVisible] = useState(false);
     const [sellerSearchQuery, setSellerSearchQuery] = useState("");
 
     // Reported Modal States
     const [isReportedModalOpen, setIsReportedModalOpen] = useState(false);
     const [reportedData, setReportedData] = useState<{ date: Date | undefined, time: string, comment: string }>({ date: undefined, time: "12:00", comment: "" });
     const [pendingReportedAction, setPendingReportedAction] = useState<((date: Date, time: string, comment: string) => void) | null>(null);
+    const reportedStatusRevertRef = useRef<string | null>(null);
     const { getOrderByCategory, isOrderCategory } = useStatusCategories();
     const REPORTED_STATUS_ID = getOrderByCategory('postponed')?.id;
 
@@ -748,9 +751,21 @@ const Orders = () => {
             order_status_id: '',
             items: [{ product_id: '', quantity: 1, unit_price: 0, accessories: [] }],
             courier_id: null,
-            company_id: null
+            company_id: null,
+            history_comment: '',
+            _reportedDate: ''
         }
     });
+
+    const dismissReportedModal = useCallback((revertStatus: boolean) => {
+        if (revertStatus && reportedStatusRevertRef.current !== null) {
+            form.setValue('order_status_id', reportedStatusRevertRef.current);
+            form.setValue('_reportedDate', '');
+            reportedStatusRevertRef.current = null;
+        }
+        setIsReportedModalOpen(false);
+        setPendingReportedAction(null);
+    }, [form]);
 
     const selectedCityId = form.watch('city_id');
     const selectedCourierId = form.watch('courier_id');
@@ -1413,7 +1428,9 @@ const Orders = () => {
                     }
                 });
                 return groupedItems.length > 0 ? groupedItems : [{ product_id: '', quantity: 1, unit_price: 0, accessories: [] }];
-            })()
+            })(),
+            history_comment: '',
+            _reportedDate: ''
         });
         setIsEditModalOpen(true);
     };
@@ -2604,31 +2621,33 @@ const Orders = () => {
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit((values) => {
                             const targetStatusId = values.order_status_id;
-                            const reportedId = getOrderByCategory('postponed')?.id;
 
-                            if (isEditModalOpen && selectedOrder && targetStatusId !== selectedOrder.order_status_id) {
-                                if (!values.history_comment?.trim()) {
-                                    form.setError('history_comment', { type: 'manual', message: 'Comment is required when changing status.' });
-                                    toast({ title: "Validation Error", description: "Please provide a reason for the status change.", variant: "destructive" });
-                                    return;
-                                }
+                            if (
+                                isEditModalOpen &&
+                                selectedOrder &&
+                                targetStatusId !== selectedOrder.order_status_id &&
+                                statusRequiresHistoryComment(targetStatusId) &&
+                                !values.history_comment?.trim()
+                            ) {
+                                form.setError('history_comment', { type: 'manual', message: 'Comment is required for this status.' });
+                                toast({ title: "Validation Error", description: "Please provide a reason for this status.", variant: "destructive" });
+                                return;
                             }
 
-                            if (reportedId && targetStatusId === reportedId && selectedOrder?.order_status_id !== reportedId) {
-                                setIsReportedModalOpen(true);
-                                setReportedData({ date: undefined, time: "12:00", comment: values.history_comment || "" });
-                                setPendingReportedAction(() => (date: Date, time: string, comment: string) => {
-                                    const [hours, minutes] = time.split(':');
-                                    const dateTime = new Date(date);
-                                    dateTime.setHours(Number(hours), Number(minutes), 0, 0);
-
-                                    const updatedValues = { ...values, _reportedDate: dateTime.toISOString(), history_comment: comment };
-                                    isEditModalOpen ? updateOrderMutation.mutate(updatedValues) : createOrderMutation.mutate(updatedValues);
-
-                                    setIsReportedModalOpen(false);
-                                    setPendingReportedAction(null);
-                                    setIsEditModalOpen(false);
-                                    setIsAddModalOpen(false);
+                            const targetIsPostponed =
+                                !!REPORTED_STATUS_ID &&
+                                (targetStatusId === REPORTED_STATUS_ID ||
+                                    isOrderCategory(targetStatusId, 'postponed'));
+                            const sourceWasPostponed =
+                                isEditModalOpen &&
+                                selectedOrder &&
+                                (selectedOrder.order_status_id === REPORTED_STATUS_ID ||
+                                    isOrderCategory(selectedOrder.order_status_id, 'postponed'));
+                            if (targetIsPostponed && !sourceWasPostponed && !(values as { _reportedDate?: string })._reportedDate?.trim()) {
+                                toast({
+                                    title: 'Reported date required',
+                                    description: 'Choose the reported status and pick date/time in the popup before saving.',
+                                    variant: 'destructive',
                                 });
                                 return;
                             }
@@ -2934,8 +2953,49 @@ const Orders = () => {
                                                                                 key={status.id}
                                                                                 value={status.label}
                                                                                 onSelect={() => {
-                                                                                    form.setValue("order_status_id", status.id);
+                                                                                    const previousId = form.getValues('order_status_id');
+                                                                                    const newIsPostponed =
+                                                                                        !!REPORTED_STATUS_ID &&
+                                                                                        (status.id === REPORTED_STATUS_ID ||
+                                                                                            isOrderCategory(status.id, 'postponed'));
+                                                                                    const oldIsPostponed =
+                                                                                        !!REPORTED_STATUS_ID &&
+                                                                                        (previousId === REPORTED_STATUS_ID ||
+                                                                                            isOrderCategory(previousId, 'postponed'));
+
+                                                                                    form.setValue('order_status_id', status.id);
+                                                                                    if (!newIsPostponed) {
+                                                                                        form.setValue('_reportedDate', '');
+                                                                                    }
                                                                                     setStatusSearchOpen(false);
+
+                                                                                    if (
+                                                                                        !newIsPostponed ||
+                                                                                        oldIsPostponed ||
+                                                                                        previousId === status.id
+                                                                                    ) {
+                                                                                        return;
+                                                                                    }
+
+                                                                                    reportedStatusRevertRef.current = previousId;
+                                                                                    setReportedData({
+                                                                                        date: undefined,
+                                                                                        time: '12:00',
+                                                                                        comment: form.getValues('history_comment') || '',
+                                                                                    });
+                                                                                    setPendingReportedAction(
+                                                                                        () => (date: Date, time: string, comment: string) => {
+                                                                                            const [hours, minutes] = time.split(':');
+                                                                                            const dateTime = new Date(date);
+                                                                                            dateTime.setHours(Number(hours), Number(minutes), 0, 0);
+                                                                                            form.setValue('_reportedDate', dateTime.toISOString());
+                                                                                            form.setValue('history_comment', comment);
+                                                                                            reportedStatusRevertRef.current = null;
+                                                                                            setIsReportedModalOpen(false);
+                                                                                            setPendingReportedAction(null);
+                                                                                        }
+                                                                                    );
+                                                                                    setIsReportedModalOpen(true);
                                                                                 }}
                                                                                 className="py-3 px-4 font-bold text-brand-navy cursor-pointer hover:bg-brand-navy hover:text-brand-white"
                                                                             >
@@ -2962,18 +3022,22 @@ const Orders = () => {
                                             )}
                                         />
 
-                                        {isEditModalOpen && selectedOrder && form.watch('order_status_id') !== selectedOrder.order_status_id && (
+                                        {isEditModalOpen &&
+                                            selectedOrder &&
+                                            form.watch('order_status_id') !== selectedOrder.order_status_id &&
+                                            statusRequiresHistoryComment(form.watch('order_status_id')) && (
                                             <FormField
                                                 control={form.control}
                                                 name="history_comment"
                                                 render={({ field }) => (
                                                     <FormItem className="space-y-1 animate-in fade-in slide-in-from-top-2 duration-300">
                                                         <FormLabel className="text-[10px] font-black uppercase tracking-wider text-brand-navy/60 flex items-center gap-1">
-                                                            <MessageSquare className="w-3 h-3 text-brand-navy/40" /> Status Change Reason
+                                                            <MessageSquare className="w-3 h-3 text-brand-navy/40" /> Status change reason (required)
                                                         </FormLabel>
                                                         <FormControl>
-                                                            <Textarea placeholder="Why is the status changing? (Optional)" {...field} className="min-h-[80px] resize-none rounded-2xl border-none bg-brand-navy/[0.03] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner focus-visible:ring-brand-navy/20" />
+                                                            <Textarea placeholder="Explain why you are moving to this status…" {...field} className="min-h-[80px] resize-none rounded-2xl border-none bg-brand-navy/[0.03] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner focus-visible:ring-brand-navy/20" />
                                                         </FormControl>
+                                                        <FormMessage />
                                                     </FormItem>
                                                 )}
                                             />
@@ -3839,7 +3903,10 @@ const Orders = () => {
             {/* Bulk Status Update Modal */}
             <Dialog open={isBulkStatusModalOpen} onOpenChange={(v) => {
                 setIsBulkStatusModalOpen(v);
-                if (!v) setBulkStatusComment("");
+                if (!v) {
+                    setBulkStatusComment("");
+                    setBulkCommentSectionVisible(false);
+                }
             }}>
                 <DialogContent className="max-w-4xl p-0 border-none bg-brand-white rounded-[32px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
                     <DialogHeader className="p-8 pb-4 shrink-0 border-b border-brand-navy/[0.05]">
@@ -3849,15 +3916,17 @@ const Orders = () => {
                         </DialogDescription>
                     </DialogHeader>
                     <div className="p-8 overflow-y-auto custom-scrollbar flex-1 space-y-6">
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase text-brand-navy/60 tracking-widest">Comment / Reason (Optional)</label>
-                            <Textarea
-                                placeholder="Why are these orders changing status?"
-                                value={bulkStatusComment}
-                                onChange={(e) => setBulkStatusComment(e.target.value)}
-                                className="min-h-[80px] resize-none rounded-2xl border-none bg-brand-navy/[0.04] text-brand-navy shadow-inner focus-visible:ring-1 focus-visible:ring-brand-navy/20 p-4"
-                            />
-                        </div>
+                        {bulkCommentSectionVisible && (
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase text-brand-navy/60 tracking-widest">Comment / reason (required for selected statuses)</label>
+                                <Textarea
+                                    placeholder="Why are these orders changing to this status?"
+                                    value={bulkStatusComment}
+                                    onChange={(e) => setBulkStatusComment(e.target.value)}
+                                    className="min-h-[80px] resize-none rounded-2xl border-none bg-brand-navy/[0.04] text-brand-navy shadow-inner focus-visible:ring-1 focus-visible:ring-brand-navy/20 p-4"
+                                />
+                            </div>
+                        )}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                             {orderStatuses?.map((status: any) => (
                                 <Button
@@ -3865,8 +3934,9 @@ const Orders = () => {
                                     variant="outline"
                                     onClick={() => {
                                         const isPostponed = isOrderCategory(status.id, 'postponed');
-                                        if (!bulkStatusComment.trim() && !isPostponed) {
-                                            toast({ title: "Validation Error", description: "Please provide a reason for changing the status.", variant: "destructive" });
+                                        if (!isPostponed && statusRequiresHistoryComment(status.id) && !bulkStatusComment.trim()) {
+                                            setBulkCommentSectionVisible(true);
+                                            toast({ title: "Validation Error", description: "A comment is required for this status.", variant: "destructive" });
                                             return;
                                         }
 
@@ -3978,59 +4048,58 @@ const Orders = () => {
                 </DialogContent>
             </Dialog>
             {/* Reported Status Data Collection Modal */}
-            <Dialog open={isReportedModalOpen} onOpenChange={(v) => {
-                if (!v) {
-                    setIsReportedModalOpen(false);
-                    setPendingReportedAction(null);
-                }
-            }}>
-                <DialogContent className="max-w-md p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden flex flex-col">
-                    <DialogHeader className="p-8 pb-4 shrink-0 border-b border-brand-navy/[0.05]">
+            <Dialog
+                open={isReportedModalOpen}
+                onOpenChange={(v) => {
+                    if (!v) dismissReportedModal(reportedStatusRevertRef.current !== null);
+                }}
+            >
+                <DialogContent className="max-w-[min(100vw-2rem,40rem)] p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden flex flex-col">
+                    <DialogHeader className="p-6 sm:p-8 pb-4 shrink-0 border-b border-brand-navy/[0.05]">
                         <DialogTitle className="text-2xl font-black text-brand-navy">Reported Action</DialogTitle>
                         <DialogDescription className="text-sm font-bold text-muted-foreground">
                             Please provide the scheduled date and time.
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="p-8 space-y-6">
-                        <div className="space-y-2 flex flex-col items-center">
-                            <label className="text-[10px] items-start w-full font-black uppercase tracking-wider text-muted-foreground/70">Date</label>
+                    <div className="p-6 sm:p-8 flex flex-col md:flex-row gap-6 md:gap-8 md:items-start">
+                        <div className="space-y-2 flex flex-col shrink-0 md:max-w-[min(100%,280px)]">
+                            <label className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Date</label>
                             <CalendarComponent
                                 mode="single"
                                 selected={reportedData.date}
                                 onSelect={(d) => setReportedData(prev => ({ ...prev, date: d }))}
                                 initialFocus
-                                className="rounded-2xl border-none shadow-inner bg-brand-navy/[0.02]"
+                                className="rounded-2xl border-none shadow-inner bg-brand-navy/[0.02] w-full p-2"
                             />
                         </div>
-                        <div className="space-y-2">
-                            <label className="text-[10px] items-start w-full flex font-black uppercase tracking-wider text-muted-foreground/70">Time</label>
-                            <div className="relative">
-                                <Clock className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-brand-navy/30" />
-                                <Input
-                                    type="time"
-                                    value={reportedData.time}
-                                    onChange={(e) => setReportedData(prev => ({ ...prev, time: e.target.value }))}
-                                    className="h-14 pl-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner"
+                        <div className="flex flex-col gap-4 flex-1 min-w-0 min-h-0">
+                            <div className="space-y-2">
+                                <label className="text-[10px] flex font-black uppercase tracking-wider text-muted-foreground/70">Time</label>
+                                <div className="relative">
+                                    <Clock className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-brand-navy/30 pointer-events-none" />
+                                    <Input
+                                        type="time"
+                                        value={reportedData.time}
+                                        onChange={(e) => setReportedData(prev => ({ ...prev, time: e.target.value }))}
+                                        className="h-14 pl-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner w-full"
+                                    />
+                                </div>
+                            </div>
+                            <div className="space-y-2 flex flex-col flex-1 min-h-[120px]">
+                                <label className="text-[10px] flex font-black uppercase tracking-wider text-muted-foreground/70">Comment (Optional)</label>
+                                <Textarea
+                                    value={reportedData.comment}
+                                    onChange={(e) => setReportedData(prev => ({ ...prev, comment: e.target.value }))}
+                                    placeholder="Add a note why it was reported..."
+                                    className="resize-none rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner flex-1 min-h-[120px] md:min-h-[200px]"
                                 />
                             </div>
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-[10px] items-start w-full flex font-black uppercase tracking-wider text-muted-foreground/70">Comment (Optional)</label>
-                            <Textarea
-                                value={reportedData.comment}
-                                onChange={(e) => setReportedData(prev => ({ ...prev, comment: e.target.value }))}
-                                placeholder="Add a note why it was reported..."
-                                className="resize-none rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner min-h-[80px]"
-                            />
                         </div>
                     </div>
                     <DialogFooter className="p-8 pt-4 border-t border-brand-navy/[0.05] bg-brand-navy/[0.01]">
                         <Button
                             variant="ghost"
-                            onClick={() => {
-                                setIsReportedModalOpen(false);
-                                setPendingReportedAction(null);
-                            }}
+                            onClick={() => dismissReportedModal(true)}
                             className="h-12 rounded-2xl font-bold uppercase tracking-widest text-[10px]"
                         >
                             Cancel
