@@ -12,7 +12,9 @@ import {
     Loader2,
     Building2,
     ChevronRight,
-    BarChart2
+    BarChart2,
+    Truck,
+    FileText
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
@@ -32,6 +34,8 @@ type NavSection = {
 const navigation: NavItem[] = [
     { icon: Home, label: 'Dashboard', path: '/seller/dashboard' },
     { icon: ShoppingBag, label: 'Orders', path: '/seller/orders' },
+    { icon: Truck, label: 'Delivery notes', path: '/seller/delivery-note' },
+    { icon: FileText, label: 'Return notes', path: '/seller/return-note' },
     { icon: BarChart2, label: 'Statistics', path: '/seller/statistics' },
     { icon: CreditCard, label: 'Payments', path: '/seller/payments' },
     { icon: Target, label: 'My Wallet', path: '/seller/wallet' },

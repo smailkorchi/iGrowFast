@@ -26,7 +26,8 @@ import {
     Loader2,
     LayoutGrid,
     List,
-    PlusCircle
+    PlusCircle,
+    User
 } from 'lucide-react';
 import {
     Card,
@@ -579,8 +580,9 @@ const DeliveryNote = () => {
 
                             if (response.ok) {
                                 const result = await response.json();
-                                if (result.success && result.data) {
-                                    const providerStatus = result.data.statusLabel || result.data.status || 'Nouveau';
+                                // Validate result.data is a real status object (not null, not empty array)
+                                if (result.success && result.data && !Array.isArray(result.data) && (result.data.statusLabel || result.data.status)) {
+                                    const providerStatus = result.data.statusLabel || result.data.status;
                                     const providerColor = result.data.statusColor || result.data.color;
                                     let mappedStatusId = parcel.status_id;
 
@@ -603,7 +605,7 @@ const DeliveryNote = () => {
                                                 status_id: mappedStatusId,
                                                 status_label: providerStatus,
                                                 status_color: providerColor,
-                                                provider_response: result.data // Update with latest info
+                                                provider_response: result.data
                                             })
                                             .eq('id', parcel.id);
                                     }
@@ -656,7 +658,8 @@ const DeliveryNote = () => {
                         logo_url,
                         business_name,
                         color
-                    )
+                    ),
+                    creator:users!company_delivery_notes_created_by_fkey(name, avatar_url, role)
                 `)
                 .eq('DigiCom Business', activeBusinessId)
                 .order('created_at', { ascending: false });
@@ -739,6 +742,16 @@ const DeliveryNote = () => {
                                         {note.created_at ? format(new Date(note.created_at), 'dd MMM yyyy, HH:mm') : 'N/A'}
                                     </span>
                                 </div>
+                                {type === 'company' && (
+                                    <div className="flex items-center gap-2 text-muted-foreground mt-1 min-w-0">
+                                        {note.creator?.avatar_url ? (
+                                            <img src={note.creator.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover shrink-0" />
+                                        ) : (
+                                            <User className="w-3.5 h-3.5 shrink-0" />
+                                        )}
+                                        <span className="text-xs font-semibold truncate">{note.creator?.name ?? 'Unknown'}</span>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -855,6 +868,16 @@ const DeliveryNote = () => {
                                                 <span className="text-[10px] font-bold text-muted-foreground tracking-wider">
                                                     {note.created_at ? format(new Date(note.created_at), 'dd MMM yyyy, HH:mm') : 'N/A'}
                                                 </span>
+                                                {type === 'company' && (
+                                                    <span className="text-[10px] font-bold text-muted-foreground flex items-center gap-1 mt-0.5">
+                                                        {note.creator?.avatar_url ? (
+                                                            <img src={note.creator.avatar_url} alt="" className="w-4 h-4 rounded-full object-cover" />
+                                                        ) : (
+                                                            <User className="w-3 h-3" />
+                                                        )}
+                                                        {note.creator?.name ?? 'Unknown'}
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                     </td>
@@ -1117,11 +1140,19 @@ const DeliveryNote = () => {
                                     <div className="text-sm text-muted-foreground font-medium">Reference: {selectedNote?.reference}</div>
                                 </div>
                             </div>
-                            <div className="space-y-4 text-right">
+                                <div className="space-y-4 text-right">
                                 <div className="text-[10px] font-black text-brand-navy/40 uppercase tracking-widest">Delivery Details</div>
                                 <div className="space-y-1">
                                     <div className="font-bold text-brand-navy text-lg">{selectedNote?.parcel_count || 0} Parcels</div>
                                     <div className="text-sm text-muted-foreground font-medium">Created: {selectedNote?.created_at ? format(new Date(selectedNote.created_at), 'dd MMM yyyy, HH:mm') : 'N/A'}</div>
+                                    <div className="text-sm text-muted-foreground font-medium flex items-center justify-end gap-2">
+                                        {selectedNote?.creator?.avatar_url ? (
+                                            <img src={selectedNote.creator.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover" />
+                                        ) : (
+                                            <User className="w-4 h-4" />
+                                        )}
+                                        <span>By: {selectedNote?.creator?.name ?? 'Unknown'}</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1163,7 +1194,7 @@ const DeliveryNote = () => {
                                                         </Badge>
                                                     ) : (
                                                         <Badge className="bg-emerald-50 text-emerald-600 border-none text-[8px] font-black px-2 py-0.5 rounded-lg shadow-none">
-                                                            {parcel.status_label || parcel.status_id || 'Nouveau'}
+                                                            {parcel.status_label || 'Nouveau'}
                                                         </Badge>
                                                     )}
                                                 </td>
@@ -1305,6 +1336,9 @@ const DeliveryNote = () => {
                                     const events = Array.isArray(trackingHistory)
                                         ? trackingHistory
                                         : (trackingHistory?.history || []);
+                                    if (events.length === 0) {
+                                        return [{ status: trackingHistory?.statusLabel || trackingHistory?.status || 'Nouveau', date: null, comment: 'Aucun historique détaillé disponible', statusLabel: trackingHistory?.statusLabel }];
+                                    }
                                     return events;
                                 })().map((event: any, idx: number) => {
                                     // Status mapping for Coliaty/Ameex labels

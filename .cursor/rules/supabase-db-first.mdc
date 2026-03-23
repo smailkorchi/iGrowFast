@@ -5,10 +5,20 @@ alwaysApply: true
 
 # Database changes and fixes
 
-Before proposing or applying any database change, schema fix, or data-dependent app fix:
+## Where the Supabase MCP tools live
 
-1. Use Supabase MCP: `list_tables` (and relevant schemas), `execute_sql` for read-only `SELECT` to confirm columns, types, sample rows, and RLS-relevant facts as needed, and `list_migrations` when migrations are involved.
-2. Do not assume table/column names, constraints, or data shape from code alone.
-3. Schema changes: use `apply_migration` (or the project’s agreed migration path), not ad-hoc DDL guesses.
+- **In Cursor:** enable the **Supabase** plugin; the MCP server is exposed as **`plugin-supabase-supabase`** (display name `supabase`). Use **`call_mcp_tool`** with that server identifier.
+- **Tool schemas (arguments, required fields):** under the Cursor project data for this workspace:  
+  `mcps/plugin-supabase-supabase/tools/*.json`  
+  (same folder level as `mcps/cursor-ide-browser/`). Read the relevant JSON **before** invoking a tool.
+- **Project binding:** call **`list_projects`**, pick the Supabase project that matches this app (e.g. **DigiCom**). Pass its **`id`** as **`project_id`** to `list_tables`, `execute_sql`, `list_migrations`, `apply_migration`, `get_advisors`, etc.
 
-If Supabase MCP is unavailable in the environment, state that explicitly and do not pretend the database was verified.
+## Workflow
+
+1. **`list_tables`** (optional `verbose: true`) and/or **`execute_sql`** with read-only queries (`information_schema`, `pg_indexes`, `SELECT` samples) to confirm columns, FKs, indexes, and RLS-relevant facts.
+2. **`list_migrations`** when comparing repo migrations to remote.
+3. **Do not** assume table/column/FK names from application code alone.
+4. **DDL:** **`apply_migration`** (not raw `execute_sql` for schema changes).
+5. After migrations: **`get_advisors`** (security and performance).
+
+If Supabase MCP is unavailable in the session, state that explicitly and do not pretend the database was verified.

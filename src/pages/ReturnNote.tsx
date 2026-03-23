@@ -5,7 +5,7 @@ import {
     Plus, Search, Loader2, Package, DollarSign, Eye, FileText,
     CheckCircle2, Clock, Building2, AlertTriangle,
     ChevronDown, ChevronRight, Printer, ArrowRight, SearchX,
-    RotateCcw, PackageCheck
+    RotateCcw, PackageCheck, User
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -40,7 +40,9 @@ interface ReturnNote {
     id: string; reference: string; status: string; total_amount: number;
     total_shipping_fees: number; net_amount: number; order_count: number;
     received_at: string | null; note: string | null; created_at: string;
+    created_by?: string | null;
     provider: { id: string; name: string; logo_url: string | null } | null;
+    creator?: { name: string; avatar_url: string | null; role: string } | null;
     line_items: { id: string; order_id: string; tracking_code: string | null; amount: number; shipping_fee: number }[];
 }
 
@@ -82,7 +84,7 @@ const ReturnNote = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('company_return_notes')
-                .select(`*, provider:providers(id, name, logo_url), line_items:company_return_note_orders(id, order_id, tracking_code, amount, shipping_fee)`)
+                .select(`*, provider:providers(id, name, logo_url), creator:users!company_return_notes_created_by_fkey(name, avatar_url, role), line_items:company_return_note_orders(id, order_id, tracking_code, amount, shipping_fee)`)
                 .eq('DigiCom Business', activeBusinessId)
                 .order('created_at', { ascending: false });
             if (error) throw error;
@@ -115,10 +117,21 @@ const ReturnNote = () => {
     // ─── Generate return note ───
     const generateNoteMutation = useMutation({
         mutationFn: async (group: ProviderGroup) => {
+            const { data: { session } } = await supabase.auth.getSession();
             const ref = `RET-${group.provider_name.substring(0, 3).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
             const { data: note, error: noteError } = await (supabase as any)
                 .from('company_return_notes')
-                .insert({ provider_id: group.provider_id, reference: ref, status: 'pending', total_amount: group.total_amount, total_shipping_fees: group.total_shipping, net_amount: group.net_amount, order_count: group.orders.length, 'DigiCom Business': activeBusinessId })
+                .insert({
+                    provider_id: group.provider_id,
+                    reference: ref,
+                    status: 'pending',
+                    total_amount: group.total_amount,
+                    total_shipping_fees: group.total_shipping,
+                    net_amount: group.net_amount,
+                    order_count: group.orders.length,
+                    'DigiCom Business': activeBusinessId,
+                    created_by: session?.user?.id ?? null,
+                })
                 .select().single();
             if (noteError) throw noteError;
             const lineItems = group.orders.map(o => ({ return_note_id: note.id, order_id: o.id, tracking_code: o.parcels?.[0]?.tracking_code || o.tracking_number || null, amount: Number(o.price || 0), shipping_fee: Number(o.shipping_cost || 0), 'DigiCom Business': activeBusinessId }));
@@ -337,6 +350,14 @@ const ReturnNote = () => {
                                                     <span className="flex items-center gap-1.5 text-xs font-semibold"><Building2 className="w-3.5 h-3.5" />{note.provider?.name}</span>
                                                     <span className="flex items-center gap-1.5 text-xs font-semibold"><Package className="w-3.5 h-3.5" />{note.order_count} orders</span>
                                                     <span className="flex items-center gap-1.5 text-xs font-semibold"><Clock className="w-3.5 h-3.5" />{format(new Date(note.created_at), 'dd MMM yyyy')}</span>
+                                                    <span className="flex items-center gap-1.5 text-xs font-semibold min-w-0">
+                                                        {note.creator?.avatar_url ? (
+                                                            <img src={note.creator.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover shrink-0" />
+                                                        ) : (
+                                                            <User className="w-3.5 h-3.5 shrink-0" />
+                                                        )}
+                                                        <span className="truncate">{note.creator?.name ?? 'Unknown'}</span>
+                                                    </span>
                                                     {isReceived && note.received_at && <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600"><CheckCircle2 className="w-3.5 h-3.5" />Received {format(new Date(note.received_at), 'dd MMM')}</span>}
                                                 </div>
                                             </div>
@@ -553,8 +574,19 @@ const ReturnNote = () => {
                                         <span className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest">Created</span>
                                         <p className="font-bold text-brand-navy mt-1">{format(new Date(selectedNote.created_at), 'dd MMM yyyy, HH:mm')}</p>
                                     </div>
+                                    <div className="p-4 rounded-2xl bg-brand-navy/[0.03] border border-brand-navy/5">
+                                        <span className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest">Created by</span>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            {selectedNote.creator?.avatar_url ? (
+                                                <img src={selectedNote.creator.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover" />
+                                            ) : (
+                                                <User className="w-6 h-6 text-muted-foreground" />
+                                            )}
+                                            <p className="font-bold text-brand-navy">{selectedNote.creator?.name ?? 'Unknown'}</p>
+                                        </div>
+                                    </div>
                                     {selectedNote.received_at && (
-                                        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-100">
+                                        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-100 col-span-2">
                                             <span className="text-[10px] font-black text-emerald-600/60 uppercase tracking-widest">Received</span>
                                             <p className="font-bold text-emerald-700 mt-1">{format(new Date(selectedNote.received_at), 'dd MMM yyyy, HH:mm')}</p>
                                         </div>

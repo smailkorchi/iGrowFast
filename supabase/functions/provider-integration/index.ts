@@ -915,6 +915,14 @@ class AmeexAdapter {
 
         console.log('=== AMEEX createParcel END ===');
 
+        // AMEEX returns HTTP 200 even on auth failure: {login: "error", api: null}
+        // Must validate the response body, not just HTTP status
+        if (data.login === 'error' || (data.api && data.api.type === 'error')) {
+            const errorMsg = data.api?.msg || data.api?.message || 'AMEEX authentication failed. Check C-Api-Id and C-Api-Key credentials.';
+            console.error('AMEEX API returned error:', errorMsg);
+            throw new Error(`AMEEX Error: ${errorMsg}`);
+        }
+
         // Extract tracking code and external ID from AMEEX response
         // AMEEX can return: {login: "success", api: {type: "success", data: {id: ..., code: "..."}}}
         const trackingCode = data.data?.code || data.data?.parcel_code || data.api?.data?.code || data.code;
@@ -922,6 +930,11 @@ class AmeexAdapter {
 
         console.log('Extracted tracking_code:', trackingCode);
         console.log('Extracted external_id:', externalId);
+
+        if (!trackingCode) {
+            console.error('AMEEX response missing tracking code. Full response:', JSON.stringify(data));
+            throw new Error('AMEEX did not return a tracking code. Response: ' + JSON.stringify(data).substring(0, 300));
+        }
 
         // Return standardized format
         return {

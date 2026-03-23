@@ -46,6 +46,8 @@ import SellerProfile from "./pages/seller/Profile";
 import SellerStatistics from "./pages/seller/Statistics";
 import SellerWallet from "./pages/seller/Wallet";
 import SellerDemands from "./pages/seller/Demands";
+import SellerDeliveryNote from "./pages/seller/DeliveryNote";
+import SellerReturnNote from "./pages/seller/ReturnNote";
 import AppLayout from "./components/layout/AppLayout";
 import SellerLayout from "./components/layout/SellerLayout";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
@@ -168,6 +170,8 @@ const App = () => (
                   <Route path="statistics" element={<SellerStatistics />} />
                   <Route path="wallet" element={<SellerWallet />} />
                   <Route path="demands" element={<SellerDemands />} />
+                  <Route path="delivery-note" element={<SellerDeliveryNote />} />
+                  <Route path="return-note" element={<SellerReturnNote />} />
                   <Route path="" element={<Navigate to="dashboard" replace />} />
                 </Routes>
               </SellerLayout>

@@ -30,14 +30,26 @@ import {
 
 const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/provider-integration`;
 
+/** Seller: only orders where seller_id|assign_id matches and every line product_id is in this set. */
+export type DeliveryNoteSellerScope = { userId: string; productIds: string[] };
+
+export function orderMatchesSellerProducts(order: any, userId: string, productSet: Set<string>): boolean {
+    if (order.seller_id !== userId && order.assign_id !== userId) return false;
+    const items = order.items as { product_id?: string }[] | undefined;
+    if (!items?.length) return false;
+    return items.every((it) => it.product_id && productSet.has(it.product_id));
+}
+
 interface DeliveryNoteWizardProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     lockZoneId?: string;
     lockProviderId?: string;
+    /** When set, zones/orders/drafts are scoped to this seller and their catalog. */
+    sellerScope?: DeliveryNoteSellerScope;
 }
 
-export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, onOpenChange, lockZoneId, lockProviderId }) => {
+export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, onOpenChange, lockZoneId, lockProviderId, sellerScope }) => {
     const [step, setStep] = useState<'zone' | 'creating' | 'review' | 'finalizing'>('zone');
     const [selectedZoneId, setSelectedZoneId] = useState<string>(lockZoneId || '');
     const [zoneSearch, setZoneSearch] = useState('');
@@ -58,13 +70,69 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
     const { getOrderByCategory } = useStatusCategories();
     const confirmedStatusId = getOrderByCategory('confirmed')?.id;
 
-    // Fetch zones that have confirmed orders
+    const sellerProductKey = sellerScope?.productIds?.length
+        ? [...sellerScope.productIds].sort().join(',')
+        : '';
+
+    // Fetch zones that have confirmed orders (all business orders, or seller-eligible only)
     const { data: zones } = useQuery({
-        queryKey: ['zones-with-confirmed-orders', confirmedStatusId],
+        queryKey: sellerScope
+            ? ['zones-with-confirmed-orders-seller', confirmedStatusId, activeBusinessId, sellerScope.userId, sellerProductKey]
+            : ['zones-with-confirmed-orders', confirmedStatusId, activeBusinessId],
         queryFn: async () => {
             if (!activeBusinessId || !confirmedStatusId) return [];
 
-            // Get zones that have master_cities with confirmed orders
+            if (sellerScope) {
+                const productSet = new Set(sellerScope.productIds);
+                if (productSet.size === 0) return [];
+
+                const { data: orders, error } = await supabase
+                    .from('orders')
+                    .select('master_city_id, seller_id, assign_id, items:order_items(product_id)')
+                    .eq('order_status_id', confirmedStatusId)
+                    .eq('DigiCom Business', activeBusinessId)
+                    .or(`seller_id.eq.${sellerScope.userId},assign_id.eq.${sellerScope.userId}`);
+
+                if (error) throw error;
+
+                const cityIds = new Set<string>();
+                for (const o of orders || []) {
+                    if (!orderMatchesSellerProducts(o, sellerScope.userId, productSet)) continue;
+                    if (o.master_city_id) cityIds.add(o.master_city_id as string);
+                }
+                if (cityIds.size === 0) return [];
+
+                const { data: cities, error: cErr } = await supabase
+                    .from('master_cities')
+                    .select('id, zone_id')
+                    .in('id', [...cityIds]);
+                if (cErr) throw cErr;
+
+                const zoneToCityIds = new Map<string, string[]>();
+                for (const c of cities || []) {
+                    if (!c.zone_id) continue;
+                    if (!zoneToCityIds.has(c.zone_id)) zoneToCityIds.set(c.zone_id, []);
+                    zoneToCityIds.get(c.zone_id)!.push(c.id);
+                }
+                const zoneIds = [...zoneToCityIds.keys()];
+                if (zoneIds.length === 0) return [];
+
+                const { data: zoneRows, error: zErr } = await supabase
+                    .from('zones')
+                    .select('id, name')
+                    .in('id', zoneIds);
+                if (zErr) throw zErr;
+
+                return (zoneRows || []).map((z) => ({
+                    id: z.id,
+                    name: z.name,
+                    master_cities: (zoneToCityIds.get(z.id) || []).map((cid) => ({
+                        id: cid,
+                        orders: [{ id: 'seller-eligible' }],
+                    })),
+                }));
+            }
+
             const { data, error } = await supabase
                 .from('zones')
                 .select(`
@@ -84,12 +152,11 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
 
             if (error) throw error;
 
-            // Filter zones that actually have orders
-            return data?.filter(zone =>
+            return data?.filter((zone) =>
                 zone.master_cities.some((city: any) => city.orders.length > 0)
             ) || [];
         },
-        enabled: open && !!confirmedStatusId
+        enabled: open && !!confirmedStatusId && (!sellerScope || sellerScope.productIds.length > 0)
     });
 
     // Fetch company_zones for provider resolution
@@ -109,12 +176,11 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
 
     // Fetch confirmed orders for selected zone grouped by provider
     const { data: ordersGrouped } = useQuery({
-        queryKey: ['confirmed-orders-by-zone', selectedZoneId],
+        queryKey: ['confirmed-orders-by-zone', selectedZoneId, sellerScope?.userId, sellerProductKey],
         queryFn: async () => {
             if (!selectedZoneId || !confirmedStatusId) return null;
 
-            // Fetch ALL confirmed orders in this zone (including those without company_id)
-            const { data, error } = await supabase
+            let q = supabase
                 .from('orders')
                 .select(`
                     *,
@@ -129,13 +195,26 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                 .eq('city.zone_id', selectedZoneId)
                 .eq('DigiCom Business', activeBusinessId);
 
+            if (sellerScope) {
+                q = q.or(`seller_id.eq.${sellerScope.userId},assign_id.eq.${sellerScope.userId}`);
+            }
+
+            const { data, error } = await q;
+
             if (error) throw error;
+
+            const productSet = sellerScope ? new Set(sellerScope.productIds) : null;
+            const baseOrders = (data || []).filter((order: any) =>
+                !sellerScope || !productSet
+                    ? true
+                    : orderMatchesSellerProducts(order, sellerScope.userId, productSet)
+            );
 
             // For orders without company_id, resolve provider from company_zones
             const zoneProviders = companyZonesData?.filter(cz => cz.zone_id === selectedZoneId) || [];
 
             // Group by provider
-            const grouped = (data || []).reduce((acc: any, order: any) => {
+            const grouped = baseOrders.reduce((acc: any, order: any) => {
                 let providerId = order.company_id;
                 let provider = order.company;
 
@@ -299,18 +378,31 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
             // 1. Check if there is an existing OPEN delivery note for this Provider + Zone
             console.log('🔍 Checking for existing note:', { providerId, zoneId: selectedZoneId, businessId: activeBusinessId });
 
-            const { data: existingNote, error: searchError } = await supabase
+            let draftQuery = supabase
                 .from('company_delivery_notes')
                 .select('*')
                 .eq('provider_id', providerId)
                 .eq('zone_id', selectedZoneId)
                 .eq('is_finalized', false)
-                .eq('DigiCom Business', activeBusinessId) // FIXED: used .eq instead of .is
-                .maybeSingle();
+                .eq('DigiCom Business', activeBusinessId);
+
+            if (sellerScope) {
+                draftQuery = draftQuery.eq('created_by', sellerScope.userId);
+            } else if (session.user?.id) {
+                draftQuery = draftQuery.or(
+                    `created_by.eq.${session.user.id},created_by.is.null`
+                );
+            }
+
+            const { data: draftRows, error: searchError } = await draftQuery
+                .order('created_at', { ascending: false })
+                .limit(1);
 
             if (searchError) {
                 console.error('❌ Error searching for existing note:', searchError);
             }
+
+            const existingNote = draftRows?.[0] ?? null;
 
             console.log('📝 Search result:', existingNote);
 
@@ -319,10 +411,15 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
             let externalId;
 
             if (existingNote) {
-                // Use existing note
                 deliveryNoteRef = existingNote.reference;
                 deliveryNoteId = existingNote.id;
                 externalId = existingNote.external_id;
+                if (session.user?.id && !existingNote.created_by) {
+                    await supabase
+                        .from('company_delivery_notes')
+                        .update({ created_by: session.user.id })
+                        .eq('id', existingNote.id);
+                }
             } else {
                 // Create NEW delivery note via Edge Function
                 const response = await fetch(EDGE_FUNCTION_URL, {
@@ -356,7 +453,8 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                         external_id: externalId,
                         parcel_count: 0, // Will update after adding parcels
                         is_finalized: false,
-                        'DigiCom Business': activeBusinessId
+                        'DigiCom Business': activeBusinessId,
+                        created_by: session.user?.id ?? null,
                     })
                     .select()
                     .single();
@@ -539,6 +637,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
         }
 
         queryClient.invalidateQueries({ queryKey: ['company-delivery-notes'] });
+        queryClient.invalidateQueries({ queryKey: ['seller-company-delivery-notes'] });
         queryClient.invalidateQueries({ queryKey: ['orders'] });
         queryClient.invalidateQueries({ queryKey: ['confirmed-orders-by-zone'] });
 
