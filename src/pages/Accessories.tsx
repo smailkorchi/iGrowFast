@@ -344,6 +344,7 @@ const Accessories = () => {
     );
 
     const lowStockAccessories = accessories?.filter(a => (a.stock || 0) <= 10) || [];
+    const lowStockAccessoriesTotalUnits = lowStockAccessories.reduce((sum, a) => sum + Number(a.stock ?? 0), 0);
 
     const openModal = async (accessory: any = null) => {
         if (accessory) {
@@ -460,12 +461,20 @@ const Accessories = () => {
                         </div>
                         <div className="space-y-1">
                             <h3 className="text-xl font-bold text-red-600">Low Stock Alert</h3>
-                            <p className="text-red-500/80 font-medium">You have {lowStockAccessories.length} {lowStockAccessories.length === 1 ? 'accessory' : 'accessories'} running low on inventory (10 items or fewer).</p>
+                            <p className="text-red-500/80 font-medium">
+                                {lowStockAccessories.length} {lowStockAccessories.length === 1 ? 'accessory' : 'accessories'} at or below 10 units each.{' '}
+                                <span className="font-bold text-red-700 tabular-nums">{lowStockAccessoriesTotalUnits}</span>
+                                {' '}unit{lowStockAccessoriesTotalUnits === 1 ? '' : 's'} remaining in stock across them.
+                            </p>
                         </div>
                     </div>
                     <div className="flex items-center -space-x-3 shrink-0">
                         {lowStockAccessories.slice(0, 5).map((a) => (
-                            <div key={a.id} className="w-12 h-12 rounded-2xl border-2 border-red-50 bg-white shadow-sm overflow-hidden shrink-0" title={`${a.name} (Stock: ${a.stock || 0})`}>
+                            <div
+                                key={a.id}
+                                className="relative w-12 h-12 rounded-2xl border-2 border-red-50 bg-white shadow-sm overflow-hidden shrink-0"
+                                title={`${a.name}: ${Number(a.stock ?? 0)} units`}
+                            >
                                 {a.image_url ? (
                                     <img src={a.image_url} alt={a.name} className="w-full h-full object-cover" />
                                 ) : (
@@ -473,6 +482,9 @@ const Accessories = () => {
                                         <Puzzle className="w-5 h-5 text-brand-navy/20" />
                                     </div>
                                 )}
+                                <span className="absolute bottom-0 inset-x-0 bg-red-600/95 text-white text-[9px] font-black leading-none py-0.5 text-center tabular-nums">
+                                    {Number(a.stock ?? 0)}
+                                </span>
                             </div>
                         ))}
                         {lowStockAccessories.length > 5 && (

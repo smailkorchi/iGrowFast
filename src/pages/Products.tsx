@@ -315,6 +315,7 @@ const Products = () => {
     };
 
     const lowStockProducts = products?.filter(p => (p.stock || 0) <= 10) || [];
+    const lowStockProductsTotalUnits = lowStockProducts.reduce((sum, p) => sum + Number(p.stock ?? 0), 0);
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
@@ -381,18 +382,29 @@ const Products = () => {
                         </div>
                         <div className="space-y-1">
                             <h3 className="text-xl font-bold text-red-600">Low Stock Alert</h3>
-                            <p className="text-red-500/80 font-medium">You have {lowStockProducts.length} product{lowStockProducts.length === 1 ? '' : 's'} running low on inventory (10 items or fewer).</p>
+                            <p className="text-red-500/80 font-medium">
+                                {lowStockProducts.length} product{lowStockProducts.length === 1 ? '' : 's'} at or below 10 units each.{' '}
+                                <span className="font-bold text-red-700 tabular-nums">{lowStockProductsTotalUnits}</span>
+                                {' '}unit{lowStockProductsTotalUnits === 1 ? '' : 's'} remaining in stock across them.
+                            </p>
                         </div>
                     </div>
                     <div className="flex items-center -space-x-3 shrink-0">
                         {lowStockProducts.slice(0, 5).map(p => (
-                            <div key={p.id} className="w-12 h-12 rounded-2xl border-2 border-red-50 bg-white shadow-sm overflow-hidden shrink-0" title={`${p.name} (Stock: ${p.stock || 0})`}>
+                            <div
+                                key={p.id}
+                                className="relative w-12 h-12 rounded-2xl border-2 border-red-50 bg-white shadow-sm overflow-hidden shrink-0"
+                                title={`${p.name}: ${Number(p.stock ?? 0)} units`}
+                            >
                                 {p.image_url ?
                                     <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" /> :
                                     <div className="w-full h-full bg-brand-navy/5 flex items-center justify-center">
                                         <Package className="w-5 h-5 text-brand-navy/20" />
                                     </div>
                                 }
+                                <span className="absolute bottom-0 inset-x-0 bg-red-600/95 text-white text-[9px] font-black leading-none py-0.5 text-center tabular-nums">
+                                    {Number(p.stock ?? 0)}
+                                </span>
                             </div>
                         ))}
                         {lowStockProducts.length > 5 && (
