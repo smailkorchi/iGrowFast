@@ -1,4 +1,5 @@
 -- Whether this order status appears in add/edit order modals (admin + seller).
+-- New and existing rows default to true; only explicit false hides from those modals.
 ALTER TABLE public.order_statuses
   ADD COLUMN IF NOT EXISTS show_in_order boolean NOT NULL DEFAULT true;
 

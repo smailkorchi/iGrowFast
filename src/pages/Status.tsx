@@ -19,6 +19,7 @@ import {
     ClipboardCheck,
     LayoutGrid,
     List,
+    EyeOff,
 } from 'lucide-react';
 import {
     Card,
@@ -87,6 +88,23 @@ const statusSchema = z.object({
 });
 
 type StatusFormValues = z.infer<typeof statusSchema>;
+
+function OrderModalHiddenBadge({ className }: { className?: string }) {
+    return (
+        <Badge
+            variant="outline"
+            className={cn(
+                'gap-1.5 rounded-lg border-violet-300/80 bg-gradient-to-br from-violet-50 to-violet-100/80 text-violet-900',
+                'font-bold tracking-wide uppercase shadow-sm ring-1 ring-violet-200/50',
+                'text-[9px] sm:text-[10px] px-2.5 py-1',
+                className
+            )}
+        >
+            <EyeOff className="w-3 h-3 shrink-0 opacity-90" aria-hidden />
+            Not in order modals
+        </Badge>
+    );
+}
 
 const Status = () => {
     const [activeTab, setActiveTab] = useState<"orders" | "packages">("orders");
@@ -170,6 +188,7 @@ const Status = () => {
                 recheck: values.recheck,
                 active: values.active,
                 delivery_service_statuses: deliveryStatuses,
+                ...(activeTab === 'orders' ? { show_in_order: values.show_in_order } : {}),
             };
 
             if (editingStatus) {
@@ -242,6 +261,7 @@ const Status = () => {
                 color: status.color || '#6366f1',
                 recheck: status.recheck ?? false,
                 active: status.active ?? true,
+                show_in_order: status.show_in_order ?? true,
                 delivery_service_statuses: deliveryStatuses,
             });
         } else {
@@ -253,6 +273,7 @@ const Status = () => {
                 color: '#6366f1',
                 recheck: false,
                 active: true,
+                show_in_order: true,
                 delivery_service_statuses: [],
             });
         }
@@ -501,35 +522,60 @@ const Status = () => {
                                     />
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-4">
-                                    <FormField
-                                        control={form.control}
-                                        name="recheck"
-                                        render={({ field }) => (
-                                            <FormItem className="flex items-center justify-between p-4 rounded-2xl bg-brand-navy/[0.02] border border-brand-navy/[0.03]">
-                                                <div className="space-y-0.5">
-                                                    <FormLabel className="text-sm font-bold text-brand-navy">Recheck</FormLabel>
-                                                </div>
-                                                <FormControl>
-                                                    <Switch checked={field.value} onCheckedChange={field.onChange} />
-                                                </FormControl>
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="active"
-                                        render={({ field }) => (
-                                            <FormItem className="flex items-center justify-between p-4 rounded-2xl bg-brand-navy/[0.02] border border-brand-navy/[0.03]">
-                                                <div className="space-y-0.5">
-                                                    <FormLabel className="text-sm font-bold text-brand-navy">Active</FormLabel>
-                                                </div>
-                                                <FormControl>
-                                                    <Switch checked={field.value} onCheckedChange={field.onChange} />
-                                                </FormControl>
-                                            </FormItem>
-                                        )}
-                                    />
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <FormField
+                                            control={form.control}
+                                            name="recheck"
+                                            render={({ field }) => (
+                                                <FormItem className="flex items-center justify-between p-4 rounded-2xl bg-brand-navy/[0.02] border border-brand-navy/[0.03]">
+                                                    <div className="space-y-0.5">
+                                                        <FormLabel className="text-sm font-bold text-brand-navy">Recheck</FormLabel>
+                                                    </div>
+                                                    <FormControl>
+                                                        <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                                    </FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control}
+                                            name="active"
+                                            render={({ field }) => (
+                                                <FormItem className="flex items-center justify-between p-4 rounded-2xl bg-brand-navy/[0.02] border border-brand-navy/[0.03]">
+                                                    <div className="space-y-0.5">
+                                                        <FormLabel className="text-sm font-bold text-brand-navy">Active</FormLabel>
+                                                    </div>
+                                                    <FormControl>
+                                                        <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                                    </FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
+                                    {activeTab === 'orders' && (
+                                        <FormField
+                                            control={form.control}
+                                            name="show_in_order"
+                                            render={({ field }) => (
+                                                <FormItem className="flex flex-row items-start gap-4 p-4 rounded-2xl bg-brand-navy/[0.02] border border-brand-navy/[0.03] w-full">
+                                                    <div className="flex-1 min-w-0 space-y-1.5">
+                                                        <FormLabel className="text-sm font-bold text-brand-navy">Order</FormLabel>
+                                                        <FormDescription className="text-sm text-muted-foreground leading-snug font-medium">
+                                                            Turn this off to hide this status from the add and edit order modals (admin and seller). It stays available for existing orders, filters, and automation.
+                                                        </FormDescription>
+                                                    </div>
+                                                    <FormControl>
+                                                        <Switch
+                                                            checked={field.value}
+                                                            onCheckedChange={field.onChange}
+                                                            className="shrink-0 mt-1"
+                                                        />
+                                                    </FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
+                                    )}
                                 </div>
 
                                 {activeTab === 'packages' && (
@@ -672,6 +718,20 @@ const Status = () => {
                                     </div>
                                 </div>
 
+                                {activeTab === 'orders' && (
+                                    <div className="flex items-start gap-3 text-brand-navy/60 pt-2 border-t border-brand-navy/[0.05]">
+                                        <ClipboardCheck className="w-5 h-5 shrink-0 mt-0.5" />
+                                        <div className="min-w-0 space-y-1">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Add / edit order modals</p>
+                                            <p className="text-sm font-bold text-brand-navy leading-snug">
+                                                {viewingStatus.show_in_order !== false
+                                                    ? 'Shown in order modals. Turn off in edit to hide from those pickers only.'
+                                                    : 'Hidden from add/edit order modals. Turn on in edit to show again.'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+
                                 {activeTab === 'packages' && viewingStatus.delivery_service_statuses?.length > 0 && (
                                     <div className="space-y-4 pt-4 border-t border-brand-navy/[0.05]">
                                         <h4 className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Attached Service Statuses</h4>
@@ -770,6 +830,9 @@ const StatusListRow = ({ status, activeTab, isOwner, onEdit, onView, onDelete }:
                             Inactive
                         </Badge>
                     )}
+                    {activeTab === 'orders' && status.show_in_order === false && (
+                        <OrderModalHiddenBadge className="shrink-0" />
+                    )}
                 </div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 truncate">{status.code}</p>
             </div>
@@ -841,8 +904,15 @@ const StatusCard = ({ status, activeTab, isOwner, onEdit, onView, onDelete }: an
                         >
                             {status.label.charAt(0).toUpperCase()}
                         </div>
-                        <div>
-                            <h3 className="text-xl font-bold text-brand-navy group-hover:text-indigo-600 transition-colors">{status.label}</h3>
+                        <div className="min-w-0 space-y-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <h3 className="text-xl font-bold text-brand-navy group-hover:text-indigo-600 transition-colors">
+                                    {status.label}
+                                </h3>
+                                {activeTab === 'orders' && status.show_in_order === false && (
+                                    <OrderModalHiddenBadge />
+                                )}
+                            </div>
                             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">{status.code}</p>
                         </div>
                     </div>

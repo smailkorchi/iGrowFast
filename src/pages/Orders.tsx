@@ -547,13 +547,25 @@ const Orders = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('order_statuses')
-                .select('id, code, label, ranking, color')
+                .select('id, code, label, ranking, color, show_in_order')
                 .eq('active', true)
                 .order('ranking', { ascending: true });
             if (error) throw error;
             return data;
         },
     });
+
+    const orderStatusesForModal = useMemo(() => {
+        if (!orderStatuses?.length) return [];
+        const list = orderStatuses as any[];
+        const eligible = list.filter((s) => s.show_in_order !== false);
+        const sid = selectedOrder?.order_status_id;
+        if (sid && !eligible.some((s) => s.id === sid)) {
+            const cur = list.find((s) => s.id === sid);
+            if (cur) return [cur, ...eligible];
+        }
+        return eligible;
+    }, [orderStatuses, selectedOrder?.order_status_id]);
 
     const { data: products } = useQuery({
         queryKey: ['products-dropdown', activeBusinessId],
@@ -2948,7 +2960,7 @@ const Orders = () => {
                                                                 <CommandList className="max-h-[250px] overflow-y-scroll custom-scrollbar overflow-x-hidden">
                                                                     <CommandEmpty>No status found.</CommandEmpty>
                                                                     <CommandGroup>
-                                                                        {orderStatuses?.map((status: any) => (
+                                                                        {orderStatusesForModal?.map((status: any) => (
                                                                             <CommandItem
                                                                                 key={status.id}
                                                                                 value={status.label}
@@ -3928,7 +3940,7 @@ const Orders = () => {
                             </div>
                         )}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                            {orderStatuses?.map((status: any) => (
+                            {orderStatusesForModal?.map((status: any) => (
                                 <Button
                                     key={status.id}
                                     variant="outline"
