@@ -10,6 +10,9 @@ import {
     PanelLeftClose,
     User as UserIcon,
     Loader2,
+    RefreshCcw,
+    MapPin,
+    Map,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
@@ -27,6 +30,9 @@ const navigation: NavItem[] = [
     { icon: CreditCard, label: 'Plans', path: '/owner/plans' },
     { icon: Receipt, label: 'Payments', path: '/owner/payments' },
     { icon: Users, label: 'Users', path: '/owner/users' },
+    { icon: RefreshCcw, label: 'Status', path: '/owner/status' },
+    { icon: MapPin, label: 'Cities', path: '/owner/cities' },
+    { icon: Map, label: 'Zones', path: '/owner/zones' },
 ];
 
 const OwnerSidebar = () => {

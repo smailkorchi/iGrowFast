@@ -5,7 +5,6 @@ import {
     Users,
     DollarSign,
     BarChart2,
-    RefreshCcw,
     Lightbulb,
     Megaphone,
     Settings,
@@ -23,8 +22,6 @@ import {
     Wallet,
     List,
     Tag,
-    MapPin,
-    Map,
     Download,
     CheckCircle,
     ChevronRight,
@@ -117,9 +114,6 @@ const navigation: NavSection[] = [
         label: 'Settings',
         icon: Settings,
         items: [
-            { icon: RefreshCcw, label: 'Status', path: '/status' },
-            { icon: MapPin, label: 'Cities', path: '/cities' },
-            { icon: Map, label: 'Zones', path: '/zones' },
             { icon: Download, label: 'Import Orders', path: '/import-orders' },
             { icon: Key, label: 'AI Keys', path: '/ai-keys' },
         ]

@@ -88,7 +88,7 @@ const ImportOrders = () => {
 
     // --- Queries ---
     const { data: cities } = useQuery({
-        queryKey: ['master-cities'],
+        queryKey: ['master-cities', 'import-lite'],
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)

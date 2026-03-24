@@ -15,7 +15,6 @@ import Payments from "./pages/Payments";
 import Transactions from "./pages/Transactions";
 import Products from "./pages/Products";
 import Accessories from "./pages/Accessories";
-import Status from "./pages/Status";
 import Analytics from "./pages/Analytics";
 import SalesChannels from "./pages/SalesChannels";
 import Customers from "./pages/Customers";
@@ -23,8 +22,6 @@ import Users from "./pages/Users";
 import AdsHistory from "./pages/AdsHistory";
 import ExpensesDetails from "./pages/ExpensesDetails";
 import ExpensesTypes from "./pages/ExpensesTypes";
-import Cities from "./pages/Cities";
-import Zones from "./pages/Zones";
 import Profile from "./pages/Profile";
 import Webhooks from "./pages/Webhooks";
 import AiKeys from "./pages/AiKeys";
@@ -34,6 +31,9 @@ import OwnerUsers from "./pages/owner/Users";
 import OwnerPlans from "./pages/owner/Plans";
 import OwnerPayments from "./pages/owner/Payments";
 import OwnerDashboard from "./pages/owner/OwnerDashboard";
+import OwnerStatus from "./pages/owner/Status";
+import OwnerCities from "./pages/owner/Cities";
+import OwnerZones from "./pages/owner/Zones";
 import OwnerLayout from "./components/layout/OwnerLayout";
 import Calculator from "./pages/Calculator";
 import AdminDemands from "./pages/Demands";
@@ -154,6 +154,9 @@ const App = () => (
                   <Route path="plans" element={<OwnerPlans />} />
                   <Route path="payments" element={<OwnerPayments />} />
                   <Route path="users" element={<OwnerUsers />} />
+                  <Route path="status" element={<OwnerStatus />} />
+                  <Route path="cities" element={<OwnerCities />} />
+                  <Route path="zones" element={<OwnerZones />} />
                   <Route path="" element={<Navigate to="dashboard" replace />} />
                 </Routes>
               </OwnerLayout>
@@ -201,7 +204,6 @@ const App = () => (
                     <Route path="/transactions" element={<Transactions />} />
                     <Route path="/products" element={<Products />} />
                     <Route path="/accessories" element={<Accessories />} />
-                    <Route path="/status" element={<Status />} />
                     <Route path="/analytics" element={<Analytics />} />
                     <Route path="/sales-channels" element={<SalesChannels />} />
                     <Route path="/customers" element={<Customers />} />
@@ -209,8 +211,6 @@ const App = () => (
                     <Route path="/ads-history" element={<AdsHistory />} />
                     <Route path="/expenses-details" element={<ExpensesDetails />} />
                     <Route path="/expenses-types" element={<ExpensesTypes />} />
-                    <Route path="/cities" element={<Cities />} />
-                    <Route path="/zones" element={<Zones />} />
                     <Route path="/calculator" element={<Calculator />} />
                     <Route path="/demands" element={<AdminDemands />} />
                     <Route path="/salaries" element={<AdminSalaries />} />

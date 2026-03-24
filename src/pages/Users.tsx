@@ -22,8 +22,6 @@ import {
     Wallet,
     List,
     Tag,
-    MapPin,
-    Map,
     Download,
     CheckCircle,
     Home,
@@ -32,7 +30,6 @@ import {
     Repeat,
     Globe,
     CreditCard,
-    RefreshCcw,
     BarChart2,
     Megaphone,
     Users as UsersGroupIcon, // Renamed Users to UsersGroupIcon to avoid conflict with the component name 'Users'
@@ -145,7 +142,6 @@ const pages = [
     { label: 'Transactions', path: '/transactions', icon: ArrowRightLeft },
     { label: 'Products', path: '/products', icon: Box },
     { label: 'Accessories', path: '/accessories', icon: Puzzle },
-    { label: 'Status', path: '/status', icon: RefreshCcw },
     { label: 'Analytics', path: '/analytics', icon: BarChart2 },
     { label: 'Sales Channels', path: '/sales-channels', icon: Megaphone },
     { label: 'Customers', path: '/customers', icon: UsersGroupIcon },
@@ -157,8 +153,6 @@ const pages = [
     { label: 'Expenses Details', path: '/expenses-details', icon: List },
     { label: 'Expenses Types', path: '/expenses-types', icon: Tag },
     { label: 'Businesses', path: '/businesses', icon: Building2 },
-    { label: 'Cities', path: '/cities', icon: MapPin },
-    { label: 'Zones', path: '/zones', icon: Map },
     { label: 'Import Orders', path: '/import-orders', icon: Download },
     { label: 'Profit Calculator', path: '/calculator', icon: Calculator },
 ];
