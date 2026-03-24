@@ -7,12 +7,11 @@ import {
     normalizeCommissionBasis,
     isDeliveredForCommission,
     isDeliveredOnLocalDay,
-    commissionAccruedForDeliveredOrder,
     type CommissionBasis,
 } from '@/lib/commercialCommission';
 import {
     ShoppingCart, DollarSign, Clock, Package, ArrowUpRight,
-    TrendingUp, CheckCircle, ChevronRight, Truck, Eye,
+    CheckCircle, ChevronRight, Truck, Eye,
     Receipt, Target, Zap, ShieldCheck, CalendarDays,
     BarChart3, MessageSquare, HeartPulse, Trophy, Star
 } from 'lucide-react';
@@ -21,6 +20,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow, isToday, isYesterday, format } from 'date-fns';
+import { AnalyticsDateFilter, type DateFilter } from '@/components/analytics/AnalyticsDateFilter';
+import { SellerSelfPerformanceSection } from '@/components/dashboard/SellerSelfPerformanceSection';
 
 interface UserProfile {
     id: string;
@@ -32,9 +33,7 @@ interface UserProfile {
 
 interface SellerStats {
     todayOrders: number;
-    todayRevenue: number;
     deliveredToday: number;
-    commissionAccruedToday: number;
     pendingOrders: number;
     confirmedOrders: number;
     deliveredOrders: number;
@@ -83,9 +82,7 @@ const SellerDashboard = () => {
     const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
     const [stats, setStats] = useState<SellerStats>({
         todayOrders: 0,
-        todayRevenue: 0,
         deliveredToday: 0,
-        commissionAccruedToday: 0,
         pendingOrders: 0,
         confirmedOrders: 0,
         deliveredOrders: 0,
@@ -101,6 +98,11 @@ const SellerDashboard = () => {
     const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([]);
     const [topProduct, setTopProduct] = useState<TopProduct | null>(null);
     const [loading, setLoading] = useState(true);
+    const [perfDateFilter, setPerfDateFilter] = useState<DateFilter>({
+        from: undefined,
+        to: undefined,
+        label: 'All Time',
+    });
 
     useEffect(() => {
         initDashboard();
@@ -188,24 +190,11 @@ const SellerDashboard = () => {
             const isConfirmed = (o: any) => statusCats.confirmedIds.has(o.order_status_id);
 
             const todayOrders = orders.filter(o => new Date(o.created_at) >= today);
-            const todayRevenue = todayOrders.reduce((sum, o) => sum + (Number((o as any).price) || 0), 0);
 
             const now = new Date();
             const deliveredToday = orders.filter(o =>
                 isDeliveredOnLocalDay(o, statusCats.deliveredPkgIds, now),
             ).length;
-            const commissionAccruedToday = orders.reduce((sum, o) => {
-                if (!isDeliveredOnLocalDay(o, statusCats.deliveredPkgIds, now)) return sum;
-                return (
-                    sum +
-                    commissionAccruedForDeliveredOrder({
-                        order: o,
-                        basis: commissionBasis,
-                        commissionPrice: Number(commissionRate) || 0,
-                        sellerProductIds: attributedProducts,
-                    })
-                );
-            }, 0);
 
             const delivered = orders.filter(o => isDelivered(o)).length;
             const confirmed = orders.filter(o => isConfirmed(o)).length;
@@ -232,9 +221,7 @@ const SellerDashboard = () => {
 
             setStats({
                 todayOrders: todayOrders.length,
-                todayRevenue,
                 deliveredToday,
-                commissionAccruedToday,
                 pendingOrders: orders.filter(o => isPending(o)).length,
                 confirmedOrders: confirmed,
                 deliveredOrders: delivered,
@@ -417,7 +404,7 @@ const SellerDashboard = () => {
                 </div>
 
                 {/* ============ KPI GRID ============ */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                     {[
                         {
                             label: 'Orders created today',
@@ -427,15 +414,6 @@ const SellerDashboard = () => {
                             color: 'text-blue-600',
                             bg: 'bg-blue-50',
                             gradient: 'from-blue-50 to-white',
-                        },
-                        {
-                            label: 'Revenue (created today)',
-                            value: `${stats.todayRevenue.toLocaleString()} MAD`,
-                            sub: 'Order totals created today',
-                            icon: DollarSign,
-                            color: 'text-sky-600',
-                            bg: 'bg-sky-50',
-                            gradient: 'from-sky-50 to-white',
                         },
                         {
                             label: 'Pending',
@@ -455,18 +433,6 @@ const SellerDashboard = () => {
                             color: 'text-emerald-600',
                             bg: 'bg-emerald-50',
                             gradient: 'from-emerald-50 to-white',
-                        },
-                        {
-                            label: 'Commission accrued today',
-                            value: `${stats.commissionAccruedToday.toLocaleString()} MAD`,
-                            sub:
-                                stats.commissionBasis === 'per_unit'
-                                    ? `Gross today (${stats.commissionRate} MAD/unit, lines count if no products assigned)`
-                                    : `Gross today (${stats.commissionRate} MAD/order)`,
-                            icon: TrendingUp,
-                            color: 'text-violet-600',
-                            bg: 'bg-violet-50',
-                            gradient: 'from-violet-50 to-white',
                         },
                         {
                             label: 'Live Commission (Unpaid)',
@@ -508,6 +474,19 @@ const SellerDashboard = () => {
                         </motion.div>
                     ))}
                 </div>
+
+                {userProfile?.id ? (
+                    <div className="space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2">
+                            <AnalyticsDateFilter dateFilter={perfDateFilter} onDateFilterChange={setPerfDateFilter} />
+                        </div>
+                        <SellerSelfPerformanceSection
+                            sellerId={userProfile.id}
+                            businessId={userProfile['DigiCom Business']}
+                            dateFilter={perfDateFilter}
+                        />
+                    </div>
+                ) : null}
 
                 {/* ============ CONVERSION SNAPSHOT (full width) ============ */}
                 <Card className="border-0 shadow-sm rounded-3xl overflow-hidden bg-white">

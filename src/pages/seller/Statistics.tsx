@@ -47,6 +47,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from "@/hooks/use-toast";
 import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'date-fns';
+import { AnalyticsDateFilter, type DateFilter } from '@/components/analytics/AnalyticsDateFilter';
+import { SellerSelfPerformanceSection } from '@/components/dashboard/SellerSelfPerformanceSection';
 
 interface PerformanceStats {
     successRate: number;
@@ -113,6 +115,31 @@ const SellerStatistics = () => {
     const [orderDistribution, setOrderDistribution] = useState<StatusDistribution[]>([]);
     const [regionalData, setRegionalData] = useState<RegionalData[]>([]);
     const [productPerformance, setProductPerformance] = useState<ProductPerformance[]>([]);
+    const [perfDateFilter, setPerfDateFilter] = useState<DateFilter>({
+        from: undefined,
+        to: undefined,
+        label: 'All Time',
+    });
+    const [sellerPerfContext, setSellerPerfContext] = useState<{
+        id: string;
+        businessId: string | null;
+    } | null>(null);
+
+    useEffect(() => {
+        (async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+            const { data: prof } = await supabase
+                .from('users')
+                .select('"DigiCom Business"')
+                .eq('id', user.id)
+                .single();
+            setSellerPerfContext({
+                id: user.id,
+                businessId: (prof as { 'DigiCom Business'?: string | null } | null)?.['DigiCom Business'] ?? null,
+            });
+        })();
+    }, []);
 
     useEffect(() => {
         fetchAllStats();
@@ -387,7 +414,7 @@ const SellerStatistics = () => {
                             <h1 className="text-4xl font-extralight text-gray-900 mb-2">Performance Intelligence</h1>
                             <p className="text-gray-500 font-light">Deep analytical insights into your realized success.</p>
                         </div>
-
+                        <AnalyticsDateFilter dateFilter={perfDateFilter} onDateFilterChange={setPerfDateFilter} />
                     </div>
                 </div>
             </div>
@@ -460,6 +487,14 @@ const SellerStatistics = () => {
                     </Card>
                 ))}
             </div>
+
+            {sellerPerfContext ? (
+                <SellerSelfPerformanceSection
+                    sellerId={sellerPerfContext.id}
+                    businessId={sellerPerfContext.businessId}
+                    dateFilter={perfDateFilter}
+                />
+            ) : null}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Revenue Engine Chart */}

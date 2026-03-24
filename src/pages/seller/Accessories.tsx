@@ -291,7 +291,7 @@ const Accessories = () => {
                                             className="h-10 w-10 rounded-xl bg-white/90 backdrop-blur-md border-none shadow-lg text-brand-navy hover:bg-white transition-all"
                                         >
                                             <Eye className="h-5 w-5" />
-                                        </Button>
+                                                </Button>
                                     </div>
                                     {isInactive && (
                                         <div className="absolute inset-0 bg-brand-navy/40 backdrop-blur-[2px] flex items-center justify-center z-[1] pointer-events-none">
@@ -303,7 +303,7 @@ const Accessories = () => {
                                 <CardContent className="p-6 space-y-4">
                                     <div className="space-y-1">
                                         <div className="flex items-center justify-between gap-2 flex-wrap">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">{accessory.code}</p>
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">{accessory.code}</p>
                                             {isInactive && (
                                                 <Badge variant="secondary" className="bg-brand-navy/10 text-brand-navy font-bold text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wide shrink-0">Inactive</Badge>
                                             )}
@@ -346,7 +346,7 @@ const Accessories = () => {
 
                                 <div className="flex-1 min-w-0 space-y-2 w-full">
                                     <div className="flex items-center gap-3 flex-wrap">
-                                        <h3 className="text-xl font-bold text-brand-navy truncate">{accessory.name}</h3>
+                                    <h3 className="text-xl font-bold text-brand-navy truncate">{accessory.name}</h3>
                                         {isInactive && (
                                             <Badge variant="secondary" className="bg-brand-navy/10 text-brand-navy font-bold text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wide shrink-0">Inactive</Badge>
                                         )}

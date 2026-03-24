@@ -259,7 +259,7 @@ const Products = () => {
                                             className="h-10 w-10 rounded-xl bg-white/90 backdrop-blur-md border-none shadow-lg text-brand-navy hover:bg-white transition-all"
                                         >
                                             <Eye className="h-5 w-5" />
-                                        </Button>
+                                                </Button>
                                     </div>
                                     {isInactive && (
                                         <div className="absolute inset-0 bg-brand-navy/40 backdrop-blur-[2px] flex items-center justify-center z-[1] pointer-events-none">
@@ -276,15 +276,15 @@ const Products = () => {
                                                 {isInactive && (
                                                     <Badge variant="secondary" className="bg-brand-navy/10 text-brand-navy font-bold text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wide">Inactive</Badge>
                                                 )}
-                                                <Badge variant="outline" className="text-[10px] font-bold border-brand-navy/10 text-brand-navy/60 uppercase">{product.label || 'Regular'}</Badge>
+                                            <Badge variant="outline" className="text-[10px] font-bold border-brand-navy/10 text-brand-navy/60 uppercase">{product.label || 'Regular'}</Badge>
                                             </div>
                                         </div>
                                         <h3 className="text-xl font-bold text-brand-navy truncate">{product.name}</h3>
                                     </div>
 
-                                    <div className="space-y-1">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Selling Price</p>
-                                        <p className="text-lg font-bold text-brand-navy">{product.selling_price} DH</p>
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Selling Price</p>
+                                            <p className="text-lg font-bold text-brand-navy">{product.selling_price} DH</p>
                                     </div>
 
                                     <div className="pt-2 flex items-center justify-between">
