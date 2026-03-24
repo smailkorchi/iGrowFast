@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import {
@@ -17,6 +17,8 @@ import {
     Hash,
     Link2,
     Package,
+    Coins,
+    Layers,
     RotateCcw,
     LayoutGrid,
     List,
@@ -75,6 +77,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
     AccessoryPreviewDialog,
+    formatAccessoryInventoryValueDh,
     type AccessoryPreviewRow,
 } from '@/components/catalog/AccessoryPreviewDialog';
 
@@ -87,6 +90,10 @@ const accessorySchema = z.object({
 });
 
 type AccessoryFormValues = z.infer<typeof accessorySchema>;
+
+function formatDhAggregate(value: number) {
+    return `${new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(value)} DH`;
+}
 
 const Accessories = () => {
     const location = useLocation();
@@ -378,6 +385,19 @@ const Accessories = () => {
         a.code.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
+    const catalogTotals = useMemo(() => {
+        const list = accessories ?? [];
+        let totalQuantity = 0;
+        let inventoryValue = 0;
+        for (const a of list) {
+            const q = Number(a.stock ?? 0);
+            const c = Number(a.cost_price ?? 0);
+            totalQuantity += q;
+            inventoryValue += q * c;
+        }
+        return { totalQuantity, inventoryValue };
+    }, [accessories]);
+
     const lowStockAccessories = accessories?.filter(a => (a.stock || 0) <= 10) || [];
     const lowStockAccessoriesTotalUnits = lowStockAccessories.reduce((sum, a) => sum + Number(a.stock ?? 0), 0);
 
@@ -485,6 +505,65 @@ const Accessories = () => {
                             </Button>
                         </div>
                     </div>
+
+                    {isLoading ? (
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 pt-2">
+                            {Array.from({ length: 3 }).map((_, i) => (
+                                <Skeleton key={i} className="h-28 rounded-3xl bg-white/60" />
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 pt-2">
+                            <div className="rounded-3xl border border-gray-100/80 bg-white/90 p-5 shadow-sm backdrop-blur-sm">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                            Total quantity
+                                        </p>
+                                        <p className="text-2xl font-black tabular-nums text-gray-900 tracking-tight">
+                                            {new Intl.NumberFormat('fr-FR').format(catalogTotals.totalQuantity)}
+                                        </p>
+                                        <p className="text-xs text-gray-500 font-medium">Units in stock (all SKUs)</p>
+                                    </div>
+                                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                                        <Layers className="h-5 w-5" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="rounded-3xl border border-gray-100/80 bg-white/90 p-5 shadow-sm backdrop-blur-sm">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="space-y-1 min-w-0">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                            Total cost
+                                        </p>
+                                        <p className="text-2xl font-black tabular-nums text-gray-900 tracking-tight truncate">
+                                            {formatDhAggregate(catalogTotals.inventoryValue)}
+                                        </p>
+                                        <p className="text-xs text-gray-500 font-medium">On-hand quantity × unit cost</p>
+                                    </div>
+                                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-700">
+                                        <Coins className="h-5 w-5" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="rounded-3xl border border-emerald-100/80 bg-emerald-50/40 p-5 shadow-sm backdrop-blur-sm">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="space-y-1 min-w-0">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700/70">
+                                            Total value
+                                        </p>
+                                        <p className="text-2xl font-black tabular-nums text-emerald-800 tracking-tight truncate">
+                                            {formatDhAggregate(catalogTotals.inventoryValue)}
+                                        </p>
+                                        <p className="text-xs text-emerald-800/70 font-medium">Book value of all on-hand units</p>
+                                    </div>
+                                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-700">
+                                        <Package className="h-5 w-5" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -667,6 +746,13 @@ const Accessories = () => {
                                         <p className="text-lg font-bold text-brand-navy">{accessory.cost_price} DH</p>
                                     </div>
 
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Total stock value</p>
+                                        <p className="text-lg font-bold text-emerald-700 tabular-nums">
+                                            {formatAccessoryInventoryValueDh(accessory)}
+                                        </p>
+                                    </div>
+
                                     <div className="pt-2 flex items-center justify-between">
                                         <div className="flex items-center gap-2">
                                             <div className={cn(
@@ -710,9 +796,13 @@ const Accessories = () => {
                                             <span className="text-[10px] font-black text-brand-navy/60 tracking-wider uppercase">{accessory.stock || 0} in stock</span>
                                         </div>
                                         <div className="hidden sm:block h-4 w-px bg-brand-navy/10"></div>
-                                        <div className="flex gap-4">
+                                        <div className="flex flex-wrap gap-x-4 gap-y-1">
                                             <span className="text-xs font-bold text-brand-navy">
                                                 <span className="text-[10px] uppercase font-black mr-1 text-brand-navy/40">Cost</span> {accessory.cost_price} DH
+                                            </span>
+                                            <span className="text-xs font-bold text-emerald-700 tabular-nums">
+                                                <span className="text-[10px] uppercase font-black mr-1 text-brand-navy/40">Total value</span>{' '}
+                                                {formatAccessoryInventoryValueDh(accessory)}
                                             </span>
                                         </div>
                                     </div>
