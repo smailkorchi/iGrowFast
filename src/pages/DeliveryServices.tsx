@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import {
     Dialog,
     DialogContent,
@@ -202,6 +203,41 @@ const KNOWN_PROVIDERS = [
     },
 ];
 
+type ProviderPermissionSlug = 'ameex' | 'coliaty' | 'ozon';
+
+type ProviderPermissionRow = { key: string; label: string; hint?: string };
+
+const PROVIDER_PERMISSION_ROWS: Record<ProviderPermissionSlug, ProviderPermissionRow[]> = {
+    ameex: [
+        { key: 'fragile', label: 'Fragile' },
+        { key: 'echange', label: 'Échange' },
+        { key: 'autorisation_ouverture_colis', label: "Autorisation d'ouverture du colis par le client" },
+        { key: 'autoriser_essayage', label: "Autoriser l'essayage du produit par le client" },
+    ],
+    coliaty: [
+        { key: 'interdit_ouvrir_colis', label: "Interdit d'ouvrir le colis" },
+        { key: 'echange', label: 'Échange' },
+    ],
+    ozon: [
+        {
+            key: 'ouvrir_colis_autorise',
+            label: 'Ouverture du colis par le client',
+            hint: 'Activé : ouvrir le colis autorisé. Désactivé : interdit d’ouvrir le colis.',
+        },
+        { key: 'fragile', label: 'Fragile' },
+        { key: 'echange', label: 'Échange' },
+    ],
+};
+
+function normalizePartnerProviderType(raw: string | undefined | null): ProviderPermissionSlug | null {
+    const t = (raw || '').toString().toLowerCase().trim();
+    if (!t) return null;
+    if (t === 'ameex' || t.includes('ameex')) return 'ameex';
+    if (t === 'coliaty' || t.includes('coliaty')) return 'coliaty';
+    if (t === 'ozon' || t.includes('ozon')) return 'ozon';
+    return null;
+}
+
 // --- Schemas ---
 
 const deliveryPersonSchema = z.object({
@@ -242,6 +278,7 @@ const DeliveryServices = () => {
     const [selectedCompany, setSelectedCompany] = useState<any>(null);
     const [isCompanyZonesModalOpen, setIsCompanyZonesModalOpen] = useState(false);
     const [isCompanyFeesModalOpen, setIsCompanyFeesModalOpen] = useState(false);
+    const [isProviderPermissionsOpen, setIsProviderPermissionsOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
 
     const { toast } = useToast();
@@ -475,6 +512,11 @@ const DeliveryServices = () => {
                                 onEdit={() => handleEdit(company, 'company')}
                                 onZones={() => { setSelectedCompany(company); setIsCompanyZonesModalOpen(true); }}
                                 onFees={() => { setSelectedCompany(company); setIsCompanyFeesModalOpen(true); }}
+                                onPermissions={() => {
+                                    setSelectedCourier(null);
+                                    setSelectedCompany(company);
+                                    setIsProviderPermissionsOpen(true);
+                                }}
                                 onDelete={() => {
                                     if (confirm('Delete provider connection?')) deleteMutation.mutate({ id: company.id, type: 'company' });
                                 }}
@@ -492,6 +534,11 @@ const DeliveryServices = () => {
                                 onEdit={() => handleEdit(person, 'person')}
                                 onZones={() => { setSelectedCourier(person); setIsZonesModalOpen(true); }}
                                 onFees={() => { setSelectedCourier(person); setIsFeesModalOpen(true); }}
+                                onPermissions={() => {
+                                    setSelectedCompany(null);
+                                    setSelectedCourier(person);
+                                    setIsProviderPermissionsOpen(true);
+                                }}
                                 onDelete={() => {
                                     if (confirm('Delete courier account?')) deleteMutation.mutate({ id: person.id, type: 'person' });
                                 }}
@@ -549,13 +596,24 @@ const DeliveryServices = () => {
                 onClose={() => setIsCompanyFeesModalOpen(false)}
                 company={selectedCompany}
             />
+
+            <ProviderPermissionsModal
+                isOpen={isProviderPermissionsOpen}
+                onClose={() => {
+                    setIsProviderPermissionsOpen(false);
+                    setSelectedCompany(null);
+                    setSelectedCourier(null);
+                }}
+                company={selectedCompany}
+                courier={selectedCourier}
+            />
         </div>
     );
 };
 
 // --- Sub-components ---
 
-function CourierCard({ person, onEdit, onZones, onFees, onDelete }: any) {
+function CourierCard({ person, onEdit, onZones, onFees, onPermissions, onDelete }: any) {
     return (
         <Card className="group relative overflow-hidden border-none bg-white hover:shadow-[0_40px_80px_-15px_rgba(0,0,0,0.1)] transition-all duration-500 rounded-[32px] border border-slate-100 flex flex-col h-full">
             <div className="absolute top-0 left-0 w-full h-1.5 bg-brand-navy/5 group-hover:bg-brand-navy transition-colors" />
@@ -612,6 +670,12 @@ function CourierCard({ person, onEdit, onZones, onFees, onDelete }: any) {
                         >
                             <Coins className="w-4 h-4 mr-3 shrink-0" /> Set City Fees
                         </DropdownMenuItem>
+                        <DropdownMenuItem
+                            onClick={onPermissions}
+                            className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground focus:bg-primary focus:text-primary-foreground"
+                        >
+                            <Shield className="w-4 h-4 mr-3 shrink-0" /> Permissions
+                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                             onClick={onDelete}
@@ -648,7 +712,7 @@ function CourierCard({ person, onEdit, onZones, onFees, onDelete }: any) {
     );
 };
 
-function PartnerCard({ company, onEdit, onZones, onFees, onDelete }: any) {
+function PartnerCard({ company, onEdit, onZones, onFees, onPermissions, onDelete }: any) {
     return (
         <Card className="group relative overflow-hidden border-none bg-white hover:shadow-[0_40px_80px_-15px_rgba(0,0,0,0.1)] transition-all duration-500 rounded-[32px] border border-slate-100 flex flex-col h-full">
             <div className="absolute top-0 left-0 w-full h-1.5 bg-brand-navy/5 group-hover:bg-brand-navy transition-colors" />
@@ -708,6 +772,12 @@ function PartnerCard({ company, onEdit, onZones, onFees, onDelete }: any) {
                             className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground focus:bg-primary focus:text-primary-foreground"
                         >
                             <Coins className="w-4 h-4 mr-3 shrink-0" /> Delivery Fees
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                            onClick={onPermissions}
+                            className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground focus:bg-primary focus:text-primary-foreground"
+                        >
+                            <Shield className="w-4 h-4 mr-3 shrink-0" /> Permissions
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
@@ -1518,6 +1588,120 @@ function CompanyZonesModal({ isOpen, onClose, company }: any) {
         </Dialog>
     );
 };
+
+function ProviderPermissionsModal({
+    isOpen,
+    onClose,
+    company,
+    courier,
+}: {
+    isOpen: boolean;
+    onClose: () => void;
+    company: any | null;
+    courier: any | null;
+}) {
+    const providerSlug = useMemo(() => {
+        if (!company) return null;
+        return normalizePartnerProviderType(company.provider_type);
+    }, [company]);
+
+    const rows = providerSlug ? PROVIDER_PERMISSION_ROWS[providerSlug] : null;
+    const titleName = company?.name || courier?.name || 'Delivery';
+
+    const [flags, setFlags] = useState<Record<string, boolean>>({});
+
+    useEffect(() => {
+        if (!isOpen) return;
+        setFlags({});
+    }, [isOpen, company?.id, courier?.id]);
+
+    const providerLabel =
+        providerSlug === 'ameex' ? 'AMEEX' : providerSlug === 'coliaty' ? 'Coliaty' : providerSlug === 'ozon' ? 'Ozon' : null;
+
+    return (
+        <Dialog open={isOpen} onOpenChange={(v) => !v && onClose()}>
+            <DialogContent className="max-w-lg p-0 border-none bg-brand-white rounded-[32px] shadow-2xl overflow-hidden max-h-[85vh] flex flex-col">
+                <DialogHeader className="p-8 pb-4 shrink-0 border-b border-brand-navy/5">
+                    <DialogTitle className="text-2xl font-black text-brand-navy flex items-center gap-2">
+                        <Shield className="w-6 h-6 text-brand-navy/80 shrink-0" />
+                        Permissions
+                    </DialogTitle>
+                    <DialogDescription className="font-semibold text-brand-navy/70 mt-2 text-left">
+                        {courier && !company ? (
+                            <>
+                                <span className="font-bold text-brand-navy">{titleName}</span>
+                                <span className="block mt-2 font-medium">
+                                    Parcel API flags are defined per carrier. Use Permissions on the AMEEX, Coliaty, or Ozon partner card.
+                                </span>
+                            </>
+                        ) : company ? (
+                            <>
+                                <span className="font-bold text-brand-navy">{titleName}</span>
+                                {providerLabel ? (
+                                    <span className="block mt-1 text-brand-navy/55">{providerLabel}</span>
+                                ) : null}
+                            </>
+                        ) : null}
+                    </DialogDescription>
+                </DialogHeader>
+
+                {company && rows ? (
+                    <div className="flex-1 overflow-y-auto px-8 py-2">
+                        <div className="space-y-0">
+                            {rows.map((row) => (
+                                <div
+                                    key={row.key}
+                                    className="flex items-start justify-between gap-4 py-4 border-b border-brand-navy/[0.06] last:border-b-0"
+                                >
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-sm font-bold text-brand-navy leading-snug">{row.label}</p>
+                                        {row.hint ? (
+                                            <p className="text-xs font-medium text-brand-navy/45 mt-1.5 leading-relaxed">
+                                                {row.hint}
+                                            </p>
+                                        ) : null}
+                                    </div>
+                                    <Switch
+                                        className="shrink-0 mt-0.5 data-[state=checked]:bg-brand-navy"
+                                        checked={!!flags[row.key]}
+                                        onCheckedChange={(v) => setFlags((prev) => ({ ...prev, [row.key]: v }))}
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ) : null}
+
+                {company && !rows ? (
+                    <div className="px-8 py-10">
+                        <p className="text-sm font-bold text-brand-navy/55 text-center leading-relaxed">
+                            No toggle set for provider type &ldquo;{String(company.provider_type || 'unknown')}&rdquo;. Supported:
+                            AMEEX, Coliaty, Ozon.
+                        </p>
+                    </div>
+                ) : null}
+
+                {courier && !company ? (
+                    <div className="px-8 py-6">
+                        <p className="text-xs font-semibold text-brand-navy/40 text-center leading-relaxed">
+                            When carrier-specific courier fields exist, we can mirror the same toggles here.
+                        </p>
+                    </div>
+                ) : null}
+
+                <DialogFooter className="p-8 pt-2 border-t border-brand-navy/5 bg-brand-white shrink-0">
+                    <Button
+                        type="button"
+                        onClick={onClose}
+                        className="w-full h-12 rounded-2xl font-black bg-brand-navy text-white hover:bg-brand-navy/90 hover:text-white"
+                    >
+                        Close
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 function CompanyFeesModal({ isOpen, onClose, company }: any) {
     const queryClient = useQueryClient();
