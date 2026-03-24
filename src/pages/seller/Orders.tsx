@@ -74,6 +74,7 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { cn } from '@/lib/utils';
+import { orderMatchesTopSearch } from '@/lib/orderSearch';
 import { statusRequiresHistoryComment } from '@/lib/orderHistoryCommentPolicy';
 import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, subMonths, isWithinInterval } from 'date-fns';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
@@ -188,6 +189,7 @@ function orderMatchesTrackingFilter(order: any, raw: string): boolean {
     if (!needle) return true;
     const codes: string[] = [];
     if (order?.tracking_number) codes.push(String(order.tracking_number));
+    if (order?.coliaty_old_tracking) codes.push(String(order.coliaty_old_tracking));
     for (const p of order?.parcels || []) {
         if (p?.tracking_code) codes.push(String(p.tracking_code));
     }
@@ -1237,10 +1239,7 @@ const Orders = () => {
     const baseFilteredOrders = useMemo(() => {
         if (!orders) return [];
         return orders.filter((o: any) => {
-            const matchesSearch =
-                o.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                o.phone?.includes(searchQuery) ||
-                o.tracking_number?.toLowerCase().includes(searchQuery.toLowerCase());
+            const matchesSearch = orderMatchesTopSearch(o, searchQuery);
 
             const matchesStatus = filterStatus === "all" || o.order_status_id === filterStatus;
             const matchesCity = filterCity === "all" || o.master_city_id === filterCity || o.city_id === filterCity;
@@ -1473,7 +1472,7 @@ const Orders = () => {
                     <div className="relative group sm:w-80">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground transition-colors group-focus-within:text-brand-navy" />
                         <Input
-                            placeholder="Search client, phone, or tracking..."
+                            placeholder="Search any order detail (tracking, Coliaty, products, notes…)"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="pl-11 h-12 bg-white/50 border-none shadow-sm rounded-2xl focus-visible:ring-1 focus-visible:ring-brand-navy/20 transition-all font-medium"
@@ -3340,6 +3339,21 @@ const Orders = () => {
                                                         <Badge variant="outline" className="h-5 px-2 text-[8px] font-black uppercase tracking-tighter bg-brand-navy/[0.03] text-brand-navy/40 border-none">
                                                             {selectedOrder.courier ? 'Independent Courier' : 'Delivery Company'}
                                                         </Badge>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {String(selectedOrder.coliaty_old_tracking || '').trim() && (
+                                                <div className="flex items-start gap-4">
+                                                    <div className="w-10 h-10 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-600 shrink-0 shadow-sm shadow-amber-500/10">
+                                                        <RefreshCcw className="w-5 h-5" />
+                                                    </div>
+                                                    <div className="space-y-1 min-w-0">
+                                                        <p className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest leading-none">
+                                                            Previous parcel tracking (Coliaty)
+                                                        </p>
+                                                        <p className="text-sm font-mono font-bold text-brand-navy break-all">
+                                                            {String(selectedOrder.coliaty_old_tracking).trim()}
+                                                        </p>
                                                     </div>
                                                 </div>
                                             )}
