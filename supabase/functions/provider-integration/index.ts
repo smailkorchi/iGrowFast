@@ -846,6 +846,13 @@ class AmeexAdapter {
         formData.append('try', parcelData.try || 'NO');
         if (parcelData.order_num) formData.append('order_num', parcelData.order_num);
 
+        if (parcelData.replaceable) {
+            const exchangeCode = String(parcelData.old_tracking || '').trim();
+            if (exchangeCode) {
+                formData.append('exchange_code', exchangeCode);
+            }
+        }
+
         // Add products if provided
         if (parcelData.products && parcelData.products.length > 0) {
             parcelData.products.forEach((product, index) => {

@@ -141,6 +141,7 @@ const orderSchema = z.object({
     history_comment: z.string().optional(),
     _reportedDate: z.string().optional(),
     coliaty_old_tracking: z.string().optional(),
+    ameex_old_tracking: z.string().optional(),
 });
 
 type OrderFormValues = z.infer<typeof orderSchema>;
@@ -152,6 +153,16 @@ function orderCompanyIsColiaty(
     if (!companyId || !companies?.length) return false;
     const row = companies.find((c) => c.id === companyId);
     return !!row?.provider_type && String(row.provider_type).toLowerCase().includes('coliaty');
+}
+
+function orderCompanyIsAmeex(
+    companies: { id: string; provider_type?: string | null }[] | undefined,
+    companyId: string | null | undefined
+) {
+    if (!companyId || !companies?.length) return false;
+    const row = companies.find((c) => c.id === companyId);
+    const t = String(row?.provider_type || '').toLowerCase();
+    return t === 'ameex' || t.includes('ameex');
 }
 
 const SALES_SOURCES = [
@@ -190,6 +201,7 @@ function orderMatchesTrackingFilter(order: any, raw: string): boolean {
     const codes: string[] = [];
     if (order?.tracking_number) codes.push(String(order.tracking_number));
     if (order?.coliaty_old_tracking) codes.push(String(order.coliaty_old_tracking));
+    if (order?.ameex_old_tracking) codes.push(String(order.ameex_old_tracking));
     for (const p of order?.parcels || []) {
         if (p?.tracking_code) codes.push(String(p.tracking_code));
     }
@@ -722,7 +734,8 @@ const Orders = () => {
             company_id: null,
             history_comment: '',
             _reportedDate: '',
-            coliaty_old_tracking: ''
+            coliaty_old_tracking: '',
+            ameex_old_tracking: ''
         }
     });
 
@@ -923,6 +936,10 @@ const Orders = () => {
                         orderCompanyIsColiaty(companies, values.company_id) && values.replace
                             ? (values.coliaty_old_tracking || '').trim() || null
                             : null,
+                    ameex_old_tracking:
+                        orderCompanyIsAmeex(companies, values.company_id) && values.replace
+                            ? (values.ameex_old_tracking || '').trim() || null
+                            : null,
                     price: orderPrice,
                     raw_price: totalPrice,
                     date: new Date().toISOString(),
@@ -1008,7 +1025,8 @@ const Orders = () => {
                 company_id: null,
                 history_comment: '',
                 _reportedDate: '',
-                coliaty_old_tracking: ''
+                coliaty_old_tracking: '',
+                ameex_old_tracking: ''
             });
             toast({ title: "Order Created", description: "Successfully logged new order." });
         },
@@ -1049,6 +1067,10 @@ const Orders = () => {
                 coliaty_old_tracking:
                     orderCompanyIsColiaty(companies, values.company_id) && values.replace
                         ? (values.coliaty_old_tracking || '').trim() || null
+                        : null,
+                ameex_old_tracking:
+                    orderCompanyIsAmeex(companies, values.company_id) && values.replace
+                        ? (values.ameex_old_tracking || '').trim() || null
                         : null,
                 price: orderPrice,
                 raw_price: totalPrice,
@@ -1410,6 +1432,7 @@ const Orders = () => {
             courier_id: order.courier_id,
             company_id: order.company_id,
             coliaty_old_tracking: order.coliaty_old_tracking || '',
+            ameex_old_tracking: order.ameex_old_tracking || '',
             items: (() => {
                 const groupedItems: any[] = [];
                 order.items?.forEach((item: any) => {
@@ -1498,7 +1521,8 @@ const Orders = () => {
                                 company_id: null,
                                 history_comment: '',
                                 _reportedDate: '',
-                                coliaty_old_tracking: ''
+                                coliaty_old_tracking: '',
+                                ameex_old_tracking: ''
                             });
                             setIsAddModalOpen(true);
                         }}
@@ -2373,7 +2397,8 @@ const Orders = () => {
                             company_id: null,
                             history_comment: '',
                             _reportedDate: '',
-                            coliaty_old_tracking: ''
+                            coliaty_old_tracking: '',
+                            ameex_old_tracking: ''
                         });
                     }
                 }}
@@ -2395,6 +2420,23 @@ const Orders = () => {
                                 toast({
                                     title: 'Missing tracking',
                                     description: 'Enter the previous parcel tracking number for Coliaty exchange.',
+                                    variant: 'destructive',
+                                });
+                                return;
+                            }
+
+                            if (
+                                orderCompanyIsAmeex(companies, v.company_id) &&
+                                v.replace &&
+                                !(v.ameex_old_tracking || '').trim()
+                            ) {
+                                form.setError('ameex_old_tracking', {
+                                    type: 'manual',
+                                    message: 'Required for AMEEX exchange (exchange_code).',
+                                });
+                                toast({
+                                    title: 'Missing tracking',
+                                    description: 'Enter the previous parcel tracking number for AMEEX exchange.',
                                     variant: 'destructive',
                                 });
                                 return;
@@ -2860,6 +2902,32 @@ const Orders = () => {
                                                             <p className="text-[10px] text-muted-foreground leading-snug">
                                                                 Required for exchange: maps to Coliaty{' '}
                                                                 <code className="text-[10px]">package_old_tracking</code>.
+                                                            </p>
+                                                            <FormControl>
+                                                                <Input
+                                                                    placeholder="Old tracking number"
+                                                                    {...field}
+                                                                    className="h-11 rounded-xl border border-brand-navy/10 bg-white text-sm font-bold text-brand-navy"
+                                                                />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                            )}
+                                        {form.watch('replace') &&
+                                            orderCompanyIsAmeex(companies, form.watch('company_id')) && (
+                                                <FormField
+                                                    control={form.control}
+                                                    name="ameex_old_tracking"
+                                                    render={({ field }) => (
+                                                        <FormItem className="space-y-2 rounded-xl border border-amber-200/80 bg-amber-50/40 p-3">
+                                                            <FormLabel className="text-[10px] font-black uppercase tracking-wider text-brand-navy">
+                                                                Previous parcel tracking (AMEEX)
+                                                            </FormLabel>
+                                                            <p className="text-[10px] text-muted-foreground leading-snug">
+                                                                Required for exchange: sent as AMEEX{' '}
+                                                                <code className="text-[10px]">exchange_code</code>.
                                                             </p>
                                                             <FormControl>
                                                                 <Input
@@ -3353,6 +3421,21 @@ const Orders = () => {
                                                         </p>
                                                         <p className="text-sm font-mono font-bold text-brand-navy break-all">
                                                             {String(selectedOrder.coliaty_old_tracking).trim()}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {String(selectedOrder.ameex_old_tracking || '').trim() && (
+                                                <div className="flex items-start gap-4">
+                                                    <div className="w-10 h-10 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-600 shrink-0 shadow-sm shadow-amber-500/10">
+                                                        <RefreshCcw className="w-5 h-5" />
+                                                    </div>
+                                                    <div className="space-y-1 min-w-0">
+                                                        <p className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest leading-none">
+                                                            Previous parcel tracking (AMEEX)
+                                                        </p>
+                                                        <p className="text-sm font-mono font-bold text-brand-navy break-all">
+                                                            {String(selectedOrder.ameex_old_tracking).trim()}
                                                         </p>
                                                     </div>
                                                 </div>

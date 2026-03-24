@@ -36,7 +36,6 @@ const WIZARD_PROVIDER_SELECT_FOR_PARCEL = [
     'name',
     'provider_type',
     'coliaty_package_no_open',
-    'ameex_parcel_replace',
     'ameex_parcel_open',
     'ameex_parcel_try_on',
     'ameex_parcel_fragile',
@@ -47,7 +46,7 @@ const WIZARD_PROVIDER_SELECT_FOR_PARCEL = [
 
 /**
  * Maps saved provider row → `data` fields expected by `create_parcel` in provider-integration.
- * Coliaty: no_open only (exchange + old tracking come from the order). AMEEX: fragile ('0'|'1'), open/try ('YES'|'NO'). Ozon: open, fragile, replaceable.
+ * Coliaty: no_open only (exchange + old tracking come from the order). AMEEX: fragile/open/try only (exchange + old tracking come from the order). Ozon: open, fragile, replaceable.
  */
 function parcelPermissionFieldsFromProvider(provider: { provider_type?: string | null } & Record<string, unknown>) {
     const raw = (provider?.provider_type ?? '').toString().toLowerCase();
@@ -319,9 +318,15 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                     const permFields = parcelPermissionFieldsFromProvider(provider || {});
                     const providerType = String(provider?.provider_type || '').toLowerCase();
                     const isColiaty = providerType.includes('coliaty');
+                    const isAmeex = providerType.includes('ameex');
                     if (isColiaty && order.replace && !String(order.coliaty_old_tracking || '').trim()) {
                         throw new Error(
                             'Coliaty exchange requires the previous parcel tracking number on the order (package_old_tracking).'
+                        );
+                    }
+                    if (isAmeex && order.replace && !String(order.ameex_old_tracking || '').trim()) {
+                        throw new Error(
+                            'AMEEX exchange requires the previous parcel tracking number on the order (exchange_code).'
                         );
                     }
                     // Prepare parcel data
@@ -346,9 +351,16 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                                       ? String(order.coliaty_old_tracking || '').trim()
                                       : '',
                               }
-                            : Object.keys(permFields).length === 0
-                              ? { replaceable: order.replace || false }
-                              : {}),
+                            : isAmeex
+                              ? {
+                                    replaceable: !!order.replace,
+                                    old_tracking: order.replace
+                                        ? String(order.ameex_old_tracking || '').trim()
+                                        : '',
+                                }
+                              : Object.keys(permFields).length === 0
+                                ? { replaceable: order.replace || false }
+                                : {}),
                     };
 
                     // Call Edge Function

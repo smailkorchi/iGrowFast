@@ -210,7 +210,6 @@ type ProviderPermissionRow = { key: string; label: string; hint?: string };
 const PROVIDER_PERMISSION_ROWS: Record<ProviderPermissionSlug, ProviderPermissionRow[]> = {
     ameex: [
         { key: 'fragile', label: 'Fragile' },
-        { key: 'echange', label: 'Échange' },
         { key: 'autorisation_ouverture_colis', label: "Autorisation d'ouverture du colis par le client" },
         { key: 'autoriser_essayage', label: "Autoriser l'essayage du produit par le client" },
     ],
@@ -246,7 +245,6 @@ function mapProviderRowToFlags(slug: ProviderPermissionSlug, row: Record<string,
     if (slug === 'ameex') {
         return {
             fragile: !!row.ameex_parcel_fragile,
-            echange: !!row.ameex_parcel_replace,
             autorisation_ouverture_colis: !!row.ameex_parcel_open,
             autoriser_essayage: !!row.ameex_parcel_try_on,
         };
@@ -273,7 +271,7 @@ function flagsToProviderParcelUpdate(
     if (slug === 'ameex') {
         return {
             ameex_parcel_fragile: !!flags.fragile,
-            ameex_parcel_replace: !!flags.echange,
+            ameex_parcel_replace: false,
             ameex_parcel_open: !!flags.autorisation_ouverture_colis,
             ameex_parcel_try_on: !!flags.autoriser_essayage,
         };
@@ -1672,7 +1670,6 @@ function ProviderPermissionsModal({
                 .select(
                     [
                         'coliaty_package_no_open',
-                        'ameex_parcel_replace',
                         'ameex_parcel_open',
                         'ameex_parcel_try_on',
                         'ameex_parcel_fragile',

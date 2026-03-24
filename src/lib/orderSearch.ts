@@ -21,7 +21,7 @@ function addLocalizedName(bucket: string[], name: unknown) {
 /**
  * Main orders search bar: matches any loaded scalar or joined text on the row
  * (customer, address, notes, status labels, products, parcel/courier tracking,
- * history comments, Coliaty old tracking, ids, etc.).
+ * history comments, Coliaty/AMEEX old exchange tracking, ids, etc.).
  */
 export function orderMatchesTopSearch(order: any, raw: string): boolean {
     const q = raw.trim();
@@ -40,6 +40,7 @@ export function orderMatchesTopSearch(order: any, raw: string): boolean {
         order?.address,
         order?.tracking_number,
         order?.coliaty_old_tracking,
+        order?.ameex_old_tracking,
         order?.note,
         order?.delivery_note,
         order?.source_name,
