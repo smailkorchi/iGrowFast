@@ -1,11 +1,10 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import {
     Plus,
     Search,
     History,
-    MoreVertical,
     Wallet,
     Trash2,
     Loader2,
@@ -21,7 +20,10 @@ import {
     PlusCircle,
     X,
     Eye,
-    Puzzle
+    Puzzle,
+    LayoutGrid,
+    LayoutList,
+    Pencil,
 } from 'lucide-react';
 import {
     Card,
@@ -37,13 +39,6 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
     Form,
     FormControl,
@@ -96,13 +91,85 @@ const paymentSchema = z.object({
 type TransactionFormValues = z.infer<typeof transactionSchema>;
 type PaymentFormValues = z.infer<typeof paymentSchema>;
 
+function getPaymentStatus(tx: any): 'paid' | 'partial' | 'unpaid' {
+    const total = Number(tx.total_price || 0);
+    const paid = Number(tx.paid_price || 0);
+    const balance = total - paid;
+    if (total > 0 && balance <= 0) return 'paid';
+    if (paid > 0 && balance > 0) return 'partial';
+    return 'unpaid';
+}
+
+const defaultTransactionFormValues: TransactionFormValues = {
+    name: '',
+    phone: '',
+    email: '',
+    address: '',
+    note: '',
+    date: new Date().toISOString().split('T')[0],
+    items: [{ type: 'product' as const, product_id: '', accessory_id: '', quantity: 1, unit_price: 0 }],
+};
+
+function mapPurchaseRowToFormItem(row: any): TransactionFormValues['items'][number] | null {
+    if (row.product_id) {
+        const qty = Math.max(1, Number(row.quantity || 1));
+        const sub = Number(row.sub_total || 0);
+        const unit = qty > 0 ? sub / qty : 0;
+        return {
+            type: 'product',
+            product_id: row.product_id,
+            accessory_id: '',
+            quantity: qty,
+            unit_price: unit,
+        };
+    }
+    if (row.accessory_id) {
+        const qty = Math.max(1, Number(row.accessory_quantity || 1));
+        const sub = Number(row.accessory_sub_total || 0);
+        const unit = qty > 0 ? sub / qty : 0;
+        return {
+            type: 'accessory',
+            product_id: '',
+            accessory_id: row.accessory_id,
+            quantity: qty,
+            unit_price: unit,
+        };
+    }
+    return null;
+}
+
+function mapTransactionToFormValues(tx: any): TransactionFormValues {
+    const raw = (tx.items || [])
+        .map(mapPurchaseRowToFormItem)
+        .filter(Boolean) as TransactionFormValues['items'];
+    const items =
+        raw.length > 0
+            ? raw
+            : [{ type: 'product' as const, product_id: '', accessory_id: '', quantity: 1, unit_price: 0 }];
+    const d = tx.date ? new Date(tx.date) : new Date(tx.created_at || Date.now());
+    const dateStr = Number.isNaN(d.getTime()) ? new Date().toISOString().split('T')[0] : format(d, 'yyyy-MM-dd');
+    return {
+        name: tx.name || '',
+        phone: tx.phone || '',
+        email: tx.email || '',
+        address: tx.address || '',
+        note: tx.note || '',
+        date: dateStr,
+        items,
+    };
+}
+
 const Transactions = () => {
-    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [transactionModalOpen, setTransactionModalOpen] = useState(false);
+    const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState("");
+    const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+    const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'partial' | 'unpaid'>('all');
+    const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
 
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -159,15 +226,7 @@ const Transactions = () => {
     // --- Forms ---
     const transactionForm = useForm<TransactionFormValues>({
         resolver: zodResolver(transactionSchema),
-        defaultValues: {
-            name: '',
-            phone: '',
-            email: '',
-            address: '',
-            note: '',
-            date: new Date().toISOString().split('T')[0],
-            items: [{ type: 'product' as const, product_id: '', accessory_id: '', quantity: 1, unit_price: 0 }]
-        }
+        defaultValues: defaultTransactionFormValues,
     });
 
     const { fields, append, remove } = useFieldArray({
@@ -229,13 +288,67 @@ const Transactions = () => {
             queryClient.invalidateQueries({ queryKey: ['products', activeBusinessId] }); // Stock changed
             queryClient.invalidateQueries({ queryKey: ['accessories', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['accessories-minimal', activeBusinessId] });
-            setIsAddModalOpen(false);
-            transactionForm.reset();
+            setTransactionModalOpen(false);
+            setEditingTransactionId(null);
+            transactionForm.reset(defaultTransactionFormValues);
             toast({ title: "Transaction Created", description: "Purchases and stock updated successfully." });
         },
         onError: (error: any) => {
             toast({ title: "Error", description: error.message, variant: "destructive" });
         }
+    });
+
+    const updateTransactionMutation = useMutation({
+        mutationFn: async ({ id, values }: { id: string; values: TransactionFormValues }) => {
+            const { error: txError } = await supabase
+                .from('transactions')
+                .update({
+                    name: values.name,
+                    phone: values.phone || null,
+                    email: values.email || null,
+                    address: values.address || null,
+                    note: values.note || null,
+                    date: values.date,
+                })
+                .eq('id', id)
+                .eq('DigiCom Business', activeBusinessId);
+
+            if (txError) throw txError;
+
+            const { error: delError } = await supabase.from('trns_purchase').delete().eq('transaction_id', id);
+            if (delError) throw delError;
+
+            const rows = values.items.map((item) => ({
+                transaction_id: id,
+                product_id:
+                    item.type === 'product' && item.product_id && item.product_id !== 'none' ? item.product_id : null,
+                accessory_id:
+                    item.type === 'accessory' && item.accessory_id && item.accessory_id !== 'none'
+                        ? item.accessory_id
+                        : null,
+                quantity: item.type === 'product' ? item.quantity : 0,
+                sub_total: item.type === 'product' ? item.quantity * item.unit_price : 0,
+                accessory_quantity: item.type === 'accessory' ? item.quantity : 0,
+                accessory_sub_total: item.type === 'accessory' ? item.quantity * item.unit_price : 0,
+                'DigiCom Business': activeBusinessId,
+            }));
+
+            const { error: itemsError } = await supabase.from('trns_purchase').insert(rows);
+            if (itemsError) throw itemsError;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['transactions', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['products', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['accessories', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['accessories-minimal', activeBusinessId] });
+            setTransactionModalOpen(false);
+            setEditingTransactionId(null);
+            transactionForm.reset(defaultTransactionFormValues);
+            toast({ title: 'Transaction updated', description: 'Supplier details and line items saved.' });
+        },
+        onError: (error: any) => {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        },
     });
 
     const addPaymentMutation = useMutation({
@@ -288,10 +401,25 @@ const Transactions = () => {
     });
 
     // --- Helpers ---
-    const filteredTransactions = transactions?.filter(tx =>
-        tx.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        tx.phone?.includes(searchQuery)
-    );
+    const displayTransactions = useMemo(() => {
+        if (!transactions?.length) return [];
+        const q = searchQuery.trim().toLowerCase();
+        let list = transactions.filter((tx) => {
+            const matchSearch =
+                !q ||
+                (tx.name || '').toLowerCase().includes(q) ||
+                (tx.phone || '').includes(searchQuery.trim());
+            if (!matchSearch) return false;
+            if (statusFilter === 'all') return true;
+            return getPaymentStatus(tx) === statusFilter;
+        });
+        list = [...list].sort((a, b) => {
+            const da = new Date(a.created_at || a.date || 0).getTime();
+            const db = new Date(b.created_at || b.date || 0).getTime();
+            return sortOrder === 'newest' ? db - da : da - db;
+        });
+        return list;
+    }, [transactions, searchQuery, statusFilter, sortOrder]);
 
     const getStatusBadge = (tx: any) => {
         const balance = (tx.total_price || 0) - (tx.paid_price || 0);
@@ -311,18 +439,13 @@ const Transactions = () => {
                             <h1 className="text-4xl font-extralight text-gray-900 mb-2">Supplier Transactions</h1>
                             <p className="text-gray-500 font-light">Manage your inventory purchases and payments ledger.</p>
                         </div>
-                        <div className="flex flex-col sm:flex-row gap-3 items-center">
-                            <div className="relative group sm:w-80">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
-                                <Input
-                                    placeholder="Search supplier or phone..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="pl-11 h-12 rounded-2xl border-gray-100 bg-white"
-                                />
-                            </div>
+                        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
                             <Button
-                                onClick={() => setIsAddModalOpen(true)}
+                                onClick={() => {
+                                    setEditingTransactionId(null);
+                                    transactionForm.reset(defaultTransactionFormValues);
+                                    setTransactionModalOpen(true);
+                                }}
                                 className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group flex items-center gap-2 w-full sm:w-auto"
                             >
                                 <PlusCircle className="w-5 h-5" />
@@ -333,41 +456,260 @@ const Transactions = () => {
                 </div>
             </div>
 
+            {/* Filters bar */}
+            <Card className="border border-brand-navy/[0.06] shadow-sm rounded-[28px] bg-white/80 backdrop-blur-sm">
+                <CardContent className="p-4 sm:p-5">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="relative group flex-1 min-w-0 max-w-xl">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors pointer-events-none" />
+                            <Input
+                                placeholder="Search supplier or phone..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-11 h-11 rounded-2xl border-gray-100 bg-white"
+                            />
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
+                                <SelectTrigger className="h-11 w-[140px] rounded-2xl border-gray-100 bg-white text-xs font-bold">
+                                    <SelectValue placeholder="Status" />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-2xl">
+                                    <SelectItem value="all" className="rounded-xl">All statuses</SelectItem>
+                                    <SelectItem value="paid" className="rounded-xl">Paid</SelectItem>
+                                    <SelectItem value="partial" className="rounded-xl">Partial</SelectItem>
+                                    <SelectItem value="unpaid" className="rounded-xl">Unpaid</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <Select value={sortOrder} onValueChange={(v) => setSortOrder(v as typeof sortOrder)}>
+                                <SelectTrigger className="h-11 w-[150px] rounded-2xl border-gray-100 bg-white text-xs font-bold">
+                                    <SelectValue placeholder="Sort" />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-2xl">
+                                    <SelectItem value="newest" className="rounded-xl">Newest first</SelectItem>
+                                    <SelectItem value="oldest" className="rounded-xl">Oldest first</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <div className="flex rounded-2xl border border-gray-100 bg-brand-navy/[0.03] p-1">
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setViewMode('list')}
+                                    className={cn(
+                                        'h-9 px-3 rounded-xl gap-2 font-bold text-xs',
+                                        viewMode === 'list'
+                                            ? 'bg-brand-navy text-white hover:bg-brand-navy hover:text-white shadow-sm'
+                                            : 'text-brand-navy/70 hover:bg-white/80'
+                                    )}
+                                >
+                                    <LayoutList className="w-4 h-4" />
+                                    List
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setViewMode('grid')}
+                                    className={cn(
+                                        'h-9 px-3 rounded-xl gap-2 font-bold text-xs',
+                                        viewMode === 'grid'
+                                            ? 'bg-brand-navy text-white hover:bg-brand-navy hover:text-white shadow-sm'
+                                            : 'text-brand-navy/70 hover:bg-white/80'
+                                    )}
+                                >
+                                    <LayoutGrid className="w-4 h-4" />
+                                    Grid
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
             {/* Content Section */}
             {isLoading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {Array.from({ length: 6 }).map((_, i) => (
-                        <Skeleton key={i} className="h-64 w-full rounded-[32px]" />
-                    ))}
-                </div>
-            ) : filteredTransactions?.length === 0 ? (
+                viewMode === 'list' ? (
+                    <div className="rounded-[28px] border border-brand-navy/[0.06] bg-white overflow-hidden divide-y divide-brand-navy/[0.06]">
+                        {Array.from({ length: 8 }).map((_, i) => (
+                            <div key={i} className="p-4 sm:p-5">
+                                <Skeleton className="h-14 w-full rounded-2xl" />
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {Array.from({ length: 6 }).map((_, i) => (
+                            <Skeleton key={i} className="h-64 w-full rounded-[32px]" />
+                        ))}
+                    </div>
+                )
+            ) : displayTransactions.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-32 space-y-6 bg-brand-white rounded-[40px] shadow-sm border border-brand-navy/[0.03]">
                     <div className="w-24 h-24 bg-brand-navy/[0.04] rounded-full flex items-center justify-center">
                         <History className="w-12 h-12 text-brand-navy/20" />
                     </div>
                     <div className="text-center space-y-2">
                         <h3 className="text-2xl font-bold text-brand-navy">No transactions found</h3>
-                        <p className="text-muted-foreground max-w-xs mx-auto">Start logging your supplier purchases to track stock and payments.</p>
+                        <p className="text-muted-foreground max-w-xs mx-auto">
+                            {transactions?.length
+                                ? 'Try adjusting search or filters.'
+                                : 'Start logging your supplier purchases to track stock and payments.'}
+                        </p>
                     </div>
                 </div>
+            ) : viewMode === 'list' ? (
+                <div className="rounded-[32px] border border-brand-navy/[0.06] bg-white shadow-sm overflow-hidden divide-y divide-brand-navy/[0.06]">
+                    {displayTransactions.map((tx) => (
+                        <div
+                            key={tx.id}
+                            className="group grid grid-cols-1 items-center gap-4 p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,auto)_auto] lg:gap-6 hover:bg-brand-navy/[0.02] transition-colors"
+                        >
+                            <div className="flex min-w-0 items-start gap-3">
+                                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-navy/[0.06] text-brand-navy">
+                                    <User className="h-5 w-5" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <h3 className="truncate text-base font-bold text-brand-navy">{tx.name}</h3>
+                                        {getStatusBadge(tx)}
+                                    </div>
+                                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
+                                        <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider">
+                                            <Calendar className="h-3 w-3 shrink-0" />
+                                            {format(new Date(tx.date || tx.created_at), 'MMM dd, yyyy')}
+                                        </span>
+                                        {tx.phone ? (
+                                            <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider">
+                                                <Phone className="h-3 w-3 shrink-0" />
+                                                {tx.phone}
+                                            </span>
+                                        ) : null}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex w-full min-w-0 justify-center">
+                                <div className="grid w-full max-w-[20rem] grid-cols-2 gap-x-6 gap-y-3 xs:max-w-[22rem] sm:max-w-[26rem] sm:grid-cols-4 sm:gap-x-8 sm:gap-y-0">
+                                    <div className="flex min-w-0 flex-col items-center justify-center gap-1 text-center">
+                                        <p className="whitespace-nowrap text-[9px] font-black uppercase tracking-widest text-muted-foreground/70">
+                                            Total
+                                        </p>
+                                        <p className="w-full text-base font-bold tabular-nums tracking-tight text-brand-navy sm:text-lg">
+                                            {tx.total_price || 0}{' '}
+                                            <span className="text-[10px] font-bold text-muted-foreground/80">DH</span>
+                                        </p>
+                                    </div>
+                                    <div className="flex min-w-0 flex-col items-center justify-center gap-1 text-center">
+                                        <p className="whitespace-nowrap text-[9px] font-black uppercase tracking-widest text-muted-foreground/70">
+                                            Balance
+                                        </p>
+                                        <p
+                                            className={cn(
+                                                'w-full text-base font-bold tabular-nums tracking-tight sm:text-lg',
+                                                (tx.total_price || 0) - (tx.paid_price || 0) > 0 ? 'text-red-500' : 'text-emerald-600'
+                                            )}
+                                        >
+                                            {(tx.total_price || 0) - (tx.paid_price || 0)}{' '}
+                                            <span className="text-[10px] font-bold text-muted-foreground/80">DH</span>
+                                        </p>
+                                    </div>
+                                    <div className="flex min-w-0 flex-col items-center justify-center gap-1 text-center">
+                                        <p className="whitespace-nowrap text-[9px] font-black uppercase tracking-widest text-muted-foreground/70">
+                                            Items
+                                        </p>
+                                        <p className="w-full text-base font-bold tabular-nums text-brand-navy sm:text-lg">
+                                            {tx.items?.length || 0}
+                                        </p>
+                                    </div>
+                                    <div className="flex min-w-0 flex-col items-center justify-center gap-1 text-center">
+                                        <p className="whitespace-nowrap text-[9px] font-black uppercase tracking-widest text-muted-foreground/70">
+                                            Payments
+                                        </p>
+                                        <p className="w-full text-base font-bold tabular-nums text-brand-navy sm:text-lg">
+                                            {tx.payments?.length || 0}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex shrink-0 items-center justify-end gap-1.5 sm:gap-2 lg:justify-end">
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    title="View details"
+                                    onClick={() => {
+                                        setSelectedTransaction(tx);
+                                        setIsViewModalOpen(true);
+                                    }}
+                                    className="h-10 w-10 shrink-0 rounded-xl bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy hover:text-white"
+                                >
+                                    <Eye className="h-5 w-5" />
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    title="Edit transaction"
+                                    onClick={() => {
+                                        setEditingTransactionId(tx.id);
+                                        transactionForm.reset(mapTransactionToFormValues(tx));
+                                        setTransactionModalOpen(true);
+                                    }}
+                                    className="h-10 w-10 shrink-0 rounded-xl bg-brand-navy/[0.04] text-brand-navy hover:bg-amber-500 hover:text-white"
+                                >
+                                    <Pencil className="h-5 w-5" />
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    title="Record payment"
+                                    onClick={() => {
+                                        setSelectedTransaction(tx);
+                                        paymentForm.setValue('amount', (tx.total_price || 0) - (tx.paid_price || 0));
+                                        setIsPaymentModalOpen(true);
+                                    }}
+                                    className="h-10 w-10 shrink-0 rounded-xl bg-brand-navy/[0.04] text-brand-navy hover:bg-emerald-600 hover:text-white"
+                                >
+                                    <Wallet className="h-5 w-5" />
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    title="Delete"
+                                    onClick={() => {
+                                        setSelectedTransaction(tx);
+                                        setIsDeleteDialogOpen(true);
+                                    }}
+                                    className="h-10 w-10 shrink-0 rounded-xl bg-red-50 text-red-600 hover:bg-red-500 hover:text-white"
+                                >
+                                    <Trash2 className="h-5 w-5" />
+                                </Button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {filteredTransactions?.map((tx) => (
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {displayTransactions.map((tx) => (
                         <Card
                             key={tx.id}
-                            className="group relative overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-2xl transition-all duration-500 rounded-[32px]"
+                            className="group relative overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm transition-all duration-500 hover:shadow-2xl rounded-[32px]"
                         >
-                            <CardContent className="p-8 space-y-6">
-                                <div className="flex justify-between items-start">
+                            <CardContent className="space-y-6 p-8">
+                                <div className="flex items-start justify-between">
                                     <div className="space-y-1">
                                         <div className="flex items-center gap-2">
-                                            <div className="w-10 h-10 rounded-xl bg-brand-navy/[0.04] flex items-center justify-center text-brand-navy">
-                                                <User className="w-5 h-5" />
+                                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-navy/[0.04] text-brand-navy">
+                                                <User className="h-5 w-5" />
                                             </div>
                                             <div>
-                                                <h3 className="text-xl font-bold text-brand-navy truncate">{tx.name}</h3>
+                                                <h3 className="truncate text-xl font-bold text-brand-navy">{tx.name}</h3>
                                                 <div className="flex items-center gap-1.5 text-muted-foreground">
-                                                    <Calendar className="w-3 h-3" />
+                                                    <Calendar className="h-3 w-3" />
                                                     <span className="text-[10px] font-bold uppercase tracking-wider">
                                                         {format(new Date(tx.date || tx.created_at), 'MMM dd, yyyy')}
                                                     </span>
@@ -385,10 +727,12 @@ const Transactions = () => {
                                     </div>
                                     <div className="space-y-1">
                                         <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Debt Balance</p>
-                                        <p className={cn(
-                                            "text-2xl font-bold",
-                                            (tx.total_price - tx.paid_price) > 0 ? "text-red-500" : "text-emerald-500"
-                                        )}>
+                                        <p
+                                            className={cn(
+                                                'text-2xl font-bold',
+                                                (tx.total_price || 0) - (tx.paid_price || 0) > 0 ? 'text-red-500' : 'text-emerald-500'
+                                            )}
+                                        >
                                             {(tx.total_price || 0) - (tx.paid_price || 0)} DH
                                         </p>
                                     </div>
@@ -399,58 +743,70 @@ const Transactions = () => {
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-4">
                                         <div className="flex flex-col">
-                                            <span className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest">Items</span>
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Items</span>
                                             <span className="text-sm font-bold text-brand-navy">{tx.items?.length || 0} kinds</span>
                                         </div>
                                         <div className="flex flex-col">
-                                            <span className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest">Payments</span>
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Payments</span>
                                             <span className="text-sm font-bold text-brand-navy">{tx.payments?.length || 0} tranches</span>
                                         </div>
                                     </div>
 
-                                    <div className="flex gap-2">
+                                    <div className="flex flex-wrap justify-end gap-1.5 sm:gap-2">
                                         <Button
+                                            type="button"
                                             variant="ghost"
                                             size="icon"
+                                            title="View details"
                                             onClick={() => {
                                                 setSelectedTransaction(tx);
                                                 setIsViewModalOpen(true);
                                             }}
-                                            className="h-10 w-10 rounded-xl bg-brand-navy/[0.04] hover:bg-brand-navy text-brand-navy hover:text-brand-white transition-all"
+                                            className="h-10 w-10 rounded-xl bg-brand-navy/[0.04] text-brand-navy transition-all hover:bg-brand-navy hover:text-white"
                                         >
-                                            <Eye className="w-5 h-5" />
+                                            <Eye className="h-5 w-5" />
                                         </Button>
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy/[0.08]">
-                                                    <MoreVertical className="h-5 w-5" />
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[180px]">
-                                                <DropdownMenuItem
-                                                    onClick={() => {
-                                                        setSelectedTransaction(tx);
-                                                        paymentForm.setValue('amount', (tx.total_price || 0) - (tx.paid_price || 0));
-                                                        setIsPaymentModalOpen(true);
-                                                    }}
-                                                    className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3"
-                                                >
-                                                    <Wallet className="w-4 h-4" />
-                                                    <span className="font-bold">Record Payment</span>
-                                                </DropdownMenuItem>
-                                                <DropdownMenuSeparator />
-                                                <DropdownMenuItem
-                                                    onClick={() => {
-                                                        setSelectedTransaction(tx);
-                                                        setIsDeleteDialogOpen(true);
-                                                    }}
-                                                    className="rounded-xl p-3 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-3"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                    <span className="font-bold">Delete Record</span>
-                                                </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            title="Edit transaction"
+                                            onClick={() => {
+                                                setEditingTransactionId(tx.id);
+                                                transactionForm.reset(mapTransactionToFormValues(tx));
+                                                setTransactionModalOpen(true);
+                                            }}
+                                            className="h-10 w-10 rounded-xl bg-brand-navy/[0.04] text-brand-navy hover:bg-amber-500 hover:text-white"
+                                        >
+                                            <Pencil className="h-5 w-5" />
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            title="Record payment"
+                                            onClick={() => {
+                                                setSelectedTransaction(tx);
+                                                paymentForm.setValue('amount', (tx.total_price || 0) - (tx.paid_price || 0));
+                                                setIsPaymentModalOpen(true);
+                                            }}
+                                            className="h-10 w-10 rounded-xl bg-brand-navy/[0.04] text-brand-navy hover:bg-emerald-600 hover:text-white"
+                                        >
+                                            <Wallet className="h-5 w-5" />
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            title="Delete"
+                                            onClick={() => {
+                                                setSelectedTransaction(tx);
+                                                setIsDeleteDialogOpen(true);
+                                            }}
+                                            className="h-10 w-10 rounded-xl bg-red-50 text-red-600 hover:bg-red-500 hover:text-white"
+                                        >
+                                            <Trash2 className="h-5 w-5" />
+                                        </Button>
                                     </div>
                                 </div>
                             </CardContent>
@@ -459,14 +815,38 @@ const Transactions = () => {
                 </div>
             )}
 
-            {/* Add Transaction Modal */}
-            <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+            {/* Create / Edit Transaction Modal */}
+            <Dialog
+                open={transactionModalOpen}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setTransactionModalOpen(false);
+                        setEditingTransactionId(null);
+                        transactionForm.reset(defaultTransactionFormValues);
+                    }
+                }}
+            >
                 <DialogContent className="max-w-4xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
                     <Form {...transactionForm}>
-                        <form onSubmit={transactionForm.handleSubmit(v => createTransactionMutation.mutate(v))} className="flex flex-col flex-1 min-h-0">
+                        <form
+                            onSubmit={transactionForm.handleSubmit((v) => {
+                                if (editingTransactionId) {
+                                    updateTransactionMutation.mutate({ id: editingTransactionId, values: v });
+                                } else {
+                                    createTransactionMutation.mutate(v);
+                                }
+                            })}
+                            className="flex flex-col flex-1 min-h-0"
+                        >
                             <DialogHeader className="p-8 pb-4 shrink-0">
-                                <DialogTitle className="text-3xl font-bold text-brand-navy">New Purchase Transaction</DialogTitle>
-                                <DialogDescription className="text-muted-foreground text-lg">Log supplier invoices and update inventory stock instantly.</DialogDescription>
+                                <DialogTitle className="text-3xl font-bold text-brand-navy">
+                                    {editingTransactionId ? 'Edit purchase transaction' : 'New Purchase Transaction'}
+                                </DialogTitle>
+                                <DialogDescription className="text-muted-foreground text-lg">
+                                    {editingTransactionId
+                                        ? 'Update supplier details, dates, and line items. Payments on this transaction are unchanged.'
+                                        : 'Log supplier invoices and update inventory stock instantly.'}
+                                </DialogDescription>
                             </DialogHeader>
 
                             <div className="overflow-y-auto p-8 pt-4 space-y-8 flex-1 min-h-0 custom-scrollbar">
@@ -696,7 +1076,9 @@ const Transactions = () => {
                                                 </h3>
                                             </div>
                                         </div>
-                                        <Badge className="bg-emerald-50 text-emerald-600 border-none font-bold px-4 py-2 rounded-xl">Invoice Draft</Badge>
+                                        <Badge className="bg-emerald-50 text-emerald-600 border-none font-bold px-4 py-2 rounded-xl">
+                                            {editingTransactionId ? 'Edit invoice' : 'Invoice Draft'}
+                                        </Badge>
                                     </div>
                                 </div>
                             </div>
@@ -705,18 +1087,24 @@ const Transactions = () => {
                                 <Button
                                     type="button"
                                     variant="ghost"
-                                    onClick={() => setIsAddModalOpen(false)}
+                                    onClick={() => {
+                                        setTransactionModalOpen(false);
+                                        setEditingTransactionId(null);
+                                        transactionForm.reset(defaultTransactionFormValues);
+                                    }}
                                     className="rounded-2xl h-14 px-8 font-bold text-brand-navy hover:bg-muted"
                                 >
                                     Discard
                                 </Button>
                                 <Button
                                     type="submit"
-                                    disabled={createTransactionMutation.isPending}
+                                    disabled={createTransactionMutation.isPending || updateTransactionMutation.isPending}
                                     className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-14 px-10 font-bold shadow-2xl shadow-brand-navy/30 transition-all active:scale-95 flex items-center gap-3"
                                 >
-                                    {createTransactionMutation.isPending && <Loader2 className="w-5 h-5 animate-spin" />}
-                                    Finalize & Update Stock
+                                    {(createTransactionMutation.isPending || updateTransactionMutation.isPending) && (
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                    )}
+                                    {editingTransactionId ? 'Save changes' : 'Finalize & Update Stock'}
                                 </Button>
                             </DialogFooter>
                         </form>
@@ -954,16 +1342,35 @@ const Transactions = () => {
                                 )}
                             </div>
 
-                            <DialogFooter className="p-10 pt-0 shrink-0">
+                            <DialogFooter className="p-10 pt-0 shrink-0 flex flex-col gap-3 sm:flex-row sm:justify-end">
                                 <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => {
+                                        const t = selectedTransaction;
+                                        setIsViewModalOpen(false);
+                                        setEditingTransactionId(t.id);
+                                        transactionForm.reset(mapTransactionToFormValues(t));
+                                        setTransactionModalOpen(true);
+                                    }}
+                                    className="order-2 h-14 rounded-2xl border-brand-navy/20 px-8 font-bold text-brand-navy hover:bg-brand-navy/[0.06] sm:order-1"
+                                >
+                                    <Pencil className="mr-2 h-5 w-5" />
+                                    Edit transaction
+                                </Button>
+                                <Button
+                                    type="button"
                                     onClick={() => {
                                         setIsViewModalOpen(false);
-                                        paymentForm.setValue('amount', (selectedTransaction.total_price || 0) - (selectedTransaction.paid_price || 0));
+                                        paymentForm.setValue(
+                                            'amount',
+                                            (selectedTransaction.total_price || 0) - (selectedTransaction.paid_price || 0)
+                                        );
                                         setIsPaymentModalOpen(true);
                                     }}
-                                    className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-14 px-10 font-bold shadow-2xl shadow-brand-navy/30 transition-all active:scale-95 flex items-center gap-3 w-full"
+                                    className="order-1 flex w-full items-center gap-3 rounded-2xl bg-brand-navy px-10 py-4 font-bold text-white shadow-2xl shadow-brand-navy/30 transition-all hover:bg-brand-navy/90 active:scale-95 sm:order-2 sm:w-auto"
                                 >
-                                    <Wallet className="w-5 h-5" />
+                                    <Wallet className="h-5 w-5" />
                                     Make a Payment for this Order
                                 </Button>
                             </DialogFooter>
