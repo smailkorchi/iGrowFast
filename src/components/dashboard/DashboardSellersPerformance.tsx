@@ -8,7 +8,12 @@ import { Users, ChevronDown } from 'lucide-react';
 import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
 import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { isDeliveredForCommission } from '@/lib/commercialCommission';
+import {
+    commissionAccruedForDeliveredOrder,
+    isDeliveredForCommission,
+    normalizeCommissionBasis,
+    type CommissionBasis,
+} from '@/lib/commercialCommission';
 
 interface DashboardSellersPerformanceProps {
     businessId: string;
@@ -26,6 +31,24 @@ const SOURCE_COLORS: Record<string, string> = {
     other: 'bg-gray-100 text-gray-600',
 };
 
+/** Product-line revenue only (no shipping). Uses line totals; falls back to raw_price or price − shipping. */
+function productRevenueExcludingShipping(o: any): number {
+    const items = (o.order_items as any[]) || [];
+    let sum = 0;
+    for (const oi of items) {
+        if (!oi?.product_id) continue;
+        const q = Number(oi.quantity || 1);
+        sum += Number(oi.total_price || 0) || Number(oi.unit_price || 0) * q;
+    }
+    if (sum > 0) return sum;
+    const raw = Number(o.raw_price);
+    if (raw > 0) return raw;
+    const p = Number(o.price || 0);
+    const ship = Number(o.shipping_cost || 0);
+    if (o.include_delivery_in_total === false) return p;
+    return Math.max(0, p - ship);
+}
+
 export const DashboardSellersPerformance = ({ businessId, dateFilter }: DashboardSellersPerformanceProps) => {
     const [expandedSellers, setExpandedSellers] = useState<Set<string>>(new Set());
     const {
@@ -37,7 +60,7 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
     } = useStatusCategories();
 
     const toggleSeller = (id: string) => {
-        setExpandedSellers(prev => {
+        setExpandedSellers((prev) => {
             const next = new Set(prev);
             if (next.has(id)) next.delete(id);
             else next.add(id);
@@ -50,7 +73,7 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
         queryFn: async () => {
             const { data } = await supabase
                 .from('users')
-                .select('id, name, avatar_url, active')
+                .select('id, name, avatar_url, active, commission_price, commission_basis, products')
                 .eq('role', 'commercial')
                 .eq('DigiCom Business', businessId);
             return data || [];
@@ -58,12 +81,27 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
         enabled: !!businessId,
     });
 
+    /** Rich orders for net math (isolated key so shared dashboard-orders stays unchanged). */
     const { data: orders } = useQuery({
-        queryKey: ['dashboard-orders', businessId],
+        queryKey: ['dashboard-sellers-performance-orders', businessId],
         queryFn: async () => {
             const { data } = await supabase
                 .from('orders')
-                .select('id, date, price, shipping_cost, order_status_id, package_status_id, package_status_label, seller_id, company_id, source_name, order_statuses(code, label)')
+                .select(
+                    'id, date, price, raw_price, shipping_cost, include_delivery_in_total, order_status_id, package_status_id, package_status_label, seller_id, company_id, source_name, order_items(product_id, quantity, unit_price, total_price), order_statuses(code, label)'
+                )
+                .eq('DigiCom Business', businessId);
+            return data || [];
+        },
+        enabled: !!businessId,
+    });
+
+    const { data: adsHistory } = useQuery({
+        queryKey: ['dashboard-ads-history', businessId],
+        queryFn: async () => {
+            const { data } = await supabase
+                .from('ads_history')
+                .select('id, product_id, amount, start_date, end_date')
                 .eq('DigiCom Business', businessId);
             return data || [];
         },
@@ -73,9 +111,7 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
     const metrics = useMemo(() => {
         if (!sellers || !orders) return null;
 
-        const recheckPackageIds = new Set(
-            getPkgsByCategories(['recheck']).map((p) => p.id)
-        );
+        const recheckPackageIds = new Set(getPkgsByCategories(['recheck']).map((p) => p.id));
         const isExcludedFromConfirmation = (statusId: string) =>
             callbackIds.has(statusId) || cancelledIds.has(statusId);
 
@@ -92,6 +128,26 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
         const filtered = orders.filter((o: any) => isInRange(o.date));
         const totalOrders = filtered.length;
 
+        const filteredAds = (adsHistory || []).filter((a: any) => isInRange(a.start_date));
+        const adsByProduct = new Map<string, number>();
+        filteredAds.forEach((a: any) => {
+            if (a.product_id) {
+                adsByProduct.set(a.product_id, (adsByProduct.get(a.product_id) || 0) + Number(a.amount || 0));
+            }
+        });
+
+        const globalProductDeliveredQty = new Map<string, number>();
+        filtered.forEach((o: any) => {
+            if (!isDeliveredForCommission(o, deliveredPkgIds)) return;
+            const items = (o.order_items as any[]) || [];
+            for (const oi of items) {
+                const pid = oi?.product_id;
+                if (!pid) continue;
+                const q = Number(oi.quantity || 1);
+                globalProductDeliveredQty.set(pid, (globalProductDeliveredQty.get(pid) || 0) + q);
+            }
+        });
+
         const sellerData = sellers.map((seller: any) => {
             const sellerOrders = filtered.filter((o: any) => o.seller_id === seller.id);
             const assignedCount = sellerOrders.length;
@@ -103,36 +159,67 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                 sourceBreakdown[src] = (sourceBreakdown[src] || 0) + 1;
             });
 
-            const preConfOrders = sellerOrders.filter(
-                (o: any) => !isExcludedFromConfirmation(o.order_status_id)
-            );
+            const preConfOrders = sellerOrders.filter((o: any) => !isExcludedFromConfirmation(o.order_status_id));
             const preConfirmationBreakdown: Record<string, number> = {};
             preConfOrders.forEach((o: any) => {
                 const label = (o.order_statuses as any)?.label || 'Unknown';
                 preConfirmationBreakdown[label] = (preConfirmationBreakdown[label] || 0) + 1;
             });
 
-            const confirmedCount = sellerOrders.filter((o: any) =>
-                confirmedIds.has(o.order_status_id)
-            ).length;
+            const confirmedCount = sellerOrders.filter((o: any) => confirmedIds.has(o.order_status_id)).length;
             const confirmedPercent = assignedCount > 0 ? (confirmedCount / assignedCount) * 100 : 0;
 
-            const postConfOrders = sellerOrders.filter(
-                (o: any) => recheckPackageIds.has(o.package_status_id)
-            );
+            const postConfOrders = sellerOrders.filter((o: any) => recheckPackageIds.has(o.package_status_id));
             const postConfirmationBreakdown: Record<string, number> = {};
             postConfOrders.forEach((o: any) => {
                 const label = o.package_status_label || 'Unknown';
                 postConfirmationBreakdown[label] = (postConfirmationBreakdown[label] || 0) + 1;
             });
 
-            const delivered = sellerOrders.filter((o: any) =>
-                isDeliveredForCommission(o, deliveredPkgIds)
-            );
+            const delivered = sellerOrders.filter((o: any) => isDeliveredForCommission(o, deliveredPkgIds));
             const deliveredCount = delivered.length;
             const deliveredPercent = confirmedCount > 0 ? (deliveredCount / confirmedCount) * 100 : 0;
 
-            const revenue = delivered.reduce((s: number, o: any) => s + Number(o.price || 0), 0);
+            const basis: CommissionBasis = normalizeCommissionBasis(seller.commission_basis as string | null | undefined);
+            const commissionPrice = Number(seller.commission_price ?? 0) || 0;
+            const sellerProductIds: string[] = Array.isArray(seller.products)
+                ? (seller.products as string[]).filter((id): id is string => typeof id === 'string' && id.length > 0)
+                : [];
+
+            let productRevenueDelivered = 0;
+            const sellerProductDeliveredQty = new Map<string, number>();
+
+            delivered.forEach((o: any) => {
+                productRevenueDelivered += productRevenueExcludingShipping(o);
+                const items = (o.order_items as any[]) || [];
+                for (const oi of items) {
+                    const pid = oi?.product_id;
+                    if (!pid) continue;
+                    const q = Number(oi.quantity || 1);
+                    sellerProductDeliveredQty.set(pid, (sellerProductDeliveredQty.get(pid) || 0) + q);
+                }
+            });
+
+            let adsShare = 0;
+            sellerProductDeliveredQty.forEach((sqty, pid) => {
+                const gqty = globalProductDeliveredQty.get(pid) || 0;
+                const ads = adsByProduct.get(pid) || 0;
+                if (gqty > 0 && ads > 0) adsShare += (sqty / gqty) * ads;
+            });
+
+            const commissionTotal = delivered.reduce(
+                (s: number, o: any) =>
+                    s +
+                    commissionAccruedForDeliveredOrder({
+                        order: o,
+                        basis,
+                        commissionPrice,
+                        sellerProductIds,
+                    }),
+                0
+            );
+
+            const netResult = productRevenueDelivered - adsShare - commissionTotal;
 
             return {
                 id: seller.id,
@@ -148,12 +235,22 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                 postConfirmationBreakdown,
                 deliveredCount,
                 deliveredPercent,
-                revenue,
+                netResult,
             };
         }).sort((a, b) => b.deliveredCount - a.deliveredCount);
 
         return { sellerData, totalOrders };
-    }, [sellers, orders, dateFilter, confirmedIds, callbackIds, cancelledIds, deliveredPkgIds, getPkgsByCategories]);
+    }, [
+        sellers,
+        orders,
+        adsHistory,
+        dateFilter,
+        confirmedIds,
+        callbackIds,
+        cancelledIds,
+        deliveredPkgIds,
+        getPkgsByCategories,
+    ]);
 
     if (!metrics) return null;
 
@@ -167,7 +264,8 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                     <div>
                         <CardTitle className="text-sm font-bold text-brand-navy">Sellers Performance</CardTitle>
                         <p className="text-xs text-gray-400 mt-0.5">
-                            {metrics.sellerData.length} sellers &middot; {metrics.totalOrders.toLocaleString('fr-MA')} total orders
+                            {metrics.sellerData.length} sellers &middot; {metrics.totalOrders.toLocaleString('fr-MA')}{' '}
+                            total orders &middot; Net = product total − ads (share) − commission
                         </p>
                     </div>
                 </div>
@@ -184,6 +282,7 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                             )}
                         >
                             <button
+                                type="button"
                                 onClick={() => toggleSeller(s.id)}
                                 className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50/60 transition-colors text-left"
                             >
@@ -197,7 +296,11 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                                     )}
                                     <div className="min-w-0">
                                         <span className="font-bold text-brand-navy text-xs block truncate">{s.name}</span>
-                                        {!s.active && <Badge variant="outline" className="text-[8px] px-1 py-0 mt-0.5">Inactive</Badge>}
+                                        {!s.active && (
+                                            <Badge variant="outline" className="text-[8px] px-1 py-0 mt-0.5">
+                                                Inactive
+                                            </Badge>
+                                        )}
                                     </div>
                                 </div>
 
@@ -218,18 +321,30 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                                         percent={s.deliveredPercent}
                                     />
                                     <div className="text-center">
-                                        <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Revenue</p>
-                                        <p className="text-sm font-bold text-emerald-600 leading-tight mt-0.5">
-                                            {s.revenue.toLocaleString('fr-MA')}
+                                        <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">
+                                            Net result
+                                        </p>
+                                        <p
+                                            className={cn(
+                                                'text-sm font-bold leading-tight mt-0.5',
+                                                s.netResult >= 0 ? 'text-emerald-600' : 'text-red-600'
+                                            )}
+                                        >
+                                            {s.netResult.toLocaleString('fr-MA')}
                                         </p>
                                         <p className="text-[10px] text-gray-400">MAD</p>
+                                        <p className="text-[8px] text-gray-400 leading-tight mt-0.5 px-0.5">
+                                            excl. shipping, ads share, commission
+                                        </p>
                                     </div>
                                 </div>
 
-                                <ChevronDown className={cn(
-                                    'w-4 h-4 text-gray-400 transition-transform shrink-0',
-                                    isExpanded && 'rotate-180'
-                                )} />
+                                <ChevronDown
+                                    className={cn(
+                                        'w-4 h-4 text-gray-400 transition-transform shrink-0',
+                                        isExpanded && 'rotate-180'
+                                    )}
+                                />
                             </button>
 
                             {isExpanded && (
@@ -297,7 +412,12 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
     );
 };
 
-function MetricCell({ label, value, sub, percent }: {
+function MetricCell({
+    label,
+    value,
+    sub,
+    percent,
+}: {
     label: string;
     value: number;
     sub?: string;
@@ -309,12 +429,16 @@ function MetricCell({ label, value, sub, percent }: {
             <p className="text-sm font-bold text-brand-navy leading-tight mt-0.5">{value}</p>
             {sub && <p className="text-[10px] text-gray-400">{sub}</p>}
             {percent !== undefined && (
-                <Badge className={cn(
-                    'text-[9px] px-1.5 py-0 font-bold',
-                    percent >= 50 ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-50' :
-                    percent >= 25 ? 'bg-amber-50 text-amber-600 hover:bg-amber-50' :
-                    'bg-red-50 text-red-600 hover:bg-red-50'
-                )}>
+                <Badge
+                    className={cn(
+                        'text-[9px] px-1.5 py-0 font-bold',
+                        percent >= 50
+                            ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-50'
+                            : percent >= 25
+                              ? 'bg-amber-50 text-amber-600 hover:bg-amber-50'
+                              : 'bg-red-50 text-red-600 hover:bg-red-50'
+                    )}
+                >
                     {percent.toFixed(1)}%
                 </Badge>
             )}
@@ -333,7 +457,12 @@ function BreakdownSection({ title, children }: { title: string; children: React.
 
 function PillBadge({ label, count, className }: { label: string; count: number; className: string }) {
     return (
-        <span className={cn('inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full', className)}>
+        <span
+            className={cn(
+                'inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full',
+                className
+            )}
+        >
             {label}: {count}
         </span>
     );
