@@ -38,7 +38,6 @@ import {
     BarChart3,
     Puzzle,
     SearchX,
-    AlertTriangle,
     BarChart2,
     Users,
     RefreshCw
@@ -2277,12 +2276,13 @@ const Orders = () => {
                 <>
                     {viewMode === 'grid' ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pb-20">
-                            {filteredOrders.map((order) => {
-                                const allParcels = [...(order.parcels || []), ...(order.courier_parcels || [])].filter((p: any) => p.tracking_code);
-                                const latestParcel = allParcels.sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())?.[0];
-                                const trackingCode = latestParcel?.tracking_code;
-                                return (
-                                    <div
+                                {filteredOrders.map((order) => {
+                                            const isDuplicateClient = duplicatePhones.has(order.phone);
+                                            const allParcels = [...(order.parcels || []), ...(order.courier_parcels || [])].filter((p: any) => p.tracking_code);
+                                            const latestParcel = allParcels.sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())?.[0];
+                                            const trackingCode = latestParcel?.tracking_code;
+                                            return (
+                                                <div
                                         key={order.id}
                                         className={cn(
                                             "group relative bg-white rounded-2xl border transition-all duration-300 hover:shadow-lg cursor-default",
@@ -2355,17 +2355,28 @@ const Orders = () => {
                                             {/* Row 2: Customer + Seller */}
                                             <div className="flex items-center justify-between gap-3">
                                                 <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                                                    <div className="w-9 h-9 rounded-xl bg-brand-navy/[0.06] flex shrink-0 items-center justify-center">
-                                                        <User className="w-4 h-4 text-brand-navy/50" />
+                                                    <div
+                                                        className={cn(
+                                                            'w-9 h-9 rounded-xl flex shrink-0 items-center justify-center',
+                                                            isDuplicateClient ? 'bg-[#d4c438]' : 'bg-brand-navy/[0.06]'
+                                                        )}
+                                                    >
+                                                        <User
+                                                            className={cn(
+                                                                'w-4 h-4',
+                                                                isDuplicateClient ? 'text-[#9a7f00]' : 'text-brand-navy/50'
+                                                            )}
+                                                        />
                                                     </div>
                                                     <div className="min-w-0">
-                                                        <p className="text-sm font-bold text-brand-navy truncate leading-tight flex items-center gap-1.5">
-                                                            {order.name}
-                                                            {duplicatePhones.has(order.phone) && (
-                                                                <span className="inline-flex items-center gap-0.5 px-1 py-px rounded bg-red-100 text-red-600 text-[8px] font-bold" title="Multiple orders">
-                                                                    <AlertTriangle className="w-2 h-2" />DUP
-                                                                </span>
+                                                        <p
+                                                            className={cn(
+                                                                'text-sm font-bold truncate leading-tight',
+                                                                isDuplicateClient ? 'text-[#9a7f00]' : 'text-brand-navy'
                                                             )}
+                                                            title={isDuplicateClient ? 'Same phone number on multiple orders' : undefined}
+                                                        >
+                                                            {order.name}
                                                         </p>
                                                         <p className="text-[11px] text-brand-navy/40 font-medium tracking-wide">{order.phone}</p>
                                                     </div>
@@ -2476,6 +2487,7 @@ const Orders = () => {
                                     </thead>
                                     <tbody>
                                         {filteredOrders.map((order) => {
+                                            const isDuplicateClient = duplicatePhones.has(order.phone);
                                             const allParcels = [...(order.parcels || []), ...(order.courier_parcels || [])].filter((p: any) => p.tracking_code);
                                             const latestParcel = allParcels.sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())?.[0];
                                             const trackingCode = latestParcel?.tracking_code;
@@ -2497,16 +2509,33 @@ const Orders = () => {
                                                     {/* Customer */}
                                                     <td className="px-4 py-3">
                                                         <div className="flex items-center gap-2.5">
-                                                            <div className="w-8 h-8 rounded-lg bg-brand-navy/[0.05] flex items-center justify-center shrink-0">
-                                                                <User className="w-4 h-4 text-brand-navy/40" />
+                                                            <div
+                                                                className={cn(
+                                                                    'w-8 h-8 rounded-lg flex items-center justify-center shrink-0',
+                                                                    isDuplicateClient ? 'bg-[#d4c438]' : 'bg-brand-navy/[0.05]'
+                                                                )}
+                                                            >
+                                                                <User
+                                                                    className={cn(
+                                                                        'w-4 h-4',
+                                                                        isDuplicateClient ? 'text-[#9a7f00]' : 'text-brand-navy/40'
+                                                                    )}
+                                                                />
                                                             </div>
                                                             <div className="min-w-0">
-                                                                <p className="text-[13px] font-bold text-brand-navy truncate leading-tight flex items-center gap-1.5">
-                                                                    {order.name}
-                                                                    {order.replace && <RefreshCcw className="w-3 h-3 text-red-500 shrink-0" />}
-                                                                    {duplicatePhones.has(order.phone) && (
-                                                                        <span className="inline-flex items-center px-1 py-px rounded bg-red-100 text-red-600 text-[7px] font-bold" title="Duplicate">
-                                                                            DUP
+                                                                <p className="text-[13px] font-bold truncate leading-tight flex items-center gap-1.5">
+                                                                    <span
+                                                                        className={cn(
+                                                                            'truncate',
+                                                                            isDuplicateClient ? 'text-[#9a7f00]' : 'text-brand-navy'
+                                                                        )}
+                                                                        title={isDuplicateClient ? 'Same phone number on multiple orders' : undefined}
+                                                                    >
+                                                                        {order.name}
+                                                                    </span>
+                                                                    {order.replace && (
+                                                                        <span className="inline-flex shrink-0" title="Exchange">
+                                                                            <RefreshCcw className="w-3 h-3 text-red-500" />
                                                                         </span>
                                                                     )}
                                                                 </p>
