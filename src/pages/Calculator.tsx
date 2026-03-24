@@ -43,6 +43,126 @@ const defaultInputs: CalculatorInputs = {
     salePrice: 199
 };
 
+function ProfitChartTooltip({ active, payload, label }: any) {
+    if (active && payload && payload.length) {
+        return (
+            <div className="bg-white/95 backdrop-blur-sm px-4 py-3 rounded-xl shadow-lg border border-gray-100">
+                <p className="text-xs font-medium text-gray-500 mb-2">{label}</p>
+                {payload.map((entry: any, index: number) => (
+                    <p key={index} className="text-sm" style={{ color: entry.color }}>
+                        <span className="font-medium">{entry.name}:</span> {entry.value.toLocaleString()} MAD
+                    </p>
+                ))}
+            </div>
+        );
+    }
+    return null;
+}
+
+function CalculatorInputField({
+    label,
+    field,
+    value,
+    onFieldChange,
+    suffix,
+    hint,
+}: {
+    label: string;
+    field: keyof CalculatorInputs;
+    value: number;
+    onFieldChange: (field: keyof CalculatorInputs, value: string) => void;
+    suffix?: string;
+    hint?: string;
+}) {
+    return (
+        <div className="space-y-1.5">
+            <Label className="text-xs font-medium text-gray-600 uppercase tracking-wider">{label}</Label>
+            <div className="relative">
+                <Input
+                    type="number"
+                    value={value}
+                    onChange={(e) => onFieldChange(field, e.target.value)}
+                    className="pr-12 h-10 rounded-lg border-gray-200 bg-gray-50/50 focus:bg-white focus:border-gray-300 transition-all"
+                />
+                {suffix && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-400">
+                        {suffix}
+                    </span>
+                )}
+            </div>
+            {hint && <p className="text-[10px] text-gray-400">{hint}</p>}
+        </div>
+    );
+}
+
+type StatBoxTone = 'success' | 'danger' | 'warning' | 'info' | 'default';
+
+function CalculatorStatBox({
+    label,
+    value,
+    subValue,
+    type = 'default',
+    large = false,
+}: {
+    label: string;
+    value: string | number;
+    subValue?: string;
+    type?: StatBoxTone;
+    large?: boolean;
+}) {
+    const colors: Record<StatBoxTone, string> = {
+        success: 'bg-emerald-50 border-emerald-100 text-emerald-700',
+        danger: 'bg-red-50 border-red-100 text-red-700',
+        warning: 'bg-amber-50 border-amber-100 text-amber-700',
+        info: 'bg-blue-50 border-blue-100 text-blue-700',
+        default: 'bg-gray-50 border-gray-100 text-gray-700',
+    };
+
+    return (
+        <div className={`p-4 rounded-xl border ${colors[type]}`}>
+            <p className="text-[10px] uppercase tracking-wider opacity-70 mb-1">{label}</p>
+            <p className={`font-semibold ${large ? 'text-2xl' : 'text-lg'}`}>{value}</p>
+            {subValue && <p className="text-xs opacity-60 mt-0.5">{subValue}</p>}
+        </div>
+    );
+}
+
+function CalculatorProgressBar({
+    label,
+    value,
+    max,
+    color = 'primary',
+}: {
+    label: string;
+    value: number;
+    max: number;
+    color?: string;
+}) {
+    const percent = max > 0 ? Math.min((value / max) * 100, 100) : 0;
+    const colorClasses: Record<string, string> = {
+        primary: 'bg-primary',
+        green: 'bg-emerald-500',
+        red: 'bg-red-500',
+        blue: 'bg-blue-500',
+        amber: 'bg-amber-500',
+    };
+
+    return (
+        <div className="space-y-1">
+            <div className="flex justify-between text-xs">
+                <span className="text-gray-600">{label}</span>
+                <span className="font-medium text-gray-900">{percent.toFixed(1)}%</span>
+            </div>
+            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                    className={`h-full ${colorClasses[color]} rounded-full transition-all duration-500`}
+                    style={{ width: `${percent}%` }}
+                />
+            </div>
+        </div>
+    );
+}
+
 const Calculator = () => {
     const [inputs, setInputs] = useState<CalculatorInputs>(defaultInputs);
     const [targetProfit, setTargetProfit] = useState(50000);
@@ -311,86 +431,6 @@ const Calculator = () => {
         setInputs(prev => ({ ...prev, [field]: parseFloat(value) || 0 }));
     };
 
-    // Custom Tooltip for charts
-    const CustomTooltip = ({ active, payload, label }: any) => {
-        if (active && payload && payload.length) {
-            return (
-                <div className="bg-white/95 backdrop-blur-sm px-4 py-3 rounded-xl shadow-lg border border-gray-100">
-                    <p className="text-xs font-medium text-gray-500 mb-2">{label}</p>
-                    {payload.map((entry: any, index: number) => (
-                        <p key={index} className="text-sm" style={{ color: entry.color }}>
-                            <span className="font-medium">{entry.name}:</span> {entry.value.toLocaleString()} MAD
-                        </p>
-                    ))}
-                </div>
-            );
-        }
-        return null;
-    };
-
-    // Input Field Component
-    const InputField = ({ label, field, suffix, hint }: { label: string; field: keyof CalculatorInputs; suffix?: string; hint?: string }) => (
-        <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-gray-600 uppercase tracking-wider">{label}</Label>
-            <div className="relative">
-                <Input
-                    type="number"
-                    value={inputs[field]}
-                    onChange={(e) => handleInputChange(field, e.target.value)}
-                    className="pr-12 h-10 rounded-lg border-gray-200 bg-gray-50/50 focus:bg-white focus:border-gray-300 transition-all"
-                />
-                {suffix && (
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-400">
-                        {suffix}
-                    </span>
-                )}
-            </div>
-            {hint && <p className="text-[10px] text-gray-400">{hint}</p>}
-        </div>
-    );
-
-    // Stat Box Component
-    const StatBox = ({ label, value, subValue, type = 'default', large = false }: {
-        label: string; value: string | number; subValue?: string;
-        type?: 'success' | 'danger' | 'warning' | 'info' | 'default'; large?: boolean;
-    }) => {
-        const colors = {
-            success: 'bg-emerald-50 border-emerald-100 text-emerald-700',
-            danger: 'bg-red-50 border-red-100 text-red-700',
-            warning: 'bg-amber-50 border-amber-100 text-amber-700',
-            info: 'bg-blue-50 border-blue-100 text-blue-700',
-            default: 'bg-gray-50 border-gray-100 text-gray-700'
-        };
-
-        return (
-            <div className={`p-4 rounded-xl border ${colors[type]}`}>
-                <p className="text-[10px] uppercase tracking-wider opacity-70 mb-1">{label}</p>
-                <p className={`font-semibold ${large ? 'text-2xl' : 'text-lg'}`}>{value}</p>
-                {subValue && <p className="text-xs opacity-60 mt-0.5">{subValue}</p>}
-            </div>
-        );
-    };
-
-    // Progress Bar Component
-    const ProgressBar = ({ label, value, max, color = 'primary' }: { label: string; value: number; max: number; color?: string }) => {
-        const percent = max > 0 ? Math.min((value / max) * 100, 100) : 0;
-        const colorClasses: Record<string, string> = {
-            primary: 'bg-primary', green: 'bg-emerald-500', red: 'bg-red-500', blue: 'bg-blue-500', amber: 'bg-amber-500'
-        };
-
-        return (
-            <div className="space-y-1">
-                <div className="flex justify-between text-xs">
-                    <span className="text-gray-600">{label}</span>
-                    <span className="font-medium text-gray-900">{percent.toFixed(1)}%</span>
-                </div>
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div className={`h-full ${colorClasses[color]} rounded-full transition-all duration-500`} style={{ width: `${percent}%` }} />
-                </div>
-            </div>
-        );
-    };
-
     return (
         <div className="space-y-8 pb-8">
             {/* Header */}
@@ -501,11 +541,11 @@ const Calculator = () => {
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                <InputField label="Product Cost" field="productCost" suffix="MAD" />
-                                <InputField label="Call Center" field="callCenter" suffix="MAD" />
-                                <InputField label="Packaging" field="packaging" suffix="MAD" />
-                                <InputField label="Shipping Fee" field="shippingFee" suffix="MAD" hint="Only charged on delivered orders" />
-                                <InputField label="Risk Buffer" field="riskBuffer" suffix="MAD" />
+                                <CalculatorInputField label="Product Cost" field="productCost" value={inputs.productCost} onFieldChange={handleInputChange} suffix="MAD" />
+                                <CalculatorInputField label="Call Center" field="callCenter" value={inputs.callCenter} onFieldChange={handleInputChange} suffix="MAD" />
+                                <CalculatorInputField label="Packaging" field="packaging" value={inputs.packaging} onFieldChange={handleInputChange} suffix="MAD" />
+                                <CalculatorInputField label="Shipping Fee" field="shippingFee" value={inputs.shippingFee} onFieldChange={handleInputChange} suffix="MAD" hint="Only charged on delivered orders" />
+                                <CalculatorInputField label="Risk Buffer" field="riskBuffer" value={inputs.riskBuffer} onFieldChange={handleInputChange} suffix="MAD" />
 
                                 <div className="pt-3 border-t border-gray-100 space-y-2">
                                     <div className="flex justify-between text-sm">
@@ -529,10 +569,10 @@ const Calculator = () => {
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                <InputField label="Daily FB Leads" field="fbLeads" />
-                                <InputField label="Cost per Lead" field="costPerLead" suffix="MAD" />
-                                <InputField label="Confirmation Rate" field="confirmationRate" suffix="%" />
-                                <InputField label="Delivery Rate" field="deliveryRate" suffix="%" />
+                                <CalculatorInputField label="Daily FB Leads" field="fbLeads" value={inputs.fbLeads} onFieldChange={handleInputChange} />
+                                <CalculatorInputField label="Cost per Lead" field="costPerLead" value={inputs.costPerLead} onFieldChange={handleInputChange} suffix="MAD" />
+                                <CalculatorInputField label="Confirmation Rate" field="confirmationRate" value={inputs.confirmationRate} onFieldChange={handleInputChange} suffix="%" />
+                                <CalculatorInputField label="Delivery Rate" field="deliveryRate" value={inputs.deliveryRate} onFieldChange={handleInputChange} suffix="%" />
 
                                 <div className="pt-3 border-t border-gray-100 space-y-2">
                                     <div className="flex justify-between text-sm">
@@ -560,7 +600,7 @@ const Calculator = () => {
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                <InputField label="Sale Price" field="salePrice" suffix="MAD" />
+                                <CalculatorInputField label="Sale Price" field="salePrice" value={inputs.salePrice} onFieldChange={handleInputChange} suffix="MAD" />
 
                                 <div className="pt-2 space-y-3">
                                     <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
@@ -622,7 +662,7 @@ const Calculator = () => {
                                         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
                                         <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 11 }} />
                                         <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 11 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}K`} />
-                                        <Tooltip content={<CustomTooltip />} />
+                                        <Tooltip content={<ProfitChartTooltip />} />
                                         <Area type="monotone" dataKey="revenue" name="Revenue" stroke="#6366f1" strokeWidth={2} fill="url(#gradientRevenue)" />
                                         <Area type="monotone" dataKey="profit" name="Profit" stroke="#10b981" strokeWidth={2} fill="url(#gradientProfit)" />
                                     </AreaChart>
@@ -660,7 +700,7 @@ const Calculator = () => {
                                         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
                                         <XAxis dataKey="stage" axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 11 }} />
                                         <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 11 }} />
-                                        <Tooltip content={<CustomTooltip />} formatter={(value: number) => [value, 'Count']} />
+                                        <Tooltip content={<ProfitChartTooltip />} formatter={(value: number) => [value, 'Count']} />
                                         <Area type="monotone" dataKey="value" name="Count" stroke="#6366f1" strokeWidth={2.5} fill="url(#gradientFunnel)" />
                                     </AreaChart>
                                 </ResponsiveContainer>
@@ -691,15 +731,15 @@ const Calculator = () => {
                             </CardHeader>
                             <CardContent className="space-y-3">
                                 <div className="grid grid-cols-2 gap-3">
-                                    <StatBox label="Revenue" value={`${metrics.grossRevenue.toFixed(2)} MAD`} type="info" />
-                                    <StatBox label="Total Costs" value={`${metrics.totalCosts.toFixed(2)} MAD`} type="default" />
+                                    <CalculatorStatBox label="Revenue" value={`${metrics.grossRevenue.toFixed(2)} MAD`} type="info" />
+                                    <CalculatorStatBox label="Total Costs" value={`${metrics.totalCosts.toFixed(2)} MAD`} type="default" />
                                 </div>
                                 <div className="grid grid-cols-3 gap-3">
-                                    <StatBox label="Ad Spend" value={`${metrics.totalAdSpend.toFixed(0)} MAD`} subValue={`${metrics.adCostPercent.toFixed(0)}%`} />
-                                    <StatBox label="Product" value={`${metrics.totalProductCosts.toFixed(0)} MAD`} subValue={`${metrics.productCostPercent.toFixed(0)}%`} />
-                                    <StatBox label="Shipping" value={`${metrics.totalShippingCosts.toFixed(0)} MAD`} subValue={`${metrics.shippingPercent.toFixed(0)}%`} />
+                                    <CalculatorStatBox label="Ad Spend" value={`${metrics.totalAdSpend.toFixed(0)} MAD`} subValue={`${metrics.adCostPercent.toFixed(0)}%`} />
+                                    <CalculatorStatBox label="Product" value={`${metrics.totalProductCosts.toFixed(0)} MAD`} subValue={`${metrics.productCostPercent.toFixed(0)}%`} />
+                                    <CalculatorStatBox label="Shipping" value={`${metrics.totalShippingCosts.toFixed(0)} MAD`} subValue={`${metrics.shippingPercent.toFixed(0)}%`} />
                                 </div>
-                                <StatBox
+                                <CalculatorStatBox
                                     label="Net Profit"
                                     value={`${metrics.netProfit.toFixed(2)} MAD`}
                                     subValue={`${metrics.profitMargin.toFixed(1)}% margin`}
@@ -734,8 +774,8 @@ const Calculator = () => {
                                         </div>
                                     </div>
                                 </div>
-                                <ProgressBar label="Delivery Success Rate" value={metrics.deliveredOrders} max={metrics.confirmedOrders} color="green" />
-                                <ProgressBar label="Failure Rate" value={metrics.failedOrders} max={metrics.confirmedOrders} color="red" />
+                                <CalculatorProgressBar label="Delivery Success Rate" value={metrics.deliveredOrders} max={metrics.confirmedOrders} color="green" />
+                                <CalculatorProgressBar label="Failure Rate" value={metrics.failedOrders} max={metrics.confirmedOrders} color="red" />
                             </CardContent>
                         </Card>
                     </div>
@@ -747,14 +787,14 @@ const Calculator = () => {
                         </CardHeader>
                         <CardContent>
                             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
-                                <StatBox label="Leads" value={metrics.monthlyLeads.toLocaleString()} type="info" />
-                                <StatBox label="Confirmed" value={metrics.monthlyConfirmed.toLocaleString()} type="warning" />
-                                <StatBox label="Delivered" value={metrics.monthlyDelivered.toLocaleString()} type="success" />
-                                <StatBox label="Failed" value={metrics.monthlyFailed.toLocaleString()} type="danger" />
-                                <StatBox label="Revenue" value={`${(metrics.monthlyRevenue / 1000).toFixed(1)}K`} subValue="MAD" type="info" />
-                                <StatBox label="Costs" value={`${(metrics.monthlyCosts / 1000).toFixed(1)}K`} subValue="MAD" />
-                                <StatBox label="Ad Spend" value={`${(metrics.monthlyAdSpend / 1000).toFixed(1)}K`} subValue="MAD" />
-                                <StatBox label="Net Profit" value={`${(metrics.monthlyProfit / 1000).toFixed(1)}K`} subValue="MAD" type={metrics.monthlyProfit >= 0 ? 'success' : 'danger'} />
+                                <CalculatorStatBox label="Leads" value={metrics.monthlyLeads.toLocaleString()} type="info" />
+                                <CalculatorStatBox label="Confirmed" value={metrics.monthlyConfirmed.toLocaleString()} type="warning" />
+                                <CalculatorStatBox label="Delivered" value={metrics.monthlyDelivered.toLocaleString()} type="success" />
+                                <CalculatorStatBox label="Failed" value={metrics.monthlyFailed.toLocaleString()} type="danger" />
+                                <CalculatorStatBox label="Revenue" value={`${(metrics.monthlyRevenue / 1000).toFixed(1)}K`} subValue="MAD" type="info" />
+                                <CalculatorStatBox label="Costs" value={`${(metrics.monthlyCosts / 1000).toFixed(1)}K`} subValue="MAD" />
+                                <CalculatorStatBox label="Ad Spend" value={`${(metrics.monthlyAdSpend / 1000).toFixed(1)}K`} subValue="MAD" />
+                                <CalculatorStatBox label="Net Profit" value={`${(metrics.monthlyProfit / 1000).toFixed(1)}K`} subValue="MAD" type={metrics.monthlyProfit >= 0 ? 'success' : 'danger'} />
                             </div>
                         </CardContent>
                     </Card>
@@ -910,7 +950,7 @@ const Calculator = () => {
                                             <XAxis dataKey="target" axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 11 }} />
                                             <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 11 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}K`} />
                                             <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 11 }} />
-                                            <Tooltip content={<CustomTooltip />} />
+                                            <Tooltip content={<ProfitChartTooltip />} />
                                             <Area yAxisId="left" type="monotone" dataKey="profit" name="Profit" stroke="#10b981" strokeWidth={2} fill="url(#gradientScaling)" />
                                             <Line yAxisId="right" type="monotone" dataKey="sales" name="Sales" stroke="#6366f1" strokeWidth={2} dot={{ fill: '#6366f1', strokeWidth: 0, r: 4 }} />
                                         </ComposedChart>
@@ -936,10 +976,10 @@ const Calculator = () => {
                                     </CardHeader>
                                     <CardContent>
                                         <div className="grid grid-cols-2 gap-3">
-                                            <StatBox label="Sales" value={reverseCalc.daily.sales} type="success" large />
-                                            <StatBox label="Leads" value={reverseCalc.daily.leads} type="info" large />
-                                            <StatBox label="Ad Budget" value={`${reverseCalc.daily.adBudget} MAD`} />
-                                            <StatBox label="Revenue" value={`${reverseCalc.daily.revenue} MAD`} />
+                                            <CalculatorStatBox label="Sales" value={reverseCalc.daily.sales} type="success" large />
+                                            <CalculatorStatBox label="Leads" value={reverseCalc.daily.leads} type="info" large />
+                                            <CalculatorStatBox label="Ad Budget" value={`${reverseCalc.daily.adBudget} MAD`} />
+                                            <CalculatorStatBox label="Revenue" value={`${reverseCalc.daily.revenue} MAD`} />
                                         </div>
                                         <div className="mt-3 p-3 bg-emerald-50 rounded-lg">
                                             <div className="flex justify-between">
@@ -956,10 +996,10 @@ const Calculator = () => {
                                     </CardHeader>
                                     <CardContent>
                                         <div className="grid grid-cols-2 gap-3">
-                                            <StatBox label="Sales" value={reverseCalc.weekly.sales} type="success" large />
-                                            <StatBox label="Leads" value={reverseCalc.weekly.leads} type="info" large />
-                                            <StatBox label="Ad Budget" value={`${reverseCalc.weekly.adBudget.toLocaleString()} MAD`} />
-                                            <StatBox label="Profit" value={`${reverseCalc.weekly.profit.toLocaleString()} MAD`} type="success" />
+                                            <CalculatorStatBox label="Sales" value={reverseCalc.weekly.sales} type="success" large />
+                                            <CalculatorStatBox label="Leads" value={reverseCalc.weekly.leads} type="info" large />
+                                            <CalculatorStatBox label="Ad Budget" value={`${reverseCalc.weekly.adBudget.toLocaleString()} MAD`} />
+                                            <CalculatorStatBox label="Profit" value={`${reverseCalc.weekly.profit.toLocaleString()} MAD`} type="success" />
                                         </div>
                                     </CardContent>
                                 </Card>
@@ -1082,25 +1122,25 @@ const Calculator = () => {
 
                     {/* Investment Breakdown */}
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                        <StatBox
+                        <CalculatorStatBox
                             label="Ad Cost"
                             value={`${metrics.monthlyAdSpend.toLocaleString()} MAD`}
                             subValue={`${((metrics.monthlyAdSpend / (metrics.initialInvestment || 1)) * 100).toFixed(0)}% of investment`}
                             type="info"
                         />
-                        <StatBox
+                        <CalculatorStatBox
                             label="Product Cost (per batch)"
                             value={`${(inputs.productCost * metrics.deliveredOrders).toLocaleString()} MAD`}
                             subValue={`${inputs.productCost} MAD × ${metrics.deliveredOrders} units`}
                             type="default"
                         />
-                        <StatBox
+                        <CalculatorStatBox
                             label="Other Costs"
-                            value={`${((inputs.callCenterFee + inputs.packagingCost + inputs.riskBuffer) * metrics.confirmedOrders).toLocaleString()} MAD`}
+                            value={`${((inputs.callCenter + inputs.packaging + inputs.riskBuffer) * metrics.confirmedOrders).toLocaleString()} MAD`}
                             subValue="Call center + packaging + risk"
                             type="warning"
                         />
-                        <StatBox
+                        <CalculatorStatBox
                             label="Gross Margin"
                             value={`${(inputs.salePrice > 0 ? (metrics.profitPerDelivered / inputs.salePrice * 100) : 0).toFixed(1)}%`}
                             subValue={`${metrics.profitPerDelivered.toFixed(0)} MAD per sale`}
