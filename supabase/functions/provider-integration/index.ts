@@ -773,6 +773,7 @@ class AmeexAdapter {
         console.log('Input parcelData:', JSON.stringify(parcelData, null, 2));
 
         const formData = new URLSearchParams();
+        // AMEEX Add Parcel: type SIMPLE or STOCK. Exchange: replace=true + exchange_code = previous parcel tracking (dashboard shows "ÉCHANGE: {code}").
         formData.append('type', parcelData.parcel_type || 'SIMPLE');
         formData.append('business', this.apiId);
 
@@ -847,10 +848,14 @@ class AmeexAdapter {
         if (parcelData.order_num) formData.append('order_num', parcelData.order_num);
 
         if (parcelData.replaceable) {
-            const exchangeCode = String(parcelData.old_tracking || '').trim();
-            if (exchangeCode) {
-                formData.append('exchange_code', exchangeCode);
+            const exchangeParcelCode = String(parcelData.old_tracking || '').trim();
+            if (!exchangeParcelCode) {
+                throw new Error(
+                    'AMEEX exchange requires the previous parcel tracking number (exchange_code). Save it on the order (ameex_old_tracking) before creating the parcel.'
+                );
             }
+            formData.append('replace', 'true');
+            formData.append('exchange_code', exchangeParcelCode);
         }
 
         // Add products if provided
