@@ -216,7 +216,6 @@ const PROVIDER_PERMISSION_ROWS: Record<ProviderPermissionSlug, ProviderPermissio
     ],
     coliaty: [
         { key: 'interdit_ouvrir_colis', label: "Interdit d'ouvrir le colis" },
-        { key: 'echange', label: 'Échange' },
     ],
     ozon: [
         {
@@ -236,6 +235,57 @@ function normalizePartnerProviderType(raw: string | undefined | null): ProviderP
     if (t === 'coliaty' || t.includes('coliaty')) return 'coliaty';
     if (t === 'ozon' || t.includes('ozon')) return 'ozon';
     return null;
+}
+
+function mapProviderRowToFlags(slug: ProviderPermissionSlug, row: Record<string, unknown>): Record<string, boolean> {
+    if (slug === 'coliaty') {
+        return {
+            interdit_ouvrir_colis: !!row.coliaty_package_no_open,
+        };
+    }
+    if (slug === 'ameex') {
+        return {
+            fragile: !!row.ameex_parcel_fragile,
+            echange: !!row.ameex_parcel_replace,
+            autorisation_ouverture_colis: !!row.ameex_parcel_open,
+            autoriser_essayage: !!row.ameex_parcel_try_on,
+        };
+    }
+    if (slug === 'ozon') {
+        return {
+            ouvrir_colis_autorise: Number(row.ozon_parcel_open) === 1,
+            fragile: Number(row.ozon_parcel_fragile) === 1,
+            echange: Number(row.ozon_parcel_replace) === 1,
+        };
+    }
+    return {};
+}
+
+function flagsToProviderParcelUpdate(
+    slug: ProviderPermissionSlug,
+    flags: Record<string, boolean>
+): Record<string, boolean | number> {
+    if (slug === 'coliaty') {
+        return {
+            coliaty_package_no_open: !!flags.interdit_ouvrir_colis,
+        };
+    }
+    if (slug === 'ameex') {
+        return {
+            ameex_parcel_fragile: !!flags.fragile,
+            ameex_parcel_replace: !!flags.echange,
+            ameex_parcel_open: !!flags.autorisation_ouverture_colis,
+            ameex_parcel_try_on: !!flags.autoriser_essayage,
+        };
+    }
+    if (slug === 'ozon') {
+        return {
+            ozon_parcel_open: flags.ouvrir_colis_autorise ? 1 : 2,
+            ozon_parcel_fragile: flags.fragile ? 1 : 0,
+            ozon_parcel_replace: flags.echange ? 1 : 0,
+        };
+    }
+    return {};
 }
 
 // --- Schemas ---
@@ -1600,6 +1650,10 @@ function ProviderPermissionsModal({
     company: any | null;
     courier: any | null;
 }) {
+    const { toast } = useToast();
+    const queryClient = useQueryClient();
+    const activeBusinessId = localStorage.getItem('activeBusinessId');
+
     const providerSlug = useMemo(() => {
         if (!company) return null;
         return normalizePartnerProviderType(company.provider_type);
@@ -1610,13 +1664,73 @@ function ProviderPermissionsModal({
 
     const [flags, setFlags] = useState<Record<string, boolean>>({});
 
+    const { data: permRow, isLoading: loadingPerm, isError: permError, error: permErr } = useQuery({
+        queryKey: ['provider_permissions', company?.id, activeBusinessId],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from(PROVIDERS_TABLE)
+                .select(
+                    [
+                        'coliaty_package_no_open',
+                        'ameex_parcel_replace',
+                        'ameex_parcel_open',
+                        'ameex_parcel_try_on',
+                        'ameex_parcel_fragile',
+                        'ozon_parcel_open',
+                        'ozon_parcel_fragile',
+                        'ozon_parcel_replace',
+                    ].join(', ')
+                )
+                .eq('id', company.id)
+                .eq('DigiCom Business', activeBusinessId!)
+                .single();
+            if (error) throw error;
+            return data as Record<string, unknown>;
+        },
+        enabled: !!company?.id && !!activeBusinessId && isOpen && !!providerSlug,
+    });
+
     useEffect(() => {
-        if (!isOpen) return;
-        setFlags({});
-    }, [isOpen, company?.id, courier?.id]);
+        if (!isOpen || !providerSlug || !permRow) return;
+        setFlags(mapProviderRowToFlags(providerSlug, permRow));
+    }, [isOpen, providerSlug, permRow]);
+
+    useEffect(() => {
+        if (permError && isOpen) {
+            toast({
+                title: 'Could not load permissions',
+                description: (permErr as Error)?.message || 'Unknown error',
+                variant: 'destructive',
+            });
+        }
+    }, [permError, permErr, isOpen, toast]);
+
+    const savePermissions = useMutation({
+        mutationFn: async () => {
+            if (!company?.id || !activeBusinessId || !providerSlug) throw new Error('Missing context');
+            const patch = flagsToProviderParcelUpdate(providerSlug, flags);
+            const { error } = await supabase
+                .from(PROVIDERS_TABLE)
+                .update(patch as any)
+                .eq('id', company.id)
+                .eq('DigiCom Business', activeBusinessId);
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['providers', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['provider_permissions', company?.id, activeBusinessId] });
+            toast({ title: 'Saved', description: 'Parcel permission settings updated.' });
+            onClose();
+        },
+        onError: (err: any) => {
+            toast({ title: 'Save failed', description: err?.message || 'Unknown error', variant: 'destructive' });
+        },
+    });
 
     const providerLabel =
         providerSlug === 'ameex' ? 'AMEEX' : providerSlug === 'coliaty' ? 'Coliaty' : providerSlug === 'ozon' ? 'Ozon' : null;
+
+    const canSave = !!company && !!rows && !!activeBusinessId && !loadingPerm && !permError;
 
     return (
         <Dialog open={isOpen} onOpenChange={(v) => !v && onClose()}>
@@ -1646,29 +1760,40 @@ function ProviderPermissionsModal({
                 </DialogHeader>
 
                 {company && rows ? (
-                    <div className="flex-1 overflow-y-auto px-8 py-2">
-                        <div className="space-y-0">
-                            {rows.map((row) => (
-                                <div
-                                    key={row.key}
-                                    className="flex items-start justify-between gap-4 py-4 border-b border-brand-navy/[0.06] last:border-b-0"
-                                >
-                                    <div className="min-w-0 flex-1">
-                                        <p className="text-sm font-bold text-brand-navy leading-snug">{row.label}</p>
-                                        {row.hint ? (
-                                            <p className="text-xs font-medium text-brand-navy/45 mt-1.5 leading-relaxed">
-                                                {row.hint}
-                                            </p>
-                                        ) : null}
+                    <div className="flex-1 overflow-y-auto px-8 py-2 min-h-[120px]">
+                        {loadingPerm ? (
+                            <div className="flex items-center justify-center py-16">
+                                <Loader2 className="w-10 h-10 animate-spin text-brand-navy/25" />
+                            </div>
+                        ) : permError ? (
+                            <p className="text-sm font-bold text-brand-navy/55 text-center py-10">
+                                Unable to load settings for this partner.
+                            </p>
+                        ) : (
+                            <div className="space-y-0">
+                                {rows.map((row) => (
+                                    <div
+                                        key={row.key}
+                                        className="flex items-start justify-between gap-4 py-4 border-b border-brand-navy/[0.06] last:border-b-0"
+                                    >
+                                        <div className="min-w-0 flex-1">
+                                            <p className="text-sm font-bold text-brand-navy leading-snug">{row.label}</p>
+                                            {row.hint ? (
+                                                <p className="text-xs font-medium text-brand-navy/45 mt-1.5 leading-relaxed">
+                                                    {row.hint}
+                                                </p>
+                                            ) : null}
+                                        </div>
+                                        <Switch
+                                            className="shrink-0 mt-0.5 data-[state=checked]:bg-brand-navy"
+                                            checked={!!flags[row.key]}
+                                            onCheckedChange={(v) => setFlags((prev) => ({ ...prev, [row.key]: v }))}
+                                            disabled={!canSave}
+                                        />
                                     </div>
-                                    <Switch
-                                        className="shrink-0 mt-0.5 data-[state=checked]:bg-brand-navy"
-                                        checked={!!flags[row.key]}
-                                        onCheckedChange={(v) => setFlags((prev) => ({ ...prev, [row.key]: v }))}
-                                    />
-                                </div>
-                            ))}
-                        </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 ) : null}
 
@@ -1689,13 +1814,32 @@ function ProviderPermissionsModal({
                     </div>
                 ) : null}
 
-                <DialogFooter className="p-8 pt-2 border-t border-brand-navy/5 bg-brand-white shrink-0">
+                <DialogFooter className="p-8 pt-2 border-t border-brand-navy/5 bg-brand-white shrink-0 flex-col gap-2 sm:flex-col">
+                    {company && rows ? (
+                        <Button
+                            type="button"
+                            disabled={!canSave || savePermissions.isPending}
+                            onClick={() => savePermissions.mutate()}
+                            className="w-full h-12 rounded-2xl font-black bg-brand-navy text-white hover:bg-brand-navy/90 hover:text-white"
+                        >
+                            {savePermissions.isPending ? (
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                            ) : (
+                                'Save'
+                            )}
+                        </Button>
+                    ) : null}
                     <Button
                         type="button"
+                        variant={company && rows ? 'secondary' : 'default'}
                         onClick={onClose}
-                        className="w-full h-12 rounded-2xl font-black bg-brand-navy text-white hover:bg-brand-navy/90 hover:text-white"
+                        className={
+                            company && rows
+                                ? 'w-full h-12 rounded-2xl font-black'
+                                : 'w-full h-12 rounded-2xl font-black bg-brand-navy text-white hover:bg-brand-navy/90 hover:text-white'
+                        }
                     >
-                        Close
+                        {company && rows ? 'Cancel' : 'Close'}
                     </Button>
                 </DialogFooter>
             </DialogContent>

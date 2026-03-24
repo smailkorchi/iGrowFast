@@ -30,6 +30,50 @@ import {
 
 const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/provider-integration`;
 
+/** Matches `providers` columns used for parcel create in provider-integration edge (per carrier). */
+const WIZARD_PROVIDER_SELECT_FOR_PARCEL = [
+    'id',
+    'name',
+    'provider_type',
+    'coliaty_package_no_open',
+    'ameex_parcel_replace',
+    'ameex_parcel_open',
+    'ameex_parcel_try_on',
+    'ameex_parcel_fragile',
+    'ozon_parcel_open',
+    'ozon_parcel_fragile',
+    'ozon_parcel_replace',
+].join(', ');
+
+/**
+ * Maps saved provider row → `data` fields expected by `create_parcel` in provider-integration.
+ * Coliaty: no_open only (exchange + old tracking come from the order). AMEEX: fragile ('0'|'1'), open/try ('YES'|'NO'). Ozon: open, fragile, replaceable.
+ */
+function parcelPermissionFieldsFromProvider(provider: { provider_type?: string | null } & Record<string, unknown>) {
+    const raw = (provider?.provider_type ?? '').toString().toLowerCase();
+    if (!raw) return {} as Record<string, unknown>;
+    if (raw.includes('coliaty')) {
+        return {
+            no_open: !!provider.coliaty_package_no_open,
+        };
+    }
+    if (raw.includes('ameex')) {
+        return {
+            fragile: provider.ameex_parcel_fragile ? '1' : '0',
+            open: provider.ameex_parcel_open ? 'YES' : 'NO',
+            try: provider.ameex_parcel_try_on ? 'YES' : 'NO',
+        };
+    }
+    if (raw.includes('ozon')) {
+        return {
+            open: Number(provider.ozon_parcel_open) === 1 ? 'YES' : 'NO',
+            fragile: Number(provider.ozon_parcel_fragile) === 1,
+            replaceable: Number(provider.ozon_parcel_replace) === 1,
+        };
+    }
+    return {} as Record<string, unknown>;
+}
+
 /** Seller: only orders where seller_id|assign_id matches and every line product_id is in this set. */
 export type DeliveryNoteSellerScope = { userId: string; productIds: string[] };
 
@@ -166,7 +210,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
             if (!activeBusinessId) return [];
             const { data, error } = await supabase
                 .from('company_zones')
-                .select('*, provider:providers(id, name, provider_type)')
+                .select(`*, provider:providers(${WIZARD_PROVIDER_SELECT_FOR_PARCEL})`)
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
             return data || [];
@@ -185,7 +229,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                 .select(`
                     *,
                     city:master_cities!inner(id, name, zone_id),
-                    company:providers(id, name, provider_type),
+                    company:providers(${WIZARD_PROVIDER_SELECT_FOR_PARCEL}),
                     items:order_items(
                         *,
                         product:products(name, code)
@@ -272,6 +316,14 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                             .eq('id', order.id);
                         order.company_id = order._resolvedCompanyId;
                     }
+                    const permFields = parcelPermissionFieldsFromProvider(provider || {});
+                    const providerType = String(provider?.provider_type || '').toLowerCase();
+                    const isColiaty = providerType.includes('coliaty');
+                    if (isColiaty && order.replace && !String(order.coliaty_old_tracking || '').trim()) {
+                        throw new Error(
+                            'Coliaty exchange requires the previous parcel tracking number on the order (package_old_tracking).'
+                        );
+                    }
                     // Prepare parcel data
                     const parcelData = {
                         customer_name: order.name,
@@ -286,7 +338,17 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                             .join(', '),
                         note: order.note || '', // Internal note
                         delivery_note: order.delivery_note || '', // Public note for courier
-                        replaceable: order.replace || false,
+                        ...permFields,
+                        ...(isColiaty
+                            ? {
+                                  replaceable: !!order.replace,
+                                  old_tracking: order.replace
+                                      ? String(order.coliaty_old_tracking || '').trim()
+                                      : '',
+                              }
+                            : Object.keys(permFields).length === 0
+                              ? { replaceable: order.replace || false }
+                              : {}),
                     };
 
                     // Call Edge Function

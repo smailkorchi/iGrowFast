@@ -156,9 +156,19 @@ const orderSchema = z.object({
     company_id: z.string().uuid().optional().nullable(),
     history_comment: z.string().optional(),
     _reportedDate: z.string().optional(),
+    coliaty_old_tracking: z.string().optional(),
 });
 
 type OrderFormValues = z.infer<typeof orderSchema>;
+
+function orderCompanyIsColiaty(
+    companies: { id: string; provider_type?: string | null }[] | undefined,
+    companyId: string | null | undefined
+) {
+    if (!companyId || !companies?.length) return false;
+    const row = companies.find((c) => c.id === companyId);
+    return !!row?.provider_type && String(row.provider_type).toLowerCase().includes('coliaty');
+}
 
 function toOrderLineForRecords(item: OrderFormValues['items'][number]): OrderLineForRecords {
     return {
@@ -493,7 +503,7 @@ const Orders = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('providers')
-                .select('id, name')
+                .select('id, name, provider_type')
                 .eq('active', true)
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
@@ -785,7 +795,8 @@ const Orders = () => {
             courier_id: null,
             company_id: null,
             history_comment: '',
-            _reportedDate: ''
+            _reportedDate: '',
+            coliaty_old_tracking: ''
         }
     });
 
@@ -957,6 +968,10 @@ const Orders = () => {
                     order_status_id: values.order_status_id,
                     courier_id: values.courier_id,
                     company_id: values.company_id,
+                    coliaty_old_tracking:
+                        orderCompanyIsColiaty(companies, values.company_id) && values.replace
+                            ? (values.coliaty_old_tracking || '').trim() || null
+                            : null,
                     price: orderPrice,
                     raw_price: totalPrice,
                     date: new Date().toISOString(),
@@ -1031,7 +1046,8 @@ const Orders = () => {
                 courier_id: null,
                 company_id: null,
                 history_comment: '',
-                _reportedDate: ''
+                _reportedDate: '',
+                coliaty_old_tracking: ''
             });
             toast({ title: "Order Created", description: "Successfully logged new order." });
         },
@@ -1069,6 +1085,10 @@ const Orders = () => {
                 order_status_id: values.order_status_id,
                 courier_id: values.courier_id,
                 company_id: values.company_id,
+                coliaty_old_tracking:
+                    orderCompanyIsColiaty(companies, values.company_id) && values.replace
+                        ? (values.coliaty_old_tracking || '').trim() || null
+                        : null,
                 price: orderPrice,
                 raw_price: totalPrice,
                 updated_at: new Date().toISOString()
@@ -1451,6 +1471,7 @@ const Orders = () => {
             order_status_id: order.order_status_id,
             courier_id: order.courier_id,
             company_id: order.company_id,
+            coliaty_old_tracking: order.coliaty_old_tracking || '',
             items: (() => {
                 const groupedItems: any[] = [];
                 order.items?.forEach((item: any) => {
@@ -1550,7 +1571,8 @@ const Orders = () => {
                                 courier_id: null,
                                 company_id: null,
                                 history_comment: '',
-                                _reportedDate: ''
+                                _reportedDate: '',
+                                coliaty_old_tracking: ''
                             });
                             setIsAddModalOpen(true);
                         }}
@@ -2674,7 +2696,8 @@ const Orders = () => {
                             courier_id: null,
                             company_id: null,
                             history_comment: '',
-                            _reportedDate: ''
+                            _reportedDate: '',
+                            coliaty_old_tracking: ''
                         });
                     }
                 }}
@@ -2683,6 +2706,23 @@ const Orders = () => {
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit((values) => {
                             const targetStatusId = values.order_status_id;
+
+                            if (
+                                orderCompanyIsColiaty(companies, values.company_id) &&
+                                values.replace &&
+                                !(values.coliaty_old_tracking || '').trim()
+                            ) {
+                                form.setError('coliaty_old_tracking', {
+                                    type: 'manual',
+                                    message: 'Required for Coliaty exchange (package_old_tracking).',
+                                });
+                                toast({
+                                    title: 'Missing tracking',
+                                    description: 'Enter the previous parcel tracking number for Coliaty exchange.',
+                                    variant: 'destructive',
+                                });
+                                return;
+                            }
 
                             if (
                                 isEditModalOpen &&
@@ -2726,7 +2766,7 @@ const Orders = () => {
                             </DialogHeader>
 
                             <div className="flex flex-1 min-h-0 flex-col xl:flex-row overflow-hidden">
-                                <div className="min-w-0 flex-1 flex flex-col gap-4 min-h-0 overflow-y-auto xl:overflow-hidden xl:pr-1 px-4 sm:px-5 py-3 custom-scrollbar">
+                                <div className="min-w-0 flex-1 flex flex-col gap-4 min-h-0 overflow-y-auto xl:pr-1 px-4 sm:px-5 py-3 custom-scrollbar">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 shrink-0">
                                     {/* Column 1: Customer Data */}
                                     <div className="space-y-3.5">
@@ -3129,6 +3169,33 @@ const Orders = () => {
                                                 />
                                             </div>
                                         </div>
+
+                                        {form.watch('replace') &&
+                                            orderCompanyIsColiaty(companies, form.watch('company_id')) && (
+                                                <FormField
+                                                    control={form.control}
+                                                    name="coliaty_old_tracking"
+                                                    render={({ field }) => (
+                                                        <FormItem className="space-y-2 rounded-xl border border-amber-200/80 bg-amber-50/40 p-3">
+                                                            <FormLabel className="text-[10px] font-black uppercase tracking-wider text-brand-navy">
+                                                                Previous parcel tracking (Coliaty)
+                                                            </FormLabel>
+                                                            <p className="text-[10px] text-muted-foreground leading-snug">
+                                                                Required for exchange: maps to Coliaty{' '}
+                                                                <code className="text-[10px]">package_old_tracking</code>.
+                                                            </p>
+                                                            <FormControl>
+                                                                <Input
+                                                                    placeholder="Old tracking number"
+                                                                    {...field}
+                                                                    className="h-11 rounded-xl border border-brand-navy/10 bg-white text-sm font-bold text-brand-navy"
+                                                                />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                            )}
                                     </div>
                                 </div>
 
