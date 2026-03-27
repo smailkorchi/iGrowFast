@@ -1490,6 +1490,74 @@ export type Database = {
           },
         ]
       }
+      factures: {
+        Row: {
+          business_id: string
+          created_at: string
+          created_by: string | null
+          devis_reference: string | null
+          due_date: string | null
+          facture_number: string
+          id: string
+          issued_at: string
+          payment_terms: string | null
+          pdf_storage_path: string | null
+          snapshot_json: Json
+          status: string
+          subtotal_ht: number
+          total_ttc: number
+          tva_amount: number
+          tva_rate: number
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          devis_reference?: string | null
+          due_date?: string | null
+          facture_number: string
+          id?: string
+          issued_at?: string
+          payment_terms?: string | null
+          pdf_storage_path?: string | null
+          snapshot_json?: Json
+          status?: string
+          subtotal_ht?: number
+          total_ttc?: number
+          tva_amount?: number
+          tva_rate?: number
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          devis_reference?: string | null
+          due_date?: string | null
+          facture_number?: string
+          id?: string
+          issued_at?: string
+          payment_terms?: string | null
+          pdf_storage_path?: string | null
+          snapshot_json?: Json
+          status?: string
+          subtotal_ht?: number
+          total_ttc?: number
+          tva_amount?: number
+          tva_rate?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "factures_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       expense_types: {
         Row: {
           active: boolean | null
