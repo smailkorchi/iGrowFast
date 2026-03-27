@@ -547,7 +547,7 @@ const ImportOrders = () => {
                             <Button
                                 variant="outline"
                                 onClick={handleDownloadModel}
-                                className="h-12 px-6 rounded-2xl border-gray-200 hover:bg-gray-50 text-gray-700 font-medium gap-2 transition-all"
+                                className="h-12 px-6 rounded-2xl border-gray-200 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-medium gap-2 transition-all"
                             >
                                 <Download className="w-5 h-5" />
                                 Download Excel Model

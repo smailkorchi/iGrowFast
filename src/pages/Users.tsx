@@ -161,6 +161,8 @@ const pages = [
     { label: 'Expenses Types', path: '/expenses-types', icon: Tag },
     { label: 'Businesses', path: '/businesses', icon: Building2 },
     { label: 'Import Orders', path: '/import-orders', icon: Download },
+    { label: 'Import Products', path: '/import-products', icon: Upload },
+    { label: 'Import Accessories', path: '/import-accessories', icon: Upload },
     { label: 'Profit Calculator', path: '/calculator', icon: Calculator },
     { label: 'Devis', path: '/devis', icon: FileSpreadsheet },
     { label: 'Facture', path: '/facture', icon: Receipt },

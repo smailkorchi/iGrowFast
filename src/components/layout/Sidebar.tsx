@@ -23,6 +23,7 @@ import {
     List,
     Tag,
     Download,
+    Upload,
     CheckCircle,
     ChevronRight,
     Target,
@@ -129,6 +130,8 @@ const navigation: NavSection[] = [
         icon: Settings,
         items: [
             { icon: Download, label: 'Import Orders', path: '/import-orders' },
+            { icon: Upload, label: 'Import Products', path: '/import-products' },
+            { icon: Upload, label: 'Import Accessories', path: '/import-accessories' },
             { icon: Key, label: 'AI Keys', path: '/ai-keys' },
         ]
     },
