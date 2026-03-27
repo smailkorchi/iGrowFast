@@ -367,68 +367,44 @@ const BusinessOverview = () => {
         >
           <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-primary/[0.03] rounded-3xl" />
           <div className="relative p-6 sm:p-8 flex flex-col xl:flex-row xl:items-end justify-between gap-8">
-            <div className="flex flex-col sm:flex-row sm:items-start gap-6 flex-1">
-              <div
-                {...logoDrop.getRootProps()}
-                className={cn(
-                  'relative shrink-0 rounded-[1.35rem] border-2 border-dashed transition-all cursor-pointer overflow-hidden',
-                  logoDrop.isDragActive ? 'border-primary bg-primary/5 scale-[1.02]' : 'border-gray-200 hover:border-primary/25 bg-white',
-                  'w-[100px] h-[100px] sm:w-[112px] sm:h-[112px]'
-                )}
-              >
-                <input {...logoDrop.getInputProps()} />
-                {uploadKind === 'logo' ? (
-                  <div className="absolute inset-0 flex items-center justify-center bg-white/90">
-                    <Loader2 className="w-7 h-7 animate-spin text-primary" />
-                  </div>
-                ) : logoPreview ? (
-                  <img src={logoPreview} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-1 p-2">
-                    <FileImage className="w-6 h-6 opacity-50" />
-                    <span className="text-[9px] font-bold uppercase tracking-wide text-center">Logo</span>
-                  </div>
-                )}
+            <div className="flex-1 min-w-0 space-y-4">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 mb-2">Overview</p>
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem className="space-y-1">
+                      <FormControl>
+                        <Input
+                          {...field}
+                          className="text-2xl sm:text-3xl font-extralight h-auto py-2 border-0 border-b border-transparent focus-visible:ring-0 focus-visible:border-gray-200 rounded-none px-0 bg-transparent"
+                          placeholder="Raison sociale"
+                        />
+                      </FormControl>
+                      <FormMessage className="text-xs" />
+                    </FormItem>
+                  )}
+                />
               </div>
-              <div className="flex-1 min-w-0 space-y-4">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 mb-2">Overview</p>
-                  <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem className="space-y-1">
-                        <FormControl>
-                          <Input
-                            {...field}
-                            className="text-2xl sm:text-3xl font-extralight h-auto py-2 border-0 border-b border-transparent focus-visible:ring-0 focus-visible:border-gray-200 rounded-none px-0 bg-transparent"
-                            placeholder="Raison sociale"
-                          />
-                        </FormControl>
-                        <FormMessage className="text-xs" />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge
-                    variant="outline"
-                    className={cn('rounded-full text-[10px] font-bold uppercase tracking-wide border', statusClass)}
-                  >
-                    {business.status}
-                  </Badge>
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      'rounded-full text-[10px] font-bold uppercase tracking-wide border',
-                      business.active
-                        ? 'bg-slate-50 text-slate-700 border-slate-100'
-                        : 'bg-gray-100 text-gray-500 border-gray-100'
-                    )}
-                  >
-                    {business.active ? 'Active account' : 'Inactive account'}
-                  </Badge>
-                </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge
+                  variant="outline"
+                  className={cn('rounded-full text-[10px] font-bold uppercase tracking-wide border', statusClass)}
+                >
+                  {business.status}
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    'rounded-full text-[10px] font-bold uppercase tracking-wide border',
+                    business.active
+                      ? 'bg-slate-50 text-slate-700 border-slate-100'
+                      : 'bg-gray-100 text-gray-500 border-gray-100'
+                  )}
+                >
+                  {business.active ? 'Active account' : 'Inactive account'}
+                </Badge>
               </div>
             </div>
             <div className="flex items-center gap-3 shrink-0">
@@ -758,12 +734,45 @@ const BusinessOverview = () => {
             <Card className="border-0 shadow-sm rounded-3xl bg-white overflow-hidden">
               <CardContent className="p-0">
                 <div className="px-6 py-5 border-b border-gray-50 flex items-center gap-2">
-                  <PenLine className="w-4 h-4 text-primary/70" />
+                  <FileImage className="w-4 h-4 text-primary/70" />
                   <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                    Cachet & signature
+                    Logo, cachet & signature
                   </span>
                 </div>
-                <div className="p-6 sm:p-8 grid sm:grid-cols-2 gap-5">
+                <div className="p-6 sm:p-8 grid grid-cols-1 md:grid-cols-3 gap-5">
+                  <div
+                    {...logoDrop.getRootProps()}
+                    className={cn(
+                      'relative rounded-2xl border-2 border-dashed min-h-[200px] transition-all cursor-pointer',
+                      logoDrop.isDragActive ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-primary/25 bg-gray-50/30'
+                    )}
+                  >
+                    <input {...logoDrop.getInputProps()} />
+                    {uploadKind === 'logo' ? (
+                      <div className="absolute inset-0 flex items-center justify-center bg-white/90 z-10 rounded-2xl">
+                        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                      </div>
+                    ) : null}
+                    <div className="p-5 h-full flex flex-col">
+                      <div className="flex items-center gap-2 mb-4">
+                        <Building2 className="w-5 h-5 text-primary/60" />
+                        <div>
+                          <p className="text-[11px] font-bold uppercase tracking-wider">Logo</p>
+                          <p className="text-[10px] text-gray-400 font-light">Carré ou paysage · PNG / JPG / WebP</p>
+                        </div>
+                      </div>
+                      {logoPreview ? (
+                        <div className="flex-1 flex items-center justify-center rounded-xl bg-white border border-gray-100 p-4">
+                          <img src={logoPreview} alt="" className="max-h-40 w-full object-contain" />
+                        </div>
+                      ) : (
+                        <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-2">
+                          <Upload className="w-8 h-8 opacity-35" />
+                          <span className="text-xs font-medium">Glisser-déposer ou cliquer</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                   <div
                     {...cachetDrop.getRootProps()}
                     className={cn(
