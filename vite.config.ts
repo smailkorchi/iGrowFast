@@ -12,9 +12,16 @@ export default defineConfig(({ mode }) => ({
     },
   },
   plugins: [react()],
+  define: {
+    global: "globalThis",
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      buffer: "buffer",
     },
+  },
+  optimizeDeps: {
+    include: ["buffer"],
   },
 }));
