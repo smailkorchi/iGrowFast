@@ -53,9 +53,43 @@ interface MappedAccessory {
     existing_id: string | null;
 }
 
+function normalizeHeaderKey(key: string): string {
+    return String(key)
+        .replace(/^\ufeff/, '')
+        .replace(/\u00a0/g, ' ')
+        .replace(/\uff0f/g, '/')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
+}
+
+function pickByHeader(row: RawRow, candidates: string[]): unknown {
+    const map = new Map<string, unknown>();
+    for (const [k, v] of Object.entries(row)) {
+        map.set(normalizeHeaderKey(k), v);
+    }
+    for (const c of candidates) {
+        const nk = normalizeHeaderKey(c);
+        if (!map.has(nk)) continue;
+        const v = map.get(nk);
+        if (v === undefined || v === null) continue;
+        return v;
+    }
+    return undefined;
+}
+
 function parseMoney(raw: unknown): number {
     if (raw === undefined || raw === null || raw === '') return 0;
-    const n = parseFloat(String(raw).replace(/[^0-9.-]/g, ''));
+    let s = String(raw).trim().replace(/\s/g, '');
+    s = s.replace(/[^0-9.,-]/g, '');
+    const lastComma = s.lastIndexOf(',');
+    const lastDot = s.lastIndexOf('.');
+    if (lastComma > -1 && (lastDot === -1 || lastComma > lastDot)) {
+        s = s.replace(/\./g, '').replace(',', '.');
+    } else {
+        s = s.replace(/,/g, '');
+    }
+    const n = parseFloat(s);
     return Number.isFinite(n) ? n : 0;
 }
 
@@ -161,7 +195,10 @@ const ImportAccessories = () => {
                     const buffer = reader.result;
                     const workbook = XLSX.read(buffer, { type: 'array' });
                     const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                    const rawData = XLSX.utils.sheet_to_json(firstSheet) as RawRow[];
+                    const rawData = XLSX.utils.sheet_to_json(firstSheet, {
+                        defval: '',
+                        raw: false,
+                    }) as RawRow[];
 
                     const codeToId = new Map<string, string>();
                     (accessories || []).forEach((a) => {
@@ -170,12 +207,49 @@ const ImportAccessories = () => {
 
                     const seenInFile = new Set<string>();
                     const mapped: MappedAccessory[] = rawData.map((row, idx) => {
-                        const name = String(row['Name'] ?? row['Nom'] ?? '').trim();
-                        const code = String(row['Code'] ?? row['SKU'] ?? row['Accessory Code'] ?? '').trim();
-                        const cost_price = parseMoney(row['Cost Price'] ?? row['Cost'] ?? row['Prix'] ?? row['Coût']);
-                        const stock = parseIntSafe(row['Stock'] ?? row['Qty'], 0);
-                        const active = parseActive(row['Active'] ?? row['Actif'], true);
-                        const image_url = String(row['Image URL'] ?? row['Image'] ?? row['URL'] ?? '').trim();
+                        const name = String(
+                            pickByHeader(row, [
+                                'Accessori Name',
+                                'Accessory Name',
+                                'Accessories Name',
+                                'Name',
+                                'Nom',
+                            ]) ?? ''
+                        ).trim();
+                        const code = String(
+                            pickByHeader(row, [
+                                'SKU / Code',
+                                'SKU/Code',
+                                'Code',
+                                'SKU',
+                                'Accessory Code',
+                            ]) ?? ''
+                        ).trim();
+                        const cost_price = parseMoney(
+                            pickByHeader(row, [
+                                'Cost Price (DH)',
+                                'Cost Price',
+                                'Cost',
+                                'Prix',
+                                'Coût',
+                            ])
+                        );
+                        const stock = parseIntSafe(
+                            pickByHeader(row, ['Stock', 'Qty', 'Quantité', 'Quantity']),
+                            0
+                        );
+                        const active = parseActive(
+                            pickByHeader(row, [
+                                'Active(TRUE/FALSE)',
+                                'Active (TRUE/FALSE)',
+                                'Active',
+                                'Actif',
+                            ]),
+                            true
+                        );
+                        const image_url = String(
+                            pickByHeader(row, ['Image URL', 'Image', 'URL']) ?? ''
+                        ).trim();
 
                         const errors: string[] = [];
                         if (!name) errors.push('Name is missing');
