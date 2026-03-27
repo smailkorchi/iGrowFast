@@ -39,6 +39,8 @@ import Calculator from "./pages/Calculator";
 import AdminDemands from "./pages/Demands";
 import AdminSalaries from "./pages/Salaries";
 import AdminSellers from "./pages/Sellers";
+import AdminBusinessOverview from "./pages/business/Overview";
+import AdminBusinessPayments from "./pages/business/Payments";
 import SellerDashboard from "./pages/seller/Dashboard";
 import SellerOrders from "./pages/seller/Orders";
 import SellerPayments from "./pages/seller/Payments";
@@ -215,6 +217,8 @@ const App = () => (
                     <Route path="/demands" element={<AdminDemands />} />
                     <Route path="/salaries" element={<AdminSalaries />} />
                     <Route path="/sellers" element={<AdminSellers />} />
+                    <Route path="/business" element={<AdminBusinessOverview />} />
+                    <Route path="/business/payments" element={<AdminBusinessPayments />} />
                     <Route path="/profile" element={<Profile />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>

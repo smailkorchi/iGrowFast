@@ -40,7 +40,8 @@ import {
     MessageSquare,
     DollarSign,
     Store,
-    Puzzle
+    Puzzle,
+    LayoutDashboard
 } from 'lucide-react';
 import {
     Card,
@@ -147,6 +148,8 @@ const pages = [
     { label: 'Customers', path: '/customers', icon: UsersGroupIcon },
     { label: 'Users', path: '/users', icon: UserPlus },
     { label: 'Sellers', path: '/sellers', icon: Store },
+    { label: 'Business — Overview', path: '/business', icon: LayoutDashboard },
+    { label: 'Business — Payments', path: '/business/payments', icon: Wallet },
     { label: 'Demands', path: '/demands', icon: MessageSquare },
     { label: 'Salaries', path: '/salaries', icon: DollarSign },
     { label: 'Ads History', path: '/ads-history', icon: Target },

@@ -35,7 +35,9 @@ import {
     Store,
     MessageSquare,
     Puzzle,
-    Key
+    Key,
+    Briefcase,
+    LayoutDashboard
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
@@ -100,6 +102,14 @@ const navigation: NavSection[] = [
             { icon: Users, label: 'Sellers', path: '/sellers' },
             { icon: MessageSquare, label: 'Demands', path: '/demands' },
             { icon: DollarSign, label: 'Salaries', path: '/salaries' },
+        ]
+    },
+    {
+        label: 'Business',
+        icon: Briefcase,
+        items: [
+            { icon: LayoutDashboard, label: 'Overview', path: '/business' },
+            { icon: Wallet, label: 'Payments', path: '/business/payments' },
         ]
     },
     {
