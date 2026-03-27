@@ -24,6 +24,8 @@ import {
     RotateCcw,
     Power,
     Eye,
+    ChevronDown,
+    ChevronUp,
 } from 'lucide-react';
 import {
     Card,
@@ -74,6 +76,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
     ProductPreviewDialog,
     formatProductDhAggregate,
@@ -99,6 +102,7 @@ const Products = () => {
     const [productToDelete, setProductToDelete] = useState<any>(null);
     const [productToResetStock, setProductToResetStock] = useState<any>(null);
     const [previewProduct, setPreviewProduct] = useState<any>(null);
+    const [lowStockListExpanded, setLowStockListExpanded] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [isUploading, setIsUploading] = useState(false);
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
@@ -372,8 +376,14 @@ const Products = () => {
         setIsModalOpen(true);
     };
 
-    const lowStockProducts = products?.filter(p => (p.stock || 0) <= 10) || [];
-    const lowStockProductsTotalUnits = lowStockProducts.reduce((sum, p) => sum + Number(p.stock ?? 0), 0);
+    const lowStockProducts = useMemo(() => {
+        const list = (products ?? []).filter((p) => (p.stock || 0) <= 10);
+        return [...list].sort((a, b) => Number(a.stock ?? 0) - Number(b.stock ?? 0));
+    }, [products]);
+    const lowStockProductsTotalUnits = useMemo(
+        () => lowStockProducts.reduce((sum, p) => sum + Number(p.stock ?? 0), 0),
+        [lowStockProducts]
+    );
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
@@ -492,44 +502,106 @@ const Products = () => {
             </div>
 
             {lowStockProducts.length > 0 && (
-                <div className="bg-red-50 border border-red-100/50 rounded-[32px] p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-sm">
-                    <div className="flex items-start md:items-center gap-4">
-                        <div className="w-14 h-14 bg-red-100 rounded-2xl flex items-center justify-center shrink-0 text-red-500 shadow-inner">
-                            <AlertTriangle className="w-7 h-7" />
+                <div className="bg-red-50 border border-red-100/50 rounded-[32px] p-6 flex flex-col gap-4 shadow-sm">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div className="flex items-start md:items-center gap-4 min-w-0">
+                            <div className="w-14 h-14 bg-red-100 rounded-2xl flex items-center justify-center shrink-0 text-red-500 shadow-inner">
+                                <AlertTriangle className="w-7 h-7" />
+                            </div>
+                            <div className="space-y-1 min-w-0">
+                                <h3 className="text-xl font-bold text-red-600">Low Stock Alert</h3>
+                                <p className="text-red-500/80 font-medium">
+                                    {lowStockProducts.length} product{lowStockProducts.length === 1 ? '' : 's'} at or below 10 units each.{' '}
+                                    <span className="font-bold text-red-700 tabular-nums">{lowStockProductsTotalUnits}</span>
+                                    {' '}unit{lowStockProductsTotalUnits === 1 ? '' : 's'} remaining in stock across them.
+                                </p>
+                            </div>
                         </div>
-                        <div className="space-y-1">
-                            <h3 className="text-xl font-bold text-red-600">Low Stock Alert</h3>
-                            <p className="text-red-500/80 font-medium">
-                                {lowStockProducts.length} product{lowStockProducts.length === 1 ? '' : 's'} at or below 10 units each.{' '}
-                                <span className="font-bold text-red-700 tabular-nums">{lowStockProductsTotalUnits}</span>
-                                {' '}unit{lowStockProductsTotalUnits === 1 ? '' : 's'} remaining in stock across them.
-                            </p>
-                        </div>
-                    </div>
-                    <div className="flex items-center -space-x-3 shrink-0">
-                        {lowStockProducts.slice(0, 5).map(p => (
-                            <div
-                                key={p.id}
-                                className="relative w-12 h-12 rounded-2xl border-2 border-red-50 bg-white shadow-sm overflow-hidden shrink-0"
-                                title={`${p.name}: ${Number(p.stock ?? 0)} units`}
-                            >
-                                {p.image_url ?
-                                    <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" /> :
-                                    <div className="w-full h-full bg-brand-navy/5 flex items-center justify-center">
-                                        <Package className="w-5 h-5 text-brand-navy/20" />
+                        <div className="flex flex-wrap items-center gap-3 shrink-0 md:justify-end">
+                            <div className="flex items-center -space-x-3">
+                                {lowStockProducts.slice(0, 5).map((p) => (
+                                    <div
+                                        key={p.id}
+                                        className="relative w-12 h-12 rounded-2xl border-2 border-red-50 bg-white shadow-sm overflow-hidden shrink-0"
+                                        title={`${p.name}: ${Number(p.stock ?? 0)} units`}
+                                    >
+                                        {p.image_url ? (
+                                            <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="w-full h-full bg-brand-navy/5 flex items-center justify-center">
+                                                <Package className="w-5 h-5 text-brand-navy/20" />
+                                            </div>
+                                        )}
+                                        <span className="absolute bottom-0 inset-x-0 bg-red-600/95 text-white text-[9px] font-black leading-none py-0.5 text-center tabular-nums">
+                                            {Number(p.stock ?? 0)}
+                                        </span>
                                     </div>
-                                }
-                                <span className="absolute bottom-0 inset-x-0 bg-red-600/95 text-white text-[9px] font-black leading-none py-0.5 text-center tabular-nums">
-                                    {Number(p.stock ?? 0)}
-                                </span>
+                                ))}
+                                {lowStockProducts.length > 5 && (
+                                    <div className="w-12 h-12 rounded-2xl border-2 border-red-50 bg-white flex items-center justify-center shadow-sm z-10 text-xs font-black text-red-500 shrink-0">
+                                        +{lowStockProducts.length - 5}
+                                    </div>
+                                )}
                             </div>
-                        ))}
-                        {lowStockProducts.length > 5 && (
-                            <div className="w-12 h-12 rounded-2xl border-2 border-red-50 bg-white flex items-center justify-center shadow-sm z-10 text-xs font-black text-red-500 shrink-0">
-                                +{lowStockProducts.length - 5}
-                            </div>
-                        )}
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setLowStockListExpanded((v) => !v)}
+                                className="h-10 rounded-xl border-red-200 bg-white text-red-700 hover:bg-red-100/80 hover:text-red-800 font-bold gap-2 shadow-sm"
+                            >
+                                {lowStockListExpanded ? (
+                                    <>
+                                        <ChevronUp className="w-4 h-4" />
+                                        Hide list
+                                    </>
+                                ) : (
+                                    <>
+                                        <ChevronDown className="w-4 h-4" />
+                                        Show all ({lowStockProducts.length})
+                                    </>
+                                )}
+                            </Button>
+                        </div>
                     </div>
+                    {lowStockListExpanded && (
+                        <div className="border-t border-red-100 pt-4 -mx-1">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-red-600/60 mb-2 px-1">
+                                Click a product to open preview
+                            </p>
+                            <ScrollArea className="h-[min(22rem,calc(100vh-12rem))] pr-3">
+                                <ul className="space-y-1.5 pb-1">
+                                    {lowStockProducts.map((p) => (
+                                        <li key={p.id}>
+                                            <button
+                                                type="button"
+                                                onClick={() => setPreviewProduct(p)}
+                                                className="w-full flex items-center gap-3 rounded-2xl border border-red-100/80 bg-white/90 px-3 py-2.5 text-left transition-colors hover:bg-white hover:border-red-200 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50"
+                                            >
+                                                <div className="relative h-11 w-11 shrink-0 rounded-xl border border-red-50 overflow-hidden bg-brand-navy/[0.03]">
+                                                    {p.image_url ? (
+                                                        <img src={p.image_url} alt="" className="h-full w-full object-cover" />
+                                                    ) : (
+                                                        <div className="h-full w-full flex items-center justify-center">
+                                                            <Package className="w-4 h-4 text-brand-navy/25" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="font-bold text-brand-navy text-sm truncate">{p.name}</p>
+                                                    <p className="text-xs text-muted-foreground font-mono truncate">{p.code}</p>
+                                                </div>
+                                                <Badge className="shrink-0 bg-red-600 text-white border-none tabular-nums font-black">
+                                                    {Number(p.stock ?? 0)} left
+                                                </Badge>
+                                                <Eye className="w-4 h-4 shrink-0 text-red-400" aria-hidden />
+                                            </button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </ScrollArea>
+                        </div>
+                    )}
                 </div>
             )}
 
