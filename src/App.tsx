@@ -36,6 +36,10 @@ import OwnerCities from "./pages/owner/Cities";
 import OwnerZones from "./pages/owner/Zones";
 import OwnerLayout from "./components/layout/OwnerLayout";
 import Calculator from "./pages/Calculator";
+import Devis from "./pages/tools/Devis";
+import Facture from "./pages/tools/Facture";
+import BonDeCommande from "./pages/tools/BonDeCommande";
+import BonDeLivraison from "./pages/tools/BonDeLivraison";
 import AdminDemands from "./pages/Demands";
 import AdminSalaries from "./pages/Salaries";
 import AdminSellers from "./pages/Sellers";
@@ -214,6 +218,10 @@ const App = () => (
                     <Route path="/expenses-details" element={<ExpensesDetails />} />
                     <Route path="/expenses-types" element={<ExpensesTypes />} />
                     <Route path="/calculator" element={<Calculator />} />
+                    <Route path="/devis" element={<Devis />} />
+                    <Route path="/facture" element={<Facture />} />
+                    <Route path="/bon-de-commande" element={<BonDeCommande />} />
+                    <Route path="/bon-de-livraison" element={<BonDeLivraison />} />
                     <Route path="/demands" element={<AdminDemands />} />
                     <Route path="/salaries" element={<AdminSalaries />} />
                     <Route path="/sellers" element={<AdminSellers />} />

@@ -37,6 +37,10 @@ import {
     Target,
     Building2,
     Calculator,
+    FileSpreadsheet,
+    Receipt,
+    ClipboardList,
+    PackageCheck,
     MessageSquare,
     DollarSign,
     Store,
@@ -158,6 +162,10 @@ const pages = [
     { label: 'Businesses', path: '/businesses', icon: Building2 },
     { label: 'Import Orders', path: '/import-orders', icon: Download },
     { label: 'Profit Calculator', path: '/calculator', icon: Calculator },
+    { label: 'Devis', path: '/devis', icon: FileSpreadsheet },
+    { label: 'Facture', path: '/facture', icon: Receipt },
+    { label: 'Bon de commande', path: '/bon-de-commande', icon: ClipboardList },
+    { label: 'Bon de livraison', path: '/bon-de-livraison', icon: PackageCheck },
 ];
 
 const Users = () => {

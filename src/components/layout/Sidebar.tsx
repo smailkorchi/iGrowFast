@@ -37,7 +37,11 @@ import {
     Puzzle,
     Key,
     Briefcase,
-    LayoutDashboard
+    LayoutDashboard,
+    FileSpreadsheet,
+    Receipt,
+    ClipboardList,
+    PackageCheck
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
@@ -133,6 +137,10 @@ const navigation: NavSection[] = [
         icon: Calculator,
         items: [
             { icon: Calculator, label: 'Profit Calculator', path: '/calculator' },
+            { icon: FileSpreadsheet, label: 'Devis', path: '/devis' },
+            { icon: Receipt, label: 'Facture', path: '/facture' },
+            { icon: ClipboardList, label: 'Bon de commande', path: '/bon-de-commande' },
+            { icon: PackageCheck, label: 'Bon de livraison', path: '/bon-de-livraison' },
         ]
     },
 ];
