@@ -1620,6 +1620,53 @@ export type Database = {
           },
         ]
       }
+      bons_livraison: {
+        Row: {
+          bl_number: string
+          business_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          issued_at: string
+          pdf_storage_path: string | null
+          snapshot_json: Json
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          bl_number: string
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          issued_at?: string
+          pdf_storage_path?: string | null
+          snapshot_json?: Json
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          bl_number?: string
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          issued_at?: string
+          pdf_storage_path?: string | null
+          snapshot_json?: Json
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bons_livraison_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       expense_types: {
         Row: {
           active: boolean | null
