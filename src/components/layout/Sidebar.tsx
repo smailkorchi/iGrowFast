@@ -22,7 +22,6 @@ import {
     Wallet,
     List,
     Tag,
-    Download,
     Upload,
     CheckCircle,
     ChevronRight,
@@ -33,6 +32,7 @@ import {
     User as UserIcon,
     Loader2,
     Calculator,
+    Wrench,
     Store,
     MessageSquare,
     Puzzle,
@@ -126,24 +126,24 @@ const navigation: NavSection[] = [
         ]
     },
     {
-        label: 'Settings',
-        icon: Settings,
-        items: [
-            { icon: Download, label: 'Import Orders', path: '/import-orders' },
-            { icon: Upload, label: 'Import Products', path: '/import-products' },
-            { icon: Upload, label: 'Import Accessories', path: '/import-accessories' },
-            { icon: Key, label: 'AI Keys', path: '/ai-keys' },
-        ]
-    },
-    {
         label: 'Tools',
-        icon: Calculator,
+        icon: Wrench,
         items: [
             { icon: Calculator, label: 'Profit Calculator', path: '/calculator' },
             { icon: FileSpreadsheet, label: 'Devis', path: '/devis' },
             { icon: Receipt, label: 'Facture', path: '/facture' },
             { icon: ClipboardList, label: 'Bon de commande', path: '/bon-de-commande' },
             { icon: PackageCheck, label: 'Bon de livraison', path: '/bon-de-livraison' },
+        ]
+    },
+    {
+        label: 'Settings',
+        icon: Settings,
+        items: [
+            { icon: Upload, label: 'Import Orders', path: '/import-orders' },
+            { icon: Upload, label: 'Import Products', path: '/import-products' },
+            { icon: Upload, label: 'Import Accessories', path: '/import-accessories' },
+            { icon: Key, label: 'AI Keys', path: '/ai-keys' },
         ]
     },
 ];

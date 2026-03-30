@@ -414,6 +414,7 @@ const SellerDashboard = () => {
                             color: 'text-blue-600',
                             bg: 'bg-blue-50',
                             gradient: 'from-blue-50 to-white',
+                            href: '/seller/orders?tab=new',
                         },
                         {
                             label: 'Pending',
@@ -424,6 +425,7 @@ const SellerDashboard = () => {
                             bg: 'bg-orange-50',
                             gradient: 'from-orange-50 to-white',
                             pulse: stats.pendingOrders > 0,
+                            href: '/seller/orders?tab=confirmation',
                         },
                         {
                             label: 'Delivered today',
@@ -433,6 +435,7 @@ const SellerDashboard = () => {
                             color: 'text-emerald-600',
                             bg: 'bg-emerald-50',
                             gradient: 'from-emerald-50 to-white',
+                            href: '/seller/orders?tab=suivi',
                         },
                         {
                             label: 'Live Commission (Unpaid)',
@@ -445,6 +448,7 @@ const SellerDashboard = () => {
                             color: 'text-amber-600',
                             bg: 'bg-amber-50',
                             gradient: 'from-amber-50 to-white',
+                            href: '/seller/payments',
                         },
                     ].map((kpi, i) => (
                         <motion.div
@@ -453,7 +457,18 @@ const SellerDashboard = () => {
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: i * 0.08, duration: 0.4 }}
                         >
-                            <Card className={`border-0 shadow-sm rounded-3xl overflow-hidden bg-gradient-to-br ${kpi.gradient} hover:shadow-xl transition-all duration-500 group h-full`}>
+                            <Card
+                                role="link"
+                                tabIndex={0}
+                                className={`border-0 shadow-sm rounded-3xl overflow-hidden bg-gradient-to-br ${kpi.gradient} hover:shadow-xl transition-all duration-500 group h-full cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900/20 focus-visible:ring-offset-2`}
+                                onClick={() => navigate(kpi.href)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        navigate(kpi.href);
+                                    }
+                                }}
+                            >
                                 <CardContent className="p-6">
                                     <div className="flex items-center justify-between mb-4">
                                         <div className={`w-11 h-11 ${kpi.bg} ${kpi.color} rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 duration-500`}>

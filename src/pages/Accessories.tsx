@@ -118,6 +118,7 @@ const Accessories = () => {
     // Product attachment state
     const [attachedProducts, setAttachedProducts] = useState<{ product_id: string; default_quantity: number }[]>([]);
     const [productSearch, setProductSearch] = useState("");
+    const [bulkAttachmentQty, setBulkAttachmentQty] = useState("1");
 
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -436,6 +437,7 @@ const Accessories = () => {
             setAttachedProducts([]);
         }
         setProductSearch("");
+        setBulkAttachmentQty("1");
         setIsModalOpen(true);
     };
 
@@ -456,10 +458,51 @@ const Accessories = () => {
         );
     };
 
-    const filteredProducts = products?.filter(p =>
-        p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-        p.code.toLowerCase().includes(productSearch.toLowerCase())
+    const filteredProducts = useMemo(
+        () =>
+            products?.filter(
+                (p) =>
+                    p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+                    p.code.toLowerCase().includes(productSearch.toLowerCase())
+            ),
+        [products, productSearch]
     );
+
+    /** Attach every product in the current search results; keeps existing rows and their quantities. */
+    const selectAllFilteredProducts = () => {
+        const list = filteredProducts;
+        if (!list?.length) return;
+        setAttachedProducts((prev) => {
+            const map = new Map(prev.map((ap) => [ap.product_id, ap]));
+            for (const product of list) {
+                if (!map.has(product.id)) {
+                    map.set(product.id, { product_id: product.id, default_quantity: 1 });
+                }
+            }
+            return Array.from(map.values());
+        });
+    };
+
+    const filteredProductIds = useMemo(
+        () => new Set((filteredProducts ?? []).map((p) => p.id)),
+        [filteredProducts]
+    );
+
+    const filteredAttachedCount = useMemo(
+        () => attachedProducts.filter((ap) => filteredProductIds.has(ap.product_id)).length,
+        [attachedProducts, filteredProductIds]
+    );
+
+    /** Set default_quantity for every attachment that appears in the current filtered list. */
+    const applyBulkQuantityToFiltered = () => {
+        const qty = Math.max(1, parseInt(bulkAttachmentQty, 10) || 1);
+        if (filteredAttachedCount === 0) return;
+        setAttachedProducts((prev) =>
+            prev.map((ap) =>
+                filteredProductIds.has(ap.product_id) ? { ...ap, default_quantity: qty } : ap
+            )
+        );
+    };
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
@@ -1072,15 +1115,60 @@ const Accessories = () => {
                                     </div>
                                     <p className="text-xs text-muted-foreground -mt-2">Select products that use this accessory by default. Set the default quantity per product.</p>
 
-                                    {/* Product Search */}
-                                    <div className="relative">
-                                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                                        <Input
-                                            placeholder="Search products..."
-                                            value={productSearch}
-                                            onChange={(e) => setProductSearch(e.target.value)}
-                                            className="h-11 pl-11 rounded-2xl border-none bg-white shadow-sm text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium"
-                                        />
+                                    {/* Product Search + bulk actions */}
+                                    <div className="flex flex-col gap-2">
+                                        <div className="relative w-full">
+                                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                            <Input
+                                                placeholder="Search products..."
+                                                value={productSearch}
+                                                onChange={(e) => setProductSearch(e.target.value)}
+                                                className="h-11 pl-11 rounded-2xl border-none bg-white shadow-sm text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium"
+                                            />
+                                        </div>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                disabled={!filteredProducts?.length}
+                                                onClick={selectAllFilteredProducts}
+                                                className="h-11 shrink-0 rounded-2xl border-brand-navy/15 bg-white px-4 text-xs font-black uppercase tracking-wide text-brand-navy hover:bg-brand-navy/[0.04]"
+                                            >
+                                                Select all
+                                                {filteredProducts && filteredProducts.length > 0
+                                                    ? ` (${filteredProducts.length})`
+                                                    : ''}
+                                            </Button>
+                                            <div className="flex items-center gap-2 rounded-2xl border border-brand-navy/15 bg-white px-2 py-1 pl-3 shadow-sm">
+                                                <span className="text-[10px] font-black uppercase tracking-wide text-brand-navy/50 whitespace-nowrap">
+                                                    Qty
+                                                </span>
+                                                <Input
+                                                    type="number"
+                                                    min={1}
+                                                    value={bulkAttachmentQty}
+                                                    onChange={(e) => setBulkAttachmentQty(e.target.value)}
+                                                    className="h-9 w-14 rounded-xl border-none bg-brand-navy/[0.04] text-center text-sm font-bold text-brand-navy shadow-none px-1"
+                                                />
+                                                <Button
+                                                    type="button"
+                                                    variant="secondary"
+                                                    size="sm"
+                                                    disabled={filteredAttachedCount === 0}
+                                                    onClick={applyBulkQuantityToFiltered}
+                                                    className="h-9 shrink-0 rounded-xl px-3 text-xs font-black uppercase tracking-wide"
+                                                >
+                                                    Apply
+                                                </Button>
+                                            </div>
+                                        </div>
+                                        {filteredAttachedCount > 0 && (
+                                            <p className="text-[10px] font-medium text-muted-foreground">
+                                                Applies to {filteredAttachedCount} attached product
+                                                {filteredAttachedCount !== 1 ? 's' : ''} in this list
+                                            </p>
+                                        )}
                                     </div>
 
                                     {/* Product List */}

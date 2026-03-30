@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
@@ -15,13 +15,15 @@ import {
     TrendingUp,
     Filter,
     Download,
+    ChevronsUpDown,
     X,
     ChevronLeft,
     ChevronRight,
     Loader2,
     Users as UsersIcon,
     DollarSign,
-    Activity
+    Activity,
+    Truck
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -42,6 +44,21 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@/components/ui/popover';
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from '@/components/ui/command';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import {
     Table,
     TableBody,
     TableCell,
@@ -49,7 +66,6 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from '@/lib/utils';
 import {
     AreaChart,
@@ -64,6 +80,13 @@ import {
     Cell
 } from 'recharts';
 import { format } from 'date-fns';
+
+function formatStatusCategoryLabel(category: string) {
+    return category
+        .split(/[_\s]+/)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(' ');
+}
 
 // --- Types ---
 
@@ -106,7 +129,51 @@ const Customers = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
     const [sortBy, setSortBy] = useState<'recency' | 'value' | 'frequency'>('recency');
+    const [orderStatusFilterIds, setOrderStatusFilterIds] = useState<string[]>([]);
+    const [packageStatusFilterIds, setPackageStatusFilterIds] = useState<string[]>([]);
+    const [orderStatusFilterOpen, setOrderStatusFilterOpen] = useState(false);
+    const [packageStatusFilterOpen, setPackageStatusFilterOpen] = useState(false);
     const activeBusinessId = localStorage.getItem('activeBusinessId');
+
+    const orderStatusGroups = useMemo(() => {
+        const list = statusCats.orderStatuses.filter((s) => s.active !== false);
+        const catOrder = [...new Set(list.map((s) => s.category))];
+        return catOrder.map((cat) => ({
+            category: cat,
+            heading: formatStatusCategoryLabel(cat),
+            items: list
+                .filter((s) => s.category === cat)
+                .sort((a, b) => (a.ranking ?? 0) - (b.ranking ?? 0)),
+        }));
+    }, [statusCats.orderStatuses]);
+
+    const packageStatusGroups = useMemo(() => {
+        const list = statusCats.packageStatuses;
+        const catOrder = [...new Set(list.map((s) => s.category))];
+        return catOrder.map((cat) => ({
+            category: cat,
+            heading: formatStatusCategoryLabel(cat),
+            items: list
+                .filter((s) => s.category === cat)
+                .sort((a, b) => (a.ranking ?? 0) - (b.ranking ?? 0)),
+        }));
+    }, [statusCats.packageStatuses]);
+
+    const toggleOrderStatusFilter = (id: string) => {
+        setOrderStatusFilterIds((prev) =>
+            prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+        );
+    };
+
+    const togglePackageStatusFilter = (id: string) => {
+        setPackageStatusFilterIds((prev) =>
+            prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+        );
+    };
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery, sortBy, orderStatusFilterIds, packageStatusFilterIds]);
 
     // --- Data Fetching ---
     const { data: customers, isLoading } = useQuery({
@@ -222,10 +289,35 @@ const Customers = () => {
     // --- Filtering & Sorting ---
     const filteredData = useMemo(() => {
         if (!customers) return [];
-        let res = customers.filter(c =>
-            c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            c.phone.includes(searchQuery) ||
-            c.city.toLowerCase().includes(searchQuery.toLowerCase())
+
+        const pkgList = statusCats.packageStatuses;
+        const orderSel = new Set(orderStatusFilterIds);
+        const pkgSel = new Set(packageStatusFilterIds);
+
+        const orderMatchesFilter = (o: Order) =>
+            orderStatusFilterIds.length === 0 || orderSel.has(o.order_status_id);
+
+        const packageMatchesFilter = (o: Order) => {
+            if (packageStatusFilterIds.length === 0) return true;
+            if (o.package_status_id && pkgSel.has(o.package_status_id)) return true;
+            const label = (o.package_status_label || o.package_statuses?.label || '').trim();
+            if (!label) return false;
+            return pkgList.some((ps) => pkgSel.has(ps.id) && ps.label === label);
+        };
+
+        let res = customers.filter((c) => {
+            const passesOrder =
+                orderStatusFilterIds.length === 0 || c.orders.some(orderMatchesFilter);
+            const passesPkg =
+                packageStatusFilterIds.length === 0 || c.orders.some(packageMatchesFilter);
+            return passesOrder && passesPkg;
+        });
+
+        res = res.filter(
+            (c) =>
+                c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                c.phone.includes(searchQuery) ||
+                c.city.toLowerCase().includes(searchQuery.toLowerCase())
         );
 
         if (sortBy === 'recency') {
@@ -237,7 +329,14 @@ const Customers = () => {
         }
 
         return res;
-    }, [customers, searchQuery, sortBy]);
+    }, [
+        customers,
+        searchQuery,
+        sortBy,
+        orderStatusFilterIds,
+        packageStatusFilterIds,
+        statusCats.packageStatuses,
+    ]);
 
     const paginatedCustomers = useMemo(() => {
         const start = (currentPage - 1) * PAGE_SIZE;
@@ -338,31 +437,213 @@ const Customers = () => {
             </div>
 
             {/* Controls */}
-            <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-4 rounded-[24px] shadow-sm border border-brand-navy/5">
-                <div className="relative w-full md:w-96">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                        placeholder="Search by name, phone, city..."
-                        className="pl-11 h-12 rounded-xl border-brand-navy/10 focus:border-brand-navy focus:ring-brand-navy bg-brand-navy/[0.02]"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
+            <div className="space-y-2">
+                <div className="flex flex-col xl:flex-row gap-4 items-stretch xl:items-center justify-between bg-white p-4 rounded-[24px] shadow-sm border border-brand-navy/5">
+                    <div className="relative w-full xl:w-96 shrink-0">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Search by name, phone, city..."
+                            className="pl-11 h-12 rounded-xl border-brand-navy/10 focus:border-brand-navy focus:ring-brand-navy bg-brand-navy/[0.02]"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                    </div>
+                    <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 w-full xl:flex-1 xl:justify-end">
+                        <Popover open={orderStatusFilterOpen} onOpenChange={setOrderStatusFilterOpen}>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className={cn(
+                                        'h-12 min-h-[48px] rounded-xl border-brand-navy/10 justify-between gap-2 font-semibold text-brand-navy sm:min-w-[200px]',
+                                        orderStatusFilterIds.length > 0 && 'border-brand-navy/30 bg-brand-navy/[0.04]'
+                                    )}
+                                >
+                                    <span className="flex items-center gap-2 truncate">
+                                        <ShoppingBag className="w-4 h-4 shrink-0 opacity-60" />
+                                        <span className="truncate">
+                                            {orderStatusFilterIds.length === 0
+                                                ? 'Order status'
+                                                : `${orderStatusFilterIds.length} order status${orderStatusFilterIds.length > 1 ? 'es' : ''}`}
+                                        </span>
+                                    </span>
+                                    <ChevronsUpDown className="w-4 h-4 shrink-0 opacity-50" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent
+                                className="w-[min(100vw-2rem,380px)] p-0 rounded-2xl border border-brand-navy/10 shadow-xl"
+                                align="end"
+                                onWheel={(e) => e.stopPropagation()}
+                            >
+                                <Command className="rounded-2xl">
+                                    <CommandInput placeholder="Search order statuses…" className="h-11" />
+                                    <CommandList className="max-h-[min(55vh,300px)]">
+                                        <CommandEmpty>No matching status.</CommandEmpty>
+                                        {orderStatusGroups.map((g) => (
+                                            <CommandGroup key={g.category} heading={g.heading}>
+                                                {g.items.map((s) => (
+                                                    <CommandItem
+                                                        key={s.id}
+                                                        value={`${s.label} ${g.category}`}
+                                                        onSelect={() => toggleOrderStatusFilter(s.id)}
+                                                        className="flex cursor-pointer items-center gap-2 aria-selected:bg-brand-navy/5"
+                                                    >
+                                                        <Checkbox
+                                                            checked={orderStatusFilterIds.includes(s.id)}
+                                                            className="pointer-events-none border-brand-navy/30 data-[state=checked]:bg-brand-navy data-[state=checked]:border-brand-navy"
+                                                        />
+                                                        <span
+                                                            className="h-2.5 w-2.5 shrink-0 rounded-full"
+                                                            style={{
+                                                                backgroundColor: s.color || '#94a3b8',
+                                                            }}
+                                                        />
+                                                        <span className="font-medium text-brand-navy">{s.label}</span>
+                                                    </CommandItem>
+                                                ))}
+                                            </CommandGroup>
+                                        ))}
+                                    </CommandList>
+                                </Command>
+                                <div className="flex items-center justify-between gap-2 border-t border-brand-navy/10 px-3 py-2">
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 text-xs font-bold text-muted-foreground"
+                                        onClick={() => setOrderStatusFilterIds([])}
+                                    >
+                                        Clear all
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 text-xs font-bold text-brand-navy"
+                                        onClick={() => setOrderStatusFilterOpen(false)}
+                                    >
+                                        Done
+                                    </Button>
+                                </div>
+                            </PopoverContent>
+                        </Popover>
+
+                        <Popover open={packageStatusFilterOpen} onOpenChange={setPackageStatusFilterOpen}>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className={cn(
+                                        'h-12 min-h-[48px] rounded-xl border-brand-navy/10 justify-between gap-2 font-semibold text-brand-navy sm:min-w-[200px]',
+                                        packageStatusFilterIds.length > 0 && 'border-brand-navy/30 bg-brand-navy/[0.04]'
+                                    )}
+                                >
+                                    <span className="flex items-center gap-2 truncate">
+                                        <Truck className="w-4 h-4 shrink-0 opacity-60" />
+                                        <span className="truncate">
+                                            {packageStatusFilterIds.length === 0
+                                                ? 'Package status'
+                                                : `${packageStatusFilterIds.length} package status${packageStatusFilterIds.length > 1 ? 'es' : ''}`}
+                                        </span>
+                                    </span>
+                                    <ChevronsUpDown className="w-4 h-4 shrink-0 opacity-50" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent
+                                className="w-[min(100vw-2rem,380px)] p-0 rounded-2xl border border-brand-navy/10 shadow-xl"
+                                align="end"
+                                onWheel={(e) => e.stopPropagation()}
+                            >
+                                <Command className="rounded-2xl">
+                                    <CommandInput placeholder="Search package statuses…" className="h-11" />
+                                    <CommandList className="max-h-[min(55vh,300px)]">
+                                        <CommandEmpty>No matching status.</CommandEmpty>
+                                        {packageStatusGroups.map((g) => (
+                                            <CommandGroup key={g.category} heading={g.heading}>
+                                                {g.items.map((s) => (
+                                                    <CommandItem
+                                                        key={s.id}
+                                                        value={`${s.label} ${g.category}`}
+                                                        onSelect={() => togglePackageStatusFilter(s.id)}
+                                                        className="flex cursor-pointer items-center gap-2 aria-selected:bg-brand-navy/5"
+                                                    >
+                                                        <Checkbox
+                                                            checked={packageStatusFilterIds.includes(s.id)}
+                                                            className="pointer-events-none border-brand-navy/30 data-[state=checked]:bg-brand-navy data-[state=checked]:border-brand-navy"
+                                                        />
+                                                        <span
+                                                            className="h-2.5 w-2.5 shrink-0 rounded-full"
+                                                            style={{
+                                                                backgroundColor: s.color || '#94a3b8',
+                                                            }}
+                                                        />
+                                                        <span className="font-medium text-brand-navy">{s.label}</span>
+                                                    </CommandItem>
+                                                ))}
+                                            </CommandGroup>
+                                        ))}
+                                    </CommandList>
+                                </Command>
+                                <div className="flex items-center justify-between gap-2 border-t border-brand-navy/10 px-3 py-2">
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 text-xs font-bold text-muted-foreground"
+                                        onClick={() => setPackageStatusFilterIds([])}
+                                    >
+                                        Clear all
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 text-xs font-bold text-brand-navy"
+                                        onClick={() => setPackageStatusFilterOpen(false)}
+                                    >
+                                        Done
+                                    </Button>
+                                </div>
+                            </PopoverContent>
+                        </Popover>
+
+                        {(orderStatusFilterIds.length > 0 || packageStatusFilterIds.length > 0) && (
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                className="h-12 rounded-xl text-brand-navy/80 hover:text-brand-navy"
+                                onClick={() => {
+                                    setOrderStatusFilterIds([]);
+                                    setPackageStatusFilterIds([]);
+                                }}
+                            >
+                                <X className="w-4 h-4 mr-1.5" />
+                                Reset statuses
+                            </Button>
+                        )}
+
+                        <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
+                            <SelectTrigger className="w-full sm:w-[180px] h-12 rounded-xl border-brand-navy/10">
+                                <div className="flex items-center gap-2">
+                                    <Filter className="w-4 h-4 opacity-50" />
+                                    <SelectValue placeholder="Sort by" />
+                                </div>
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="recency">Most Recent</SelectItem>
+                                <SelectItem value="value">Highest Value</SelectItem>
+                                <SelectItem value="frequency">Most Orders</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
-                <div className="flex items-center gap-3 w-full md:w-auto">
-                    <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
-                        <SelectTrigger className="w-full md:w-[180px] h-12 rounded-xl border-brand-navy/10">
-                            <div className="flex items-center gap-2">
-                                <Filter className="w-4 h-4 opacity-50" />
-                                <SelectValue placeholder="Sort by" />
-                            </div>
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="recency">Most Recent</SelectItem>
-                            <SelectItem value="value">Highest Value</SelectItem>
-                            <SelectItem value="frequency">Most Orders</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
+                {customers && filteredData.length !== customers.length && (
+                    <p className="text-xs font-medium text-muted-foreground px-1">
+                        Showing{' '}
+                        <span className="font-bold text-brand-navy">{filteredData.length}</span> of{' '}
+                        {customers.length} customers
+                    </p>
+                )}
             </div>
 
             {/* Customer Grid */}

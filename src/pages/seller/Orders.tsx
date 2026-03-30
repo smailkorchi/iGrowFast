@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import {
@@ -70,7 +71,7 @@ import {
     FormDescription
 } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { cn } from '@/lib/utils';
@@ -80,6 +81,13 @@ import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, subMon
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import type { DateRange } from 'react-day-picker';
 import CustomerInsights from '@/components/CustomerInsights';
+import {
+    OrderPhoneQuickActions,
+    OrderPhoneContactDropdown,
+    OrderContactSubmenu,
+} from '@/components/orders/OrderPhoneQuickActions';
+import { ParcelTrackingDialog } from '@/components/orders/ParcelTrackingDialog';
+import { getLatestTrackableCompanyParcel } from '@/lib/orders/getLatestTrackableCompanyParcel';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { computeUnpaidCommission, normalizeCommissionBasis, isDeliveredForCommission, type CommissionBasis } from '@/lib/commercialCommission';
 import { Badge } from "@/components/ui/badge";
@@ -109,6 +117,12 @@ import { Check, ChevronsUpDown } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
+import {
+    OrderLineProductCombobox,
+    OrderLineProductStockHint,
+    toProductStockNumber,
+    type OrderLineProductOption,
+} from '@/components/orders/OrderLineProductCombobox';
 
 // --- Schemas ---
 const orderItemSchema = z.object({
@@ -224,6 +238,7 @@ function orderHasTrackingNumber(order: any): boolean {
 }
 
 const Orders = () => {
+    const [searchParams] = useSearchParams();
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -231,6 +246,13 @@ const Orders = () => {
     const [searchQuery, setSearchQuery] = useState("");
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
     const [activeTab, setActiveTab] = useState<'new' | 'confirmation' | 'suivi' | 'reported'>('new');
+
+    useEffect(() => {
+        const tab = searchParams.get('tab');
+        if (tab === 'new' || tab === 'confirmation' || tab === 'suivi' || tab === 'reported') {
+            setActiveTab(tab);
+        }
+    }, [searchParams]);
     const [sellerStats, setSellerStats] = useState({
         confirmRate: 0,
         deliveryRate: 0,
@@ -292,6 +314,8 @@ const Orders = () => {
     const [filterPackageStatus, setFilterPackageStatus] = useState<string>('all');
     const [filterExchange, setFilterExchange] = useState<string>('all');
     const [showAllFilters, setShowAllFilters] = useState(false);
+    const [parcelTrackingOpen, setParcelTrackingOpen] = useState(false);
+    const [parcelTrackingOrderId, setParcelTrackingOrderId] = useState<string | null>(null);
 
     // Add custom scrollbar styles to head
     React.useEffect(() => {
@@ -481,7 +505,7 @@ const Orders = () => {
                     company:providers(id, name, logo_url),
                     items:order_items(*, product:products(name, code, image_url), accessory:accessories(name, code, image_url)),
                     history:order_status_history(*, user:users!changed_by(name, avatar_url), status:order_statuses!status_id(*)),
-                    parcels:company_parcels(id, tracking_code, status_label, status_color, created_at, provider:providers(id, name, logo_url)),
+                    parcels:company_parcels(id, tracking_code, external_id, provider_id, status_label, status_color, created_at, provider:providers(id, name, logo_url)),
                     courier_parcels(id, tracking_code, status_label, created_at)
                 `)
                 .eq('DigiCom Business', activeBusinessId)
@@ -738,6 +762,20 @@ const Orders = () => {
             ameex_old_tracking: ''
         }
     });
+
+    const watchedOrderItems = useWatch({ control: form.control, name: 'items' });
+
+    const newOrderHasZeroStockProduct = useMemo(() => {
+        if (isEditModalOpen) return false;
+        if (!products?.length || !watchedOrderItems?.length) return false;
+        return watchedOrderItems.some((item: any) => {
+            const pid = item?.product_id;
+            if (!pid || pid === 'none') return false;
+            const p = (products as any[]).find((x) => x.id === pid);
+            if (!p || p.stock === null || p.stock === undefined) return false;
+            return Number(p.stock) === 0;
+        });
+    }, [isEditModalOpen, watchedOrderItems, products]);
 
     const dismissReportedModal = useCallback((revertStatus: boolean) => {
         if (revertStatus && reportedStatusRevertRef.current !== null) {
@@ -2065,6 +2103,7 @@ const Orders = () => {
                             const latestParcel = allParcels.sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())?.[0];
                             const trackingCode = latestParcel?.tracking_code;
                             const isDuplicateClient = duplicatePhones.has(order.phone);
+                            const canTrackParcel = !!getLatestTrackableCompanyParcel(order);
                             return (
                                 <div
                                     key={order.id}
@@ -2115,6 +2154,18 @@ const Orders = () => {
                                                     <DropdownMenuItem onClick={() => { setSelectedOrder(order); setIsViewModalOpen(true); }} className="rounded-lg px-3 py-2 cursor-pointer gap-2.5 text-xs font-bold">
                                                         <Eye className="w-3.5 h-3.5" /> View Details
                                                     </DropdownMenuItem>
+                                                    <OrderContactSubmenu phone={order.phone} />
+                                                    <DropdownMenuItem
+                                                        disabled={!canTrackParcel}
+                                                        onClick={() => {
+                                                            if (!canTrackParcel) return;
+                                                            setParcelTrackingOrderId(order.id);
+                                                            setParcelTrackingOpen(true);
+                                                        }}
+                                                        className="rounded-lg px-3 py-2 cursor-pointer gap-2.5 text-xs font-bold"
+                                                    >
+                                                        <Truck className="w-3.5 h-3.5" /> Track
+                                                    </DropdownMenuItem>
                                                     <DropdownMenuItem onClick={() => handleEdit(order)} className="rounded-lg px-3 py-2 cursor-pointer gap-2.5 text-xs font-bold">
                                                         <Edit2 className="w-3.5 h-3.5" /> Edit Order
                                                     </DropdownMenuItem>
@@ -2147,7 +2198,7 @@ const Orders = () => {
                                                 >
                                                     {order.name}
                                                 </p>
-                                                <p className="text-[11px] text-brand-navy/40 font-medium tracking-wide">{order.phone}</p>
+                                                <p className="text-[11px] text-brand-navy/40 font-medium tracking-wide truncate">{order.phone}</p>
                                             </div>
                                         </div>
 
@@ -2199,19 +2250,39 @@ const Orders = () => {
                                         )}
 
                                         {/* Row 6: Footer — Price + View */}
-                                        <div className="flex items-center justify-between pt-2 border-t border-brand-navy/[0.04]">
-                                            <div className="flex items-baseline gap-1">
+                                        <div className="flex items-center justify-between pt-2 border-t border-brand-navy/[0.04] gap-2">
+                                            <div className="flex items-baseline gap-1 min-w-0">
                                                 <span className="text-xl font-black text-brand-navy tabular-nums">
                                                     {new Intl.NumberFormat('fr-FR').format(order.raw_price || 0)}
                                                 </span>
                                                 <span className="text-[10px] font-bold text-brand-navy/35 uppercase">DH</span>
                                             </div>
-                                            <button
-                                                onClick={() => { setSelectedOrder(order); setIsViewModalOpen(true); }}
-                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-navy/[0.05] hover:bg-brand-navy text-brand-navy/50 hover:text-white text-[11px] font-bold transition-all duration-200"
-                                            >
-                                                <Eye className="w-3.5 h-3.5" />View
-                                            </button>
+                                            <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setSelectedOrder(order); setIsViewModalOpen(true); }}
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-navy/[0.05] hover:bg-brand-navy text-brand-navy/50 hover:text-white text-[11px] font-bold transition-all duration-200"
+                                                >
+                                                    <Eye className="w-3.5 h-3.5" />View
+                                                </button>
+                                                <OrderPhoneContactDropdown phone={order.phone} variant="contact" />
+                                                <button
+                                                    type="button"
+                                                    disabled={!canTrackParcel}
+                                                    onClick={() => {
+                                                        if (!canTrackParcel) return;
+                                                        setParcelTrackingOrderId(order.id);
+                                                        setParcelTrackingOpen(true);
+                                                    }}
+                                                    className={cn(
+                                                        'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-navy/[0.05] hover:bg-brand-navy text-brand-navy/50 hover:text-white text-[11px] font-bold transition-all duration-200',
+                                                        !canTrackParcel && 'opacity-40 pointer-events-none'
+                                                    )}
+                                                >
+                                                    <Truck className="w-3.5 h-3.5" />
+                                                    Track
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -2229,7 +2300,7 @@ const Orders = () => {
                                         <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-brand-navy/40">Status</th>
                                         <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-brand-navy/40">Tracking</th>
                                         <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-brand-navy/40 text-right">Amount</th>
-                                        <th className="px-4 py-3 w-20" />
+                                        <th className="px-4 py-3 w-28" />
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -2238,6 +2309,7 @@ const Orders = () => {
                                         const latestParcel = allParcels.sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())?.[0];
                                         const trackingCode = latestParcel?.tracking_code;
                                         const isDuplicateClient = duplicatePhones.has(order.phone);
+                                        const canTrackParcel = !!getLatestTrackableCompanyParcel(order);
                                         return (
                                             <tr
                                                 key={order.id}
@@ -2276,7 +2348,7 @@ const Orders = () => {
                                                                     </span>
                                                                 )}
                                                             </p>
-                                                            <p className="text-[11px] text-brand-navy/35 font-medium">{order.phone}</p>
+                                                            <p className="text-[11px] text-brand-navy/35 font-medium truncate">{order.phone}</p>
                                                         </div>
                                                     </div>
                                                 </td>
@@ -2341,20 +2413,50 @@ const Orders = () => {
                                                 <td className="px-4 py-3">
                                                     <div className="flex items-center justify-end gap-1">
                                                         <button
+                                                            type="button"
                                                             onClick={() => { setSelectedOrder(order); setIsViewModalOpen(true); }}
                                                             className="w-8 h-8 rounded-lg flex items-center justify-center text-brand-navy/30 hover:text-brand-navy hover:bg-brand-navy/5 transition-colors"
                                                         >
                                                             <Eye className="w-4 h-4" />
                                                         </button>
+                                                        <OrderPhoneContactDropdown phone={order.phone} variant="icon" />
+                                                        <button
+                                                            type="button"
+                                                            disabled={!canTrackParcel}
+                                                            title={canTrackParcel ? 'Track parcel' : 'No provider parcel to track'}
+                                                            onClick={() => {
+                                                                if (!canTrackParcel) return;
+                                                                setParcelTrackingOrderId(order.id);
+                                                                setParcelTrackingOpen(true);
+                                                            }}
+                                                            className="w-8 h-8 rounded-lg flex items-center justify-center text-brand-navy/30 hover:text-brand-navy hover:bg-brand-navy/5 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                                                        >
+                                                            <Truck className="w-4 h-4" />
+                                                        </button>
                                                         <DropdownMenu>
                                                             <DropdownMenuTrigger asChild>
-                                                                <button className="w-8 h-8 rounded-lg flex items-center justify-center text-brand-navy/20 hover:text-brand-navy hover:bg-brand-navy/5 transition-colors">
+                                                                <button
+                                                                    type="button"
+                                                                    className="w-8 h-8 rounded-lg flex items-center justify-center text-brand-navy/20 hover:text-brand-navy hover:bg-brand-navy/5 transition-colors"
+                                                                >
                                                                     <MoreVertical className="w-4 h-4" />
                                                                 </button>
                                                             </DropdownMenuTrigger>
                                                             <DropdownMenuContent align="end" className="rounded-xl border-none shadow-2xl p-1.5 min-w-[150px]">
                                                                 <DropdownMenuItem onClick={() => handleEdit(order)} className="rounded-lg px-3 py-2 cursor-pointer gap-2.5 text-xs font-bold">
                                                                     <Edit2 className="w-3.5 h-3.5" /> Edit
+                                                                </DropdownMenuItem>
+                                                                <OrderContactSubmenu phone={order.phone} />
+                                                                <DropdownMenuItem
+                                                                    disabled={!canTrackParcel}
+                                                                    onClick={() => {
+                                                                        if (!canTrackParcel) return;
+                                                                        setParcelTrackingOrderId(order.id);
+                                                                        setParcelTrackingOpen(true);
+                                                                    }}
+                                                                    className="rounded-lg px-3 py-2 cursor-pointer gap-2.5 text-xs font-bold"
+                                                                >
+                                                                    <Truck className="w-3.5 h-3.5" /> Track
                                                                 </DropdownMenuItem>
                                                             </DropdownMenuContent>
                                                         </DropdownMenu>
@@ -2472,6 +2574,27 @@ const Orders = () => {
                                 return;
                             }
 
+                            if (!isEditModalOpen) {
+                                for (let i = 0; i < v.items.length; i++) {
+                                    const item = v.items[i];
+                                    const pid = item.product_id;
+                                    if (!pid || pid === 'none') continue;
+                                    const p = (products as any[] | undefined)?.find((x) => x.id === pid);
+                                    if (p && p.stock != null && Number(p.stock) === 0) {
+                                        form.setError(`items.${i}.product_id`, {
+                                            type: 'manual',
+                                            message: 'This product is out of stock.',
+                                        });
+                                        toast({
+                                            title: 'Out of stock',
+                                            description: 'Remove or replace lines with 0 stock before creating the order.',
+                                            variant: 'destructive',
+                                        });
+                                        return;
+                                    }
+                                }
+                            }
+
                             isEditModalOpen ? updateOrderMutation.mutate(v) : createOrderMutation.mutate(v);
                         })} className="flex flex-col h-full overflow-hidden">
                             <DialogHeader className="px-5 py-3 pr-12 shrink-0 border-b border-brand-navy/[0.08] bg-brand-navy/[0.02]">
@@ -2507,14 +2630,30 @@ const Orders = () => {
                                         <FormField
                                             control={form.control}
                                             name="phone"
-                                            render={({ field }) => (
+                                            render={({ field }) => {
+                                                const hasInsights = (field.value?.replace(/[^0-9+]/g, '') || '').length >= 6;
+                                                const hasPhoneQuick = !!field.value?.trim();
+                                                const inputPr =
+                                                    hasInsights && hasPhoneQuick
+                                                        ? 'pr-20'
+                                                        : hasInsights
+                                                          ? 'pr-12'
+                                                          : hasPhoneQuick
+                                                            ? 'pr-10'
+                                                            : '';
+                                                return (
                                                 <FormItem className="space-y-2">
                                                     <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Contact Number</FormLabel>
                                                     <div className="relative">
                                                         <FormControl>
-                                                            <Input placeholder="+212..." {...field} className="h-10 rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner pr-12" />
+                                                            <Input placeholder="+212..." {...field} className={cn("h-10 rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner", inputPr)} />
                                                         </FormControl>
-                                                        {(field.value?.replace(/[^0-9+]/g, '') || '').length >= 6 && (
+                                                        {hasPhoneQuick && (
+                                                            <div className={cn('absolute top-1/2 -translate-y-1/2 z-10', hasInsights ? 'right-12' : 'right-2')}>
+                                                                <OrderPhoneQuickActions phone={field.value} />
+                                                            </div>
+                                                        )}
+                                                        {hasInsights && (
                                                             <Popover open={showCustomerInsights} onOpenChange={setShowCustomerInsights}>
                                                                 <PopoverTrigger asChild>
                                                                     <button
@@ -2542,7 +2681,8 @@ const Orders = () => {
                                                     </div>
                                                     <FormMessage />
                                                 </FormItem>
-                                            )}
+                                                );
+                                            }}
                                         />
 
                                         <FormField
@@ -3030,85 +3170,60 @@ const Orders = () => {
                                                         render={({ field }) => (
                                                             <FormItem className="space-y-1.5">
                                                                 <FormLabel className="text-[9px] uppercase font-black text-brand-navy/50 tracking-wide flex items-center gap-1"><Package className="w-3 h-3 opacity-60" /> Product</FormLabel>
-                                                                        <Select
-                                                                            onValueChange={(val) => {
-                                                                                field.onChange(val);
-                                                                                if (val !== 'none') {
-                                                                                    const prod = products?.find((p: any) => p.id === val);
-                                                                                    if (prod) {
-                                                                                        form.setValue(`items.${index}.unit_price`, Number(prod.selling_price || 0));
-                                                                                        if (form.watch(`items.${index}.quantity`) === 0) {
-                                                                                            form.setValue(`items.${index}.quantity`, 1);
-                                                                                        }
-
-                                                                                        // Auto-select accessory if attached
-                                                                                        const attachments = productAccessoriesForOrders?.filter((pa: any) => pa.product_id === val);
-                                                                                        if (attachments && attachments.length > 0) {
-                                                                                            const currentAccessories = form.getValues(`items.${index}.accessories`) || [];
-                                                                                            const newAccessories = [...currentAccessories];
-
-                                                                                            attachments.forEach((attachment: any) => {
-                                                                                                const existingAttached = newAccessories.find((a: any) => a.accessory_id === attachment.accessory_id);
-                                                                                                if (!existingAttached) {
-                                                                                                    const acc = accessories?.find((a: any) => a.id === attachment.accessory_id);
-                                                                                                    newAccessories.push({
-                                                                                                        accessory_id: attachment.accessory_id,
-                                                                                                        accessory_quantity: attachment.default_quantity || 1,
-                                                                                                        accessory_unit_price: acc ? Number(acc.cost_price || 0) : 0
-                                                                                                    });
-                                                                                                }
-                                                                                            });
-
-                                                                                            form.setValue(`items.${index}.accessories`, newAccessories);
-                                                                                        }
+                                                                <FormControl>
+                                                                    <OrderLineProductCombobox
+                                                                        products={(products || []) as OrderLineProductOption[]}
+                                                                        value={field.value === 'none' ? 'none' : field.value || ''}
+                                                                        blockZeroStock={!isEditModalOpen}
+                                                                        formatLabel={(p) => productNameLabel(p)}
+                                                                        onProductIdChange={(val) => {
+                                                                            field.onChange(val === 'none' ? 'none' : val);
+                                                                            if (val !== 'none') {
+                                                                                const prod = products?.find((p: any) => p.id === val);
+                                                                                if (prod) {
+                                                                                    form.setValue(`items.${index}.unit_price`, Number(prod.selling_price || 0));
+                                                                                    if (form.watch(`items.${index}.quantity`) === 0) {
+                                                                                        form.setValue(`items.${index}.quantity`, 1);
                                                                                     }
-                                                                                } else {
-                                                                                    form.setValue(`items.${index}.unit_price`, 0);
-                                                                                    form.setValue(`items.${index}.quantity`, 0);
+                                                                                    const attachments = productAccessoriesForOrders?.filter((pa: any) => pa.product_id === val);
+                                                                                    if (attachments && attachments.length > 0) {
+                                                                                        const currentAccessories = form.getValues(`items.${index}.accessories`) || [];
+                                                                                        const newAccessories = [...currentAccessories];
+                                                                                        attachments.forEach((attachment: any) => {
+                                                                                            const existingAttached = newAccessories.find((a: any) => a.accessory_id === attachment.accessory_id);
+                                                                                            if (!existingAttached) {
+                                                                                                const acc = accessories?.find((a: any) => a.id === attachment.accessory_id);
+                                                                                                newAccessories.push({
+                                                                                                    accessory_id: attachment.accessory_id,
+                                                                                                    accessory_quantity: attachment.default_quantity || 1,
+                                                                                                    accessory_unit_price: acc ? Number(acc.cost_price || 0) : 0
+                                                                                                });
+                                                                                            }
+                                                                                        });
+                                                                                        form.setValue(`items.${index}.accessories`, newAccessories);
+                                                                                    }
                                                                                 }
-                                                                            }}
-                                                                            value={field.value || ''}
-                                                                        >
-                                                                            <FormControl>
-                                                                                <SelectTrigger className="h-10 rounded-xl border border-brand-navy/10 bg-brand-navy/[0.03] text-sm font-bold text-brand-navy shadow-none">
-                                                                                    <SelectValue placeholder="Choose product…" />
-                                                                                </SelectTrigger>
-                                                                            </FormControl>
-                                                                            <SelectContent className="rounded-xl border-none shadow-2xl max-h-[220px] overflow-y-auto custom-scrollbar">
-                                                                                <SelectItem value="none" className="rounded-lg font-medium text-muted-foreground text-sm">— None —</SelectItem>
-                                                                                {products?.map((p: any) => (
-                                                                                    <SelectItem key={p.id} value={p.id} className="rounded-lg font-bold py-2 text-sm">
-                                                                                        {productNameLabel(p)} <span className="text-[10px] opacity-40 ml-2">({p.code})</span>
-                                                                                    </SelectItem>
-                                                                                ))}
-                                                                            </SelectContent>
-                                                                        </Select>
-                                                                        <FormMessage />
-                                                                        {/* Low Stock Alert */}
-                                                                        {(() => {
-                                                                            const selectedProduct = products?.find((p: any) => p.id === field.value);
-                                                                            if (selectedProduct && selectedProduct.stock !== null && selectedProduct.stock !== undefined) {
-                                                                                if (selectedProduct.stock === 0) {
-                                                                                    return (
-                                                                                        <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-red-50 border border-red-200">
-                                                                                            <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                                                                                            <span className="text-[10px] font-bold text-red-600 uppercase tracking-wide">Out of Stock</span>
-                                                                                        </div>
-                                                                                    );
-                                                                                } else if (selectedProduct.stock < 10) {
-                                                                                    return (
-                                                                                        <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200">
-                                                                                            <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                                                                                            <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wide">Low Stock: {selectedProduct.stock} left</span>
-                                                                                        </div>
-                                                                                    );
-                                                                                }
+                                                                            } else {
+                                                                                form.setValue(`items.${index}.unit_price`, 0);
+                                                                                form.setValue(`items.${index}.quantity`, 0);
                                                                             }
-                                                                            return null;
-                                                                        })()}
-                                                                    </FormItem>
-                                                                )}
-                                                            />
+                                                                        }}
+                                                                    />
+                                                                </FormControl>
+                                                                <FormMessage />
+                                                                {(() => {
+                                                                    const selectedProduct = products?.find((p: any) => p.id === field.value);
+                                                                    const sn = toProductStockNumber(selectedProduct?.stock);
+                                                                    return (
+                                                                        <OrderLineProductStockHint
+                                                                            stock={sn}
+                                                                            blockZeroStock={!isEditModalOpen}
+                                                                        />
+                                                                    );
+                                                                })()}
+                                                            </FormItem>
+                                                        )}
+                                                    />
 
                                                     <div className="grid grid-cols-3 gap-2">
                                                         <FormField
@@ -3291,7 +3406,11 @@ const Orders = () => {
                                     <Button
                                         type="submit"
                                         size="sm"
-                                        disabled={createOrderMutation.isPending || updateOrderMutation.isPending}
+                                        disabled={
+                                            createOrderMutation.isPending ||
+                                            updateOrderMutation.isPending ||
+                                            (!isEditModalOpen && newOrderHasZeroStockProduct)
+                                        }
                                         className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-lg h-9 px-6 sm:px-8 text-sm font-bold shadow-md transition-all active:scale-[0.98] flex items-center gap-2 m-0"
                                     >
                                         {(createOrderMutation.isPending || updateOrderMutation.isPending) && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -3319,7 +3438,7 @@ const Orders = () => {
                                             <h2 className="text-4xl font-black text-brand-navy tracking-tight">{selectedOrder.name}</h2>
                                             <div className="flex items-center gap-4 text-muted-foreground font-bold text-sm tracking-wide">
                                                 <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4" /> {format(new Date(selectedOrder.date || selectedOrder.created_at), 'MMMM dd, yyyy')}</span>
-                                                <span className="flex items-center gap-1.5"><Phone className="w-4 h-4" /> {selectedOrder.phone}</span>
+                                                <span className="flex items-center gap-1.5">{selectedOrder.phone}<OrderPhoneQuickActions phone={selectedOrder.phone} className="h-7 w-7" /></span>
                                             </div>
                                         </div>
                                     </div>
@@ -3859,6 +3978,14 @@ const Orders = () => {
                 </DialogContent>
             </Dialog>
 
+            <ParcelTrackingDialog
+                open={parcelTrackingOpen}
+                onOpenChange={(open) => {
+                    setParcelTrackingOpen(open);
+                    if (!open) setParcelTrackingOrderId(null);
+                }}
+                orderId={parcelTrackingOrderId}
+            />
         </div>
     );
 };

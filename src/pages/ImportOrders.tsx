@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { useDropzone } from 'react-dropzone';
 import * as XLSX from 'xlsx';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import {
     Download,
@@ -75,6 +75,7 @@ interface MappedOrder {
 }
 
 const ImportOrders = () => {
+    const queryClient = useQueryClient();
     const { toast } = useToast();
     const { getOrderByCategory } = useStatusCategories();
     const defaultStatusId = getOrderByCategory('new')?.id;
@@ -222,6 +223,7 @@ const ImportOrders = () => {
 
     const uploadMutation = useMutation({
         mutationFn: async (orders: MappedOrder[]) => {
+            if (!activeBusinessId) throw new Error('No business selected');
             if (!defaultStatusId) throw new Error('Order status not loaded');
             let completed = 0;
             const validOrders = orders.filter(o => o.status === 'valid');
@@ -378,11 +380,25 @@ const ImportOrders = () => {
                 completed++;
                 setUploadProgress(Math.round((completed / total) * 100));
             }
+
+            const { data: syncData, error: syncError } = await (supabase as any).rpc('sync_imported_orders', {
+                p_business_id: activeBusinessId,
+            });
+            if (syncError) throw syncError;
+            return { syncData };
         },
-        onSuccess: () => {
+        onSuccess: (result, variables) => {
+            queryClient.invalidateQueries({ queryKey: ['orders'] });
+            if (activeBusinessId) {
+                queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
+            }
+            const sync = result?.syncData as { accessories_synced?: number; providers_synced?: number } | undefined;
+            const n = variables?.length ?? 0;
             toast({
-                title: "Import Successful",
-                description: `${data.length} orders have been added to the database.`,
+                title: 'Import successful',
+                description: sync
+                    ? `${n} order row(s) processed. Post-sync: ${sync.accessories_synced ?? 0} accessory line(s), ${sync.providers_synced ?? 0} provider assignment(s).`
+                    : `${n} order row(s) processed.`,
             });
             setData([]);
             setFile(null);
