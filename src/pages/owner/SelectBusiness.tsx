@@ -68,7 +68,15 @@ const SelectBusiness = () => {
         }
     });
 
-    const handleSelect = (business: any) => {
+    const handleSelect = async (business: any) => {
+        // Update owner's active business in DB so all RLS policies resolve correctly
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            await supabase
+                .from('users')
+                .update({ 'DigiCom Business': business.id })
+                .eq('id', user.id);
+        }
         const url = `${window.location.origin}/?businessId=${business.id}`;
         window.open(url, '_blank');
     };

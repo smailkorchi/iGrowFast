@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import {
     Plus,
     Search,
@@ -750,14 +750,7 @@ const ZoneCitiesModal = ({ zone, isOpen, onClose, isOwner }: { zone: any, isOpen
 
     const { data: cities, isLoading } = useQuery({
         queryKey: ['cities-all'],
-        queryFn: async () => {
-            const { data, error } = await supabase
-                .from('master_cities')
-                .select('*')
-                .order('name');
-            if (error) throw error;
-            return data;
-        },
+        queryFn: () => fetchAllRows<{ id: string; name: string; zone_id: string | null }>('master_cities', '*', { orderBy: 'name' }),
         enabled: isOpen
     });
 

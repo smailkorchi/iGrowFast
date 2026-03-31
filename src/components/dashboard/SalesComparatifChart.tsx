@@ -90,19 +90,28 @@ export const SalesComparatifChart = ({ businessId, dateFilter }: SalesComparatif
             const curPeriod = currentOrders.filter((o: any) =>
                 isWithinInterval(new Date(o.date), { start: periodStart, end: periodEnd })
             );
-            const curRevenue = curPeriod
-                .filter((o: any) => (o.package_status_label || '').toLowerCase() === 'livré')
-                .reduce((s: number, o: any) => s + Number(o.price || 0), 0);
+        // Revenue = orders that are paid (order status code PAID) OR package label indicates delivered
+        const isRevenue = (o: any) => {
+            const pkgLabel = (o.package_status_label || '').toLowerCase();
+            const pkgDelivered = pkgLabel.includes('livré') || pkgLabel.includes('livre') || pkgLabel.includes('delivered');
+            const orderCode = (o.order_statuses?.code || '').toUpperCase();
+            const orderPaid = orderCode === 'PAID';
+            return pkgDelivered || orderPaid;
+        };
 
-            const prevOffset = rangeDays + 1;
-            const prevPeriodStart = subDays(periodStart, prevOffset);
-            const prevPeriodEnd = subDays(periodEnd, prevOffset);
-            const prevPeriod = prevOrders.filter((o: any) =>
-                o.date && isWithinInterval(new Date(o.date), { start: prevPeriodStart, end: prevPeriodEnd })
-            );
-            const prevRevenue = prevPeriod
-                .filter((o: any) => (o.package_status_label || '').toLowerCase() === 'livré')
-                .reduce((s: number, o: any) => s + Number(o.price || 0), 0);
+        const curRevenue = curPeriod
+            .filter(isRevenue)
+            .reduce((s: number, o: any) => s + Math.max(0, Number(o.price || 0) - Number(o.shipping_cost || 0)), 0);
+
+        const prevOffset = rangeDays + 1;
+        const prevPeriodStart = subDays(periodStart, prevOffset);
+        const prevPeriodEnd = subDays(periodEnd, prevOffset);
+        const prevPeriod = prevOrders.filter((o: any) =>
+            o.date && isWithinInterval(new Date(o.date), { start: prevPeriodStart, end: prevPeriodEnd })
+        );
+        const prevRevenue = prevPeriod
+            .filter(isRevenue)
+            .reduce((s: number, o: any) => s + Math.max(0, Number(o.price || 0) - Number(o.shipping_cost || 0)), 0);
 
             return {
                 label: format(date, formatStr),

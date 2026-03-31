@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import {
     Plus,
     Search,
@@ -501,12 +501,7 @@ const Orders = () => {
         queryKey: ['cities-dropdown', activeBusinessId],
         queryFn: async () => {
             if (!activeBusinessId) return [];
-            const { data, error } = await (supabase as any)
-                .from('master_cities')
-                .select('id, name, zone_id')
-                .order('name');
-            if (error) throw error;
-            return data;
+            return fetchAllRows<{ id: string; name: string; zone_id: string | null }>('master_cities', 'id, name, zone_id', { orderBy: 'name' });
         },
     });
 
@@ -779,7 +774,7 @@ const Orders = () => {
             address: '',
             source_name: 'facebook',
             shipping_cost: 0,
-            include_delivery_in_total: true,
+            include_delivery_in_total: false,
             replace: false,
             note: '',
             delivery_note: '',
@@ -823,6 +818,9 @@ const Orders = () => {
     const selectedCourierId = form.watch('courier_id');
     const selectedCompanyId = form.watch('company_id');
     const shippingFeeLockedByProvider = !!(selectedCourierId || selectedCompanyId);
+    const includeDeliveryWatched = form.watch('include_delivery_in_total');
+    // Shipping fee is editable only when the toggle is ON — provider doesn't lock it
+    const shippingFeeReadOnly = !includeDeliveryWatched;
 
     // Helper: find fee for a provider+city, with zone fallback.
     // 1) Exact match on master_city_id
@@ -1049,7 +1047,7 @@ const Orders = () => {
                 address: '',
                 source_name: 'facebook',
                 shipping_cost: 0,
-                include_delivery_in_total: true,
+                include_delivery_in_total: false,
                 replace: false,
                 note: '',
                 delivery_note: '',
@@ -1562,7 +1560,7 @@ const Orders = () => {
                                 address: '',
                                 source_name: 'facebook',
                                 shipping_cost: 0,
-                                include_delivery_in_total: true,
+                                include_delivery_in_total: false,
                                 replace: false,
                                 note: '',
                                 delivery_note: '',
@@ -1601,7 +1599,7 @@ const Orders = () => {
                         <span className="text-[10px] font-black uppercase text-brand-white/60 tracking-widest mb-2 block">Total Sales</span>
                         <div className="flex items-baseline gap-1.5 w-full">
                             <span className="text-3xl lg:text-4xl xl:text-5xl font-black tracking-tight truncate">
-                                {new Intl.NumberFormat('fr-FR').format(Math.round(filteredOrders.reduce((acc, o) => acc + (o.raw_price || 0), 0)))}
+                                {new Intl.NumberFormat('fr-FR').format(Math.round(filteredOrders.reduce((acc, o) => acc + (o.price || 0), 0)))}
                             </span>
                             <span className="text-lg font-bold opacity-60 shrink-0">DH</span>
                         </div>
@@ -1620,7 +1618,7 @@ const Orders = () => {
                         <div className="flex items-baseline gap-1.5 w-full">
                             <span className="text-3xl lg:text-4xl xl:text-5xl font-black text-brand-navy tracking-tight truncate">
                                 {filteredOrders.length > 0
-                                    ? new Intl.NumberFormat('fr-FR').format(Math.round(filteredOrders.reduce((acc, o) => acc + (o.raw_price || 0), 0) / filteredOrders.length))
+                                    ? new Intl.NumberFormat('fr-FR').format(Math.round(filteredOrders.reduce((acc, o) => acc + (o.price || 0), 0) / filteredOrders.length))
                                     : '0'}
                             </span>
                             <span className="text-lg font-bold text-brand-navy/40 shrink-0">DH</span>
@@ -2463,7 +2461,7 @@ const Orders = () => {
                                             <div className="flex items-center justify-between pt-2 border-t border-brand-navy/[0.04] gap-2">
                                                 <div className="flex items-baseline gap-1 min-w-0">
                                                     <span className="text-xl font-black text-brand-navy tabular-nums">
-                                                        {new Intl.NumberFormat('fr-FR').format(order.raw_price || 0)}
+                                                        {new Intl.NumberFormat('fr-FR').format(order.price || 0)}
                                                     </span>
                                                     <span className="text-[10px] font-bold text-brand-navy/35 uppercase">DH</span>
                                                 </div>
@@ -2649,7 +2647,7 @@ const Orders = () => {
                                                     {/* Amount */}
                                                     <td className="px-4 py-3 text-right">
                                                         <span className="text-sm font-black text-brand-navy tabular-nums">
-                                                            {new Intl.NumberFormat('fr-FR').format(order.raw_price || 0)}
+                                                            {new Intl.NumberFormat('fr-FR').format(order.price || 0)}
                                                         </span>
                                                         <span className="text-[10px] font-bold text-brand-navy/30 ml-1">DH</span>
                                                     </td>
@@ -2782,7 +2780,7 @@ const Orders = () => {
                             address: '',
                             source_name: 'facebook',
                             shipping_cost: 0,
-                            include_delivery_in_total: true,
+                            include_delivery_in_total: false,
                             replace: false,
                             note: '',
                             delivery_note: '',
@@ -3137,8 +3135,8 @@ const Orders = () => {
                                                                 <Input
                                                                     type="number"
                                                                     {...field}
-                                                                    readOnly={shippingFeeLockedByProvider}
-                                                                    className={`h-10 rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy shadow-inner pl-3 pr-10 ${shippingFeeLockedByProvider ? 'cursor-not-allowed opacity-90' : ''}`}
+                                                                    readOnly={shippingFeeReadOnly}
+                                                                    className={`h-10 rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy shadow-inner pl-3 pr-10 ${shippingFeeReadOnly ? 'cursor-not-allowed opacity-60' : ''}`}
                                                                 />
                                                                 <div className="absolute right-4 top-1/2 -translate-y-1/2">
                                                                     <Button
@@ -3150,7 +3148,7 @@ const Orders = () => {
                                                                         title="Calculate Fees"
                                                                         disabled={
                                                                             !selectedCityId ||
-                                                                            shippingFeeLockedByProvider ||
+                                                                            shippingFeeReadOnly ||
                                                                             (!selectedCourierId && !selectedCompanyId)
                                                                         }
                                                                     >
@@ -3773,11 +3771,13 @@ const Orders = () => {
                                 <div className="p-8 pb-10 flex items-center justify-between border-b-2 border-brand-navy/5 bg-gradient-to-br from-brand-navy/[0.02] to-transparent">
                                     <div className="space-y-1">
                                         <p className="text-sm font-black text-brand-navy/40 uppercase tracking-widest">Total Order Value</p>
-                                        <h3 className="text-4xl font-black text-brand-navy">{selectedOrder.raw_price || 0} <span className="text-lg">DH</span></h3>
+                                        <h3 className="text-4xl font-black text-brand-navy">{selectedOrder.price || 0} <span className="text-lg">DH</span></h3>
                                     </div>
-                                    <div className="mt-2 text-[10px] font-bold text-emerald-600 uppercase tracking-tighter">
-                                        Includes {selectedOrder.shipping_cost}DH Shipping
-                                    </div>
+                                    {selectedOrder.include_delivery_in_total && selectedOrder.shipping_cost > 0 && (
+                                        <div className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-tighter">
+                                            Products + {selectedOrder.shipping_cost} DH delivery
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 

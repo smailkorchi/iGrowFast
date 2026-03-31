@@ -118,15 +118,32 @@ const Payments = () => {
     const generateNoteMutation = useMutation({
         mutationFn: async (group: ProviderGroup) => {
             const ref = `PAY-${group.provider_name.substring(0, 3).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
+
+            // Step 1: create the payment note header
             const { data: note, error: noteError } = await (supabase as any)
                 .from('company_payment_notes')
                 .insert({ provider_id: group.provider_id, reference: ref, status: 'unpaid', total_amount: group.total_amount, total_shipping_fees: group.total_shipping, net_amount: group.net_amount, order_count: group.orders.length, 'DigiCom Business': activeBusinessId })
                 .select().single();
             if (noteError) throw noteError;
+
+            // Step 2: insert line items — rollback note on failure
             const lineItems = group.orders.map(o => ({ payment_note_id: note.id, order_id: o.id, tracking_code: o.parcels?.[0]?.tracking_code || o.tracking_number || null, amount: Number(o.price || 0), shipping_fee: Number(o.shipping_cost || 0), 'DigiCom Business': activeBusinessId }));
             const { error: itemsError } = await (supabase as any).from('company_payment_note_orders').insert(lineItems);
-            if (itemsError) throw itemsError;
-            await (supabase as any).from('orders').update({ payment_delivery_id: note.id }).in('id', group.orders.map(o => o.id));
+            if (itemsError) {
+                // Clean up the note header so nothing is orphaned
+                await (supabase as any).from('company_payment_notes').delete().eq('id', note.id);
+                throw itemsError;
+            }
+
+            // Step 3: stamp orders — rollback note + line items on failure
+            const orderIds = group.orders.map(o => o.id);
+            const { error: ordersError } = await (supabase as any).from('orders').update({ payment_delivery_id: note.id }).in('id', orderIds);
+            if (ordersError) {
+                await (supabase as any).from('company_payment_note_orders').delete().eq('payment_note_id', note.id);
+                await (supabase as any).from('company_payment_notes').delete().eq('id', note.id);
+                throw ordersError;
+            }
+
             return note;
         },
         onSuccess: () => {

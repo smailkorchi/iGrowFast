@@ -2,7 +2,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { useDropzone } from 'react-dropzone';
 import * as XLSX from 'xlsx';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 import {
     Download,
     Upload,
@@ -92,12 +92,7 @@ const ImportOrders = () => {
         queryKey: ['master-cities', 'import-lite'],
         queryFn: async () => {
             if (!activeBusinessId) return [];
-            const { data, error } = await (supabase as any)
-                .from('master_cities')
-                .select('id, name, zone_id')
-                .order('name');
-            if (error) throw error;
-            return data;
+            return fetchAllRows<{ id: string; name: string; zone_id: string | null }>('master_cities', 'id, name, zone_id', { orderBy: 'name' });
         }
     });
 

@@ -9,7 +9,7 @@ import { DateFilter } from './AnalyticsDateFilter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
     DollarSign, TrendingUp, TrendingDown, PieChart as PieIcon,
-    AlertTriangle, Lightbulb, Target, Percent, ArrowUpRight, Wallet,
+    AlertTriangle, Lightbulb, Target, Percent, ArrowUpRight, Wallet, Hourglass,
 } from 'lucide-react';
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -169,14 +169,53 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
                 filteredAds.filter(a => isWithinInterval(new Date(a.start_date), { start: monthStart, end: monthEnd }))
                     .reduce((sum, a) => sum + Number(a.amount || 0), 0);
 
-            return { month: monthLabel, revenue: monthRevenue, expenses: monthExpenses, profit: monthRevenue - monthExpenses };
+            return { month: monthLabel, revenue: monthRevenue, expenses: monthExpenses, profit: monthRevenue - monthExpenses, provisional: 0 };
         });
+
+        // ── Provisional: delivered package but order NOT yet paid (unpaid) ──
+        // Computed here so we can also stitch provisional into per-month trendData
+        const isDeliveredUnpaid = (o: any) =>
+            isDeliveredForCommission(o, deliveredPkgIds) &&
+            o.order_status_id &&
+            isOrderCategory(o.order_status_id, 'unpaid');
+        const provisionOrders = filteredOrders.filter(isDeliveredUnpaid);
+
+        // Build per-order provision amounts (COGS + shipping deducted)
+        const provisionByOrderId = new Map<string, number>();
+        provisionOrders.forEach(o => {
+            const ship = Number(o.shipping_cost || 0);
+            let cogs = 0;
+            const items = (o as any).order_items || [];
+            items.forEach((item: any) => {
+                const productCost = productMap.get(item.product_id) || 0;
+                cogs += Number(item.quantity || 0) * productCost;
+                if (item.accessory_id) {
+                    const accCost = accessoryMap.get(item.accessory_id) || 0;
+                    cogs += Number(item.accessory_quantity || 0) * accCost;
+                }
+            });
+            provisionByOrderId.set(o.id, Number(o.price || 0) - cogs - ship);
+        });
+
+        // Stitch monthly provisional into trendData
+        trendData.forEach((row, i) => {
+            const monthStart = startOfMonth(months[i]);
+            const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
+            const monthProv = provisionOrders
+                .filter(o => o.date && isWithinInterval(new Date(o.date), { start: monthStart, end: monthEnd }))
+                .reduce((sum, o) => sum + (provisionByOrderId.get(o.id) ?? 0), 0);
+            row.provisional = monthProv;
+        });
+
+        const provisionalRevenue = provisionOrders.reduce((sum, o) => sum + Number(o.price || 0), 0);
+        const provisionalProfit = Array.from(provisionByOrderId.values()).reduce((s, v) => s + v, 0);
 
         return {
             totalRevenue, allExpenses, netProfit, profitMargin, roi,
             totalCOGS, totalShippingCost, totalAdSpend, totalSalaries, totalExpenses,
             expenseBreakdown, trendData, revenueOrderCount: revenueOrders.length,
             totalOrderCount: filteredOrders.length,
+            provisionalProfit, provisionalRevenue, provisionOrderCount: provisionOrders.length,
         };
     }, [orders, products, accessories, expenses, sellerPayments, adsHistory, dateFilter, deliveredPkgIds, isOrderCategory]);
 
@@ -225,7 +264,7 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
         >
             {metrics && (
                 <div className="space-y-6">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4">
                         <StatCard
                             title="Total Revenue"
                             value={metrics.totalRevenue.toLocaleString('fr-MA')}
@@ -244,14 +283,32 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
                             iconColor="text-red-500"
                         />
                         <StatCard
-                            title="Net Profit/Loss"
+                            title="Net Profit / Loss"
                             value={metrics.netProfit.toLocaleString('fr-MA')}
                             suffix=" MAD"
                             icon={metrics.netProfit >= 0 ? TrendingUp : TrendingDown}
                             iconBg={metrics.netProfit >= 0 ? 'bg-emerald-50' : 'bg-red-50'}
                             iconColor={metrics.netProfit >= 0 ? 'text-emerald-600' : 'text-red-500'}
                             valueColor={metrics.netProfit >= 0 ? 'text-emerald-600' : 'text-red-500'}
+                            subtitle={`${metrics.revenueOrderCount} paid orders`}
                         />
+                        {/* Provisional profit card — amber, only per-order costs deducted */}
+                        <div className="relative">
+                            <StatCard
+                                title="Provisional Profit"
+                                value={metrics.provisionalProfit.toLocaleString('fr-MA')}
+                                suffix=" MAD"
+                                icon={Hourglass}
+                                iconBg="bg-amber-50"
+                                iconColor="text-amber-500"
+                                valueColor={metrics.provisionalProfit >= 0 ? 'text-amber-600' : 'text-red-500'}
+                                subtitle={`${metrics.provisionOrderCount} delivered, awaiting payment`}
+                                className="border border-amber-200/60 border-dashed"
+                            />
+                            <div className="absolute top-2 right-2 text-[9px] font-bold uppercase tracking-widest text-amber-400 bg-amber-50 px-1.5 py-0.5 rounded-full">
+                                Estimate
+                            </div>
+                        </div>
                         <StatCard
                             title="Profit Margin"
                             value={metrics.profitMargin.toFixed(1)}
@@ -296,6 +353,10 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
                                                 <stop offset="5%" stopColor="#c93942" stopOpacity={0.3} />
                                                 <stop offset="95%" stopColor="#c93942" stopOpacity={0} />
                                             </linearGradient>
+                                            <linearGradient id="colorProvisional" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.25} />
+                                                <stop offset="95%" stopColor="#F59E0B" stopOpacity={0} />
+                                            </linearGradient>
                                         </defs>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                                         <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9ca3af' }} />
@@ -304,8 +365,9 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
                                             contentStyle={{ borderRadius: 16, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
                                             formatter={(val: number) => `${val.toLocaleString('fr-MA')} MAD`}
                                         />
-                                        <Area type="monotone" dataKey="revenue" stroke="#10B981" fill="url(#colorRevenue)" strokeWidth={2.5} name="Revenue" />
+                                        <Area type="monotone" dataKey="revenue" stroke="#10B981" fill="url(#colorRevenue)" strokeWidth={2.5} name="Revenue (paid)" />
                                         <Area type="monotone" dataKey="expenses" stroke="#c93942" fill="url(#colorExpenses)" strokeWidth={2.5} name="Expenses" />
+                                        <Area type="monotone" dataKey="provisional" stroke="#F59E0B" fill="url(#colorProvisional)" strokeWidth={2} strokeDasharray="5 3" name="Provisional Profit" />
                                         <Legend />
                                     </AreaChart>
                                 </ResponsiveContainer>
