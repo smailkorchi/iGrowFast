@@ -79,11 +79,17 @@ const Products = () => {
 
     const productList = products ?? [];
 
-    const filteredProducts = productList.filter(p =>
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.label?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredProducts = productList.filter(p => {
+        const q = searchQuery.toLowerCase();
+        return (
+            p.name.toLowerCase().includes(q) ||
+            p.code.toLowerCase().includes(q) ||
+            p.label?.toLowerCase().includes(q) ||
+            p.description?.toLowerCase().includes(q) ||
+            String(p.selling_price ?? '').includes(q) ||
+            String(p.stock ?? '').includes(q)
+        );
+    });
 
     const lowStockProducts = productList.filter(p => (p.stock || 0) <= 10);
     const lowStockProductsTotalUnits = lowStockProducts.reduce((sum, p) => sum + Number(p.stock ?? 0), 0);

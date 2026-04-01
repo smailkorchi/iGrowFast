@@ -626,9 +626,9 @@ const UserModal = ({
                             </div>
                         </DialogHeader>
 
-                        <div className="flex flex-col lg:flex-row min-h-[500px] max-h-[70vh] overflow-hidden">
+                        <div className="flex flex-col lg:flex-row min-h-[500px] max-h-[70vh] overflow-hidden w-full min-w-0">
                             {/* Main Section - Base Information */}
-                            <ScrollArea className="flex-1 p-8">
+                            <ScrollArea className="flex-1 p-8 min-w-0">
                                 <div className="space-y-8">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                         {/* Avatar Section */}
@@ -783,7 +783,7 @@ const UserModal = ({
 
                             {/* Side Section - Role Specific Details */}
                             {form.watch('role') !== 'super admin' && (
-                                <div className="w-full lg:w-[450px] bg-muted/20 border-l border-brand-navy/5 flex flex-col overflow-hidden">
+                                <div className="w-full lg:w-[450px] lg:max-w-[450px] min-w-0 bg-muted/20 border-l border-brand-navy/5 flex flex-col overflow-hidden">
                                     <div className="p-8 pb-4">
                                         <h4 className="text-xl font-bold text-brand-navy">
                                             {form.watch('role') === 'admin' ? 'Page Access' : 'Business Parameters'}
@@ -793,7 +793,7 @@ const UserModal = ({
                                         </p>
                                     </div>
 
-                                    <ScrollArea className="flex-1 p-8 pt-2">
+                                    <div className="flex-1 p-8 pt-2 overflow-y-auto overflow-x-hidden">
                                         {form.watch('role') === 'admin' && (
                                             <div className="grid grid-cols-1 gap-3">
                                                 {pages.map((page) => {
@@ -911,7 +911,27 @@ const UserModal = ({
                                                 <div className="space-y-4">
                                                     <div className="flex items-center justify-between">
                                                         <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Available Products</FormLabel>
-                                                        <Badge variant="outline" className="text-[10px] font-bold">{form.watch('products')?.length || 0} selected</Badge>
+                                                        <div className="flex items-center gap-2">
+                                                            <Badge variant="outline" className="text-[10px] font-bold">{form.watch('products')?.length || 0} / {products?.length || 0} selected</Badge>
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-7 px-2.5 text-[10px] font-bold uppercase tracking-wider text-brand-navy/60 hover:text-brand-navy hover:bg-brand-navy/5 rounded-lg"
+                                                                onClick={() => {
+                                                                    const allIds = products?.map(p => p.id) || [];
+                                                                    const current = form.getValues('products') || [];
+                                                                    const allSelected = allIds.length > 0 && allIds.every(id => current.includes(id));
+                                                                    form.setValue('products', allSelected ? [] : allIds, { shouldDirty: true });
+                                                                }}
+                                                            >
+                                                                {(() => {
+                                                                    const allIds = products?.map(p => p.id) || [];
+                                                                    const current = form.watch('products') || [];
+                                                                    return allIds.length > 0 && allIds.every(id => current.includes(id)) ? 'Deselect all' : 'Select all';
+                                                                })()}
+                                                            </Button>
+                                                        </div>
                                                     </div>
                                                     <div className="relative">
                                                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -922,7 +942,7 @@ const UserModal = ({
                                                             className="h-11 pl-11 rounded-2xl border-none bg-white shadow-sm text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium"
                                                         />
                                                     </div>
-                                                    <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                                                    <div className="space-y-2 max-h-[400px] overflow-y-auto overflow-x-hidden">
                                                         {!activeBusinessId ? (
                                                             <p className="text-xs text-muted-foreground text-center py-8 px-2">
                                                                 No business selected. Open the app with an active business (e.g. from your profile or business switcher) before assigning products.
@@ -949,7 +969,7 @@ const UserModal = ({
                                                                             form.setValue('products', next, { shouldDirty: true });
                                                                         }}
                                                                         className={cn(
-                                                                            "flex items-center gap-3 p-3 rounded-2xl transition-all cursor-pointer border-2 group",
+                                                                            "flex items-center gap-3 p-3 rounded-2xl transition-all cursor-pointer border-2 group min-w-0 overflow-hidden",
                                                                             isSelected ? "bg-brand-navy border-brand-navy text-white" : "bg-white border-transparent hover:border-brand-navy/10"
                                                                         )}
                                                                     >
@@ -957,9 +977,9 @@ const UserModal = ({
                                                                             <AvatarImage src={product.image_url || ''} className="object-cover" />
                                                                             <AvatarFallback className="text-[10px] font-bold">PR</AvatarFallback>
                                                                         </Avatar>
-                                                                        <div className="flex flex-col min-w-0 flex-1">
-                                                                            <span className="text-xs font-bold truncate">{product.name}</span>
-                                                                            <span className={cn("text-[10px] font-medium", isSelected ? "text-white/60" : "text-muted-foreground")}>{product.code}</span>
+                                                                        <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
+                                                                            <span className="text-xs font-bold truncate block">{product.name}</span>
+                                                                            <span className={cn("text-[10px] font-medium truncate block", isSelected ? "text-white/60" : "text-muted-foreground")}>{product.code}</span>
                                                                         </div>
                                                                         <div className={cn(
                                                                             "w-5 h-5 rounded-full flex items-center justify-center border-2 transition-all",
@@ -975,7 +995,7 @@ const UserModal = ({
                                                 </div>
                                             </div>
                                         )}
-                                    </ScrollArea>
+                                    </div>
                                 </div>
                             )}
                         </div>

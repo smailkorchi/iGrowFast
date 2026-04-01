@@ -805,30 +805,46 @@ const Orders = () => {
 
         const zoneId = city.zone_id;
 
-        // --- Couriers: zone + fee based (internal delivery people) ---
+        // 1. Providers eligible via zone
         const zoneCouriers = zoneId ? couriers?.filter((c: any) =>
             courierZones?.some((cz: any) => cz.courier_id === c.id && cz.zone_id === zoneId)
         ) : [];
 
+        const zoneCompanies = zoneId ? companies?.filter((c: any) =>
+            companyZones?.some((cz: any) => cz.company_id === c.id && cz.zone_id === zoneId)
+        ) : [];
+
+        // 2. Providers that have a fee for this city (even if no zone)
         const feeCouriers = couriers?.filter((c: any) =>
             courierFees?.some((f: any) => f.courier_id === c.id && (f.master_city_id === selectedCityId || f.city_id === selectedCityId))
         ) || [];
 
-        const combinedCouriers = [...(zoneCouriers || []), ...feeCouriers];
-        const eligibleCouriers = combinedCouriers
-            .filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)
-            .map((c: any) => ({ ...c, type: 'courier' }));
+        const feeCompanies = companies?.filter((c: any) =>
+            companyFees?.some((f: any) => f.company_id === c.id && (f.master_city_id === selectedCityId || f.city_id === selectedCityId))
+        ) || [];
 
-        // --- Companies: ONLY via provider_cities mapping (source of truth) ---
-        const eligibleCompanies = (companies?.filter((c: any) => {
+        // 3. Companies that have a provider_cities mapping for this city
+        const mappedCompanies = companies?.filter((c: any) => {
             if (!c.provider_type || !providerCities?.length) return false;
             return providerCities.some(
                 (pc) => pc.master_city_id === selectedCityId && pc.provider_type === c.provider_type
             );
-        }) || []).map((c: any) => ({ ...c, type: 'company' }));
+        }) || [];
+
+        // Combine and unique by ID
+        const combinedCouriers = [...(zoneCouriers || []), ...feeCouriers];
+        const combinedCompanies = [...(zoneCompanies || []), ...feeCompanies, ...mappedCompanies];
+
+        const eligibleCouriers = combinedCouriers
+            .filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)
+            .map((c: any) => ({ ...c, type: 'courier' }));
+
+        const eligibleCompanies = combinedCompanies
+            .filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)
+            .map((c: any) => ({ ...c, type: 'company' }));
 
         return [...eligibleCouriers, ...eligibleCompanies];
-    }, [selectedCityId, cities, couriers, companies, courierZones, courierFees, providerCities]);
+    }, [selectedCityId, cities, couriers, companies, courierZones, companyZones, courierFees, companyFees, providerCities]);
 
     const allProviders = useMemo(() => {
         const c = couriers?.map((p: any) => ({ ...p, type: 'courier' })) || [];

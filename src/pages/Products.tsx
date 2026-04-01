@@ -325,11 +325,18 @@ const Products = () => {
         upsertProductMutation.mutate(values);
     };
 
-    const filteredProducts = products?.filter(p =>
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.label?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredProducts = products?.filter(p => {
+        const q = searchQuery.toLowerCase();
+        return (
+            p.name.toLowerCase().includes(q) ||
+            p.code.toLowerCase().includes(q) ||
+            p.label?.toLowerCase().includes(q) ||
+            p.description?.toLowerCase().includes(q) ||
+            String(p.cost_price ?? '').includes(q) ||
+            String(p.selling_price ?? '').includes(q) ||
+            String(p.stock ?? '').includes(q)
+        );
+    });
 
     const catalogTotals = useMemo(() => {
         const list = products ?? [];
