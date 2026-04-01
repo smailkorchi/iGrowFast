@@ -25,7 +25,8 @@ import {
     Truck,
     FileText,
     ExternalLink,
-    Download
+    Download,
+    Layers
 } from 'lucide-react';
 
 const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/provider-integration`;
@@ -42,6 +43,8 @@ const WIZARD_PROVIDER_SELECT_FOR_PARCEL = [
     'ozon_parcel_open',
     'ozon_parcel_fragile',
     'ozon_parcel_replace',
+    'logo_url',
+    'color'
 ].join(', ');
 
 /**
@@ -86,26 +89,25 @@ export function orderMatchesSellerProducts(order: any, userId: string, productSe
 interface DeliveryNoteWizardProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    lockZoneId?: string;
     lockProviderId?: string;
     /** When set, zones/orders/drafts are scoped to this seller and their catalog. */
     sellerScope?: DeliveryNoteSellerScope;
 }
 
-export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, onOpenChange, lockZoneId, lockProviderId, sellerScope }) => {
-    const [step, setStep] = useState<'zone' | 'creating' | 'review' | 'finalizing'>('zone');
-    const [selectedZoneId, setSelectedZoneId] = useState<string>(lockZoneId || '');
-    const [zoneSearch, setZoneSearch] = useState('');
+export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, onOpenChange, lockProviderId, sellerScope }) => {
+    const [step, setStep] = useState<'provider' | 'creating' | 'review' | 'finalizing'>('provider');
+    const [selectedProviderId, setSelectedProviderId] = useState<string>(lockProviderId || '');
+    const [providerSearch, setProviderSearch] = useState('');
     const [createdParcels, setCreatedParcels] = useState<any[]>([]);
     const [deliveryNotes, setDeliveryNotes] = useState<any[]>([]);
     const [currentProvider, setCurrentProvider] = useState<string>('');
 
-    // Update selectedZoneId when lockZoneId changes
+    // Update selectedProviderId when lockProviderId changes
     React.useEffect(() => {
-        if (lockZoneId) {
-            setSelectedZoneId(lockZoneId);
+        if (lockProviderId) {
+            setSelectedProviderId(lockProviderId);
         }
-    }, [lockZoneId]);
+    }, [lockProviderId]);
 
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -117,92 +119,114 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
         ? [...sellerScope.productIds].sort().join(',')
         : '';
 
-    // Fetch zones that have confirmed orders (all business orders, or seller-eligible only)
-    const { data: zones } = useQuery({
+    // Fetch providers that have confirmed orders (via company_zones + orders)
+    const { data: availableProviders } = useQuery({
         queryKey: sellerScope
-            ? ['zones-with-confirmed-orders-seller', confirmedStatusId, activeBusinessId, sellerScope.userId, sellerProductKey]
-            : ['zones-with-confirmed-orders', confirmedStatusId, activeBusinessId],
+            ? ['wizard-providers-seller', confirmedStatusId, activeBusinessId, sellerScope.userId, sellerProductKey]
+            : ['wizard-providers', confirmedStatusId, activeBusinessId],
         queryFn: async () => {
             if (!activeBusinessId || !confirmedStatusId) return [];
 
+            const { data: rawCompanyZones, error: czError } = await supabase
+                .from('company_zones')
+                .select(`*, provider:providers(${WIZARD_PROVIDER_SELECT_FOR_PARCEL})`)
+                .eq('DigiCom Business', activeBusinessId);
+            if (czError) throw czError;
+            const companyZones = (rawCompanyZones || []) as any[];
+            if (!companyZones.length) return [];
+
+            // 2. Get all confirmed orders
+            let ordersQuery = supabase
+                .from('orders')
+                .select('id, company_id, master_city_id, seller_id, assign_id, items:order_items(product_id)')
+                .eq('order_status_id', confirmedStatusId)
+                .eq('DigiCom Business', activeBusinessId);
+
             if (sellerScope) {
-                const productSet = new Set(sellerScope.productIds);
-                if (productSet.size === 0) return [];
-
-                const { data: orders, error } = await supabase
-                    .from('orders')
-                    .select('master_city_id, seller_id, assign_id, items:order_items(product_id)')
-                    .eq('order_status_id', confirmedStatusId)
-                    .eq('DigiCom Business', activeBusinessId)
-                    .or(`seller_id.eq.${sellerScope.userId},assign_id.eq.${sellerScope.userId}`);
-
-                if (error) throw error;
-
-                const cityIds = new Set<string>();
-                for (const o of orders || []) {
-                    if (!orderMatchesSellerProducts(o, sellerScope.userId, productSet)) continue;
-                    if (o.master_city_id) cityIds.add(o.master_city_id as string);
-                }
-                if (cityIds.size === 0) return [];
-
-                const { data: cities, error: cErr } = await supabase
-                    .from('master_cities')
-                    .select('id, zone_id')
-                    .in('id', [...cityIds]);
-                if (cErr) throw cErr;
-
-                const zoneToCityIds = new Map<string, string[]>();
-                for (const c of cities || []) {
-                    if (!c.zone_id) continue;
-                    if (!zoneToCityIds.has(c.zone_id)) zoneToCityIds.set(c.zone_id, []);
-                    zoneToCityIds.get(c.zone_id)!.push(c.id);
-                }
-                const zoneIds = [...zoneToCityIds.keys()];
-                if (zoneIds.length === 0) return [];
-
-                const { data: zoneRows, error: zErr } = await supabase
-                    .from('zones')
-                    .select('id, name')
-                    .in('id', zoneIds);
-                if (zErr) throw zErr;
-
-                return (zoneRows || []).map((z) => ({
-                    id: z.id,
-                    name: z.name,
-                    master_cities: (zoneToCityIds.get(z.id) || []).map((cid) => ({
-                        id: cid,
-                        orders: [{ id: 'seller-eligible' }],
-                    })),
-                }));
+                ordersQuery = ordersQuery.or(`seller_id.eq.${sellerScope.userId},assign_id.eq.${sellerScope.userId}`);
             }
 
-            const { data, error } = await supabase
-                .from('zones')
-                .select(`
-                    id,
-                    name,
-                    master_cities!inner(
-                        id,
-                        orders!inner(
-                            id,
-                            company_id,
-                            "DigiCom Business"
-                        )
-                    )
-                `)
-                .eq('master_cities.orders.order_status_id', confirmedStatusId)
-                .eq('master_cities.orders.DigiCom Business', activeBusinessId);
+            const { data: orders, error: ordersError } = await ordersQuery;
+            if (ordersError) throw ordersError;
 
-            if (error) throw error;
+            const productSet = sellerScope ? new Set(sellerScope.productIds) : null;
+            const filteredOrders = (orders || []).filter((o: any) =>
+                !sellerScope || !productSet ? true : orderMatchesSellerProducts(o, sellerScope.userId, productSet)
+            );
 
-            return data?.filter((zone) =>
-                zone.master_cities.some((city: any) => city.orders.length > 0)
-            ) || [];
+            if (filteredOrders.length === 0) return [];
+
+            // 3. Get city → zone mapping for orders without company_id
+            const cityIds = new Set(filteredOrders.map((o: any) => o.master_city_id).filter(Boolean));
+            const { data: cities } = await supabase
+                .from('master_cities')
+                .select('id, zone_id')
+                .in('id', [...cityIds]);
+            const cityZoneMap = new Map((cities || []).map(c => [c.id, c.zone_id]));
+
+            // 4. Build zone→provider map from company_zones
+            const zoneProviderMap = new Map<string, { providerId: string; provider: any }[]>();
+            for (const cz of companyZones) {
+                if (!cz.zone_id || !cz.company_id) continue;
+                if (!zoneProviderMap.has(cz.zone_id)) zoneProviderMap.set(cz.zone_id, []);
+                zoneProviderMap.get(cz.zone_id)!.push({ providerId: cz.company_id, provider: cz.provider });
+            }
+
+            // 5. Count confirmed orders per provider
+            const providerOrderCounts = new Map<string, number>();
+            const providerMap = new Map<string, any>();
+
+            for (const order of filteredOrders) {
+                let providerId = order.company_id;
+
+                // If no company assigned, resolve from zone mapping
+                if (!providerId && order.master_city_id) {
+                    const zoneId = cityZoneMap.get(order.master_city_id);
+                    if (zoneId) {
+                        const zoneProviders = zoneProviderMap.get(zoneId);
+                        if (zoneProviders?.length) {
+                            providerId = zoneProviders[0].providerId;
+                            if (!providerMap.has(providerId)) {
+                                providerMap.set(providerId, zoneProviders[0].provider);
+                            }
+                        }
+                    }
+                }
+
+                if (!providerId) continue;
+
+                providerOrderCounts.set(providerId, (providerOrderCounts.get(providerId) || 0) + 1);
+
+                // Store provider info from orders that already have company_id
+                if (order.company_id && !providerMap.has(order.company_id)) {
+                    // We'll fill this from the companyZones data
+                    const czMatch = companyZones.find(cz => cz.company_id === order.company_id);
+                    if (czMatch?.provider) {
+                        providerMap.set(order.company_id, czMatch.provider);
+                    }
+                }
+            }
+
+            const result: { id: string; name: string; provider_type: string; orderCount: number; logo_url?: string; color?: string }[] = [];
+            for (const [pid, count] of providerOrderCounts.entries()) {
+                const provider = providerMap.get(pid);
+                if (!provider) continue;
+                result.push({
+                    id: pid,
+                    name: provider.name || 'Unknown',
+                    provider_type: provider.provider_type || '',
+                    orderCount: count,
+                    logo_url: provider.logo_url,
+                    color: provider.color
+                });
+            }
+
+            return result.sort((a, b) => b.orderCount - a.orderCount);
         },
         enabled: open && !!confirmedStatusId && (!sellerScope || sellerScope.productIds.length > 0)
     });
 
-    // Fetch company_zones for provider resolution
+    // Fetch company_zones for provider resolution (used during parcel creation)
     const { data: companyZonesData } = useQuery({
         queryKey: ['company-zones-all', activeBusinessId],
         queryFn: async () => {
@@ -212,16 +236,16 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                 .select(`*, provider:providers(${WIZARD_PROVIDER_SELECT_FOR_PARCEL})`)
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
-            return data || [];
+            return (data || []) as any[];
         },
         enabled: open
     });
 
-    // Fetch confirmed orders for selected zone grouped by provider
+    // Fetch confirmed orders for selected provider(s) across ALL zones
     const { data: ordersGrouped } = useQuery({
-        queryKey: ['confirmed-orders-by-zone', selectedZoneId, sellerScope?.userId, sellerProductKey],
+        queryKey: ['confirmed-orders-by-provider', selectedProviderId, sellerScope?.userId, sellerProductKey],
         queryFn: async () => {
-            if (!selectedZoneId || !confirmedStatusId) return null;
+            if (!selectedProviderId || !confirmedStatusId) return null;
 
             let q = supabase
                 .from('orders')
@@ -235,13 +259,15 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                     )
                 `)
                 .eq('order_status_id', confirmedStatusId)
-                .eq('city.zone_id', selectedZoneId)
                 .eq('DigiCom Business', activeBusinessId);
 
             if (sellerScope) {
                 q = q.or(`seller_id.eq.${sellerScope.userId},assign_id.eq.${sellerScope.userId}`);
             }
 
+            // If a specific provider is selected (not 'all'), filter by company_id
+            // But we also need orders without company_id that resolve to this provider via zones
+            // So we fetch all and filter client-side
             const { data, error } = await q;
 
             if (error) throw error;
@@ -253,8 +279,15 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                     : orderMatchesSellerProducts(order, sellerScope.userId, productSet)
             );
 
-            // For orders without company_id, resolve provider from company_zones
-            const zoneProviders = companyZonesData?.filter(cz => cz.zone_id === selectedZoneId) || [];
+            // Build zone→provider map for resolving orders without company_id
+            const zoneProviders = new Map<string, { providerId: string; provider: any }>();
+            for (const cz of (companyZonesData || [])) {
+                if (!cz.zone_id || !cz.company_id) continue;
+                // First provider per zone wins (same as old logic)
+                if (!zoneProviders.has(cz.zone_id)) {
+                    zoneProviders.set(cz.zone_id, { providerId: cz.company_id, provider: cz.provider });
+                }
+            }
 
             // Group by provider
             const grouped = baseOrders.reduce((acc: any, order: any) => {
@@ -262,17 +295,23 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                 let provider = order.company;
 
                 // If no company assigned, resolve from zone mapping
-                if (!providerId && zoneProviders.length > 0) {
-                    const zoneProvider = zoneProviders[0]; // Pick the first provider for this zone
-                    providerId = zoneProvider.company_id;
-                    provider = zoneProvider.provider;
-                    // Mark that this order needs company_id update
-                    order._resolvedCompanyId = providerId;
+                if (!providerId && order.city?.zone_id) {
+                    const zoneProvider = zoneProviders.get(order.city.zone_id);
+                    if (zoneProvider) {
+                        providerId = zoneProvider.providerId;
+                        provider = zoneProvider.provider;
+                        order._resolvedCompanyId = providerId;
+                    }
                 }
 
-                if (!providerId) return acc; // Skip if still no provider
+                if (!providerId) return acc;
 
-                // If a provider is locked, only include that provider
+                // Filter by selected provider (unless 'all')
+                if (selectedProviderId !== 'all' && providerId !== selectedProviderId) {
+                    return acc;
+                }
+
+                // If lockProviderId is set, only include that provider
                 if (lockProviderId && providerId !== lockProviderId) {
                     return acc;
                 }
@@ -289,7 +328,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
 
             return grouped;
         },
-        enabled: !!selectedZoneId && step === 'zone' && !!companyZonesData && !!confirmedStatusId
+        enabled: !!selectedProviderId && step === 'provider' && !!companyZonesData && !!confirmedStatusId
     });
 
     // Create parcels for a provider
@@ -446,20 +485,23 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
         }
     });
 
-    // Create delivery note for provider
+    // Create delivery note for provider — consolidates across all zones
     const createDeliveryNoteMutation = useMutation({
         mutationFn: async ({ providerId, parcelCodes }: { providerId: string; parcelCodes: string[] }) => {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) throw new Error('Not authenticated');
 
-            // 1. Check if there is an existing OPEN delivery note for this Provider + Zone
-            console.log('🔍 Checking for existing note:', { providerId, zoneId: selectedZoneId, businessId: activeBusinessId });
+            // Determine a zone_id from the parcels' orders for backward compat
+            const relatedParcels = createdParcels.filter(p => parcelCodes.includes(p.tracking_code) && !p.error);
+            const firstZoneId = relatedParcels[0]?.order?.city?.zone_id || null;
+
+            // 1. Check if there is an existing OPEN delivery note for this Provider (across all zones)
+            console.log('🔍 Checking for existing note:', { providerId, businessId: activeBusinessId });
 
             let draftQuery = supabase
                 .from('company_delivery_notes')
                 .select('*')
                 .eq('provider_id', providerId)
-                .eq('zone_id', selectedZoneId)
                 .eq('is_finalized', false)
                 .eq('DigiCom Business', activeBusinessId);
 
@@ -520,15 +562,15 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                 deliveryNoteRef = result.data.reference;
                 externalId = result.data?.id || String(result.data?.external_id || '');
 
-                // Save new note to database
+                // Save new note to database — use first zone for backward compat
                 const { data: note, error: noteError } = await supabase
                     .from('company_delivery_notes')
                     .insert({
                         provider_id: providerId,
-                        zone_id: selectedZoneId,
+                        zone_id: firstZoneId,
                         reference: deliveryNoteRef,
                         external_id: externalId,
-                        parcel_count: 0, // Will update after adding parcels
+                        parcel_count: 0,
                         is_finalized: false,
                         'DigiCom Business': activeBusinessId,
                         created_by: session.user?.id ?? null,
@@ -589,13 +631,6 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
             }
 
             // Update delivery note parcel count
-            const { data: updatedNote } = await supabase
-                .from('company_delivery_notes')
-                .select('id')
-                .eq('id', deliveryNoteId)
-                .single();
-
-            // Fetch current total count for this note
             const { count } = await supabase
                 .from('company_parcels')
                 .select('*', { count: 'exact', head: true })
@@ -617,11 +652,11 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
         }
     });
 
-    const handleZoneSelect = () => {
-        if (!selectedZoneId) {
+    const handleProviderSelect = () => {
+        if (!selectedProviderId) {
             toast({
                 title: "Error",
-                description: "Please select a zone",
+                description: "Please select a provider",
                 variant: "destructive"
             });
             return;
@@ -685,17 +720,13 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                     description: `Could not finish delivery note for one of the providers: ${err.message}`,
                     variant: "destructive"
                 });
-                // Continue with other providers if any
             }
         }
-
-        // NOTE: Orders stay as CONFIRMED until delivery note is finalized.
-        // Stock deduction happens via DB trigger when order status changes to PROCESSED on finalization.
 
         queryClient.invalidateQueries({ queryKey: ['company-delivery-notes'] });
         queryClient.invalidateQueries({ queryKey: ['seller-company-delivery-notes'] });
         queryClient.invalidateQueries({ queryKey: ['orders'] });
-        queryClient.invalidateQueries({ queryKey: ['confirmed-orders-by-zone'] });
+        queryClient.invalidateQueries({ queryKey: ['confirmed-orders-by-provider'] });
 
         toast({
             title: "Success!",
@@ -707,19 +738,24 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
     };
 
     const resetWizard = () => {
-        setStep('zone');
-        setSelectedZoneId('');
+        setStep('provider');
+        setSelectedProviderId('');
         setCreatedParcels([]);
         setDeliveryNotes([]);
         setCurrentProvider('');
     };
 
-    const filteredZones = useMemo(() => {
-        if (!zones) return [];
-        return zones.filter(z =>
-            z.name.toLowerCase().includes(zoneSearch.toLowerCase())
+    const filteredProviders = useMemo(() => {
+        if (!availableProviders) return [];
+        return availableProviders.filter(p =>
+            p.name.toLowerCase().includes(providerSearch.toLowerCase())
         );
-    }, [zones, zoneSearch]);
+    }, [availableProviders, providerSearch]);
+
+    const totalOrderCount = useMemo(() => {
+        if (!ordersGrouped) return 0;
+        return Object.values(ordersGrouped as any).reduce((sum: number, g: any) => sum + g.orders.length, 0);
+    }, [ordersGrouped]);
 
     const successfulParcels = createdParcels.filter(p => !p.error);
     const failedParcels = createdParcels.filter(p => p.error);
@@ -727,12 +763,12 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[700px] rounded-[32px] border-none p-0 overflow-hidden">
-                {step === 'zone' && (
+                {step === 'provider' && (
                     <>
                         <div className="bg-brand-navy p-8 text-white relative">
-                            <DialogTitle className="text-2xl font-black">Select Delivery Zone</DialogTitle>
+                            <DialogTitle className="text-2xl font-black">Select Provider</DialogTitle>
                             <DialogDescription className="text-white/60 font-medium">
-                                Choose a zone with confirmed orders ready for shipment.
+                                Choose a shipping provider to generate delivery notes for all confirmed orders.
                             </DialogDescription>
                         </div>
 
@@ -740,20 +776,20 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                             <div className="relative">
                                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                                 <Input
-                                    placeholder="Search zones..."
-                                    value={zoneSearch}
-                                    onChange={(e) => setZoneSearch(e.target.value)}
+                                    placeholder="Search providers..."
+                                    value={providerSearch}
+                                    onChange={(e) => setProviderSearch(e.target.value)}
                                     className="pl-11 h-12 bg-slate-50 border-none rounded-2xl"
                                 />
                             </div>
 
                             <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                                {lockZoneId ? (
+                                {lockProviderId ? (
                                     <div className="p-4 rounded-2xl border-2 border-brand-navy bg-brand-navy/5">
                                         <div className="flex items-center justify-between">
                                             <div>
                                                 <div className="font-bold text-brand-navy">
-                                                    {zones?.find(z => z.id === lockZoneId)?.name || 'Direct Addition'}
+                                                    {availableProviders?.find(p => p.id === lockProviderId)?.name || 'Selected Provider'}
                                                 </div>
                                                 <div className="text-xs text-muted-foreground mt-1">
                                                     Adding orders to existing delivery note
@@ -763,34 +799,92 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                                         </div>
                                     </div>
                                 ) : (
-                                    filteredZones.map((zone) => (
-                                        <button
-                                            key={zone.id}
-                                            onClick={() => setSelectedZoneId(zone.id)}
-                                            className={`w-full p-4 rounded-2xl border-2 transition-all text-left ${selectedZoneId === zone.id
-                                                ? 'border-brand-navy bg-brand-navy/5'
-                                                : 'border-slate-200 hover:border-brand-navy/30'
-                                                }`}
-                                        >
-                                            <div className="font-bold text-brand-navy">{zone.name}</div>
-                                            <div className="text-xs text-muted-foreground mt-1">
-                                                {zone.master_cities.length} cities with orders
+                                    <>
+                                        {/* All Providers option */}
+                                        {filteredProviders.length > 1 && (
+                                            <button
+                                                onClick={() => setSelectedProviderId('all')}
+                                                className={`w-full p-4 rounded-2xl border-2 transition-all text-left ${selectedProviderId === 'all'
+                                                    ? 'border-brand-navy bg-brand-navy/5'
+                                                    : 'border-slate-200 hover:border-brand-navy/30'
+                                                    }`}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-xl bg-brand-navy/10 flex items-center justify-center">
+                                                        <Layers className="w-5 h-5 text-brand-navy" />
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <div className="font-bold text-brand-navy">All Providers</div>
+                                                        <div className="text-xs text-muted-foreground mt-1">
+                                                            {availableProviders?.reduce((s, p) => s + p.orderCount, 0) || 0} orders across {availableProviders?.length || 0} providers
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </button>
+                                        )}
+
+                                        {/* Individual providers */}
+                                        {filteredProviders.map((provider) => (
+                                            <button
+                                                key={provider.id}
+                                                onClick={() => setSelectedProviderId(provider.id)}
+                                                className={`w-full p-4 rounded-2xl border-2 transition-all text-left ${selectedProviderId === provider.id
+                                                    ? 'border-brand-navy bg-brand-navy/5'
+                                                    : 'border-slate-200 hover:border-brand-navy/30'
+                                                    }`}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div 
+                                                        className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden"
+                                                        style={{ backgroundColor: provider.logo_url ? 'transparent' : (provider.color ? `${provider.color}15` : 'rgba(59, 130, 246, 0.1)') }}
+                                                    >
+                                                        {provider.logo_url ? (
+                                                            <img src={provider.logo_url} alt={provider.name} className="w-full h-full object-contain bg-white mix-blend-multiply" />
+                                                        ) : (
+                                                            <Building2 className="w-5 h-5" style={{ color: provider.color || '#3b82f6' }} />
+                                                        )}
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <div className="font-bold text-brand-navy">{provider.name}</div>
+                                                        <div className="text-xs text-muted-foreground mt-1">
+                                                            {provider.orderCount} confirmed orders • {provider.provider_type?.toUpperCase() || 'N/A'}
+                                                        </div>
+                                                    </div>
+                                                    <Badge variant="outline" className="text-[10px] font-black text-brand-navy/60 border-brand-navy/10">
+                                                        {provider.orderCount}
+                                                    </Badge>
+                                                </div>
+                                            </button>
+                                        ))}
+
+                                        {filteredProviders.length === 0 && (
+                                            <div className="text-center py-8 text-muted-foreground text-sm">
+                                                No providers with confirmed orders found.
                                             </div>
-                                        </button>
-                                    ))
+                                        )}
+                                    </>
                                 )}
                             </div>
 
-                            {selectedZoneId && ordersGrouped && (
+                            {selectedProviderId && ordersGrouped && (
                                 <div className="space-y-3 pt-4 border-t">
-                                    <div className="text-sm font-bold text-brand-navy/60">Detected Providers:</div>
-                                    <div className="flex gap-3">
+                                    <div className="text-sm font-bold text-brand-navy/60">Orders to Process:</div>
+                                    <div className="flex gap-3 flex-wrap">
                                         {Object.values(ordersGrouped as any).map(({ provider, orders }: any) => (
-                                            <div key={provider.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl flex-1">
-                                                <Building2 className="w-5 h-5 text-blue-500" />
+                                            <div key={provider.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl flex-1 min-w-[200px]">
+                                                <div 
+                                                    className="w-10 h-10 rounded-xl flex flex-shrink-0 items-center justify-center overflow-hidden"
+                                                    style={{ backgroundColor: provider.logo_url ? 'transparent' : (provider.color ? `${provider.color}15` : 'rgba(59, 130, 246, 0.1)') }}
+                                                >
+                                                    {provider.logo_url ? (
+                                                        <img src={provider.logo_url} alt={provider.name} className="w-full h-full object-contain bg-white mix-blend-multiply" />
+                                                    ) : (
+                                                        <Building2 className="w-5 h-5" style={{ color: provider.color || '#3b82f6' }} />
+                                                    )}
+                                                </div>
                                                 <div className="flex-1">
                                                     <div className="font-bold text-sm">{provider.name}</div>
-                                                    <div className="text-xs text-muted-foreground">{orders.length} orders</div>
+                                                    <div className="text-xs text-muted-foreground">{orders.length} orders (all zones)</div>
                                                 </div>
                                             </div>
                                         ))}
@@ -801,8 +895,8 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                             <DialogFooter>
                                 <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
                                 <Button
-                                    onClick={handleZoneSelect}
-                                    disabled={!selectedZoneId}
+                                    onClick={handleProviderSelect}
+                                    disabled={!selectedProviderId}
                                     className="bg-brand-navy hover:bg-brand-navy/90 text-white rounded-2xl"
                                 >
                                     Create Parcels

@@ -607,6 +607,17 @@ const Orders = () => {
         }
     });
 
+    const { data: providerCities } = useQuery({
+        queryKey: ['provider-cities-all'],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any)
+                .from('provider_cities')
+                .select('master_city_id, provider_type, fees');
+            if (error) throw error;
+            return data as { master_city_id: string; provider_type: string; fees: { delivered?: number; refused?: number; returned?: number } | null }[];
+        },
+    });
+
     const { data: orderStatuses } = useQuery({
         queryKey: ['order-statuses-dropdown', activeBusinessId],
         queryFn: async () => {
@@ -740,7 +751,7 @@ const Orders = () => {
             phone: '',
             city_id: '',
             address: '',
-            source_name: 'facebook',
+            source_name: '',
             shipping_cost: 0,
             include_delivery_in_total: true,
             replace: false,
@@ -794,38 +805,30 @@ const Orders = () => {
 
         const zoneId = city.zone_id;
 
-        // 1. Providers eligible via zone
+        // --- Couriers: zone + fee based (internal delivery people) ---
         const zoneCouriers = zoneId ? couriers?.filter((c: any) =>
             courierZones?.some((cz: any) => cz.courier_id === c.id && cz.zone_id === zoneId)
         ) : [];
 
-        const zoneCompanies = zoneId ? companies?.filter((c: any) =>
-            companyZones?.some((cz: any) => cz.company_id === c.id && cz.zone_id === zoneId)
-        ) : [];
-
-        // 2. Providers that have a fee for this city (even if no zone)
         const feeCouriers = couriers?.filter((c: any) =>
             courierFees?.some((f: any) => f.courier_id === c.id && (f.master_city_id === selectedCityId || f.city_id === selectedCityId))
         ) || [];
 
-        const feeCompanies = companies?.filter((c: any) =>
-            companyFees?.some((f: any) => f.company_id === c.id && (f.master_city_id === selectedCityId || f.city_id === selectedCityId))
-        ) || [];
-
-        // Combine and unique by ID
         const combinedCouriers = [...(zoneCouriers || []), ...feeCouriers];
-        const combinedCompanies = [...(zoneCompanies || []), ...feeCompanies];
-
         const eligibleCouriers = combinedCouriers
             .filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)
             .map((c: any) => ({ ...c, type: 'courier' }));
 
-        const eligibleCompanies = combinedCompanies
-            .filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)
-            .map((c: any) => ({ ...c, type: 'company' }));
+        // --- Companies: ONLY via provider_cities mapping (source of truth) ---
+        const eligibleCompanies = (companies?.filter((c: any) => {
+            if (!c.provider_type || !providerCities?.length) return false;
+            return providerCities.some(
+                (pc) => pc.master_city_id === selectedCityId && pc.provider_type === c.provider_type
+            );
+        }) || []).map((c: any) => ({ ...c, type: 'company' }));
 
         return [...eligibleCouriers, ...eligibleCompanies];
-    }, [selectedCityId, cities, couriers, companies, courierZones, companyZones, courierFees, companyFees]);
+    }, [selectedCityId, cities, couriers, companies, courierZones, courierFees, providerCities]);
 
     const allProviders = useMemo(() => {
         const c = couriers?.map((p: any) => ({ ...p, type: 'courier' })) || [];
@@ -887,16 +890,30 @@ const Orders = () => {
     React.useEffect(() => {
         if (!selectedCityId || !availableProviders.length) return;
 
+        // Helper to find fee for a provider + city
+        const findProviderFee = (p: any): number => {
+            if (p.type === 'courier') {
+                const f = courierFees?.find((f: any) => f.courier_id === p.id && (f.master_city_id === selectedCityId || f.city_id === selectedCityId));
+                if (f) return Number(f.fee);
+            } else {
+                const f = companyFees?.find((f: any) => f.company_id === p.id && (f.master_city_id === selectedCityId || f.city_id === selectedCityId));
+                if (f) return Number(f.fee);
+                // Fallback to provider_cities fees
+                if (p.provider_type && providerCities?.length) {
+                    const pc = providerCities.find(
+                        (pc) => pc.master_city_id === selectedCityId && pc.provider_type === p.provider_type
+                    );
+                    if (pc?.fees?.delivered != null) return Number(pc.fees.delivered);
+                }
+            }
+            return Infinity;
+        };
+
         // If no provider selected, pick the best one
         if (!selectedCourierId && !selectedCompanyId) {
             const providersWithFees = availableProviders.map(p => {
-                let fee = Infinity;
-                if (p.type === 'courier') {
-                    fee = courierFees?.find((f: any) => f.courier_id === p.id && (f.master_city_id === selectedCityId || f.city_id === selectedCityId))?.fee || Infinity;
-                } else {
-                    fee = companyFees?.find((f: any) => f.company_id === p.id && (f.master_city_id === selectedCityId || f.city_id === selectedCityId))?.fee || Infinity;
-                }
-                return { ...p, fee: Number(fee) };
+                const fee = findProviderFee(p);
+                return { ...p, fee };
             });
 
             const best = providersWithFees.sort((a, b) => a.fee - b.fee)[0];
@@ -912,15 +929,14 @@ const Orders = () => {
             }
         } else {
             // Provider is already selected, just update the fee for the new city
-            let foundFee = 0;
-            if (selectedCourierId) {
-                foundFee = courierFees?.find((f: any) => f.courier_id === selectedCourierId && (f.master_city_id === selectedCityId || f.city_id === selectedCityId))?.fee || 0;
-            } else if (selectedCompanyId) {
-                foundFee = companyFees?.find((f: any) => f.company_id === selectedCompanyId && (f.master_city_id === selectedCityId || f.city_id === selectedCityId))?.fee || 0;
-            }
-            form.setValue('shipping_cost', Number(foundFee));
+            const currentProvider = availableProviders.find((p: any) =>
+                (p.type === 'courier' && p.id === selectedCourierId) ||
+                (p.type === 'company' && p.id === selectedCompanyId)
+            );
+            const foundFee = currentProvider ? findProviderFee(currentProvider) : 0;
+            form.setValue('shipping_cost', foundFee === Infinity ? 0 : foundFee);
         }
-    }, [selectedCityId, availableProviders, courierFees, companyFees, selectedCourierId, selectedCompanyId, form]);
+    }, [selectedCityId, availableProviders, courierFees, companyFees, providerCities, selectedCourierId, selectedCompanyId, form]);
 
     const calculateShippingFee = () => {
         if (!selectedCityId || (!selectedCourierId && !selectedCompanyId)) return;
@@ -1045,7 +1061,7 @@ const Orders = () => {
                 phone: '',
                 city_id: '',
                 address: '',
-                source_name: 'facebook',
+                source_name: '',
                 shipping_cost: 0,
                 include_delivery_in_total: true,
                 replace: false,
@@ -1541,7 +1557,7 @@ const Orders = () => {
                                 phone: '',
                                 city_id: '',
                                 address: '',
-                                source_name: 'facebook',
+                                source_name: '',
                                 shipping_cost: 0,
                                 include_delivery_in_total: true,
                                 replace: false,
@@ -2481,7 +2497,7 @@ const Orders = () => {
                             phone: '',
                             city_id: '',
                             address: '',
-                            source_name: 'facebook',
+                            source_name: '',
                             shipping_cost: 0,
                             include_delivery_in_total: true,
                             replace: false,
@@ -2767,10 +2783,10 @@ const Orders = () => {
                                             render={({ field }) => (
                                                 <FormItem className="space-y-2">
                                                     <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Sales Channel</FormLabel>
-                                                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isEditModalOpen}>
+                                                    <Select onValueChange={field.onChange} value={field.value} disabled={isEditModalOpen}>
                                                         <FormControl>
                                                             <SelectTrigger className="h-10 rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy shadow-inner">
-                                                                <SelectValue placeholder="Select source" />
+                                                                <SelectValue placeholder="Select channel" />
                                                             </SelectTrigger>
                                                         </FormControl>
                                                         <SelectContent className="rounded-2xl border-none shadow-2xl">
@@ -2779,6 +2795,7 @@ const Orders = () => {
                                                             ))}
                                                         </SelectContent>
                                                     </Select>
+                                                    <FormMessage />
                                                 </FormItem>
                                             )}
                                         />

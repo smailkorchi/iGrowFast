@@ -586,6 +586,17 @@ const Orders = () => {
         }
     });
 
+    const { data: providerCities } = useQuery({
+        queryKey: ['provider-cities-all'],
+        queryFn: async () => {
+            const { data, error } = await (supabase as any)
+                .from('provider_cities')
+                .select('master_city_id, provider_type, fees');
+            if (error) throw error;
+            return data as { master_city_id: string; provider_type: string; fees: { delivered?: number; refused?: number; returned?: number } | null }[];
+        },
+    });
+
     const { data: orderStatuses } = useQuery({
         queryKey: ['order-statuses-dropdown', activeBusinessId],
         queryFn: async () => {
@@ -772,7 +783,7 @@ const Orders = () => {
             phone: '',
             city_id: '',
             address: '',
-            source_name: 'facebook',
+            source_name: '',
             shipping_cost: 0,
             include_delivery_in_total: false,
             replace: false,
@@ -822,9 +833,10 @@ const Orders = () => {
     // Shipping fee is editable only when the toggle is ON — provider doesn't lock it
     const shippingFeeReadOnly = !includeDeliveryWatched;
 
-    // Helper: find fee for a provider+city, with zone fallback.
-    // 1) Exact match on master_city_id
-    // 2) Fallback: any fee row for same provider where the fee's master_city is in the same zone
+    // Helper: find fee for a provider+city, with zone fallback and provider_cities fallback.
+    // 1) Exact match on master_city_id in courier_fees/company_fees
+    // 2) Zone fallback: same zone fee
+    // 3) provider_cities.fees.delivered fallback
     const findFee = React.useCallback((
         providerType: 'courier' | 'company',
         providerId: string,
@@ -835,21 +847,33 @@ const Orders = () => {
 
         const fees = providerType === 'courier' ? courierFees : companyFees;
         const idField = providerType === 'courier' ? 'courier_id' : 'company_id';
-        if (!fees?.length) return null;
 
         // 1. Direct match on master_city_id
-        const direct = fees.find((f: any) => f[idField] === providerId && f.master_city_id === cityId);
-        if (direct) return Number(direct.fee);
+        if (fees?.length) {
+            const direct = fees.find((f: any) => f[idField] === providerId && f.master_city_id === cityId);
+            if (direct) return Number(direct.fee);
+        }
 
         // 2. Zone fallback: find any fee for this provider where the fee's city is in the same zone
-        if (city.zone_id) {
+        if (city.zone_id && fees?.length) {
             const samezone = cities?.filter((c: any) => c.zone_id === city.zone_id).map((c: any) => c.id) || [];
             const zoneFee = fees.find((f: any) => f[idField] === providerId && samezone.includes(f.master_city_id));
             if (zoneFee) return Number(zoneFee.fee);
         }
 
+        // 3. provider_cities fallback: use fees.delivered from provider_cities mapping
+        if (providerType === 'company' && providerCities?.length) {
+            const provider = companies?.find((c: any) => c.id === providerId);
+            if (provider?.provider_type) {
+                const pcMapping = providerCities.find(
+                    (pc) => pc.master_city_id === cityId && pc.provider_type === provider.provider_type
+                );
+                if (pcMapping?.fees?.delivered != null) return Number(pcMapping.fees.delivered);
+            }
+        }
+
         return null;
-    }, [cities, courierFees, companyFees]);
+    }, [cities, courierFees, companyFees, providerCities, companies]);
 
     const availableProviders = useMemo(() => {
         if (!selectedCityId || !cities) return [];
@@ -858,38 +882,30 @@ const Orders = () => {
 
         const zoneId = city.zone_id;
 
-        // 1. Providers eligible via zone
+        // --- Couriers: zone + fee based (internal delivery people) ---
         const zoneCouriers = zoneId ? couriers?.filter((c: any) =>
             courierZones?.some((cz: any) => cz.courier_id === c.id && cz.zone_id === zoneId)
         ) : [];
 
-        const zoneCompanies = zoneId ? companies?.filter((c: any) =>
-            companyZones?.some((cz: any) => cz.company_id === c.id && cz.zone_id === zoneId)
-        ) : [];
-
-        // 2. Providers that have a direct fee for this master_city_id
         const feeCouriers = couriers?.filter((c: any) =>
             courierFees?.some((f: any) => f.courier_id === c.id && f.master_city_id === selectedCityId)
         ) || [];
 
-        const feeCompanies = companies?.filter((c: any) =>
-            companyFees?.some((f: any) => f.company_id === c.id && f.master_city_id === selectedCityId)
-        ) || [];
-
-        // Combine and unique by ID
         const combinedCouriers = [...(zoneCouriers || []), ...feeCouriers];
-        const combinedCompanies = [...(zoneCompanies || []), ...feeCompanies];
-
         const eligibleCouriers = combinedCouriers
             .filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)
             .map((c: any) => ({ ...c, type: 'courier' }));
 
-        const eligibleCompanies = combinedCompanies
-            .filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)
-            .map((c: any) => ({ ...c, type: 'company' }));
+        // --- Companies: ONLY via provider_cities mapping (source of truth) ---
+        const eligibleCompanies = (companies?.filter((c: any) => {
+            if (!c.provider_type || !providerCities?.length) return false;
+            return providerCities.some(
+                (pc) => pc.master_city_id === selectedCityId && pc.provider_type === c.provider_type
+            );
+        }) || []).map((c: any) => ({ ...c, type: 'company' }));
 
         return [...eligibleCouriers, ...eligibleCompanies];
-    }, [selectedCityId, cities, couriers, companies, courierZones, companyZones, courierFees, companyFees]);
+    }, [selectedCityId, cities, couriers, companies, courierZones, courierFees, providerCities]);
 
     // Derived Data for all providers (used for dropdowns where city is not a factor)
     const allProviders = useMemo(() => {
@@ -1045,7 +1061,7 @@ const Orders = () => {
                 phone: '',
                 city_id: '',
                 address: '',
-                source_name: 'facebook',
+                source_name: '',
                 shipping_cost: 0,
                 include_delivery_in_total: false,
                 replace: false,
@@ -1558,7 +1574,7 @@ const Orders = () => {
                                 phone: '',
                                 city_id: '',
                                 address: '',
-                                source_name: 'facebook',
+                                source_name: '',
                                 shipping_cost: 0,
                                 include_delivery_in_total: false,
                                 replace: false,
@@ -2778,7 +2794,7 @@ const Orders = () => {
                             phone: '',
                             city_id: '',
                             address: '',
-                            source_name: 'facebook',
+                            source_name: '',
                             shipping_cost: 0,
                             include_delivery_in_total: false,
                             replace: false,
@@ -3063,10 +3079,10 @@ const Orders = () => {
                                             render={({ field }) => (
                                                 <FormItem className="space-y-2">
                                                     <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Sales Channel</FormLabel>
-                                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                    <Select onValueChange={field.onChange} value={field.value}>
                                                         <FormControl>
                                                             <SelectTrigger className="h-10 rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy shadow-inner">
-                                                                <SelectValue placeholder="Select source" />
+                                                                <SelectValue placeholder="Select channel" />
                                                             </SelectTrigger>
                                                         </FormControl>
                                                         <SelectContent className="rounded-2xl border-none shadow-2xl">
@@ -3075,6 +3091,7 @@ const Orders = () => {
                                                             ))}
                                                         </SelectContent>
                                                     </Select>
+                                                    <FormMessage />
                                                 </FormItem>
                                             )}
                                         />

@@ -92,7 +92,7 @@ const DeliveryNote = () => {
     const [isTrackingLoading, setIsTrackingLoading] = useState(false);
     const [trackingParcel, setTrackingParcel] = useState<any>(null);
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
-    const [wizardZoneId, setWizardZoneId] = useState<string | undefined>(undefined);
+
     const [wizardProviderId, setWizardProviderId] = useState<string | undefined>(undefined);
     const [isReopening, setIsReopening] = useState(false);
     const [removingParcelId, setRemovingParcelId] = useState<string | null>(null);
@@ -1045,7 +1045,6 @@ const DeliveryNote = () => {
                     {!note.is_finalized && note.provider_id && (
                         <Button
                             onClick={() => {
-                                setWizardZoneId(note.zone_id);
                                 setWizardProviderId(note.provider_id);
                                 setIsWizardOpen(true);
                             }}
@@ -1179,7 +1178,6 @@ const DeliveryNote = () => {
                                                     variant="ghost"
                                                     size="icon"
                                                     onClick={() => {
-                                                        setWizardZoneId(note.zone_id);
                                                         setWizardProviderId(note.provider_id);
                                                         setIsWizardOpen(true);
                                                     }}
@@ -1355,11 +1353,9 @@ const DeliveryNote = () => {
                 onOpenChange={(open) => {
                     setIsWizardOpen(open);
                     if (!open) {
-                        setWizardZoneId(undefined);
                         setWizardProviderId(undefined);
                     }
                 }}
-                lockZoneId={wizardZoneId}
                 lockProviderId={wizardProviderId}
             />
 
