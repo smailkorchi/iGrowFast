@@ -560,13 +560,29 @@ const Accessories = () => {
                     </div>
 
                     {isLoading ? (
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 pt-2">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-4 pt-2">
                             {Array.from({ length: 3 }).map((_, i) => (
                                 <Skeleton key={i} className="h-28 rounded-3xl bg-white/60" />
                             ))}
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 pt-2">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-4 pt-2">
+                            <div className="rounded-3xl border border-gray-100/80 bg-white/90 p-5 shadow-sm backdrop-blur-sm">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                            Total accessories
+                                        </p>
+                                        <p className="text-2xl font-black tabular-nums text-gray-900 tracking-tight">
+                                            {accessories?.length ?? 0}
+                                        </p>
+                                        <p className="text-xs text-gray-500 font-medium">SKUs in the catalog</p>
+                                    </div>
+                                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-navy/10 text-brand-navy">
+                                        <Hash className="h-5 w-5" />
+                                    </div>
+                                </div>
+                            </div>
                             <div className="rounded-3xl border border-gray-100/80 bg-white/90 p-5 shadow-sm backdrop-blur-sm">
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="space-y-1">
