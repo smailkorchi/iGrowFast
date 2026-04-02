@@ -348,6 +348,53 @@ const Orders = () => {
         return () => { document.head.removeChild(style); };
     }, []);
 
+    // --- Realtime: listen for webhook-driven order updates ---
+    useEffect(() => {
+        if (!activeBusinessId) return;
+
+        let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+        const debouncedInvalidate = () => {
+            if (debounceTimer) clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId, userId] });
+            }, 500);
+        };
+
+        const channel = supabase
+            .channel(`orders-realtime-seller-${activeBusinessId}`)
+            .on(
+                'postgres_changes' as any,
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'orders',
+                },
+                (payload: any) => {
+                    console.log('[Realtime] Order updated:', payload.new?.id);
+                    debouncedInvalidate();
+                }
+            )
+            .on(
+                'postgres_changes' as any,
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'orders',
+                },
+                () => {
+                    debouncedInvalidate();
+                }
+            )
+            .subscribe((status: string) => {
+                console.log('[Realtime] Seller orders channel status:', status);
+            });
+
+        return () => {
+            if (debounceTimer) clearTimeout(debounceTimer);
+            supabase.removeChannel(channel);
+        };
+    }, [activeBusinessId, userId, queryClient]);
+
     // Fetch parcel data and tracking when view modal opens
     useEffect(() => {
         if (!isViewModalOpen || !selectedOrder) {

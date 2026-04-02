@@ -136,7 +136,8 @@ const Webhooks = () => {
                 .limit(50);
             if (error) throw error;
             return (data as any[]) || [];
-        }
+        },
+        refetchInterval: 5000 // Auto-refresh logs every 5 seconds
     });
 
     const { data: providers } = useQuery({
@@ -412,7 +413,7 @@ const WebhookCard = ({ hook, projectUrl, onEdit, onDelete }: any) => {
                             <Clock className="w-2.5 h-2.5" /> Last Beat
                         </p>
                         <p className="text-xs font-black text-brand-navy">
-                            {hook.last_received_at ? format(new Date(hook.last_received_at), 'HH:mm:ss') : 'Waiting for Data...'}
+                            {hook.last_received_at ? format(new Date(hook.last_received_at), 'MMM dd, HH:mm:ss') : 'Waiting for Data...'}
                         </p>
                     </div>
                 </div>
