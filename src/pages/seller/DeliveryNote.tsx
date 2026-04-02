@@ -27,7 +27,11 @@ import {
     LayoutGrid,
     List,
     PlusCircle,
-    Unlock
+    Unlock,
+    Phone,
+    MapPin,
+    CalendarClock,
+    Info
 } from 'lucide-react';
 import {
     Card,
@@ -772,10 +776,20 @@ const DeliveryNote = () => {
             }
 
             // Fetch parcels with tracking codes
-            const { data: parcels } = await supabase
-                .from(parcelsTable)
-                .select('id, reference, order_id, status_id, tracking_code, status_label, external_id, provider_id')
-                .eq(noteIdField, selectedNote.id);
+            let parcels: any[] = [];
+            if (isCompanyNote) {
+                const { data } = await supabase
+                    .from('company_parcels')
+                    .select('id, reference, order_id, status_id, tracking_code, status_label, external_id, provider_id')
+                    .eq('company_delivery_note_id', selectedNote.id);
+                parcels = data || [];
+            } else {
+                const { data } = await supabase
+                    .from('courier_parcels')
+                    .select('id, reference, order_id')
+                    .eq('courier_delivery_note_id', selectedNote.id);
+                parcels = data || [];
+            }
 
             // Fetch real-time status for each parcel from provider
             let updatedParcels = parcels || [];
@@ -1597,39 +1611,153 @@ const DeliveryNote = () => {
 
                                     // Our Edge Function now returns normalized fields: status, date, comment, user
                                     // AMEEX also provides statusLabel (friendly name from API)
+                                    const situationMap: Record<string, { label: string; className: string }> = {
+                                        PAID: { label: 'Payé', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+                                        NOT_PAID: { label: 'Non payé', className: 'bg-amber-50 text-amber-700 border-amber-200' },
+                                        INVOICED: { label: 'Facturé', className: 'bg-blue-50 text-blue-700 border-blue-200' },
+                                    };
+
                                     const rawStatus = event.status || "Nouveau";
                                     const statusLabel = event.statusLabel; // AMEEX provides this
                                     const status = statusLabel || statusMap[rawStatus] || rawStatus;
                                     const date = event.date;
                                     const comment = event.comment || "";
-                                    const user = (typeof event.user === 'object' ? event.user?.name : event.user) || "";
+                                    const u = event.user;
+                                    const user = (typeof u === 'object' && u !== null && 'name' in u ? (u as { name?: string }).name : (u as string | undefined)) || "";
+
+                                    const phone = (event.phone as string) || '';
+                                    const hub = (event.hub as string) || '';
+                                    const city = (event.city as string) || '';
+                                    const situation = (event.situation as string) || '';
+                                    const scheduledDate = event.scheduledDate as string | undefined;
+                                    const statusColor = (event.color as string) || '';
+                                    const dataList = (event.data_list as any[]) || [];
+                                    const eventFor = (event.eventFor as string) || '';
+
+                                    // Determine location string
+                                    const locationParts = [hub, city].filter(Boolean);
+                                    const location = locationParts.length > 0 ? locationParts.join(' — ') : '';
+
+                                    // Filter data_list: remove items already shown elsewhere
+                                    const meaningfulDataList = dataList.filter(item => {
+                                        if (!item || !item.title) return false;
+                                        // Skip if it's a distribution count
+                                        if (item.title === 'Nombre de distributions') return false;
+                                        return true;
+                                    });
+
+                                    const sitInfo = situation ? situationMap[situation] : null;
 
                                     return (
                                         <div key={idx} className="relative pl-12 group">
-                                            <div className={`absolute left-0 top-1 w-9 h-9 rounded-full border-4 border-white shadow-sm flex items-center justify-center transition-all group-hover:scale-110 z-10 ${idx === 0 ? 'bg-brand-navy text-white shadow-brand-navy/20' : 'bg-slate-50 text-brand-navy/40'
-                                                }`}>
+                                            {/* Timeline dot */}
+                                            <div
+                                                className={`absolute left-0 top-1 w-9 h-9 rounded-full border-4 border-white shadow-sm flex items-center justify-center transition-all group-hover:scale-110 z-10 ${
+                                                    idx === 0
+                                                        ? 'text-white shadow-brand-navy/20'
+                                                        : 'bg-slate-50 text-brand-navy/40'
+                                                }`}
+                                                style={idx === 0 && statusColor
+                                                    ? { backgroundColor: statusColor }
+                                                    : idx === 0
+                                                        ? { backgroundColor: 'var(--brand-navy, #1e293b)' }
+                                                        : undefined
+                                                }
+                                            >
                                                 <div className="w-2 h-2 rounded-full bg-current" />
                                             </div>
-                                            <div className="space-y-1">
-                                                <div className="flex items-center justify-between">
-                                                    <span className={`text-sm font-black tracking-tight ${idx === 0 ? 'text-brand-navy' : 'text-muted-foreground'}`}>
-                                                        {status}
-                                                    </span>
-                                                    <span className="text-[10px] font-bold text-muted-foreground opacity-60">
+
+                                            <div className="space-y-1.5">
+                                                {/* Status + date row */}
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <span
+                                                            className={`text-sm font-black tracking-tight ${
+                                                                idx === 0 ? 'text-brand-navy' : 'text-muted-foreground'
+                                                            }`}
+                                                        >
+                                                            {status}
+                                                        </span>
+                                                        {sitInfo && (
+                                                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border ${sitInfo.className}`}>
+                                                                {sitInfo.label}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <span className="text-[10px] font-bold text-muted-foreground opacity-60 shrink-0">
                                                         {date ? format(new Date(date), 'dd/MM/yyyy HH:mm') : ''}
                                                     </span>
                                                 </div>
+
+                                                {/* Location (hub / city) */}
+                                                {location && (
+                                                    <div className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground/70">
+                                                        <MapPin className="w-3 h-3 shrink-0" />
+                                                        <span>{location}</span>
+                                                    </div>
+                                                )}
+
+                                                {/* Comment */}
                                                 {comment && (
                                                     <p className="text-[11px] font-medium text-muted-foreground leading-relaxed italic">
                                                         "{comment}"
                                                     </p>
                                                 )}
-                                                {user && (
-                                                    <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground">
-                                                        <div className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center">
-                                                            <Hash className="w-2 h-2" />
-                                                        </div>
-                                                        Par {user}
+
+                                                {/* Courier info (name + phone) */}
+                                                {(user || phone) && (
+                                                    <div className="flex items-center gap-3 flex-wrap">
+                                                        {user && (
+                                                            <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground">
+                                                                <div className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center">
+                                                                    <Hash className="w-2 h-2" />
+                                                                </div>
+                                                                Par {user}
+                                                            </div>
+                                                        )}
+                                                        {phone && (
+                                                            <a
+                                                                href={`tel:${phone}`}
+                                                                className="flex items-center gap-1 text-[10px] font-bold text-brand-navy/70 hover:text-brand-navy transition-colors"
+                                                            >
+                                                                <Phone className="w-3 h-3" />
+                                                                {phone}
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {/* Scheduled date */}
+                                                {scheduledDate && (
+                                                    <div className="flex items-center gap-1.5 text-[10px] font-semibold text-blue-600/70">
+                                                        <CalendarClock className="w-3 h-3 shrink-0" />
+                                                        <span>Programmé: {format(new Date(scheduledDate), 'dd/MM/yyyy')}</span>
+                                                    </div>
+                                                )}
+
+                                                {/* Data list items */}
+                                                {meaningfulDataList.length > 0 && (
+                                                    <div className="mt-1 space-y-0.5">
+                                                        {meaningfulDataList.map((item, i) => {
+                                                            const isItemPhone = /^0[5-8]\d{8}$/.test(String(item.value));
+                                                            const isDate = /^\d{4}-\d{2}-\d{2}$/.test(String(item.value));
+
+                                                            return (
+                                                                <div key={i} className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground/80">
+                                                                    <Info className="w-2.5 h-2.5 shrink-0 opacity-50" />
+                                                                    <span className="font-semibold">{item.title}:</span>
+                                                                    {isItemPhone ? (
+                                                                        <a href={`tel:${item.value}`} className="text-brand-navy/70 hover:text-brand-navy font-bold transition-colors">
+                                                                            {item.value}
+                                                                        </a>
+                                                                    ) : isDate ? (
+                                                                        <span className="text-blue-600/70 font-semibold">{item.value}</span>
+                                                                    ) : (
+                                                                        <span className="font-semibold">{item.value}</span>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })}
                                                     </div>
                                                 )}
                                             </div>
