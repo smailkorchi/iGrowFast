@@ -46,6 +46,7 @@ import {
     Smartphone,
     Bot
 } from 'lucide-react';
+import { FaWhatsapp } from 'react-icons/fa';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { useQuery } from '@tanstack/react-query';
@@ -121,10 +122,10 @@ const navigation: NavSection[] = [
     },
     {
         label: 'WhatsApp',
-        icon: MessageSquare,
+        icon: FaWhatsapp,
         items: [
             { icon: Smartphone, label: 'Instances', path: '/business/whatsapp/manager' },
-            { icon: MessageSquare, label: 'Inbox', path: '/business/whatsapp/inbox' },
+            { icon: FaWhatsapp, label: 'Inbox', path: '/business/whatsapp/inbox' },
             { icon: Bot, label: 'Automations', path: '/business/whatsapp/automations' },
         ]
     },

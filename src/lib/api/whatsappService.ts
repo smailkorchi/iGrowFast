@@ -9,13 +9,26 @@ export const whatsappService = {
       body: { action, payload }
     });
     
-    if (error) throw error;
+    if (error) {
+      console.error("FunctionsHttpError details:", error);
+      let errMsg = error.message;
+      try {
+        if (error.context) {
+          const errData = await error.context.json();
+          errMsg = errData?.error || errData?.message || JSON.stringify(errData);
+        }
+      } catch (e) {}
+      throw new Error(errMsg);
+    }
     if (data?.error) throw new Error(data.error);
     return data;
   },
 
   async createInstance(instanceName: string) {
-    return this.invokeClient('create-instance', { instanceName });
+    return this.invokeClient('create-instance', { 
+      instanceName,
+      integration: "WHATSAPP-BAILEYS" 
+    });
   },
 
   async getQrCode(instanceName: string) {

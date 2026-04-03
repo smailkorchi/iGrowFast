@@ -202,7 +202,10 @@ const Users = () => {
                 }
             });
 
-            if (error) throw error;
+            if (error) {
+                const contextMsg = data?.error || error.message;
+                throw new Error(contextMsg);
+            }
             return data;
         },
         onSuccess: () => {
@@ -225,7 +228,10 @@ const Users = () => {
                 }
             });
 
-            if (error) throw error;
+            if (error) {
+                const contextMsg = data?.error || error.message;
+                throw new Error(contextMsg);
+            }
             return data;
         },
         onSuccess: () => {
