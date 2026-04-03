@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Secrets / infrastructure docs with credentials
+.env
+.env.*
+docs/infrastructure-secrets.md
