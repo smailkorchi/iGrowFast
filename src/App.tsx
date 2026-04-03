@@ -62,6 +62,11 @@ import AppLayout from "./components/layout/AppLayout";
 import SellerLayout from "./components/layout/SellerLayout";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { Navigate } from "react-router-dom";
+
+// WhatsApp Imports
+import WhatsAppManager from "./pages/business/WhatsAppManager";
+import WhatsAppInbox from "./pages/business/WhatsAppInbox";
+import WhatsAppAutomations from "./pages/business/WhatsAppAutomations";
 import { useEffect, useState } from "react";
 import { supabase } from "./lib/supabase";
 import { Loader2 } from "lucide-react";
@@ -231,6 +236,9 @@ const App = () => (
                     <Route path="/sellers" element={<AdminSellers />} />
                     <Route path="/business" element={<AdminBusinessOverview />} />
                     <Route path="/business/payments" element={<AdminBusinessPayments />} />
+                    <Route path="/business/whatsapp/manager" element={<WhatsAppManager />} />
+                    <Route path="/business/whatsapp/inbox" element={<WhatsAppInbox />} />
+                    <Route path="/business/whatsapp/automations" element={<WhatsAppAutomations />} />
                     <Route path="/profile" element={<Profile />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>

@@ -3347,6 +3347,235 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_auto_replies: {
+        Row: {
+          active: boolean
+          business_id: string
+          created_at: string
+          id: string
+          instance_id: string | null
+          media_url: string | null
+          reply_message: string
+          trigger_keyword: string | null
+          trigger_type: string
+        }
+        Insert: {
+          active?: boolean
+          business_id: string
+          created_at?: string
+          id?: string
+          instance_id?: string | null
+          media_url?: string | null
+          reply_message: string
+          trigger_keyword?: string | null
+          trigger_type?: string
+        }
+        Update: {
+          active?: boolean
+          business_id?: string
+          created_at?: string
+          id?: string
+          instance_id?: string | null
+          media_url?: string | null
+          reply_message?: string
+          trigger_keyword?: string | null
+          trigger_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_auto_replies_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_auto_replies_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_contacts: {
+        Row: {
+          business_id: string
+          created_at: string
+          id: string
+          name: string | null
+          phone_number: string
+          profile_pic: string | null
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          id?: string
+          name?: string | null
+          phone_number: string
+          profile_pic?: string | null
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          id?: string
+          name?: string | null
+          phone_number?: string
+          profile_pic?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_contacts_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_fast_replies: {
+        Row: {
+          business_id: string
+          created_at: string
+          id: string
+          message: string
+          shortcut: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          id?: string
+          message: string
+          shortcut: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          id?: string
+          message?: string
+          shortcut?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_fast_replies_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_instances: {
+        Row: {
+          business_id: string
+          created_at: string
+          id: string
+          instance_name: string
+          phone_number: string | null
+          profile_pic: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          id?: string
+          instance_name: string
+          phone_number?: string | null
+          profile_pic?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          id?: string
+          instance_name?: string
+          phone_number?: string | null
+          profile_pic?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_instances_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_messages: {
+        Row: {
+          business_id: string
+          contact_id: string
+          content: string | null
+          created_at: string
+          direction: string
+          id: string
+          instance_id: string
+          media_url: string | null
+          message_id: string
+          remote_jid: string
+          status: string
+          type: string
+        }
+        Insert: {
+          business_id: string
+          contact_id: string
+          content?: string | null
+          created_at?: string
+          direction: string
+          id?: string
+          instance_id: string
+          media_url?: string | null
+          message_id: string
+          remote_jid: string
+          status?: string
+          type?: string
+        }
+        Update: {
+          business_id?: string
+          contact_id?: string
+          content?: string | null
+          created_at?: string
+          direction?: string
+          id?: string
+          instance_id?: string
+          media_url?: string | null
+          message_id?: string
+          remote_jid?: string
+          status?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_messages_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_messages_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_messages_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       seller_daily_earnings: {

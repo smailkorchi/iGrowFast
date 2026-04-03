@@ -42,7 +42,9 @@ import {
     FileSpreadsheet,
     Receipt,
     ClipboardList,
-    PackageCheck
+    PackageCheck,
+    Smartphone,
+    Bot
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
@@ -115,6 +117,15 @@ const navigation: NavSection[] = [
         items: [
             { icon: LayoutDashboard, label: 'Overview', path: '/business' },
             { icon: Wallet, label: 'Payments', path: '/business/payments' },
+        ]
+    },
+    {
+        label: 'WhatsApp',
+        icon: MessageSquare,
+        items: [
+            { icon: Smartphone, label: 'Instances', path: '/business/whatsapp/manager' },
+            { icon: MessageSquare, label: 'Inbox', path: '/business/whatsapp/inbox' },
+            { icon: Bot, label: 'Automations', path: '/business/whatsapp/automations' },
         ]
     },
     {
