@@ -1,6 +1,5 @@
 import React from 'react';
 import Sidebar from './Sidebar';
-import AiChatbot from '../AiChatbot';
 
 interface AppLayoutProps {
     children: React.ReactNode;
@@ -18,8 +17,6 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                     </div>
                 </div>
             </main>
-
-            <AiChatbot />
         </div>
     );
 };

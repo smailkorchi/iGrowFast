@@ -1,40 +1,70 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { whatsappService } from '@/lib/api/whatsappService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, RefreshCw, Trash2, Smartphone, Phone, Loader2, QrCode, CheckCircle2, MessageSquare } from 'lucide-react';
+import { Plus, Trash2, Smartphone, Phone, Loader2, QrCode, CheckCircle2, MessageSquare, ArrowRight, Users, MessageCircle, Database } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
+import { useNavigate } from 'react-router-dom';
+
+const db = supabase as any;
+
+// ── Connection modal step types ──────────────────────────────────────────
+type ModalStep = 'scanning' | 'connected' | 'syncing' | 'complete';
+
+interface SyncProgress {
+  contacts: { total: number; synced: number };
+  chats: { total: number; synced: number };
+  jidMappings: number;
+  status: string;
+}
 
 export default function WhatsAppManager() {
   const [instances, setInstances] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [newInstanceName, setNewInstanceName] = useState('');
-  const [qrCode, setQrCode] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
+  // ── Modal state ─────────────────────────────────────────────────────
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalStep, setModalStep] = useState<ModalStep>('scanning');
+  const [modalInstanceName, setModalInstanceName] = useState('');
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [ownerProfile, setOwnerProfile] = useState<{ pic: string | null; phone: string; name: string }>({ pic: null, phone: '', name: '' });
+  const [syncProgress, setSyncProgress] = useState<SyncProgress>({
+    contacts: { total: 0, synced: 0 },
+    chats: { total: 0, synced: 0 },
+    jidMappings: 0,
+    status: 'Preparing...',
+  });
+  const syncAbortRef = useRef(false);
+
+  // ── Load instances ──────────────────────────────────────────────────
   useEffect(() => {
     fetchInstances();
-    
-    const channel = supabase.channel('whatsapp_updates')
+
+    const channel = supabase.channel('whatsapp_mgr_rt')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_instances' }, (payload) => {
+        const updated = payload.new as any;
+        // Detect connection going open while modal is in scanning state
+        if (updated?.status === 'open' && modalStep === 'scanning' && updated.instance_name === modalInstanceName) {
+          handleInstanceConnected(updated.instance_name);
+        }
         fetchInstances();
       })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, []);
+  }, [modalStep, modalInstanceName]);
 
   const fetchInstances = async () => {
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) return;
-    
     const businessId = localStorage.getItem('activeBusinessId');
     if (!businessId) return;
 
@@ -43,39 +73,59 @@ export default function WhatsAppManager() {
       .select('*')
       .eq('business_id', businessId)
       .order('created_at', { ascending: false });
-      
-    if (data) setInstances(data);
+
+    if (data) {
+      setInstances(data);
+      // Auto-heal webhooks on open instances
+      for (const inst of data) {
+        if (inst.status === 'open') {
+          whatsappService.findWebhook(inst.instance_name).then((wh: any) => {
+            if (!wh || !wh.enabled) whatsappService.setWebhook(inst.instance_name).catch(() => {});
+          }).catch(() => {
+            whatsappService.setWebhook(inst.instance_name).catch(() => {});
+          });
+        }
+      }
+    }
     setLoading(false);
   };
 
+  // ── Create instance + open modal ──────────────────────────────────
   const handleCreateInstance = async () => {
     if (!newInstanceName.trim()) return;
+    const name = newInstanceName.trim();
     try {
       setActionLoading('create');
-      const createRes = await whatsappService.createInstance(newInstanceName);
-      
+      const createRes = await whatsappService.createInstance(name);
+
       const businessId = localStorage.getItem('activeBusinessId');
-      
       await supabase.from('whatsapp_instances').insert({
         business_id: businessId,
-        instance_name: newInstanceName,
-        status: 'connecting'
+        instance_name: name,
+        status: 'connecting',
       });
-      
-      if (createRes?.qrcode?.base64) {
-        setQrCode(createRes.qrcode.base64);
-        toast({ title: "Instance Created", description: "Ready to pair device." });
-      } else {
-         toast({ title: "Instance Created", description: "Fetching QR code..." });
-         setTimeout(async () => {
-           try {
-             const qrRes = await whatsappService.getQrCode(newInstanceName);
-             if (qrRes?.qrcode?.base64) setQrCode(qrRes.qrcode.base64);
-             else if (qrRes?.base64) setQrCode(qrRes.base64);
-           } catch(e) {}
-         }, 5000);
+
+      // Open modal
+      setModalInstanceName(name);
+      setModalStep('scanning');
+      setOwnerProfile({ pic: null, phone: '', name: '' });
+      setSyncProgress({ contacts: { total: 0, synced: 0 }, chats: { total: 0, synced: 0 }, jidMappings: 0, status: 'Preparing...' });
+      syncAbortRef.current = false;
+
+      const qr = createRes?.qrcode?.base64 || null;
+      setQrCode(qr);
+      setModalOpen(true);
+
+      // If no QR in create response, fetch it
+      if (!qr) {
+        setTimeout(async () => {
+          try {
+            const qrRes = await whatsappService.getQrCode(name);
+            setQrCode(qrRes?.qrcode?.base64 || qrRes?.base64 || null);
+          } catch {}
+        }, 3000);
       }
-      
+
       setNewInstanceName('');
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
@@ -85,18 +135,25 @@ export default function WhatsAppManager() {
     }
   };
 
+  // ── Show QR for existing unpaired instance ────────────────────────
   const fetchAndShowQR = async (instanceName: string) => {
     try {
       setActionLoading(`qr-${instanceName}`);
       const qr = await whatsappService.getQrCode(instanceName);
-      if (qr?.base64) {
-        setQrCode(qr.base64);
-      } else if (qr?.qrcode?.base64) {
-        setQrCode(qr.qrcode.base64);
+      const qrBase64 = qr?.base64 || qr?.qrcode?.base64 || null;
+
+      if (qrBase64) {
+        setModalInstanceName(instanceName);
+        setModalStep('scanning');
+        setOwnerProfile({ pic: null, phone: '', name: '' });
+        setSyncProgress({ contacts: { total: 0, synced: 0 }, chats: { total: 0, synced: 0 }, jidMappings: 0, status: 'Preparing...' });
+        syncAbortRef.current = false;
+        setQrCode(qrBase64);
+        setModalOpen(true);
       } else if (qr?.error) {
         toast({ title: "Session Error", description: qr.error, variant: "destructive" });
       } else {
-        toast({ title: "Status", description: "Device is already connected or QR unavailable.", variant: "default" });
+        toast({ title: "Status", description: "Device is already connected or QR unavailable." });
       }
     } catch (err: any) {
       toast({ title: "Connection Error", description: err.message, variant: "destructive" });
@@ -105,10 +162,154 @@ export default function WhatsAppManager() {
     }
   };
 
+  // ── Instance connected → fetch profile + start sync ───────────────
+  const handleInstanceConnected = useCallback(async (instanceName: string) => {
+    setModalStep('connected');
+    setQrCode(null);
+
+    // Fetch owner profile from Evolution API
+    try {
+      const evoInstances = await whatsappService.invokeClient('fetch-instances', { instanceName });
+      const inst = Array.isArray(evoInstances) ? evoInstances[0] : evoInstances;
+      if (inst) {
+        const phone = inst.ownerJid?.split('@')[0] || '';
+        const name = inst.profileName || instanceName;
+        let picBase64: string | null = null;
+
+        if (inst.profilePicUrl) {
+          try {
+            const picData = await whatsappService.invokeClient('proxy-image', { instanceName, url: inst.profilePicUrl });
+            picBase64 = picData?.base64 || null;
+          } catch {}
+        }
+
+        setOwnerProfile({ pic: picBase64, phone, name });
+
+        // Update instance in Supabase
+        await supabase.from('whatsapp_instances')
+          .update({ phone_number: phone, profile_pic: inst.profilePicUrl || null })
+          .eq('instance_name', instanceName);
+      }
+    } catch {}
+
+    // Brief pause to show connected state, then start sync
+    setTimeout(() => {
+      startSync(instanceName);
+    }, 1500);
+  }, []);
+
+  // ── Sync all data from Evolution API to Supabase ──────────────────
+  const startSync = async (instanceName: string) => {
+    setModalStep('syncing');
+    const businessId = localStorage.getItem('activeBusinessId');
+    if (!businessId) return;
+
+    // Get instance ID
+    const { data: instData } = await supabase
+      .from('whatsapp_instances')
+      .select('id')
+      .eq('instance_name', instanceName)
+      .single();
+    if (!instData) return;
+    const instanceId = instData.id;
+
+    // ── Phase 1: Sync contacts ─────────────────────────────────────
+    setSyncProgress(p => ({ ...p, status: 'Fetching contacts...' }));
+    let contactsTotal = 0;
+    let contactsSynced = 0;
+
+    try {
+      const contacts = await whatsappService.syncContacts(instanceName);
+      if (Array.isArray(contacts)) {
+        contactsTotal = contacts.filter((c: any) => c.remoteJid && !c.remoteJid.endsWith('@g.us') && c.remoteJid !== 'status@broadcast').length;
+        setSyncProgress(p => ({ ...p, contacts: { total: contactsTotal, synced: 0 }, status: `Syncing ${contactsTotal} contacts...` }));
+
+        // Batch upsert contacts
+        const batchSize = 25;
+        const filtered = contacts.filter((c: any) => c.remoteJid && !c.remoteJid.endsWith('@g.us') && c.remoteJid !== 'status@broadcast');
+
+        for (let i = 0; i < filtered.length; i += batchSize) {
+          if (syncAbortRef.current) break;
+          const batch = filtered.slice(i, i + batchSize).map((c: any) => ({
+            business_id: businessId,
+            phone_number: c.remoteJid,
+            name: c.pushName || null,
+            profile_pic: c.profilePictureUrl || null,
+            instance_id: instanceId,
+          }));
+
+          await db.from('whatsapp_contacts').upsert(batch, {
+            onConflict: 'business_id, phone_number',
+            ignoreDuplicates: false,
+          });
+
+          contactsSynced = Math.min(i + batchSize, filtered.length);
+          setSyncProgress(p => ({ ...p, contacts: { total: contactsTotal, synced: contactsSynced }, status: `Contacts: ${contactsSynced}/${contactsTotal}` }));
+        }
+      }
+    } catch (e) {
+      console.error('Contact sync error:', e);
+    }
+
+    // ── Phase 2: Sync chats + JID mappings ─────────────────────────
+    setSyncProgress(p => ({ ...p, status: 'Fetching conversations...' }));
+    let chatsTotal = 0;
+    let chatsSynced = 0;
+    let jidMappings = 0;
+
+    try {
+      const chatData = await whatsappService.syncChats(instanceName);
+      if (Array.isArray(chatData)) {
+        const individualChats = chatData.filter((c: any) => c.remoteJid && !c.remoteJid.endsWith('@g.us') && c.remoteJid !== 'status@broadcast');
+        chatsTotal = individualChats.length;
+        setSyncProgress(p => ({ ...p, chats: { total: chatsTotal, synced: 0 }, status: `Syncing ${chatsTotal} conversations...` }));
+
+        // Extract JID mappings
+        const mappingBatch: any[] = [];
+        for (const chat of individualChats) {
+          if (chat.remoteJid?.includes('@lid')) {
+            const alt = chat.lastMessage?.key?.remoteJidAlt;
+            if (alt?.includes('@s.whatsapp.net')) {
+              mappingBatch.push({
+                business_id: businessId,
+                instance_id: instanceId,
+                lid_jid: chat.remoteJid,
+                phone_jid: alt,
+              });
+            }
+          }
+        }
+
+        if (mappingBatch.length > 0) {
+          await db.from('whatsapp_jid_mappings').upsert(mappingBatch, {
+            onConflict: 'business_id, lid_jid',
+          });
+          jidMappings = mappingBatch.length;
+        }
+
+        chatsSynced = chatsTotal;
+        setSyncProgress(p => ({
+          ...p,
+          chats: { total: chatsTotal, synced: chatsSynced },
+          jidMappings,
+          status: 'Finalizing...',
+        }));
+      }
+    } catch (e) {
+      console.error('Chat sync error:', e);
+    }
+
+    // ── Done ─────────────────────────────────────────────────────────
+    setSyncProgress(p => ({ ...p, status: 'Complete' }));
+    setModalStep('complete');
+    fetchInstances();
+  };
+
+  // ── Delete instance ───────────────────────────────────────────────
   const handleDeleteInstance = async (id: string, instanceName: string) => {
     try {
       setActionLoading(`delete-${instanceName}`);
-      await whatsappService.deleteInstance(instanceName);
+      try { await whatsappService.deleteInstance(instanceName); } catch {}
       await supabase.from('whatsapp_instances').delete().eq('id', id);
       toast({ title: "Deleted", description: "Instance removed successfully." });
       fetchInstances();
@@ -119,18 +320,43 @@ export default function WhatsAppManager() {
     }
   };
 
+  // ── Close modal ───────────────────────────────────────────────────
+  const handleCloseModal = () => {
+    syncAbortRef.current = true;
+    setModalOpen(false);
+    setQrCode(null);
+    setModalStep('scanning');
+  };
+
+  // ── Progress bar component ────────────────────────────────────────
+  const ProgressBar = ({ value, max, label }: { value: number; max: number; label: string }) => {
+    const pct = max > 0 ? Math.round((value / max) * 100) : 0;
+    return (
+      <div className="space-y-1.5">
+        <div className="flex justify-between text-xs">
+          <span className="text-gray-600 font-medium">{label}</span>
+          <span className="text-gray-400 tabular-nums">{value}/{max}</span>
+        </div>
+        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all duration-500 ease-out"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-8 pb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      
-      {/* Standard Admin Header Section */}
+
+      {/* Header */}
       <div className="relative">
         <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
         <div className="relative p-8 flex flex-col lg:flex-row lg:items-end justify-between gap-8">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 mb-2">Integrations</p>
-            <h1 className="text-3xl sm:text-4xl font-extralight text-gray-900 tracking-tight mb-2">
-              WhatsApp Devices
-            </h1>
+            <h1 className="text-3xl sm:text-4xl font-extralight text-gray-900 tracking-tight mb-2">WhatsApp Devices</h1>
             <p className="text-gray-500 font-light text-sm max-w-xl">
               Connect and manage physical devices to automate delivery notifications and customer messaging in real-time.
             </p>
@@ -141,7 +367,7 @@ export default function WhatsAppManager() {
         </div>
       </div>
 
-      {/* Instance Creation Card */}
+      {/* Create Instance */}
       <Card className="border-0 shadow-sm rounded-3xl bg-white bg-gradient-to-br from-white to-gray-50/50">
         <CardContent className="p-8">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
@@ -150,15 +376,15 @@ export default function WhatsAppManager() {
               <p className="text-sm font-light text-gray-500">Enter a unique label for your new connection to generate a pairing QR code.</p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-              <Input 
-                placeholder="e.g. Sales-Number-1" 
+              <Input
+                placeholder="e.g. Sales-Number-1"
                 value={newInstanceName}
                 onChange={(e) => setNewInstanceName(e.target.value.replace(/\s+/g, '-'))}
                 className="w-full sm:w-[250px] rounded-2xl bg-gray-50/50 border-gray-100 focus-visible:ring-primary/20"
                 disabled={actionLoading === 'create'}
               />
-              <Button 
-                onClick={handleCreateInstance} 
+              <Button
+                onClick={handleCreateInstance}
                 disabled={!newInstanceName || actionLoading === 'create'}
                 className="rounded-2xl shadow-sm px-6 h-10"
               >
@@ -170,7 +396,7 @@ export default function WhatsAppManager() {
         </CardContent>
       </Card>
 
-      {/* Grid of Instances */}
+      {/* Instance Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {loading ? (
           Array.from({ length: 3 }).map((_, i) => (
@@ -192,7 +418,6 @@ export default function WhatsAppManager() {
             return (
               <Card key={inst.id} className="relative overflow-hidden border-0 shadow-sm rounded-3xl bg-white transition-all hover:shadow-md">
                 <div className={cn("absolute top-0 left-0 w-full h-1.5 transition-colors", isOpen ? "bg-emerald-500/80" : "bg-amber-400/80")} />
-                
                 <CardContent className="p-6">
                   <div className="flex justify-between items-start mb-6 mt-1">
                     <div className="flex items-center gap-4">
@@ -206,7 +431,7 @@ export default function WhatsAppManager() {
                         <h3 className="text-lg font-medium text-gray-900 truncate max-w-[150px]">{inst.instance_name}</h3>
                         {inst.phone_number ? (
                           <div className="flex items-center text-xs text-gray-500 font-light mt-1 gap-1.5">
-                            <Phone className="w-3 h-3 text-gray-400" /> {inst.phone_number}
+                            <Phone className="w-3 h-3 text-gray-400" /> +{inst.phone_number}
                           </div>
                         ) : (
                           <div className="text-xs text-gray-400 font-light mt-1">Unpaired device</div>
@@ -214,16 +439,13 @@ export default function WhatsAppManager() {
                       </div>
                     </div>
                   </div>
-                  
                   <div className="flex items-center justify-between py-4 border-t border-gray-50">
                     <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Status</span>
-                    <Badge 
-                      variant="outline" 
+                    <Badge
+                      variant="outline"
                       className={cn(
                         "rounded-full text-[10px] font-bold uppercase border px-3 py-1",
-                        isOpen 
-                          ? "bg-emerald-50 text-emerald-800 border-emerald-100" 
-                          : "bg-amber-50 text-amber-800 border-amber-100"
+                        isOpen ? "bg-emerald-50 text-emerald-800 border-emerald-100" : "bg-amber-50 text-amber-800 border-amber-100"
                       )}
                     >
                       {isOpen && <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />}
@@ -232,36 +454,25 @@ export default function WhatsAppManager() {
                     </Badge>
                   </div>
                 </CardContent>
-
                 <div className="px-3 pb-3 flex justify-end gap-2 bg-gray-50/50 pt-3 border-t border-gray-50">
                   {!isOpen && (
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      variant="outline" size="sm"
                       className="flex-1 rounded-xl bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900 font-medium h-9 text-xs"
                       disabled={actionLoading !== null}
                       onClick={() => fetchAndShowQR(inst.instance_name)}
                     >
-                      {actionLoading === `qr-${inst.instance_name}` ? (
-                        <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />
-                      ) : (
-                        <QrCode className="w-3.5 h-3.5 mr-2 text-primary/70" />
-                      )}
+                      {actionLoading === `qr-${inst.instance_name}` ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <QrCode className="w-3.5 h-3.5 mr-2 text-primary/70" />}
                       Scan QR
                     </Button>
                   )}
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                  <Button
+                    variant="ghost" size="sm"
                     className="flex-1 rounded-xl text-red-600/80 hover:text-red-700 hover:bg-red-50 font-medium h-9 text-xs"
                     disabled={actionLoading !== null}
                     onClick={() => handleDeleteInstance(inst.id, inst.instance_name)}
                   >
-                    {actionLoading === `delete-${inst.instance_name}` ? (
-                      <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />
-                    ) : (
-                      <Trash2 className="w-3.5 h-3.5 mr-2" />
-                    )}
+                    {actionLoading === `delete-${inst.instance_name}` ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <Trash2 className="w-3.5 h-3.5 mr-2" />}
                     Remove
                   </Button>
                 </div>
@@ -271,33 +482,169 @@ export default function WhatsAppManager() {
         )}
       </div>
 
-      {/* Polished QR Code Modal */}
-      <Dialog open={!!qrCode} onOpenChange={(open) => !open && setQrCode(null)}>
+      {/* ── Connection Modal (multi-step) ──────────────────────────────── */}
+      <Dialog open={modalOpen} onOpenChange={(open) => { if (!open) handleCloseModal(); }}>
         <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-white/95 backdrop-blur-md shadow-2xl rounded-3xl border-0">
-          <div className="bg-gradient-to-r from-primary/5 to-transparent p-8 text-center border-b border-gray-100">
-            <DialogHeader>
-              <DialogTitle className="text-2xl font-extralight text-gray-900 text-center tracking-tight">Pair WhatsApp Device</DialogTitle>
-              <DialogDescription className="text-center pt-3 font-light text-gray-500">
-                Open WhatsApp {"->"} Settings {"->"} Linked Devices {"->"} Link a Device
-              </DialogDescription>
-            </DialogHeader>
-          </div>
-          <div className="p-10 flex flex-col items-center justify-center bg-gray-50/50 relative">
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent opacity-60 pointer-events-none" />
-            <div className="relative bg-white p-5 rounded-3xl shadow-sm border border-gray-100">
-              {qrCode ? (
-                <img src={qrCode} alt="WhatsApp QR Code Matrix" className="w-64 h-64 mx-auto rounded-xl" />
-              ) : (
-                <div className="w-64 h-64 flex flex-col items-center justify-center">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary/60 mb-4" />
-                  <p className="text-gray-400 font-light text-sm">Generating secure code...</p>
+
+          {/* ── Step 1: Scanning QR ─────────────────────────────────────── */}
+          {modalStep === 'scanning' && (
+            <>
+              <div className="bg-gradient-to-r from-primary/5 to-transparent p-8 text-center border-b border-gray-100">
+                <DialogHeader>
+                  <DialogTitle className="text-2xl font-extralight text-gray-900 text-center tracking-tight">Pair WhatsApp Device</DialogTitle>
+                  <DialogDescription className="text-center pt-3 font-light text-gray-500">
+                    Open WhatsApp {">"} Settings {">"} Linked Devices {">"} Link a Device
+                  </DialogDescription>
+                </DialogHeader>
+              </div>
+              <div className="p-10 flex flex-col items-center justify-center bg-gray-50/50 relative">
+                <div className="relative bg-white p-5 rounded-3xl shadow-sm border border-gray-100">
+                  {qrCode ? (
+                    <img src={qrCode} alt="WhatsApp QR Code" className="w-64 h-64 mx-auto rounded-xl" />
+                  ) : (
+                    <div className="w-64 h-64 flex flex-col items-center justify-center">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary/60 mb-4" />
+                      <p className="text-gray-400 font-light text-sm">Generating secure code...</p>
+                    </div>
+                  )}
                 </div>
+                <div className="flex items-center gap-2 mt-6">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <p className="text-xs text-gray-400 uppercase tracking-widest font-bold">Waiting for scan...</p>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ── Step 2: Connected (brief transition) ───────────────────── */}
+          {modalStep === 'connected' && (
+            <div className="p-10 flex flex-col items-center justify-center animate-in fade-in zoom-in-95 duration-500">
+              <div className="relative mb-6">
+                {ownerProfile.pic ? (
+                  <img src={ownerProfile.pic} alt="" className="w-24 h-24 rounded-full object-cover border-4 border-emerald-100 shadow-lg" />
+                ) : (
+                  <div className="w-24 h-24 rounded-full bg-gradient-to-br from-emerald-100 to-emerald-50 flex items-center justify-center border-4 border-emerald-100 shadow-lg">
+                    <CheckCircle2 className="w-10 h-10 text-emerald-500" />
+                  </div>
+                )}
+                <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center shadow-md">
+                  <CheckCircle2 className="w-5 h-5 text-white" />
+                </div>
+              </div>
+              <h3 className="text-xl font-medium text-gray-900 mb-1">Connected</h3>
+              {ownerProfile.phone && (
+                <p className="text-sm text-gray-500 font-light">+{ownerProfile.phone}</p>
               )}
+              <p className="text-xs text-gray-400 mt-4">Starting data sync...</p>
+              <Loader2 className="w-5 h-5 text-emerald-500 animate-spin mt-3" />
             </div>
-            <p className="text-[10px] text-gray-400 uppercase tracking-widest mt-8 text-center font-bold">
-              E2E Encrypted Session
-            </p>
-          </div>
+          )}
+
+          {/* ── Step 3: Syncing ────────────────────────────────────────── */}
+          {modalStep === 'syncing' && (
+            <div className="p-8 animate-in fade-in duration-300">
+              <div className="flex items-center gap-4 mb-8">
+                {ownerProfile.pic ? (
+                  <img src={ownerProfile.pic} alt="" className="w-14 h-14 rounded-full object-cover border-2 border-emerald-100" />
+                ) : (
+                  <div className="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center border-2 border-emerald-100">
+                    <Database className="w-6 h-6 text-emerald-500" />
+                  </div>
+                )}
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">{ownerProfile.name || modalInstanceName}</h3>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <Loader2 className="w-3 h-3 text-emerald-500 animate-spin" />
+                    <span className="text-xs text-emerald-600 font-medium">{syncProgress.status}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-5">
+                <ProgressBar
+                  value={syncProgress.contacts.synced}
+                  max={syncProgress.contacts.total}
+                  label="Contacts"
+                />
+                <ProgressBar
+                  value={syncProgress.chats.synced}
+                  max={syncProgress.chats.total}
+                  label="Conversations"
+                />
+                {syncProgress.jidMappings > 0 && (
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-600 font-medium">ID Mappings</span>
+                    <span className="text-emerald-600 font-medium">{syncProgress.jidMappings} resolved</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Overall progress */}
+              <div className="mt-6 pt-4 border-t border-gray-100">
+                <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-teal-400 rounded-full transition-all duration-700 ease-out"
+                    style={{
+                      width: `${Math.round(
+                        ((syncProgress.contacts.synced + syncProgress.chats.synced) /
+                        Math.max(syncProgress.contacts.total + syncProgress.chats.total, 1)) * 100
+                      )}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Step 4: Complete ───────────────────────────────────────── */}
+          {modalStep === 'complete' && (
+            <div className="p-10 flex flex-col items-center justify-center animate-in fade-in zoom-in-95 duration-500">
+              <div className="relative mb-6">
+                {ownerProfile.pic ? (
+                  <img src={ownerProfile.pic} alt="" className="w-24 h-24 rounded-full object-cover border-4 border-emerald-100 shadow-lg" />
+                ) : (
+                  <div className="w-24 h-24 rounded-full bg-gradient-to-br from-emerald-100 to-emerald-50 flex items-center justify-center border-4 border-emerald-100 shadow-lg">
+                    <CheckCircle2 className="w-10 h-10 text-emerald-500" />
+                  </div>
+                )}
+                <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center shadow-md">
+                  <CheckCircle2 className="w-5 h-5 text-white" />
+                </div>
+              </div>
+
+              <h3 className="text-xl font-medium text-gray-900 mb-1">All Set</h3>
+              {ownerProfile.phone && (
+                <p className="text-sm text-gray-500 font-light mb-6">+{ownerProfile.phone}</p>
+              )}
+
+              {/* Stats */}
+              <div className="grid grid-cols-3 gap-4 w-full mb-8">
+                <div className="bg-gray-50 rounded-2xl p-3 text-center">
+                  <Users className="w-4 h-4 text-emerald-500 mx-auto mb-1" />
+                  <p className="text-lg font-semibold text-gray-900">{syncProgress.contacts.synced}</p>
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wider">Contacts</p>
+                </div>
+                <div className="bg-gray-50 rounded-2xl p-3 text-center">
+                  <MessageCircle className="w-4 h-4 text-emerald-500 mx-auto mb-1" />
+                  <p className="text-lg font-semibold text-gray-900">{syncProgress.chats.synced}</p>
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wider">Chats</p>
+                </div>
+                <div className="bg-gray-50 rounded-2xl p-3 text-center">
+                  <Database className="w-4 h-4 text-emerald-500 mx-auto mb-1" />
+                  <p className="text-lg font-semibold text-gray-900">{syncProgress.jidMappings}</p>
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wider">Mappings</p>
+                </div>
+              </div>
+
+              <Button
+                onClick={() => { handleCloseModal(); navigate('/business/whatsapp/inbox'); }}
+                className="w-full rounded-2xl h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm"
+              >
+                Open Inbox
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
