@@ -92,7 +92,7 @@ export const whatsappService = {
     return this.invokeClient('get-media', { instanceName, key });
   },
 
-  // ── Evolution API reads (kept for search & backfill only) ───────────
+  // ── Evolution API reads (kept for search & sync) ────────────────────
   async findMessages(instanceName: string, remoteJid: string, limit = 50, page?: number) {
     return this.invokeClient('find-messages', {
       instanceName,

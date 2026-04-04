@@ -145,6 +145,12 @@ Deno.serve(async (req) => {
         body = null;
         break;
 
+      // ── Profile picture URL (lightweight — returns URL only, no proxy) ─
+      case 'fetch-profile-url':
+        endpoint = `/chat/fetchProfilePictureUrl/${payload.instanceName}`;
+        body = JSON.stringify({ number: payload.number });
+        break;
+
       // ── Contact sync (backfill) ─────────────────────────────────────
       case 'sync-contacts':
         endpoint = `/chat/findContacts/${payload.instanceName}`;

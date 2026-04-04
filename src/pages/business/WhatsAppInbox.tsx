@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
+import { flushSync } from 'react-dom';
 import { supabase } from '@/lib/supabase';
 import { whatsappService } from '@/lib/api/whatsappService';
 
@@ -1937,30 +1938,61 @@ export default function WhatsAppInbox() {
         deduped.push(jid);
       }
 
+      // Also fetch contact_id → contact for messages with LID JIDs
+      // This resolves names via the message→contact FK chain
+      const { data: msgContacts } = await db
+        .from('whatsapp_messages')
+        .select('remote_jid, contact_id, whatsapp_contacts(name, phone_number, profile_pic)')
+        .eq('business_id', businessId)
+        .not('contact_id', 'is', null);
+
+      // Build LID→contact map from message FK relationships
+      const lidContactMap: Record<string, { name: string; phone: string; pic: string | null }> = {};
+      if (msgContacts) {
+        for (const mc of msgContacts) {
+          if (!mc.remote_jid?.includes('@lid')) continue;
+          const c = mc.whatsapp_contacts as any;
+          if (c?.name && !lidContactMap[mc.remote_jid]) {
+            lidContactMap[mc.remote_jid] = { name: c.name, phone: c.phone_number, pic: c.profile_pic };
+          }
+        }
+      }
+
       // Build EvolutionChat objects
       const enriched: EvolutionChat[] = deduped.map(jid => {
         const row = chatMap.get(jid)!;
         const ts = Math.floor(new Date(row.created_at).getTime() / 1000);
 
-        // Resolve contact name
+        // Resolve contact name — multiple strategies
         let displayName = '';
         let profilePic: string | null = null;
 
-        // Try direct contact lookup
+        // 1. Direct contact lookup by JID
         const contact = contactMap[jid];
         if (contact?.name) { displayName = contact.name; profilePic = contact.profilePic; }
 
-        // For LID JIDs, try the phone JID contact
+        // 2. For LID JIDs, try phone JID via mapping table
         if (!displayName && jid.includes('@lid')) {
           const phoneJid = lidToPhone[jid];
           if (phoneJid) {
             const phoneContact = contactMap[phoneJid];
-            if (phoneContact?.name) { displayName = phoneContact.name; profilePic = phoneContact.profilePic; }
+            if (phoneContact?.name) { displayName = phoneContact.name; profilePic = phoneContact.profilePic || profilePic; }
             else displayName = '+' + phoneJid.split('@')[0];
           }
         }
 
-        // Fallback: format phone number or show unknown
+        // 3. For LID JIDs still unresolved, use message→contact FK
+        if (!displayName && jid.includes('@lid') && lidContactMap[jid]) {
+          const mc = lidContactMap[jid];
+          displayName = mc.name;
+          profilePic = mc.pic || profilePic;
+          // Also show phone if available
+          if (!displayName && mc.phone.includes('@s.whatsapp.net')) {
+            displayName = '+' + mc.phone.split('@')[0];
+          }
+        }
+
+        // 4. Fallback
         if (!displayName) {
           if (jid.includes('@s.whatsapp.net')) displayName = '+' + jid.split('@')[0];
           else displayName = '~ Contact';
@@ -2292,17 +2324,44 @@ export default function WhatsAppInbox() {
             } as EvolutionMessage;
           });
 
-        // With column-reverse, prepending older messages at the top doesn't shift
-        // the viewport — the browser handles scroll anchoring automatically.
-        setMessages(prev => {
-          const existingIds = new Set(prev.map(m => m.key?.id || m.id));
-          const newMsgs = filtered.filter(m => !existingIds.has(m.key?.id));
-          return [...newMsgs, ...prev];
+        // flushSync forces React to commit DOM synchronously.
+        // We read scrollHeight before and after, then adjust scrollTop
+        // — all before the browser paints. Zero visual jump.
+        const el = chatScrollRef.current;
+        const prevH = el?.scrollHeight || 0;
+
+        flushSync(() => {
+          setMessages(prev => {
+            const existingIds = new Set(prev.map(m => m.key?.id || m.id));
+            const newMsgs = filtered.filter(m => !existingIds.has(m.key?.id));
+            return [...newMsgs, ...prev];
+          });
         });
+
+        if (el) el.scrollTop += el.scrollHeight - prevH;
       }
     } catch (e) { console.error(e); }
     finally { setLoadingOlder(false); }
   }, [instanceName, businessId, lidToPhoneMap, loadingOlder, hasMoreMessages]);
+
+  // ── IntersectionObserver for load-older ────────────────────────────
+  useEffect(() => {
+    const sentinel = messagesTopRef.current;
+    const scrollContainer = chatScrollRef.current;
+    if (!sentinel || !scrollContainer) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && hasMoreMessages && !loadingOlder && messages.length > 0) {
+          loadOlderMessages();
+        }
+      },
+      { root: scrollContainer, rootMargin: '100px 0px 0px 0px', threshold: 0 }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMoreMessages, loadingOlder, messages.length, loadOlderMessages]);
 
   const handleSelectChat = (chat: EvolutionChat) => {
     setSelectedChat(chat);
@@ -2347,14 +2406,14 @@ export default function WhatsAppInbox() {
     }
   };
 
-  // Scroll to bottom — in column-reverse, scrollTop=0 IS the bottom
+  // Scroll to bottom
   const scrollToBottom = useCallback((instant = false) => {
     const el = chatScrollRef.current;
     if (!el) return;
     if (instant) {
-      el.scrollTop = 0;
+      el.scrollTop = el.scrollHeight;
     } else {
-      el.scrollTo({ top: 0, behavior: 'smooth' });
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
     }
   }, []);
 
@@ -2991,22 +3050,12 @@ export default function WhatsAppInbox() {
               </div>
             )}
 
-            {/* Messages area — column-reverse pins scroll to bottom natively */}
-            <div ref={chatScrollRef} className="flex-1 overflow-y-auto flex flex-col-reverse"
-              onScroll={(e) => {
-                const el = e.currentTarget;
-                // In column-reverse, scrollTop=0 is the bottom. Scrolling UP increases scrollTop.
-                // Trigger load-older when user scrolls near the visual top.
-                const distanceFromTop = el.scrollHeight - el.clientHeight - Math.abs(el.scrollTop);
-                if (distanceFromTop < 100 && hasMoreMessages && !loadingOlder) {
-                  loadOlderMessages();
-                }
-              }}
+            {/* Messages area */}
+            <div ref={chatScrollRef} className="flex-1 overflow-y-auto"
               style={{
                 backgroundImage: `url("data:image/svg+xml,%3Csvg width='300' height='300' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3Cpattern id='p' patternUnits='userSpaceOnUse' width='60' height='60'%3E%3Cpath d='M30 5 L35 15 L30 10 L25 15Z' fill='%23182229' opacity='0.3'/%3E%3Ccircle cx='10' cy='40' r='3' fill='%23182229' opacity='0.2'/%3E%3Ccircle cx='50' cy='30' r='2' fill='%23182229' opacity='0.2'/%3E%3C/pattern%3E%3C/defs%3E%3Crect width='300' height='300' fill='%230b141a'/%3E%3Crect width='300' height='300' fill='url(%23p)'/%3E%3C/svg%3E")`,
                 backgroundColor: '#0b141a',
               }}>
-              {/* Single inner wrapper — column-reverse on parent pins this to the bottom */}
               <div className="py-[6px]">
                 {/* Older messages loader */}
                 {loadingOlder && (
