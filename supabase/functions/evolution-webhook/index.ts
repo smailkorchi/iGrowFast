@@ -1,3 +1,4 @@
+// @ts-nocheck
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
@@ -63,42 +64,78 @@ async function resolveInstance(supabase: any, instanceName: string) {
   return data;
 }
 
-// ── Resolve canonical JID via jid_mappings (phone-only, no name matching) ────
-async function resolveCanonicalJid(
+// ── Resolve BOTH JID formats (phone + LID) from webhook payload ─────────────
+async function resolveJids(
   supabase: any, businessId: string, instanceId: string, remoteJid: string, remoteJidAlt: string | null
-): Promise<string> {
-  // If it's a group or broadcast, the JID is canonical as-is
-  if (remoteJid.endsWith('@g.us') || remoteJid === 'status@broadcast') return remoteJid;
+): Promise<{ phoneJid: string | null; lidJid: string | null }> {
+  if (remoteJid.endsWith('@g.us') || remoteJid === 'status@broadcast')
+    return { phoneJid: null, lidJid: null };
 
-  // Store LID→Phone mapping if both are available
-  if (remoteJid.includes('@lid') && remoteJidAlt?.includes('@s.whatsapp.net')) {
+  let phoneJid: string | null = null;
+  let lidJid: string | null = null;
+
+  // Classify incoming JIDs
+  if (remoteJid.includes('@lid')) lidJid = remoteJid;
+  if (remoteJid.includes('@s.whatsapp.net')) phoneJid = remoteJid;
+  if (remoteJidAlt?.includes('@s.whatsapp.net')) phoneJid = remoteJidAlt;
+  if (remoteJidAlt?.includes('@lid')) lidJid = remoteJidAlt;
+
+  // Store mapping if we have both
+  if (lidJid && phoneJid) {
     await supabase.from('whatsapp_jid_mappings').upsert({
-      business_id: businessId,
-      instance_id: instanceId,
-      lid_jid: remoteJid,
-      phone_jid: remoteJidAlt,
+      business_id: businessId, instance_id: instanceId,
+      lid_jid: lidJid, phone_jid: phoneJid,
     }, { onConflict: 'business_id, lid_jid' });
   }
 
-  // If message uses phone JID, check if a LID mapping exists → use LID as canonical
-  if (remoteJid.includes('@s.whatsapp.net')) {
-    const { data: mapping } = await supabase
-      .from('whatsapp_jid_mappings')
-      .select('lid_jid')
-      .eq('business_id', businessId)
-      .eq('phone_jid', remoteJid)
-      .maybeSingle();
-    if (mapping?.lid_jid) return mapping.lid_jid;
+  // If we only have one, try to resolve the other from mappings
+  if (lidJid && !phoneJid) {
+    const { data } = await supabase.from('whatsapp_jid_mappings')
+      .select('phone_jid').eq('business_id', businessId).eq('lid_jid', lidJid).maybeSingle();
+    if (data) phoneJid = data.phone_jid;
+  }
+  if (phoneJid && !lidJid) {
+    const { data } = await supabase.from('whatsapp_jid_mappings')
+      .select('lid_jid').eq('business_id', businessId).eq('phone_jid', phoneJid).maybeSingle();
+    if (data) lidJid = data.lid_jid;
   }
 
-  return remoteJid;
+  // Last resort: check conversations table for cross-JID references
+  // If a conversation already has the other JID format stored, use it
+  if (phoneJid && !lidJid) {
+    const { data: conv } = await supabase.from('whatsapp_conversations')
+      .select('lid_jid').eq('business_id', businessId).eq('instance_id', instanceId)
+      .or(`phone_jid.eq.${phoneJid},jid.eq.${phoneJid}`)
+      .not('lid_jid', 'is', null)
+      .limit(1).maybeSingle();
+    if (conv?.lid_jid) lidJid = conv.lid_jid;
+  }
+  if (lidJid && !phoneJid) {
+    const { data: conv } = await supabase.from('whatsapp_conversations')
+      .select('phone_jid').eq('business_id', businessId).eq('instance_id', instanceId)
+      .or(`lid_jid.eq.${lidJid},jid.eq.${lidJid}`)
+      .not('phone_jid', 'is', null)
+      .limit(1).maybeSingle();
+    if (conv?.phone_jid) phoneJid = conv.phone_jid;
+  }
+
+  // Store newly discovered mapping
+  if (lidJid && phoneJid) {
+    await supabase.from('whatsapp_jid_mappings').upsert({
+      business_id: businessId, instance_id: instanceId,
+      lid_jid: lidJid, phone_jid: phoneJid,
+    }, { onConflict: 'business_id, lid_jid' });
+  }
+
+  return { phoneJid, lidJid };
 }
 
-// ── Upsert conversation record (works for both individual + group) ───────────
-async function upsertConversation(
+// ── Find conversation by ANY JID format, or create new ──────────────────────
+async function findOrCreateConversation(
   supabase: any,
   params: {
     businessId: string; instanceId: string; jid: string;
+    phoneJid?: string | null; lidJid?: string | null;
     type: 'individual' | 'group' | 'broadcast';
     displayName?: string | null; profilePic?: string | null;
     contactId?: string | null; groupId?: string | null;
@@ -107,32 +144,142 @@ async function upsertConversation(
     lastMessageTs?: string; lastMessageStatus?: string;
   }
 ) {
-  const payload: Record<string, unknown> = {
-    business_id: params.businessId,
-    instance_id: params.instanceId,
-    jid: params.jid,
-    type: params.type,
-    updated_at: new Date().toISOString(),
-  };
-  if (params.displayName !== undefined) payload.display_name = params.displayName;
-  if (params.profilePic !== undefined) payload.profile_pic = params.profilePic;
-  if (params.contactId) payload.contact_id = params.contactId;
-  if (params.groupId) payload.group_id = params.groupId;
-  if (params.lastMessageId) {
-    payload.last_message_id = params.lastMessageId;
-    payload.last_message_content = params.lastMessageContent;
-    payload.last_message_type = params.lastMessageType;
-    payload.last_message_direction = params.lastMessageDirection;
-    payload.last_message_ts = params.lastMessageTs;
-    payload.last_message_status = params.lastMessageStatus;
+  const { businessId, instanceId, jid, phoneJid, lidJid } = params;
+
+  // Build list of candidate JIDs to search by
+  const candidates = [jid];
+  if (phoneJid && phoneJid !== jid) candidates.push(phoneJid);
+  if (lidJid && lidJid !== jid) candidates.push(lidJid);
+
+  // COMPREHENSIVE search: find ALL conversations that could belong to this contact
+  // Search by JID columns, contact_id, AND display_name in a SINGLE pass
+  // This prevents duplicates by finding existing conversations regardless of JID format
+  let orParts = candidates.map(c => `jid.eq.${c},phone_jid.eq.${c},lid_jid.eq.${c}`);
+  // Also search by display_name for individual chats (catches LID↔phone split)
+  if (params.displayName && params.type === 'individual') {
+    orParts.push(`display_name.eq.${params.displayName}`);
+  }
+  const orFilters = orParts.join(',');
+
+  let { data: matches } = await supabase
+    .from('whatsapp_conversations')
+    .select('id, jid, group_id, phone_jid, lid_jid, profile_pic')
+    .eq('business_id', businessId)
+    .eq('instance_id', instanceId)
+    .or(orFilters)
+    .limit(5);
+
+  // Additional fallback: search by contact_id if nothing found
+  if ((!matches || matches.length === 0) && params.contactId && params.type === 'individual') {
+    const { data: contactMatch } = await supabase
+      .from('whatsapp_conversations')
+      .select('id, jid, group_id, phone_jid, lid_jid, profile_pic')
+      .eq('business_id', businessId)
+      .eq('instance_id', instanceId)
+      .eq('contact_id', params.contactId)
+      .limit(1)
+      .maybeSingle();
+    if (contactMatch) matches = [contactMatch];
   }
 
-  const { data } = await supabase
+  // If multiple conversations match (duplicate due to JID split), merge them
+  let existing = matches?.[0] || null;
+  if (matches && matches.length > 1) {
+    // Keep the oldest (first created = has more messages), merge others into it
+    const primary = matches[0];
+    for (let i = 1; i < matches.length; i++) {
+      const dup = matches[i];
+      // Move all messages from duplicate to primary
+      await supabase.from('whatsapp_messages')
+        .update({ conversation_id: primary.id, remote_jid: primary.jid })
+        .eq('conversation_id', dup.id);
+      // Move any orphaned messages that reference the dup's jid
+      await supabase.from('whatsapp_messages')
+        .update({ conversation_id: primary.id, remote_jid: primary.jid })
+        .eq('remote_jid', dup.jid)
+        .eq('business_id', businessId)
+        .eq('instance_id', instanceId);
+      // Delete duplicate conversation
+      await supabase.from('whatsapp_conversations').delete().eq('id', dup.id);
+    }
+    // Fill cross-references on the primary
+    if (phoneJid && !primary.phone_jid) {
+      await supabase.from('whatsapp_conversations').update({ phone_jid: phoneJid }).eq('id', primary.id);
+      primary.phone_jid = phoneJid;
+    }
+    if (lidJid && !primary.lid_jid) {
+      await supabase.from('whatsapp_conversations').update({ lid_jid: lidJid }).eq('id', primary.id);
+      primary.lid_jid = lidJid;
+    }
+    existing = primary;
+  }
+
+  if (existing) {
+    // Update existing conversation with latest message + fill missing JID columns
+    const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (phoneJid && !existing.phone_jid) update.phone_jid = phoneJid;
+    if (lidJid && !existing.lid_jid) update.lid_jid = lidJid;
+    if (params.displayName !== undefined) update.display_name = params.displayName;
+    if (params.profilePic !== undefined) update.profile_pic = params.profilePic;
+    if (params.contactId) update.contact_id = params.contactId;
+    if (params.groupId) update.group_id = params.groupId;
+
+    // Fill missing profile_pic from contact record if conversation has none
+    if (!existing.profile_pic && !params.profilePic && params.contactId) {
+      const { data: contactRow } = await supabase.from('whatsapp_contacts')
+        .select('profile_pic').eq('id', params.contactId).maybeSingle();
+      if (contactRow?.profile_pic) update.profile_pic = contactRow.profile_pic;
+    }
+    if (params.lastMessageId) {
+      update.last_message_id = params.lastMessageId;
+      update.last_message_content = params.lastMessageContent;
+      update.last_message_type = params.lastMessageType;
+      update.last_message_direction = params.lastMessageDirection;
+      update.last_message_ts = params.lastMessageTs;
+      update.last_message_status = params.lastMessageStatus;
+    }
+    // Increment unread for incoming — check if message already stored to prevent double-count
+    if (params.lastMessageDirection === 'incoming' && params.lastMessageId) {
+      const { data: existingMsg } = await supabase.from('whatsapp_messages')
+        .select('id').eq('message_id', params.lastMessageId).maybeSingle();
+      if (!existingMsg) {
+        const { data: cur } = await supabase.from('whatsapp_conversations')
+          .select('unread_count').eq('id', existing.id).single();
+        update.unread_count = (cur?.unread_count || 0) + 1;
+      }
+    }
+
+    // Single update — one realtime event with all fields including unread
+    await supabase.from('whatsapp_conversations').update(update).eq('id', existing.id);
+    return { id: existing.id, jid: existing.jid, group_id: existing.group_id };
+  }
+
+  // Create new conversation
+  const { data: newConv } = await supabase
     .from('whatsapp_conversations')
-    .upsert(payload, { onConflict: 'business_id, instance_id, jid' })
-    .select('id, group_id')
+    .insert({
+      business_id: businessId,
+      instance_id: instanceId,
+      jid,
+      phone_jid: phoneJid || null,
+      lid_jid: lidJid || null,
+      type: params.type,
+      display_name: params.displayName || null,
+      profile_pic: params.profilePic || null,
+      contact_id: params.contactId || null,
+      group_id: params.groupId || null,
+      last_message_id: params.lastMessageId || null,
+      last_message_content: params.lastMessageContent || null,
+      last_message_type: params.lastMessageType || null,
+      last_message_direction: params.lastMessageDirection || null,
+      last_message_ts: params.lastMessageTs || null,
+      last_message_status: params.lastMessageStatus || null,
+      updated_at: new Date().toISOString(),
+    })
+    .select('id, jid, group_id')
     .single();
-  return data;
+
+  return newConv;
 }
 
 Deno.serve(async (req) => {
@@ -208,8 +355,8 @@ Deno.serve(async (req) => {
           .eq('group_jid', remoteJid)
           .single();
 
-        // Upsert conversation
-        const convData = await upsertConversation(supabase, {
+        // Find or create conversation
+        const convData = await findOrCreateConversation(supabase, {
           businessId: instanceData.business_id,
           instanceId: instanceData.id,
           jid: remoteJid,
@@ -247,25 +394,30 @@ Deno.serve(async (req) => {
       }
 
       // ── INDIVIDUAL MESSAGE ────────────────────────────────────────
-      const canonicalJid = await resolveCanonicalJid(
+      const { phoneJid, lidJid } = await resolveJids(
         supabase, instanceData.business_id, instanceData.id, remoteJid, remoteJidAlt
       );
 
-      // Upsert contact keyed to canonical JID
+      // Build list of candidate JIDs for contact lookup
+      const contactJids = [remoteJid, phoneJid, lidJid].filter(Boolean) as string[];
+      const uniqueContactJids = [...new Set(contactJids)];
+
+      // Find existing contact by any JID format
       const { data: existingContact } = await supabase
         .from('whatsapp_contacts')
         .select('id, name')
         .eq('business_id', instanceData.business_id)
-        .eq('phone_number', canonicalJid)
+        .in('phone_number', uniqueContactJids)
+        .limit(1)
         .maybeSingle();
 
+      // Upsert contact with the raw remoteJid (preserves whatever format we received)
       const contactPayload: Record<string, unknown> = {
         business_id: instanceData.business_id,
-        phone_number: canonicalJid,
+        phone_number: remoteJid,
         instance_id: instanceData.id,
         updated_at: new Date().toISOString(),
       };
-      // Only set name if contact has NO name yet
       if (!existingContact?.name && direction === 'incoming' && pushName && pushName !== remoteJid.split('@')[0]) {
         contactPayload.name = pushName;
       }
@@ -276,23 +428,21 @@ Deno.serve(async (req) => {
         .select('id')
         .single();
 
-      // Keep phone JID contact in sync if canonical is LID
-      if (canonicalJid !== remoteJid || remoteJidAlt?.includes('@s.whatsapp.net')) {
-        const phoneJid = remoteJid.includes('@s.whatsapp.net') ? remoteJid : remoteJidAlt;
-        if (phoneJid) {
-          const altPayload: Record<string, unknown> = {
-            business_id: instanceData.business_id,
-            phone_number: phoneJid,
-            instance_id: instanceData.id,
-            updated_at: new Date().toISOString(),
-          };
-          if (direction === 'incoming' && pushName && pushName !== remoteJid.split('@')[0]) {
-            altPayload.name = pushName;
-          }
-          await supabase
-            .from('whatsapp_contacts')
-            .upsert(altPayload, { onConflict: 'business_id, phone_number', ignoreDuplicates: false });
+      // Keep alternate JID contact in sync
+      const altJid = phoneJid && phoneJid !== remoteJid ? phoneJid : (lidJid && lidJid !== remoteJid ? lidJid : null);
+      if (altJid) {
+        const altPayload: Record<string, unknown> = {
+          business_id: instanceData.business_id,
+          phone_number: altJid,
+          instance_id: instanceData.id,
+          updated_at: new Date().toISOString(),
+        };
+        if (direction === 'incoming' && pushName && pushName !== remoteJid.split('@')[0]) {
+          altPayload.name = pushName;
         }
+        await supabase
+          .from('whatsapp_contacts')
+          .upsert(altPayload, { onConflict: 'business_id, phone_number', ignoreDuplicates: false });
       }
 
       if (contactError) {
@@ -300,15 +450,18 @@ Deno.serve(async (req) => {
         return ok({ success: false, error: contactError.message });
       }
 
-      // Upsert conversation
+      // Find or create conversation (searches by ALL JID columns)
       const displayName = existingContact?.name || (direction === 'incoming' ? pushName : null) || null;
-      const convData = await upsertConversation(supabase, {
+      const contactId = existingContact?.id || contactData?.id || null;
+      const convData = await findOrCreateConversation(supabase, {
         businessId: instanceData.business_id,
         instanceId: instanceData.id,
-        jid: canonicalJid,
+        jid: remoteJid,
+        phoneJid,
+        lidJid,
         type: 'individual',
         displayName,
-        contactId: contactData?.id || null,
+        contactId,
         lastMessageId: msgId,
         lastMessageContent: content,
         lastMessageType: messageType,
@@ -317,15 +470,15 @@ Deno.serve(async (req) => {
         lastMessageStatus: status,
       });
 
-      // Store message
+      // Store message — use conversation's own JID for remote_jid consistency
       const { error: msgError } = await supabase
         .from('whatsapp_messages')
         .upsert({
           business_id: instanceData.business_id,
           instance_id: instanceData.id,
-          contact_id: contactData?.id || null,
+          contact_id: contactId,
           conversation_id: convData?.id || null,
-          remote_jid: canonicalJid,
+          remote_jid: convData?.jid || remoteJid,
           message_id: msgId,
           type: messageType,
           content,
@@ -475,8 +628,8 @@ Deno.serve(async (req) => {
           updated_at: new Date().toISOString(),
         }, { onConflict: 'business_id, instance_id, group_jid' });
 
-        // Also upsert conversation for this group
-        await upsertConversation(supabase, {
+        // Also find/create conversation for this group
+        await findOrCreateConversation(supabase, {
           businessId: instanceData.business_id,
           instanceId: instanceData.id,
           jid: group.id,

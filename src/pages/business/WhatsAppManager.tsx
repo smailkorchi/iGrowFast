@@ -15,7 +15,7 @@ import { useNavigate } from 'react-router-dom';
 const db = supabase as any;
 
 // ── Connection modal step types ──────────────────────────────────────────
-type ModalStep = 'scanning' | 'connected' | 'syncing' | 'complete';
+type ModalStep = 'scanning' | 'connected' | 'syncing' | 'complete' | 'failed';
 
 interface SyncProgress {
   contacts: { total: number; synced: number };
@@ -31,9 +31,45 @@ interface InstanceSyncState {
   ownerProfile: { pic: string | null; phone: string; name: string };
   qrCode: string | null;
   background: boolean;
+  jobId?: string | null;
 }
 
 const defaultProgress: SyncProgress = { contacts: { total: 0, synced: 0 }, chats: { total: 0, synced: 0 }, messages: 0, jidMappings: 0, status: 'Preparing...' };
+
+// ── Derive SyncProgress from server job phases + metadata ────────────────
+function deriveSyncProgress(phases: any[], syncMetadata?: any): SyncProgress {
+  if (!phases || phases.length === 0) return { ...defaultProgress };
+  const contactsPhase = phases[0]; // contacts
+  const chatsPhase = phases[1]; // chats_jid
+  const messagesPhase = phases[6]; // messages
+  const jidPhase = phases[1]; // chats_jid (includes mappings)
+
+  // Find the currently running phase for status text
+  const running = phases.find((p: any) => p.status === 'running');
+  const lastCompleted = [...phases].reverse().find((p: any) => p.status === 'completed');
+  const status = running?.progress?.detail || lastCompleted?.progress?.detail || 'Preparing...';
+
+  // Extract message count from detail string or sync_metadata
+  let messageCount = syncMetadata?.messages_synced || 0;
+  if (!messageCount && messagesPhase?.progress?.detail) {
+    const match = messagesPhase.progress.detail.match(/(\d+)\s*messages?\s*synced/i);
+    if (match) messageCount = parseInt(match[1], 10);
+  }
+
+  return {
+    contacts: {
+      total: contactsPhase?.progress?.total || 0,
+      synced: contactsPhase?.progress?.processed || 0,
+    },
+    chats: {
+      total: chatsPhase?.progress?.total || 0,
+      synced: chatsPhase?.progress?.processed || 0,
+    },
+    messages: messageCount,
+    jidMappings: jidPhase?.progress?.processed || 0,
+    status,
+  };
+}
 
 export default function WhatsAppManager() {
   const [instances, setInstances] = useState<any[]>([]);
@@ -45,43 +81,18 @@ export default function WhatsAppManager() {
 
   // ── Per-instance sync state (supports multiple concurrent syncs) ────
   const [syncStates, setSyncStates] = useState<Record<string, InstanceSyncState>>({});
-  const syncAbortRefs = useRef<Record<string, boolean>>({});
 
   // ── Modal state (which instance is currently shown in the modal) ────
   const [modalOpen, setModalOpen] = useState(false);
   const [modalInstanceName, setModalInstanceName] = useState('');
 
-  // ── Persist sync states to localStorage ──────────────────────────────
-  const SYNC_STORAGE_KEY = 'wa_sync_states';
-  const persistSyncStates = (states: Record<string, InstanceSyncState>) => {
-    try {
-      // Only persist syncing/complete instances (not scanning which needs QR)
-      const toPersist: Record<string, any> = {};
-      for (const [k, v] of Object.entries(states)) {
-        if (v.step === 'syncing' || v.step === 'complete') {
-          toPersist[k] = { ...v, qrCode: null }; // don't persist base64 QR
-        }
-      }
-      localStorage.setItem(SYNC_STORAGE_KEY, JSON.stringify(toPersist));
-    } catch {}
-  };
-
   // Helpers to read/write per-instance sync state
   const getSyncState = (name: string): InstanceSyncState => syncStates[name] || {
-    step: 'scanning', progress: { ...defaultProgress }, ownerProfile: { pic: null, phone: '', name: '' }, qrCode: null, background: false,
+    step: 'scanning', progress: { ...defaultProgress }, ownerProfile: { pic: null, phone: '', name: '' }, qrCode: null, background: false, jobId: null,
   };
   const updateSyncState = (name: string, patch: Partial<InstanceSyncState>) => {
     setSyncStates(prev => {
       const next = { ...prev, [name]: { ...getSyncState(name), ...prev[name], ...patch } };
-      persistSyncStates(next);
-      return next;
-    });
-  };
-  const updateProgress = (name: string, fn: (p: SyncProgress) => SyncProgress) => {
-    setSyncStates(prev => {
-      const current = prev[name] || getSyncState(name);
-      const next = { ...prev, [name]: { ...current, progress: fn(current.progress) } };
-      persistSyncStates(next);
       return next;
     });
   };
@@ -93,49 +104,81 @@ export default function WhatsAppManager() {
   const ownerProfile = currentSync.ownerProfile;
   const qrCode = currentSync.qrCode;
 
-  // ── Restore sync states from localStorage on mount ──────────────────
-  // Track which syncs are actively running (survives re-renders but not unmounts)
-  const activeSyncRuns = useRef<Set<string>>(new Set());
-
+  // ── Subscribe to Realtime sync job updates + load active jobs on mount ──
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(SYNC_STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        const restored: Record<string, InstanceSyncState> = {};
-        for (const [k, v] of Object.entries(parsed) as [string, any][]) {
-          if (v.step === 'syncing') {
-            if (activeSyncRuns.current.has(k)) {
-              // Still actively running in this tab — keep as syncing
-              restored[k] = { ...v, background: true };
-            } else {
-              // The async function died (page nav / reload) — mark complete
-              // Data already written to DB is safe; user can resync if needed
-              restored[k] = { ...v, step: 'complete' as ModalStep, background: false };
-            }
-          } else if (v.step === 'complete') {
-            restored[k] = v;
-          }
+    const businessId = localStorage.getItem('activeBusinessId');
+    if (!businessId) return;
+
+    // Load any active/recent sync jobs
+    const loadActiveJobs = async () => {
+      const { data: jobs } = await supabase
+        .from('whatsapp_sync_jobs')
+        .select('*')
+        .eq('business_id', businessId)
+        .in('status', ['pending', 'running', 'paused', 'completed', 'failed'])
+        .order('created_at', { ascending: false });
+
+      if (jobs) {
+        const states: Record<string, InstanceSyncState> = {};
+        for (const job of jobs) {
+          // Only show the most recent job per instance
+          if (states[job.instance_name]) continue;
+          const step: ModalStep = job.status === 'completed' ? 'complete'
+            : job.status === 'failed' ? 'failed'
+            : job.status === 'running' || job.status === 'pending' ? 'syncing'
+            : 'syncing';
+          states[job.instance_name] = {
+            step,
+            progress: deriveSyncProgress(job.phases, job.sync_metadata),
+            ownerProfile: { pic: null, phone: '', name: '' },
+            qrCode: null,
+            background: true,
+            jobId: job.id,
+            _phases: job.phases,
+          } as any;
         }
-        if (Object.keys(restored).length > 0) {
-          setSyncStates(restored);
-          persistSyncStates(restored);
-        }
+        setSyncStates(prev => ({ ...prev, ...states }));
       }
-    } catch {}
+    };
+    loadActiveJobs();
+
+    // Realtime subscription for sync progress
+    const channel = supabase
+      .channel('sync-jobs-realtime')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'whatsapp_sync_jobs',
+        filter: `business_id=eq.${businessId}`,
+      }, (payload: any) => {
+        const job = payload.new;
+        if (!job) return;
+        const step: ModalStep = job.status === 'completed' ? 'complete'
+          : job.status === 'failed' ? 'failed'
+          : job.status === 'running' || job.status === 'pending' ? 'syncing'
+          : 'syncing';
+
+        setSyncStates(prev => ({
+          ...prev,
+          [job.instance_name]: {
+            ...prev[job.instance_name],
+            step,
+            progress: deriveSyncProgress(job.phases, job.sync_metadata),
+            ownerProfile: prev[job.instance_name]?.ownerProfile || { pic: null, phone: '', name: '' },
+            qrCode: prev[job.instance_name]?.qrCode || null,
+            background: prev[job.instance_name]?.background ?? true,
+            jobId: job.id,
+            _phases: job.phases,
+          } as any,
+        }));
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   // ── Load instances on mount ─────────────────────────────────────────
   useEffect(() => { fetchInstances(); }, []);
-
-  // ── Warn before page reload if sync is active ─────────────────────
-  useEffect(() => {
-    const hasActiveSyncs = Object.values(syncStates).some(s => s.step === 'syncing');
-    if (!hasActiveSyncs) return;
-    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); };
-    window.addEventListener('beforeunload', handler);
-    return () => window.removeEventListener('beforeunload', handler);
-  }, [syncStates]);
 
   // ── Poll for connection while QR modal is in scanning state ────────
   // Realtime subscriptions are unreliable for this — direct polling is deterministic.
@@ -216,7 +259,6 @@ export default function WhatsAppManager() {
 
       // Open modal
       setModalInstanceName(name);
-      syncAbortRefs.current[name] = false;
       updateSyncState(name, {
         step: 'scanning',
         progress: { ...defaultProgress },
@@ -254,7 +296,6 @@ export default function WhatsAppManager() {
 
       if (qrBase64) {
         setModalInstanceName(instanceName);
-        syncAbortRefs.current[instanceName] = false;
         updateSyncState(instanceName, {
           step: 'scanning',
           progress: { ...defaultProgress },
@@ -275,7 +316,7 @@ export default function WhatsAppManager() {
     }
   };
 
-  // ── Instance connected → fetch profile + start sync ───────────────
+  // ── Instance connected → fetch profile + trigger server-side sync ──
   const handleInstanceConnected = useCallback(async (instanceName: string) => {
     updateSyncState(instanceName, { step: 'connected', qrCode: null });
 
@@ -303,590 +344,27 @@ export default function WhatsAppManager() {
       }
     } catch {}
 
-    setTimeout(() => { startSync(instanceName); }, 1500);
-  }, []);
+    // Trigger server-side sync (runs in Supabase Edge Function, independent of browser)
+    setTimeout(async () => {
+      const businessId = localStorage.getItem('activeBusinessId');
+      if (!businessId) return;
 
-  // ── Sync all data from Evolution API to Supabase ──────────────────
-  // 8-phase pipeline: Contacts → Chats+JID → Groups → Labels → Conversations → ProfilePics → Messages → NameBackfill
-  const startSync = async (instanceName: string) => {
-    // Prevent duplicate runs
-    if (activeSyncRuns.current.has(instanceName)) return;
-    activeSyncRuns.current.add(instanceName);
-
-    updateSyncState(instanceName, { step: 'syncing' });
-    const businessId = localStorage.getItem('activeBusinessId');
-    if (!businessId) { activeSyncRuns.current.delete(instanceName); return; }
-
-    const { data: instData } = await supabase
-      .from('whatsapp_instances')
-      .select('id')
-      .eq('instance_name', instanceName)
-      .single();
-    if (!instData) return;
-    const instanceId = instData.id;
-
-    // Collect LID↔phone mappings across all phases
-    const allMappings: { lid_jid: string; phone_jid: string }[] = [];
-
-    // Will hold ALL chats (individual + group) from Phase 2
-    let individualChats: any[] = [];
-    let groupChats: any[] = [];
-
-    // ═══════════════════════════════════════════════════════════════════
-    // Phase 1: Contacts
-    // ═══════════════════════════════════════════════════════════════════
-    updateProgress(instanceName, p => ({ ...p, status: 'Waiting for contact sync from WhatsApp...' }));
-    let contactsTotal = 0;
-
-    try {
-      await new Promise(r => setTimeout(r, 5000));
-
-      let contacts = await whatsappService.syncContacts(instanceName);
-      let contactCount = Array.isArray(contacts) ? contacts.filter((c: any) => {
-        const jid = c.remoteJid || c.id;
-        return jid && !jid.endsWith('@g.us') && jid !== 'status@broadcast';
-      }).length : 0;
-
-      if (contactCount < 10) {
-        updateProgress(instanceName, p => ({ ...p, status: `Got ${contactCount} contacts, waiting...` }));
-        await new Promise(r => setTimeout(r, 10000));
-        const retry = await whatsappService.syncContacts(instanceName);
-        const retryCount = Array.isArray(retry) ? retry.filter((c: any) => {
-          const jid = c.remoteJid || c.id;
-          return jid && !jid.endsWith('@g.us') && jid !== 'status@broadcast';
-        }).length : 0;
-        if (retryCount > contactCount) { contacts = retry; contactCount = retryCount; }
-      }
-
-      if (Array.isArray(contacts)) {
-        const filtered = contacts.filter((c: any) => {
-          const jid = c.remoteJid || c.id;
-          return jid && !jid.endsWith('@g.us') && jid !== 'status@broadcast';
-        });
-        contactsTotal = filtered.length;
-        updateProgress(instanceName, p => ({ ...p, contacts: { total: contactsTotal, synced: 0 }, status: `Syncing ${contactsTotal} contacts...` }));
-
-        // Extract LID↔phone mappings
-        for (const c of filtered) {
-          const jid = c.remoteJid || c.id;
-          const lid = c.lid || (jid?.includes('@lid') ? jid : null);
-          const phoneJid = (c.remoteJid?.includes('@s.whatsapp.net') ? c.remoteJid : null)
-            || (c.id?.includes('@s.whatsapp.net') ? c.id : null);
-          if (lid && phoneJid && lid !== phoneJid) {
-            allMappings.push({ lid_jid: lid, phone_jid: phoneJid });
-          }
-        }
-
-        // Batch upsert contacts (store under both JID formats)
-        const contactBatch: any[] = [];
-        for (const c of filtered) {
-          const jid = c.remoteJid || c.id;
-          const name = c.pushName || c.name || c.verifiedName || null;
-          const pic = c.profilePictureUrl || c.imgUrl || null;
-
-          contactBatch.push({ business_id: businessId, phone_number: jid, name, profile_pic: pic, instance_id: instanceId });
-
-          const lid = c.lid;
-          if (lid && jid.includes('@s.whatsapp.net')) {
-            contactBatch.push({ business_id: businessId, phone_number: lid, name, profile_pic: pic, instance_id: instanceId });
-          }
-          if (jid.includes('@lid')) {
-            const phoneFromMapping = allMappings.find(m => m.lid_jid === jid)?.phone_jid;
-            if (phoneFromMapping) {
-              contactBatch.push({ business_id: businessId, phone_number: phoneFromMapping, name, profile_pic: pic, instance_id: instanceId });
-            }
-          }
-        }
-
-        const batchSize = 25;
-        for (let i = 0; i < contactBatch.length; i += batchSize) {
-          if (syncAbortRefs.current[instanceName]) break;
-          await db.from('whatsapp_contacts').upsert(contactBatch.slice(i, i + batchSize), {
-            onConflict: 'business_id, phone_number', ignoreDuplicates: false,
-          });
-          updateProgress(instanceName, p => ({
-            ...p,
-            contacts: { total: contactsTotal, synced: Math.min(Math.floor((i + batchSize) / (contactBatch.length / contactsTotal)), contactsTotal) },
-            status: `Contacts: ${Math.min(i + batchSize, contactBatch.length)} upserted`,
-          }));
-        }
-      }
-    } catch (e) { console.error('Contact sync error:', e); }
-
-    // ═══════════════════════════════════════════════════════════════════
-    // Phase 2: Chats + JID mappings (ALL chats — individual + group)
-    // ═══════════════════════════════════════════════════════════════════
-    updateProgress(instanceName, p => ({ ...p, status: 'Fetching conversations...' }));
-    let chatsTotal = 0;
-
-    try {
-      const chatData = await whatsappService.syncChats(instanceName);
-      if (Array.isArray(chatData)) {
-        const allChats = chatData.filter((c: any) => c.remoteJid && c.remoteJid !== 'status@broadcast');
-        individualChats = allChats.filter((c: any) => !c.remoteJid.endsWith('@g.us'));
-        groupChats = allChats.filter((c: any) => c.remoteJid.endsWith('@g.us'));
-        chatsTotal = allChats.length;
-        updateProgress(instanceName, p => ({
-          ...p,
-          chats: { total: chatsTotal, synced: 0 },
-          status: `Found ${individualChats.length} individual + ${groupChats.length} group chats`,
-        }));
-
-        // Extract JID mappings from individual chats
-        const mappingBatch: any[] = [];
-        for (const chat of individualChats) {
-          if (chat.remoteJid?.includes('@lid')) {
-            const alt = chat.lastMessage?.key?.remoteJidAlt
-              || (chat.id?.includes('@s.whatsapp.net') ? chat.id : null)
-              || (chat.contact?.id?.includes('@s.whatsapp.net') ? chat.contact.id : null)
-              || (chat.participant?.includes('@s.whatsapp.net') ? chat.participant : null);
-            if (alt?.includes('@s.whatsapp.net')) {
-              allMappings.push({ lid_jid: chat.remoteJid, phone_jid: alt });
-            }
-          }
-          if (chat.remoteJid?.includes('@s.whatsapp.net') && chat.lid) {
-            allMappings.push({ lid_jid: chat.lid, phone_jid: chat.remoteJid });
-          }
-        }
-
-        // Deduplicate and store all mappings
-        const seen = new Set<string>();
-        for (const m of allMappings) {
-          if (!seen.has(m.lid_jid)) {
-            seen.add(m.lid_jid);
-            mappingBatch.push({ business_id: businessId, instance_id: instanceId, lid_jid: m.lid_jid, phone_jid: m.phone_jid });
-          }
-        }
-        if (mappingBatch.length > 0) {
-          await db.from('whatsapp_jid_mappings').upsert(mappingBatch, { onConflict: 'business_id, lid_jid' });
-        }
-        console.log(`[Sync] Stored ${mappingBatch.length} JID mappings`);
-
-        updateProgress(instanceName, p => ({ ...p, chats: { total: chatsTotal, synced: chatsTotal }, jidMappings: mappingBatch.length }));
-      }
-    } catch (e) { console.error('Chat sync error:', e); }
-
-    // ═══════════════════════════════════════════════════════════════════
-    // Phase 3: Groups (fetch all groups with participants)
-    // ═══════════════════════════════════════════════════════════════════
-    updateProgress(instanceName, p => ({ ...p, status: 'Fetching groups...' }));
-    try {
-      const groupsData = await whatsappService.fetchAllGroups(instanceName);
-      if (Array.isArray(groupsData)) {
-        updateProgress(instanceName, p => ({ ...p, status: `Syncing ${groupsData.length} groups...` }));
-
-        // Batch upsert groups
-        const groupBatch = groupsData.map((g: any) => ({
-          business_id: businessId,
-          instance_id: instanceId,
-          group_jid: g.id,
-          subject: g.subject || null,
-          description: g.desc || g.description || null,
-          owner_jid: g.owner || null,
-          profile_pic: g.profilePictureUrl || null,
-          participant_count: g.participants?.length || 0,
-          creation_ts: g.creation || null,
-          is_community: g.isCommunity || false,
-          is_announce: g.announce || false,
-          is_restrict: g.restrict || false,
-        }));
-
-        for (let i = 0; i < groupBatch.length; i += 25) {
-          if (syncAbortRefs.current[instanceName]) break;
-          await db.from('whatsapp_groups').upsert(groupBatch.slice(i, i + 25), {
-            onConflict: 'business_id, instance_id, group_jid',
-          });
-        }
-
-        // Upsert participants for each group
-        for (const g of groupsData) {
-          if (syncAbortRefs.current[instanceName]) break;
-          if (!g.participants?.length) continue;
-
-          const { data: groupRow } = await db.from('whatsapp_groups')
-            .select('id')
-            .eq('business_id', businessId)
-            .eq('instance_id', instanceId)
-            .eq('group_jid', g.id)
-            .single();
-          if (!groupRow) continue;
-
-          const participantBatch = g.participants.map((p: any) => ({
-            group_id: groupRow.id,
-            business_id: businessId,
-            participant_jid: p.id,
-            role: p.admin === 'superadmin' ? 'superadmin' : p.admin === 'admin' ? 'admin' : 'member',
-            display_name: p.pushName || null,
-          }));
-
-          // Batch upsert participants
-          for (let i = 0; i < participantBatch.length; i += 50) {
-            await db.from('whatsapp_group_participants').upsert(
-              participantBatch.slice(i, i + 50),
-              { onConflict: 'group_id, participant_jid' }
-            );
-          }
-        }
-        console.log(`[Sync] Synced ${groupBatch.length} groups with participants`);
-      }
-    } catch (e) { console.error('Group sync error:', e); }
-
-    // ═══════════════════════════════════════════════════════════════════
-    // Phase 4: Labels (WhatsApp-native labels)
-    // ═══════════════════════════════════════════════════════════════════
-    updateProgress(instanceName, p => ({ ...p, status: 'Fetching labels...' }));
-    try {
-      const labelsData = await whatsappService.findLabels(instanceName);
-      if (Array.isArray(labelsData)) {
-        for (const label of labelsData) {
-          await db.from('whatsapp_labels').upsert({
-            business_id: businessId,
-            instance_id: instanceId,
-            name: label.name,
-            color: label.color || '#00a884',
-          }, { onConflict: 'business_id, instance_id, name' });
-        }
-        console.log(`[Sync] Synced ${labelsData.length} labels`);
-      }
-    } catch (e) { console.error('Labels sync error:', e); }
-
-    // ═══════════════════════════════════════════════════════════════════
-    // Phase 5: Build whatsapp_conversations from chats data
-    // ═══════════════════════════════════════════════════════════════════
-    updateProgress(instanceName, p => ({ ...p, status: 'Building conversations...' }));
-    try {
-      // Helper to extract content preview from lastMessage
-      const extractPreview = (lastMsg: any): { content: string | null; type: string; direction: string; ts: string; status: string; msgId: string | null } => {
-        if (!lastMsg) return { content: null, type: 'conversation', direction: 'incoming', ts: new Date().toISOString(), status: 'sent', msgId: null };
-        const msg = lastMsg.message || {};
-        const msgType = lastMsg.messageType || 'conversation';
-        let content: string | null = null;
-        if (msgType === 'conversation') content = msg.conversation || null;
-        else if (msgType === 'extendedTextMessage') content = msg.extendedTextMessage?.text || null;
-        else if (msgType === 'imageMessage') content = msg.imageMessage?.caption || '[Photo]';
-        else if (msgType === 'videoMessage') content = msg.videoMessage?.caption || '[Video]';
-        else if (msgType === 'audioMessage') content = '[Voice message]';
-        else if (msgType === 'documentMessage') content = msg.documentMessage?.fileName || '[Document]';
-        else if (msgType === 'stickerMessage') content = '[Sticker]';
-
-        return {
-          content,
-          type: msgType,
-          direction: lastMsg.key?.fromMe ? 'outgoing' : 'incoming',
-          ts: lastMsg.messageTimestamp ? new Date(lastMsg.messageTimestamp * 1000).toISOString() : new Date().toISOString(),
-          status: lastMsg.status || 'sent',
-          msgId: lastMsg.key?.id || null,
-        };
-      };
-
-      // Individual conversations
-      for (const chat of individualChats) {
-        if (syncAbortRefs.current[instanceName]) break;
-        const jid = chat.remoteJid;
-        const preview = extractPreview(chat.lastMessage);
-
-        const { data: contact } = await db.from('whatsapp_contacts')
-          .select('id, name, profile_pic')
-          .eq('business_id', businessId)
-          .eq('phone_number', jid)
-          .maybeSingle();
-
-        await db.from('whatsapp_conversations').upsert({
-          business_id: businessId,
-          instance_id: instanceId,
-          jid,
-          type: 'individual',
-          display_name: contact?.name || chat.pushName || null,
-          profile_pic: contact?.profile_pic || chat.profilePicUrl || null,
-          contact_id: contact?.id || null,
-          last_message_id: preview.msgId,
-          last_message_content: preview.content,
-          last_message_type: preview.type,
-          last_message_direction: preview.direction,
-          last_message_ts: preview.ts,
-          last_message_status: preview.status,
-          unread_count: chat.unreadCount || 0,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'business_id, instance_id, jid' });
-      }
-
-      // Group conversations
-      for (const chat of groupChats) {
-        if (syncAbortRefs.current[instanceName]) break;
-        const jid = chat.remoteJid;
-        const preview = extractPreview(chat.lastMessage);
-
-        const { data: groupRow } = await db.from('whatsapp_groups')
-          .select('id, subject, profile_pic')
-          .eq('business_id', businessId)
-          .eq('instance_id', instanceId)
-          .eq('group_jid', jid)
-          .maybeSingle();
-
-        await db.from('whatsapp_conversations').upsert({
-          business_id: businessId,
-          instance_id: instanceId,
-          jid,
-          type: 'group',
-          display_name: groupRow?.subject || chat.pushName || null,
-          profile_pic: groupRow?.profile_pic || chat.profilePicUrl || null,
-          group_id: groupRow?.id || null,
-          last_message_id: preview.msgId,
-          last_message_content: preview.content,
-          last_message_type: preview.type,
-          last_message_direction: preview.direction,
-          last_message_ts: preview.ts,
-          last_message_status: preview.status,
-          unread_count: chat.unreadCount || 0,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'business_id, instance_id, jid' });
-      }
-
-      console.log(`[Sync] Built ${individualChats.length + groupChats.length} conversations`);
-    } catch (e) { console.error('Conversations sync error:', e); }
-
-    // ═══════════════════════════════════════════════════════════════════
-    // Phase 6: Profile pictures
-    // ═══════════════════════════════════════════════════════════════════
-    updateProgress(instanceName, p => ({ ...p, status: 'Fetching profile pictures...' }));
-    try {
-      let allContacts: any[] = [];
-      let contactPage = 0;
-      const pageSize = 1000;
-      while (true) {
-        const { data: page } = await db.from('whatsapp_contacts')
-          .select('phone_number, profile_pic')
-          .eq('business_id', businessId)
-          .eq('instance_id', instanceId)
-          .range(contactPage * pageSize, (contactPage + 1) * pageSize - 1);
-        if (!page || page.length === 0) break;
-        allContacts = allContacts.concat(page);
-        if (page.length < pageSize) break;
-        contactPage++;
-      }
-
-      const needPic = allContacts
-        .filter((c: any) => !c.profile_pic && !c.phone_number.endsWith('@g.us') && c.phone_number !== 'status@broadcast')
-        .map((c: any) => ({ jid: c.phone_number, number: c.phone_number.includes('@lid') ? c.phone_number : c.phone_number.split('@')[0] }));
-
-      let picsFetched = 0;
-      for (let pi = 0; pi < needPic.length; pi += 5) {
-        if (syncAbortRefs.current[instanceName]) break;
-        updateProgress(instanceName, p => ({ ...p, status: `Profile pics: ${picsFetched} found (${Math.min(pi + 5, needPic.length)}/${needPic.length})` }));
-
-        const batch = needPic.slice(pi, pi + 5);
-        const results = await Promise.allSettled(
-          batch.map(async ({ jid, number }: { jid: string; number: string }) => {
-            const res = await whatsappService.invokeClient('fetch-profile-url', { instanceName, number });
-            if (res?.profilePictureUrl) {
-              await db.from('whatsapp_contacts').update({ profile_pic: res.profilePictureUrl }).eq('business_id', businessId).eq('phone_number', jid);
-              return true;
-            }
-            return false;
-          })
-        );
-        picsFetched += results.filter(r => r.status === 'fulfilled' && r.value).length;
-      }
-    } catch (e) { console.error('Profile pic sync error:', e); }
-
-    // ═══════════════════════════════════════════════════════════════════
-    // Phase 7: Messages (individual + group)
-    // ═══════════════════════════════════════════════════════════════════
-    updateProgress(instanceName, p => ({ ...p, status: 'Syncing messages...' }));
-    const ownerPhone = (await db.from('whatsapp_instances').select('phone_number').eq('id', instanceId).single()).data?.phone_number || '';
-
-    let totalMessages = 0;
-    const allConversationChats = [...individualChats, ...groupChats];
-
-    for (let ci = 0; ci < allConversationChats.length; ci++) {
-      if (syncAbortRefs.current[instanceName]) break;
-      const chat = allConversationChats[ci];
-      const jid = chat.remoteJid;
-      const isGroup = jid.endsWith('@g.us');
-
-      updateProgress(instanceName, p => ({ ...p, status: `Messages: chat ${ci + 1}/${allConversationChats.length}` }));
-
-      // Resolve contact_id for individual chats
-      let contactId: string | null = null;
-      if (!isGroup) {
-        const { data: contactRow } = await db.from('whatsapp_contacts')
-          .select('id, name')
-          .eq('business_id', businessId)
-          .eq('phone_number', jid)
-          .maybeSingle();
-
-        if (contactRow) {
-          contactId = contactRow.id;
-        } else {
-          // Try alt JID
-          const altJid = chat.lastMessage?.key?.remoteJidAlt;
-          if (altJid?.includes('@s.whatsapp.net')) {
-            const { data: alt } = await db.from('whatsapp_contacts')
-              .select('id').eq('business_id', businessId).eq('phone_number', altJid).maybeSingle();
-            if (alt) contactId = alt.id;
-          }
-          // Create if still missing
-          if (!contactId) {
-            const chatName = (chat.pushName && chat.pushName !== ownerPhone && chat.pushName !== instanceName) ? chat.pushName : null;
-            const { data: newContact } = await db.from('whatsapp_contacts')
-              .upsert({ business_id: businessId, phone_number: jid, name: chatName, instance_id: instanceId },
-                { onConflict: 'business_id, phone_number' })
-              .select('id').single();
-            contactId = newContact?.id || null;
-          }
-        }
-
-        // For LID contacts, try to resolve phone via fetchProfile
-        if (jid.includes('@lid')) {
-          try {
-            const profile = await whatsappService.invokeClient('fetch-profile', { instanceName, number: jid });
-            const phone = profile?.wuid || profile?.numberExists || profile?.jid;
-            if (phone?.includes('@s.whatsapp.net')) {
-              await db.from('whatsapp_jid_mappings').upsert([{
-                business_id: businessId, instance_id: instanceId, lid_jid: jid, phone_jid: phone,
-              }], { onConflict: 'business_id, lid_jid' });
-            }
-          } catch { /* skip */ }
-        }
-      }
-
-      // Get conversation_id
-      const { data: convRow } = await db.from('whatsapp_conversations')
+      const { data: instData } = await supabase
+        .from('whatsapp_instances')
         .select('id')
-        .eq('business_id', businessId)
-        .eq('instance_id', instanceId)
-        .eq('jid', jid)
-        .maybeSingle();
-      const conversationId = convRow?.id || null;
+        .eq('instance_name', instanceName)
+        .single();
+      if (!instData) return;
 
-      // Fetch messages (all pages, limit per group to avoid timeout)
-      const maxPages = isGroup ? 3 : 999;
-      let page = 1;
-      let hasMore = true;
-      while (hasMore && page <= maxPages && !syncAbortRefs.current[instanceName]) {
-        try {
-          const msgData = await whatsappService.findMessages(instanceName, jid, 100, page);
-          const records = msgData?.messages?.records || msgData?.records || [];
-          const totalPages = msgData?.messages?.pages || 1;
-          if (records.length === 0) { hasMore = false; break; }
-
-          // Extract JID mappings from message keys
-          if (!isGroup && jid.includes('@lid')) {
-            for (const m of records) {
-              const alt = m.key?.remoteJidAlt || m.key?.participant;
-              if (alt?.includes('@s.whatsapp.net')) {
-                await db.from('whatsapp_jid_mappings').upsert([{
-                  business_id: businessId, instance_id: instanceId, lid_jid: jid, phone_jid: alt,
-                }], { onConflict: 'business_id, lid_jid' });
-                break;
-              }
-            }
-          }
-
-          const msgBatch = records
-            .filter((m: any) => m.messageType !== 'protocolMessage')
-            .map((m: any) => {
-              const msgType = m.messageType || 'conversation';
-              const msg = m.message || {};
-              let content: string | null = null;
-              let mediaUrl: string | null = null;
-
-              if (msgType === 'conversation') content = msg.conversation || null;
-              else if (msgType === 'extendedTextMessage') content = msg.extendedTextMessage?.text || null;
-              else if (msgType === 'imageMessage') { content = msg.imageMessage?.caption || null; mediaUrl = msg.imageMessage?.url || null; }
-              else if (msgType === 'videoMessage') { content = msg.videoMessage?.caption || null; mediaUrl = msg.videoMessage?.url || null; }
-              else if (msgType === 'audioMessage') { content = `[Audio ${msg.audioMessage?.seconds || 0}s]`; mediaUrl = msg.audioMessage?.url || null; }
-              else if (msgType === 'documentMessage') { content = msg.documentMessage?.fileName || '[Document]'; mediaUrl = msg.documentMessage?.url || null; }
-              else if (msgType === 'stickerMessage') { content = '[Sticker]'; mediaUrl = msg.stickerMessage?.url || null; }
-              else if (msgType === 'reactionMessage') {
-                const rm = msg.reactionMessage || {};
-                content = JSON.stringify({ targetMessageId: rm.key?.id || '', emoji: rm.text || '' });
-              }
-
-              return {
-                business_id: businessId,
-                instance_id: instanceId,
-                contact_id: isGroup ? null : contactId,
-                conversation_id: conversationId,
-                remote_jid: jid,
-                message_id: m.key?.id,
-                type: msgType,
-                content,
-                media_url: mediaUrl,
-                direction: m.key?.fromMe ? 'outgoing' : 'incoming',
-                status: 'sent',
-                sender_jid: isGroup ? (m.key?.participant || null) : null,
-                created_at: m.messageTimestamp ? new Date(m.messageTimestamp * 1000).toISOString() : new Date().toISOString(),
-                raw_key: m.key ? { id: m.key.id, fromMe: m.key.fromMe, remoteJid: m.key.remoteJid } : null,
-              };
-            })
-            .filter((m: any) => m.message_id);
-
-          if (msgBatch.length > 0) {
-            await db.from('whatsapp_messages').upsert(msgBatch, { onConflict: 'message_id', ignoreDuplicates: true });
-            totalMessages += msgBatch.length;
-            updateProgress(instanceName, p => ({ ...p, messages: totalMessages, status: `Messages: ${totalMessages} synced (chat ${ci + 1}/${allConversationChats.length})` }));
-          }
-
-          hasMore = page < totalPages;
-          page++;
-        } catch (e) {
-          console.error(`Message sync error for ${jid} page ${page}:`, e);
-          hasMore = false;
-        }
+      try {
+        await whatsappService.startSync(instData.id, instanceName, businessId);
+        updateSyncState(instanceName, { step: 'syncing' });
+      } catch (e: any) {
+        console.error('Failed to start sync:', e);
+        toast({ title: 'Sync Error', description: e.message, variant: 'destructive' });
       }
-    }
-
-    // ═══════════════════════════════════════════════════════════════════
-    // Phase 8: Name backfill for LID contacts
-    // ═══════════════════════════════════════════════════════════════════
-    try {
-      updateProgress(instanceName, p => ({ ...p, status: 'Backfilling contact names...' }));
-      const { data: namelessLid } = await db.from('whatsapp_contacts')
-        .select('id, phone_number')
-        .eq('business_id', businessId)
-        .eq('instance_id', instanceId)
-        .is('name', null)
-        .like('phone_number', '%@lid');
-
-      if (namelessLid?.length) {
-        const { data: namedPhone } = await db.from('whatsapp_contacts')
-          .select('phone_number, name, profile_pic')
-          .eq('business_id', businessId)
-          .not('name', 'is', null)
-          .like('phone_number', '%@s.whatsapp.net');
-
-        const { data: mappings } = await db.from('whatsapp_jid_mappings')
-          .select('lid_jid, phone_jid')
-          .eq('business_id', businessId);
-
-        const lidToPhone: Record<string, string> = {};
-        if (mappings) for (const m of mappings) lidToPhone[m.lid_jid] = m.phone_jid;
-
-        if (namedPhone) {
-          const phoneNameMap: Record<string, { name: string; pic: string | null }> = {};
-          for (const c of namedPhone) phoneNameMap[c.phone_number] = { name: c.name, pic: c.profile_pic };
-
-          for (const lid of namelessLid) {
-            const phoneJid = lidToPhone[lid.phone_number];
-            if (phoneJid && phoneNameMap[phoneJid]) {
-              const info = phoneNameMap[phoneJid];
-              await db.from('whatsapp_contacts')
-                .update({ name: info.name, ...(info.pic ? { profile_pic: info.pic } : {}) })
-                .eq('id', lid.id);
-            }
-          }
-        }
-      }
-    } catch (e) { console.error('Name backfill error:', e); }
-
-    // ── Done ─────────────────────────────────────────────────────────
-    activeSyncRuns.current.delete(instanceName);
-    updateProgress(instanceName, p => ({ ...p, status: 'Complete' }));
-    updateSyncState(instanceName, { step: 'complete', background: false });
-    fetchInstances();
-  };
-
+    }, 1500);
+  }, []);
   // ── Delete instance ───────────────────────────────────────────────
   const handleDeleteInstance = async (id: string, instanceName: string) => {
     try {
@@ -923,10 +401,17 @@ export default function WhatsAppManager() {
         ]);
       }
 
-      // Delete instance row (cascades: messages)
+      // Cancel any active sync job for this instance
+      const { data: activeJob } = await supabase.from('whatsapp_sync_jobs')
+        .select('id').eq('instance_id', id).in('status', ['pending', 'running', 'paused']).maybeSingle();
+      if (activeJob) {
+        await whatsappService.cancelSync(activeJob.id);
+      }
+
+      // Delete instance row (cascades: sync_jobs via FK)
       await supabase.from('whatsapp_instances').delete().eq('id', id);
       // Clear sync state for this instance
-      setSyncStates(prev => { const next = { ...prev }; delete next[instanceName]; persistSyncStates(next); return next; });
+      setSyncStates(prev => { const next = { ...prev }; delete next[instanceName]; return next; });
       toast({ title: "Deleted", description: "Instance and all data removed." });
       fetchInstances();
     } catch (err: any) {
@@ -937,12 +422,7 @@ export default function WhatsAppManager() {
   };
 
   // ── Close modal ───────────────────────────────────────────────────
-  const handleCloseModal = (abort = true) => {
-    const name = modalInstanceName;
-    if (abort) {
-      syncAbortRefs.current[name] = true;
-      updateSyncState(name, { step: 'scanning', background: false, qrCode: null });
-    }
+  const handleCloseModal = (abort = false) => {
     setModalOpen(false);
   };
 
@@ -1196,9 +676,17 @@ export default function WhatsAppManager() {
           )}
 
           {/* ── Step 3: Syncing ────────────────────────────────────────── */}
-          {modalStep === 'syncing' && (
+          {modalStep === 'syncing' && (() => {
+            // Extract phase data from the sync job for detailed display
+            const jobState = syncStates[modalInstanceName];
+            const phases = (jobState as any)?._phases || [];
+            const phaseLabels = ['Contacts', 'Chats & JID', 'Groups', 'Labels', 'Conversations', 'Profile Pics', 'Messages', 'Name Backfill'];
+            const completedCount = phases.filter((p: any) => p?.status === 'completed').length;
+            const overallPct = phases.length > 0 ? Math.round((completedCount / phases.length) * 100) : 0;
+
+            return (
             <div className="p-8 animate-in fade-in duration-300">
-              <div className="flex items-center gap-4 mb-8">
+              <div className="flex items-center gap-4 mb-6">
                 {ownerProfile.pic ? (
                   <img src={ownerProfile.pic} alt="" className="w-14 h-14 rounded-full object-cover border-2 border-emerald-100" />
                 ) : (
@@ -1215,36 +703,42 @@ export default function WhatsAppManager() {
                 </div>
               </div>
 
-              <div className="space-y-5">
-                <ProgressBar
-                  value={syncProgress.contacts.synced}
-                  max={syncProgress.contacts.total}
-                  label="Contacts"
-                />
-                <ProgressBar
-                  value={syncProgress.chats.synced}
-                  max={syncProgress.chats.total}
-                  label="Conversations"
-                />
-                {syncProgress.messages > 0 && (
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-600 font-medium">Messages</span>
-                    <span className="text-emerald-600 font-medium tabular-nums">{syncProgress.messages} synced</span>
-                  </div>
-                )}
+              {/* Phase checklist */}
+              <div className="space-y-2 mb-5">
+                {phaseLabels.map((label, i) => {
+                  const phase = phases[i];
+                  const status = phase?.status || 'pending';
+                  const detail = phase?.progress?.detail || '';
+                  return (
+                    <div key={i} className="flex items-center gap-3 text-xs">
+                      {status === 'completed' ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                      ) : status === 'running' ? (
+                        <Loader2 className="w-4 h-4 text-emerald-500 animate-spin shrink-0" />
+                      ) : (
+                        <div className="w-4 h-4 rounded-full border border-gray-200 shrink-0" />
+                      )}
+                      <span className={cn("font-medium", status === 'completed' ? 'text-gray-500' : status === 'running' ? 'text-gray-900' : 'text-gray-400')}>
+                        {label}
+                      </span>
+                      {status !== 'pending' && detail && (
+                        <span className="text-gray-400 ml-auto tabular-nums truncate max-w-[140px]">{detail}</span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
-              {/* Overall progress */}
-              <div className="mt-6 pt-4 border-t border-gray-100">
-                <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+              {/* Overall progress bar */}
+              <div className="pt-3 border-t border-gray-100">
+                <div className="flex justify-between text-[10px] text-gray-400 mb-1.5">
+                  <span>{completedCount}/{phases.length || 8} phases</span>
+                  <span>{overallPct}%</span>
+                </div>
+                <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-teal-400 rounded-full transition-all duration-700 ease-out"
-                    style={{
-                      width: `${Math.round(
-                        ((syncProgress.contacts.synced + syncProgress.chats.synced) /
-                        Math.max(syncProgress.contacts.total + syncProgress.chats.total, 1)) * 100
-                      )}%`,
-                    }}
+                    style={{ width: `${overallPct}%` }}
                   />
                 </div>
               </div>
@@ -1257,7 +751,8 @@ export default function WhatsAppManager() {
                 Continue in background
               </Button>
             </div>
-          )}
+            );
+          })()}
 
           {/* ── Step 4: Complete ───────────────────────────────────────── */}
           {modalStep === 'complete' && (
@@ -1305,6 +800,49 @@ export default function WhatsAppManager() {
               >
                 Open Inbox
                 <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </div>
+          )}
+
+          {/* ── Step 5: Failed ────────────────────────────────────────── */}
+          {modalStep === 'failed' && (
+            <div className="p-10 flex flex-col items-center justify-center animate-in fade-in zoom-in-95 duration-500">
+              <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mb-4 border-4 border-red-100">
+                <Trash2 className="w-8 h-8 text-red-500" />
+              </div>
+              <h3 className="text-xl font-medium text-gray-900 mb-1">Sync Failed</h3>
+              <p className="text-sm text-gray-500 font-light mb-2 text-center">{syncProgress.status}</p>
+
+              {/* Partial stats */}
+              <div className="grid grid-cols-3 gap-4 w-full mb-6">
+                <div className="bg-gray-50 rounded-2xl p-3 text-center">
+                  <Users className="w-4 h-4 text-gray-400 mx-auto mb-1" />
+                  <p className="text-lg font-semibold text-gray-900">{syncProgress.contacts.synced}</p>
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wider">Contacts</p>
+                </div>
+                <div className="bg-gray-50 rounded-2xl p-3 text-center">
+                  <MessageCircle className="w-4 h-4 text-gray-400 mx-auto mb-1" />
+                  <p className="text-lg font-semibold text-gray-900">{syncProgress.chats.synced}</p>
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wider">Chats</p>
+                </div>
+                <div className="bg-gray-50 rounded-2xl p-3 text-center">
+                  <Database className="w-4 h-4 text-gray-400 mx-auto mb-1" />
+                  <p className="text-lg font-semibold text-gray-900">{syncProgress.messages}</p>
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wider">Messages</p>
+                </div>
+              </div>
+
+              <Button
+                onClick={async () => {
+                  const jobId = currentSync.jobId;
+                  if (jobId) {
+                    await whatsappService.retrySync(jobId);
+                    updateSyncState(modalInstanceName, { step: 'syncing' });
+                  }
+                }}
+                className="w-full rounded-2xl h-12 bg-primary hover:bg-primary/90 text-white font-medium shadow-sm"
+              >
+                Retry Sync
               </Button>
             </div>
           )}

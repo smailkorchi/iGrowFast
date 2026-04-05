@@ -1,3 +1,4 @@
+// @ts-nocheck
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const EVOLUTION_API_URL = "http://76.13.155.93:8083";

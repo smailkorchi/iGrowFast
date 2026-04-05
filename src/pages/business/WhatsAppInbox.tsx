@@ -11,7 +11,7 @@ import {
   Star, StarOff, BellOff, Bell, Trash2, Ban, Heart, Pin, PinOff,
   Archive, Tag, MessageSquarePlus, Users, Image as ImageIcon, FileText,
   Camera, Headphones, UserPlus, BarChart3, Calendar, Sticker, ChevronDown,
-  Copy, Forward, Info, CheckSquare, Clock, Lock, List, Edit3, Smartphone,
+  Copy, Forward, Info, CheckSquare, Clock, Lock, List, Edit3, Smartphone, ArrowDown,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import data from '@emoji-mart/data';
@@ -22,6 +22,7 @@ import Picker from '@emoji-mart/react';
 interface EvolutionChat {
   id: string;
   remoteJid: string;
+  dbConvId?: string | null;
   pushName: string;
   profilePicUrl: string | null;
   updatedAt: string;
@@ -256,8 +257,11 @@ function Avatar({ name, size = 49, jid, picUrl, instanceName }: {
     // Already cached
     if (_avatarCache.has(cacheKey)) { setPic(_avatarCache.get(cacheKey)!); return; }
 
-    // No pic URL available — nothing to proxy
-    if (!picUrl || !instanceName) { _avatarCache.set(cacheKey, null); return; }
+    // No pic URL available — keep existing cache if we have one, don't overwrite with null
+    if (!picUrl || !instanceName) {
+      if (!_avatarCache.has(cacheKey)) _avatarCache.set(cacheKey, null);
+      return;
+    }
 
     let cancelled = false;
     const doFetch = async () => {
@@ -1780,6 +1784,7 @@ export default function WhatsAppInbox() {
   useEffect(() => { selectedChatRef.current = selectedChat; }, [selectedChat]);
   const [replyText, setReplyText] = useState('');
   const [instanceName, setInstanceName] = useState<string | null>(null);
+  const [instanceId, setInstanceId] = useState<string | null>(null);
   const [instanceProfile, setInstanceProfile] = useState<{ profilePicUrl?: string; ownerJid?: string }>({});
   const [businessId, setBusinessId] = useState<string | null>(null);
   const [availableInstances, setAvailableInstances] = useState<{ instance_name: string; phone_number: string | null; profile_pic: string | null; avatarBase64?: string | null }[]>([]);
@@ -1812,6 +1817,8 @@ export default function WhatsAppInbox() {
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(true);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [newMsgCount, setNewMsgCount] = useState(0);
   const nextPageRef = useRef(2); // page 1 is initial load, start from 2
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [fileInputType, setFileInputType] = useState('');
@@ -1931,6 +1938,7 @@ export default function WhatsAppInbox() {
         .eq('instance_name', instanceName)
         .single();
       if (!instData) { setLoadingChats(false); return; }
+      setInstanceId(instData.id);
 
       // Load JID mappings for display resolution
       const jidRes = await db.from('whatsapp_jid_mappings').select('lid_jid, phone_jid').eq('instance_id', instData.id);
@@ -1967,6 +1975,7 @@ export default function WhatsAppInbox() {
         return {
           id: jid,
           remoteJid: jid,
+          dbConvId: c.id,
           pushName: displayName,
           profilePicUrl: c.profile_pic || null,
           updatedAt: c.last_message_ts || c.created_at,
@@ -2006,12 +2015,17 @@ export default function WhatsAppInbox() {
   useEffect(() => {
     if (!instanceName) return;
     fetchChats();
-    // Get instance ID for filtering realtime events
-    let currentInstanceId: string | null = null;
-    supabase.from('whatsapp_instances').select('id').eq('instance_name', instanceName).single()
-      .then(({ data }) => { if (data) currentInstanceId = data.id; });
 
-    const channel = supabase.channel(`whatsapp_inbox_rt_${instanceName}`)
+    let channel: any = null;
+    let currentInstanceId: string | null = null;
+
+    // Resolve instance ID BEFORE setting up realtime (eliminates race condition)
+    (async () => {
+      const { data: instData } = await supabase.from('whatsapp_instances')
+        .select('id').eq('instance_name', instanceName).single();
+      currentInstanceId = instData?.id || null;
+
+    channel = supabase.channel(`whatsapp_inbox_rt_${instanceName}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_messages' }, (payload) => {
         // Optimistically update chat list preview + order from the realtime payload
         if (payload.new) {
@@ -2019,12 +2033,17 @@ export default function WhatsAppInbox() {
           // Skip messages from other instances
           if (currentInstanceId && nm.instance_id !== currentInstanceId) return;
           const jid = nm.remote_jid;
+          const convId = nm.conversation_id;
           const map = lidToPhoneRef.current;
-          // Find which chat this belongs to (could be phone or LID jid)
-          const matchJid = jid; // direct match
-          const altJid = Object.keys(map).find(k => map[k] === jid) || map[jid]; // LID↔phone
+          // Match by conversation UUID first, then JID, then cross-JID
           setChats(prev => {
-            const idx = prev.findIndex(c => c.remoteJid === matchJid || c.remoteJid === altJid);
+            let idx = -1;
+            if (convId) idx = prev.findIndex(c => c.dbConvId === convId);
+            if (idx === -1) idx = prev.findIndex(c => c.remoteJid === jid);
+            if (idx === -1) {
+              const altJid = Object.keys(map).find(k => map[k] === jid) || map[jid];
+              if (altJid) idx = prev.findIndex(c => c.remoteJid === altJid);
+            }
             if (idx === -1) { fetchChats(); return prev; } // unknown chat, full refresh
             const updated = [...prev];
             const chat = { ...updated[idx] };
@@ -2036,7 +2055,8 @@ export default function WhatsAppInbox() {
               messageTimestamp: Math.floor(new Date(nm.created_at).getTime() / 1000),
               status: nm.status || 'sent',
             };
-            if (nm.direction === 'incoming') chat.unreadCount = (chat.unreadCount || 0) + 1;
+            // Don't increment unread here — the conversation UPDATE event from the webhook
+            // carries the authoritative unread_count from the DB (single source of truth)
             // Move to top
             updated.splice(idx, 1);
             updated.unshift(chat);
@@ -2049,11 +2069,20 @@ export default function WhatsAppInbox() {
         const current = selectedChatRef.current;
         if (current && payload.new) {
           const newMsg = payload.new as any;
-          // Check if message belongs to current chat (handle LID↔phone both ways)
-          const map = lidToPhoneRef.current;
-          const phoneJid = map[current.remoteJid];
-          const lidJid = Object.keys(map).find(k => map[k] === current.remoteJid);
-          if (newMsg.remote_jid === current.remoteJid || newMsg.remote_jid === phoneJid || newMsg.remote_jid === lidJid) {
+          // Match by conversation UUID first, then JID, then cross-JID
+          let matchesCurrent = false;
+          if (current.dbConvId && newMsg.conversation_id) {
+            matchesCurrent = newMsg.conversation_id === current.dbConvId;
+          }
+          if (!matchesCurrent) {
+            matchesCurrent = newMsg.remote_jid === current.remoteJid;
+          }
+          if (!matchesCurrent) {
+            const map = lidToPhoneRef.current;
+            const altJid = map[current.remoteJid] || Object.keys(map).find(k => map[k] === current.remoteJid);
+            if (altJid) matchesCurrent = newMsg.remote_jid === altJid;
+          }
+          if (matchesCurrent) {
             // Handle reaction messages: update reactionsMap, don't add as visible message
             if (newMsg.type === 'reactionMessage' && newMsg.content) {
               try {
@@ -2075,27 +2104,60 @@ export default function WhatsAppInbox() {
               return; // Don't add reaction as a visible message
             }
             // Convert Supabase row to EvolutionMessage-like shape for display
+            const msgType = newMsg.type || 'conversation';
+            let msgBody: Record<string, any>;
+            if (msgType === 'audioMessage') {
+              msgBody = { audioMessage: { seconds: parseInt(newMsg.content?.match(/\d+/)?.[0] || '0'), url: newMsg.media_url } };
+            } else if (msgType === 'imageMessage') {
+              msgBody = { imageMessage: { caption: newMsg.content, url: newMsg.media_url } };
+            } else if (msgType === 'videoMessage') {
+              msgBody = { videoMessage: { caption: newMsg.content, url: newMsg.media_url, seconds: 0 } };
+            } else if (msgType === 'documentMessage') {
+              msgBody = { documentMessage: { fileName: newMsg.content, url: newMsg.media_url } };
+            } else if (msgType === 'stickerMessage') {
+              msgBody = { stickerMessage: { url: newMsg.media_url } };
+            } else if (msgType === 'extendedTextMessage') {
+              msgBody = { extendedTextMessage: { text: newMsg.content } };
+            } else {
+              msgBody = { conversation: newMsg.content };
+            }
             const evoMsg: EvolutionMessage = {
               id: newMsg.id,
               key: { id: newMsg.message_id, fromMe: newMsg.direction === 'outgoing', remoteJid: newMsg.remote_jid },
               pushName: newMsg.direction === 'outgoing' ? 'You' : (current.pushName || ''),
-              messageType: newMsg.type || 'conversation',
-              message: { conversation: newMsg.content },
+              messageType: msgType,
+              message: msgBody,
               messageTimestamp: Math.floor(new Date(newMsg.created_at).getTime() / 1000),
               source: 'webhook',
               MessageUpdate: [{ status: newMsg.status === 'read' ? 'READ' : newMsg.status === 'delivered' ? 'DELIVERY_ACK' : 'SERVER_ACK' }],
+              senderJid: newMsg.sender_jid || null,
             };
             setMessages(prev => {
-              // Skip if already exists (optimistic or duplicate)
-              if (prev.some(m => m.key.id === evoMsg.key.id)) return prev;
-              // Remove optimistic messages that match (sent around same time, same direction)
+              const existingIdx = prev.findIndex(m => m.key.id === evoMsg.key.id);
+              if (existingIdx >= 0) {
+                // Replace if existing is optimistic (source: 'web') — webhook has full media data
+                if (prev[existingIdx].source === 'web') {
+                  const updated = [...prev];
+                  updated[existingIdx] = evoMsg;
+                  return updated;
+                }
+                return prev; // true duplicate from webhook, skip
+              }
+              // Remove stale optimistic messages (timestamp-based fallback)
               const cleaned = prev.filter(m => {
                 if (!m.id.startsWith('opt-')) return true;
                 return Math.abs(m.messageTimestamp - evoMsg.messageTimestamp) > 10;
               });
               return [...cleaned, evoMsg];
             });
-            scrollToBottom();
+            // Auto-scroll only if user is at bottom; otherwise show "new messages" badge
+            const el = chatScrollRef.current;
+            const atBottom = el ? (el.scrollHeight - el.scrollTop - el.clientHeight < 150) : true;
+            if (atBottom || evoMsg.key.fromMe) {
+              scrollToBottom();
+            } else {
+              setNewMsgCount(c => c + 1);
+            }
           }
         }
       })
@@ -2123,33 +2185,63 @@ export default function WhatsAppInbox() {
         if (payload.new) {
           const conv = payload.new as any;
           if (currentInstanceId && conv.instance_id !== currentInstanceId) return;
-          // Update the chat list entry from the conversation record
+
+          // Resolve display name
+          const map = lidToPhoneRef.current;
+          let displayName = conv.display_name || '';
+          if (!displayName) {
+            if (conv.jid.includes('@s.whatsapp.net')) displayName = '+' + conv.jid.split('@')[0];
+            else if (conv.jid.includes('@lid')) {
+              const phoneJid = map[conv.jid] || conv.phone_jid;
+              displayName = phoneJid ? '+' + phoneJid.split('@')[0] : '#' + conv.jid.split('@')[0];
+            } else displayName = conv.jid.split('@')[0];
+          }
+
+          const ts = conv.last_message_ts ? Math.floor(new Date(conv.last_message_ts).getTime() / 1000) : 0;
+          const chatEntry: EvolutionChat = {
+            id: conv.jid,
+            remoteJid: conv.jid,
+            dbConvId: conv.id, // critical: include UUID for reliable matching
+            pushName: displayName,
+            profilePicUrl: conv.profile_pic || null,
+            updatedAt: conv.last_message_ts || conv.updated_at,
+            type: conv.type || 'individual',
+            groupId: conv.group_id || null,
+            lastMessage: conv.last_message_id ? {
+              key: { id: conv.last_message_id, fromMe: conv.last_message_direction === 'outgoing' },
+              pushName: conv.last_message_direction === 'outgoing' ? 'You' : displayName,
+              messageType: conv.last_message_type || 'conversation',
+              message: { conversation: conv.last_message_content },
+              messageTimestamp: ts,
+              status: conv.last_message_status || 'sent',
+            } : null,
+            unreadCount: conv.unread_count || 0,
+          } as any;
+
           setChats(prev => {
-            const idx = prev.findIndex(c => c.remoteJid === conv.jid);
-            const displayName = conv.display_name || conv.jid.split('@')[0];
-            const ts = conv.last_message_ts ? Math.floor(new Date(conv.last_message_ts).getTime() / 1000) : 0;
-            const chatEntry: EvolutionChat = {
-              id: conv.jid,
-              remoteJid: conv.jid,
-              pushName: displayName,
-              profilePicUrl: conv.profile_pic || null,
-              updatedAt: conv.last_message_ts || conv.updated_at,
-              type: conv.type || 'individual',
-              groupId: conv.group_id || null,
-              lastMessage: conv.last_message_id ? {
-                key: { id: conv.last_message_id, fromMe: conv.last_message_direction === 'outgoing' },
-                pushName: conv.last_message_direction === 'outgoing' ? 'You' : displayName,
-                messageType: conv.last_message_type || 'conversation',
-                message: { conversation: conv.last_message_content },
-                messageTimestamp: ts,
-                status: conv.last_message_status || 'sent',
-              } : null,
-              unreadCount: conv.unread_count || 0,
-            };
+            // Match by conversation UUID first, then by JID, then by phone/lid cross-ref
+            let idx = prev.findIndex(c => c.dbConvId === conv.id);
+            if (idx === -1) idx = prev.findIndex(c => c.remoteJid === conv.jid);
+            if (idx === -1 && conv.phone_jid) idx = prev.findIndex(c => c.remoteJid === conv.phone_jid);
+            if (idx === -1 && conv.lid_jid) idx = prev.findIndex(c => c.remoteJid === conv.lid_jid);
+
             if (idx >= 0) {
               const updated = [...prev];
+              // Preserve existing profile pic if the update doesn't have one
+              if (!chatEntry.profilePicUrl && updated[idx].profilePicUrl) {
+                chatEntry.profilePicUrl = updated[idx].profilePicUrl;
+              }
+              // If this is the currently open chat, force unread to 0
+              const isCurrentChat = selectedChatRef.current?.dbConvId === conv.id
+                || selectedChatRef.current?.remoteJid === conv.jid;
+              if (isCurrentChat) {
+                chatEntry.unreadCount = 0;
+                // Reset in DB too (fire-and-forget)
+                if (conv.unread_count > 0) {
+                  db.from('whatsapp_conversations').update({ unread_count: 0 }).eq('id', conv.id).then(() => {});
+                }
+              }
               updated[idx] = { ...updated[idx], ...chatEntry };
-              // Move to top if new message
               if (conv.last_message_ts) {
                 const [item] = updated.splice(idx, 1);
                 updated.unshift(item);
@@ -2162,34 +2254,38 @@ export default function WhatsAppInbox() {
         }
       })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    })(); // end async IIFE
+
+    return () => { if (channel) supabase.removeChannel(channel); };
   }, [instanceName]);
 
   // ── Fetch messages (from Supabase) ──────────────────────────────────────
-  const fetchMessages = useCallback(async (remoteJid: string) => {
+  const fetchMessages = useCallback(async (remoteJid: string, convId?: string) => {
     if (!instanceName || !businessId) return;
     setLoadingMessages(true);
     try {
-      // Build list of JIDs to query (both LID and phone if linked)
-      const jids = [remoteJid];
-      if (remoteJid.includes('@lid') && lidToPhoneMap[remoteJid]) {
-        jids.push(lidToPhoneMap[remoteJid]);
-      } else if (remoteJid.includes('@s.whatsapp.net')) {
-        const lidJid = Object.keys(lidToPhoneMap).find(k => lidToPhoneMap[k] === remoteJid);
-        if (lidJid) jids.push(lidJid);
-      }
-
       // Get instance ID for scoping
       const { data: instData } = await supabase.from('whatsapp_instances')
         .select('id').eq('instance_name', instanceName).single();
       if (!instData) { setLoadingMessages(false); return; }
 
+      // Prefer conversation_id for query (eliminates JID format issues)
+      let query = db.from('whatsapp_messages').select('*').eq('instance_id', instData.id);
+      if (convId) {
+        query = query.eq('conversation_id', convId);
+      } else {
+        // Fallback: build list of JIDs to query (both LID and phone if linked)
+        const jids = [remoteJid];
+        if (remoteJid.includes('@lid') && lidToPhoneMap[remoteJid]) jids.push(lidToPhoneMap[remoteJid]);
+        else if (remoteJid.includes('@s.whatsapp.net')) {
+          const lidJid = Object.keys(lidToPhoneMap).find(k => lidToPhoneMap[k] === remoteJid);
+          if (lidJid) jids.push(lidJid);
+        }
+        query = query.in('remote_jid', jids);
+      }
+
       // Fetch messages scoped to THIS instance
-      const { data: msgRows } = await db
-        .from('whatsapp_messages')
-        .select('*')
-        .eq('instance_id', instData.id)
-        .in('remote_jid', jids)
+      const { data: msgRows } = await query
         .neq('type', 'protocolMessage')
         .order('created_at', { ascending: false })
         .limit(50);
@@ -2213,16 +2309,62 @@ export default function WhatsAppInbox() {
       }
       setReactionsMap(newReactions);
 
+      // Build sender name lookup for group messages
+      const senderJids = [...new Set(regularRows.filter((r: any) => r.sender_jid).map((r: any) => r.sender_jid))];
+      const senderNameMap: Record<string, string> = {};
+      if (senderJids.length > 0) {
+        // Look up contacts by phone_number (sender_jid can be LID or phone format)
+        const { data: senderContacts } = await db.from('whatsapp_contacts')
+          .select('phone_number, name')
+          .eq('business_id', businessId)
+          .in('phone_number', senderJids);
+        if (senderContacts) {
+          for (const c of senderContacts) {
+            if (c.name) senderNameMap[c.phone_number] = c.name;
+          }
+        }
+        // Also check group_participants for display_name
+        if (convId) {
+          const { data: convRow } = await db.from('whatsapp_conversations')
+            .select('group_id').eq('id', convId).maybeSingle();
+          if (convRow?.group_id) {
+            const { data: participants } = await db.from('whatsapp_group_participants')
+              .select('participant_jid, display_name')
+              .eq('group_id', convRow.group_id)
+              .in('participant_jid', senderJids);
+            if (participants) {
+              for (const p of participants) {
+                if (p.display_name && !senderNameMap[p.participant_jid]) {
+                  senderNameMap[p.participant_jid] = p.display_name;
+                }
+              }
+            }
+          }
+        }
+        // Cross-resolve via JID mappings (sender might be LID but contact stored with phone)
+        const unmapped = senderJids.filter(j => !senderNameMap[j]);
+        if (unmapped.length > 0) {
+          const map = lidToPhoneMap;
+          for (const jid of unmapped) {
+            const alt = map[jid] || Object.keys(map).find(k => map[k] === jid);
+            if (alt && senderNameMap[alt]) senderNameMap[jid] = senderNameMap[alt];
+          }
+        }
+      }
+
       // Convert DB rows to EvolutionMessage format (sorted ascending)
       const records: EvolutionMessage[] = regularRows
         .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
         .map((row: any) => {
           const ts = Math.floor(new Date(row.created_at).getTime() / 1000);
           const rawKey = row.raw_key || { id: row.message_id, fromMe: row.direction === 'outgoing', remoteJid: row.remote_jid };
+          const resolvedSenderName = row.sender_jid
+            ? (senderNameMap[row.sender_jid] || (row.sender_jid.includes('@') ? '+' + row.sender_jid.split('@')[0] : row.sender_jid))
+            : null;
           return {
             id: row.id,
             key: { id: row.message_id, fromMe: row.direction === 'outgoing', remoteJid: row.remote_jid },
-            pushName: row.direction === 'outgoing' ? 'You' : '',
+            pushName: row.direction === 'outgoing' ? 'You' : (resolvedSenderName || ''),
             messageType: row.type || 'conversation',
             message: row.type === 'audioMessage' ? { audioMessage: { seconds: parseInt(row.content?.match(/\d+/)?.[0] || '0'), url: row.media_url } }
               : row.type === 'imageMessage' ? { imageMessage: { caption: row.content, url: row.media_url } }
@@ -2235,8 +2377,8 @@ export default function WhatsAppInbox() {
             source: 'database',
             MessageUpdate: [{ status: row.status === 'read' ? 'READ' : row.status === 'delivered' ? 'DELIVERY_ACK' : 'SERVER_ACK' }],
             senderJid: row.sender_jid || null,
-            senderName: row.sender_jid ? (row.sender_jid.includes('@') ? '+' + row.sender_jid.split('@')[0] : row.sender_jid) : null,
-            _rawKey: rawKey, // Preserved for media retrieval
+            senderName: resolvedSenderName,
+            _rawKey: rawKey,
           } as EvolutionMessage & { _rawKey?: any };
         });
 
@@ -2281,11 +2423,14 @@ export default function WhatsAppInbox() {
       if (!instData) { setLoadingOlder(false); return; }
 
       const offset = nextPageRef.current;
-      const { data: olderRows } = await db
-        .from('whatsapp_messages')
-        .select('*')
-        .eq('instance_id', instData.id)
-        .in('remote_jid', jids)
+      const convId = chat.dbConvId;
+      let olderQuery = db.from('whatsapp_messages').select('*').eq('instance_id', instData.id);
+      if (convId) {
+        olderQuery = olderQuery.eq('conversation_id', convId);
+      } else {
+        olderQuery = olderQuery.in('remote_jid', jids);
+      }
+      const { data: olderRows } = await olderQuery
         .neq('type', 'protocolMessage')
         .neq('type', 'reactionMessage')
         .order('created_at', { ascending: false })
@@ -2304,7 +2449,7 @@ export default function WhatsAppInbox() {
         const { data: reactionRows } = await db
           .from('whatsapp_messages')
           .select('content')
-          .eq('business_id', businessId)
+          .eq('instance_id', instData.id)
           .in('remote_jid', jids)
           .eq('type', 'reactionMessage');
 
@@ -2397,13 +2542,18 @@ export default function WhatsAppInbox() {
     setPinnedMessage(null);
     setShowMessageSearch(false);
     setHasMoreMessages(true);
+    setNewMsgCount(0);
+    setIsAtBottom(true);
     nextPageRef.current = 50;
-    fetchMessages(chat.remoteJid).then(() => scrollToBottom(true));
+    fetchMessages(chat.remoteJid, chat.dbConvId).then(() => scrollToBottom(true));
     setContextMenu(null);
     setSidePanel('none');
 
-    // Mark chat as read — clear unread badge locally + persist read timestamp
+    // Mark chat as read — clear unread badge locally + persist read timestamp + reset DB count
     setChats(prev => prev.map(c => c.remoteJid === chat.remoteJid ? { ...c, unreadCount: 0 } : c));
+    if (chat.dbConvId) {
+      db.from('whatsapp_conversations').update({ unread_count: 0 }).eq('id', chat.dbConvId).then(() => {});
+    }
     const nowTs = Math.floor(Date.now() / 1000);
     setChatSettings(prev => ({
       ...prev,
@@ -2411,8 +2561,8 @@ export default function WhatsAppInbox() {
     }));
     if (businessId) {
       db.from('whatsapp_chat_settings').upsert(
-        { business_id: businessId, remote_jid: chat.remoteJid, last_read_at: nowTs },
-        { onConflict: 'business_id, remote_jid' }
+        { business_id: businessId, instance_id: instanceId, remote_jid: chat.remoteJid, last_read_at: nowTs },
+        { onConflict: 'business_id, instance_id, remote_jid' }
       ).then(() => {});
     }
     // Also send read receipt to WhatsApp (best-effort, doesn't affect our unread tracking)
@@ -2433,6 +2583,15 @@ export default function WhatsAppInbox() {
     }
   };
 
+  // Track scroll position — "at bottom" = within 150px of the end
+  const handleChatScroll = useCallback(() => {
+    const el = chatScrollRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+    setIsAtBottom(atBottom);
+    if (atBottom) setNewMsgCount(0);
+  }, []);
+
   // Scroll to bottom
   const scrollToBottom = useCallback((instant = false) => {
     const el = chatScrollRef.current;
@@ -2442,6 +2601,8 @@ export default function WhatsAppInbox() {
     } else {
       el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
     }
+    setNewMsgCount(0);
+    setIsAtBottom(true);
   }, []);
 
   // ── Send text ──────────────────────────────────────────────────────────
@@ -2451,45 +2612,183 @@ export default function WhatsAppInbox() {
   const handleSendVoiceNote = async (blob: Blob) => {
     setIsRecording(false);
     if (!selectedChat || !instanceName) return;
+
+    // Capture everything NOW before any async
     const number = getPhoneNumber(selectedChat.remoteJid);
     const chatJid = selectedChat.remoteJid;
+    const convId = selectedChat.dbConvId;
+    const optId = `opt-vn-${Date.now()}`;
+    const ts = Math.floor(Date.now() / 1000);
 
-    // Optimistic chat list update
-    setChats(prev => prev.map(c =>
-      c.remoteJid === chatJid
-        ? { ...c, lastMessage: { key: { id: `opt-vn-${Date.now()}`, fromMe: true }, pushName: 'You', messageType: 'audioMessage', message: { audioMessage: {} }, messageTimestamp: Math.floor(Date.now() / 1000), status: 'SERVER_ACK' } }
-        : c
-    ));
-
-    const reader = new FileReader();
-    reader.onload = async () => {
-      try {
-        const dataUri = reader.result as string;
-        const base64 = dataUri.includes(',') ? dataUri.split(',')[1] : dataUri;
-        await whatsappService.sendAudio(instanceName, number, base64);
-        setTimeout(() => { const c = selectedChatRef.current; if (c) fetchMessages(c.remoteJid); fetchChats(); }, 2000);
-      } catch (e: any) { toast({ title: 'Send failed', description: e.message, variant: 'destructive' }); }
+    // 1. Optimistic: show in thread + chat list IMMEDIATELY
+    const optAudio: EvolutionMessage = {
+      id: optId, key: { id: optId, fromMe: true, remoteJid: chatJid },
+      pushName: 'You', messageType: 'audioMessage',
+      message: { audioMessage: { seconds: 0 } },
+      messageTimestamp: ts, source: 'web',
+      MessageUpdate: [{ status: 'SERVER_ACK' }],
     };
-    reader.readAsDataURL(blob);
+    setMessages(prev => [...prev, optAudio]);
+    scrollToBottom();
+    setChats(prev => {
+      const updated = prev.map(c => c.remoteJid === chatJid
+        ? { ...c, lastMessage: { key: { id: optId, fromMe: true }, pushName: 'You', messageType: 'audioMessage', message: { audioMessage: {} }, messageTimestamp: ts, status: 'SERVER_ACK' } }
+        : c);
+      const idx = updated.findIndex(c => c.remoteJid === chatJid);
+      if (idx > 0) { const [chat] = updated.splice(idx, 1); updated.unshift(chat); }
+      return updated;
+    });
+
+    // 2. Convert blob → base64 (promisified, no callback)
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const uri = reader.result as string;
+          resolve(uri.includes(',') ? uri.split(',')[1] : uri);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+
+      // 3. Send via API
+      const result = await whatsappService.sendAudio(instanceName, number, base64);
+      const realId = result?.key?.id || optId;
+      const now = new Date().toISOString();
+
+      // 4. Update optimistic with real ID
+      setMessages(prev => prev.map(m => m.id === optId ? { ...m, id: realId, key: { ...m.key, id: realId } } : m));
+
+      // 5. Write to DB (webhook doesn't fire for API-sent messages)
+      if (instanceId && businessId) {
+        // Fetch from Evolution API to get the real audio URL
+        let mediaUrl: string | null = null;
+        try {
+          const msgData = await whatsappService.findMessages(instanceName, chatJid, 1);
+          const latest = msgData?.messages?.records?.[0] || msgData?.records?.[0];
+          if (latest?.key?.id === realId && latest?.message?.audioMessage?.url) {
+            mediaUrl = latest.message.audioMessage.url;
+          }
+        } catch { /* best effort */ }
+
+        await db.from('whatsapp_messages').upsert({
+          business_id: businessId, instance_id: instanceId,
+          conversation_id: convId || null, remote_jid: chatJid,
+          message_id: realId, type: 'audioMessage',
+          content: '[Voice message]', media_url: mediaUrl,
+          direction: 'outgoing', status: 'sent', created_at: now,
+        }, { onConflict: 'message_id' });
+        if (convId) {
+          await db.from('whatsapp_conversations').update({
+            last_message_content: '[Voice message]', last_message_type: 'audioMessage',
+            last_message_direction: 'outgoing', last_message_ts: now, last_message_status: 'sent', updated_at: now,
+          }).eq('id', convId);
+        }
+
+        // Reload to get proper audio player rendering
+        setTimeout(() => {
+          const c = selectedChatRef.current;
+          if (c) fetchMessages(c.remoteJid, c.dbConvId);
+        }, 1000);
+      }
+    } catch (e: any) {
+      setMessages(prev => prev.filter(m => m.id !== optId));
+      toast({ title: 'Send failed', description: e.message, variant: 'destructive' });
+    }
   };
 
   // ── Send media ─────────────────────────────────────────────────────────
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedChat || !instanceName) return;
-    const number = getPhoneNumber(selectedChat.remoteJid);
-    const chatJid = selectedChat.remoteJid; // capture now, not in closure
-    const reader = new FileReader();
-    reader.onload = async () => {
-      try {
-        const base64 = reader.result as string;
-        await whatsappService.sendMedia(instanceName, number, { type: fileInputType || 'document', url: base64 });
-        toast({ title: 'Media sent' });
-        setTimeout(() => { const c = selectedChatRef.current; if (c) fetchMessages(c.remoteJid); }, 2000);
-      } catch (err: any) { toast({ title: 'Upload failed', description: err.message, variant: 'destructive' }); }
-    };
-    reader.readAsDataURL(file);
     e.target.value = '';
+
+    // Capture everything NOW
+    const number = getPhoneNumber(selectedChat.remoteJid);
+    const chatJid = selectedChat.remoteJid;
+    const convId = selectedChat.dbConvId;
+    const mediaType = fileInputType || 'document';
+    const msgType = mediaType === 'image' ? 'imageMessage' : mediaType === 'video' ? 'videoMessage' : 'documentMessage';
+    const contentPreview = mediaType === 'image' ? '[Photo]' : mediaType === 'video' ? '[Video]' : file.name;
+    const optId = `opt-media-${Date.now()}`;
+    const ts = Math.floor(Date.now() / 1000);
+
+    // 1. Convert to base64 (promisified)
+    const base64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+    // 2. Optimistic: show in thread + chat list IMMEDIATELY
+    const optMedia: EvolutionMessage = {
+      id: optId, key: { id: optId, fromMe: true, remoteJid: chatJid },
+      pushName: 'You', messageType: msgType,
+      message: msgType === 'imageMessage' ? { imageMessage: { caption: '', url: base64 } }
+        : msgType === 'videoMessage' ? { videoMessage: { caption: '', url: base64, seconds: 0 } }
+        : { documentMessage: { fileName: file.name, url: base64 } },
+      messageTimestamp: ts, source: 'web',
+      MessageUpdate: [{ status: 'SERVER_ACK' }],
+    };
+    setMessages(prev => [...prev, optMedia]);
+    scrollToBottom();
+    setChats(prev => {
+      const updated = prev.map(c => c.remoteJid === chatJid
+        ? { ...c, lastMessage: { key: { id: optId, fromMe: true }, pushName: 'You', messageType: msgType, message: { conversation: contentPreview }, messageTimestamp: ts, status: 'SERVER_ACK' } }
+        : c);
+      const idx = updated.findIndex(c => c.remoteJid === chatJid);
+      if (idx > 0) { const [chat] = updated.splice(idx, 1); updated.unshift(chat); }
+      return updated;
+    });
+
+    // 3. Send via API
+    try {
+      const result = await whatsappService.sendMedia(instanceName, number, { type: mediaType, url: base64 });
+      const realId = result?.key?.id || optId;
+      const now = new Date().toISOString();
+
+      // 4. Update optimistic with real ID
+      setMessages(prev => prev.map(m => m.id === optId ? { ...m, id: realId, key: { ...m.key, id: realId } } : m));
+
+      // 5. Write to DB (webhook doesn't fire for API-sent messages)
+      if (instanceId && businessId) {
+        // Fetch from Evolution API to get the real media URL
+        let mediaUrl: string | null = null;
+        try {
+          const msgData = await whatsappService.findMessages(instanceName, chatJid, 1);
+          const latest = msgData?.messages?.records?.[0] || msgData?.records?.[0];
+          if (latest?.key?.id === realId) {
+            const m = latest.message || {};
+            mediaUrl = m.imageMessage?.url || m.videoMessage?.url || m.documentMessage?.url || null;
+          }
+        } catch { /* best effort */ }
+
+        await db.from('whatsapp_messages').upsert({
+          business_id: businessId, instance_id: instanceId,
+          conversation_id: convId || null, remote_jid: chatJid,
+          message_id: realId, type: msgType,
+          content: contentPreview, media_url: mediaUrl,
+          direction: 'outgoing', status: 'sent', created_at: now,
+        }, { onConflict: 'message_id' });
+        if (convId) {
+          await db.from('whatsapp_conversations').update({
+            last_message_content: contentPreview, last_message_type: msgType,
+            last_message_direction: 'outgoing', last_message_ts: now, last_message_status: 'sent', updated_at: now,
+          }).eq('id', convId);
+        }
+
+        // Reload to get proper rendering
+        setTimeout(() => {
+          const c = selectedChatRef.current;
+          if (c) fetchMessages(c.remoteJid, c.dbConvId);
+        }, 1000);
+      }
+      toast({ title: 'Media sent' });
+    } catch (err: any) {
+      setMessages(prev => prev.filter(m => m.id !== optId));
+      toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
+    }
   };
 
   const openFileInput = (type: string) => {
@@ -2512,8 +2811,8 @@ export default function WhatsAppInbox() {
       [jid]: { ...prev[jid], remote_jid: jid, [field]: value } as ChatSettings,
     }));
     await db.from('whatsapp_chat_settings').upsert(
-      { business_id: businessId, remote_jid: jid, [field]: value },
-      { onConflict: 'business_id, remote_jid' }
+      { business_id: businessId, instance_id: instanceId, remote_jid: jid, [field]: value },
+      { onConflict: 'business_id, instance_id, remote_jid' }
     );
     loadMetadata();
   };
@@ -2545,8 +2844,8 @@ export default function WhatsAppInbox() {
     setChatSettings(prev => ({ ...prev, [jid]: { ...prev[jid], remote_jid: jid, is_archived: true } as ChatSettings }));
     if (selectedChat?.remoteJid === jid) setSelectedChat(null);
     await db.from('whatsapp_chat_settings').upsert(
-      { business_id: businessId, remote_jid: jid, is_archived: true },
-      { onConflict: 'business_id, remote_jid' }
+      { business_id: businessId, instance_id: instanceId, remote_jid: jid, is_archived: true },
+      { onConflict: 'business_id, instance_id, remote_jid' }
     );
     loadMetadata();
     toast({ title: 'Chat archived' });
@@ -2557,8 +2856,8 @@ export default function WhatsAppInbox() {
     setChatSettings(prev => ({ ...prev, [jid]: { ...prev[jid], remote_jid: jid, is_blocked: true } as ChatSettings }));
     if (selectedChat?.remoteJid === jid) setSelectedChat(null);
     await db.from('whatsapp_chat_settings').upsert(
-      { business_id: businessId, remote_jid: jid, is_blocked: true },
-      { onConflict: 'business_id, remote_jid' }
+      { business_id: businessId, instance_id: instanceId, remote_jid: jid, is_blocked: true },
+      { onConflict: 'business_id, instance_id, remote_jid' }
     );
     loadMetadata();
     toast({ title: 'Contact blocked' });
@@ -2569,8 +2868,8 @@ export default function WhatsAppInbox() {
     setChatSettings(prev => ({ ...prev, [jid]: { ...prev[jid], remote_jid: jid, is_archived: true } as ChatSettings }));
     if (selectedChat?.remoteJid === jid) setSelectedChat(null);
     await db.from('whatsapp_chat_settings').upsert(
-      { business_id: businessId, remote_jid: jid, is_archived: true },
-      { onConflict: 'business_id, remote_jid' }
+      { business_id: businessId, instance_id: instanceId, remote_jid: jid, is_archived: true },
+      { onConflict: 'business_id, instance_id, remote_jid' }
     );
     // Also clean up labels
     await db.from('whatsapp_chat_labels').delete().eq('business_id', businessId).eq('remote_jid', jid);
@@ -2698,16 +2997,57 @@ export default function WhatsAppInbox() {
 
     try {
       const number = getPhoneNumber(selectedChat.remoteJid);
+      const convId = selectedChat.dbConvId;
+
+      // Send via Evolution API
+      let apiResult: any = null;
       if (wasReplyingTo) {
-        await whatsappService.invokeClient('send-text', {
+        apiResult = await whatsappService.invokeClient('send-text', {
           instanceName, number, text: sentText, delay: 1200,
           quoted: { key: wasReplyingTo.key, message: wasReplyingTo.message },
         });
       } else {
-        await whatsappService.sendText(instanceName, number, sentText);
+        apiResult = await whatsappService.sendText(instanceName, number, sentText);
       }
-      // Don't reload conversation — optimistic msg is already shown
-      // Realtime subscription will handle webhook confirmation
+
+      // Extract real message ID from API response (Evolution returns the key)
+      const realMsgId = apiResult?.key?.id || `web-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+      // Persist to DB immediately — this is the primary write, not a fallback
+      // The webhook may also write this message (deduped by message_id)
+      if (instanceId && businessId) {
+        const now = new Date().toISOString();
+        await db.from('whatsapp_messages').upsert({
+          business_id: businessId,
+          instance_id: instanceId,
+          conversation_id: convId || null,
+          remote_jid: selectedChat.remoteJid,
+          message_id: realMsgId,
+          type: 'conversation',
+          content: sentText,
+          direction: 'outgoing',
+          status: 'sent',
+          created_at: now,
+        }, { onConflict: 'message_id' });
+
+        // Update conversation last_message
+        if (convId) {
+          await db.from('whatsapp_conversations').update({
+            last_message_id: realMsgId,
+            last_message_content: sentText,
+            last_message_type: 'conversation',
+            last_message_direction: 'outgoing',
+            last_message_ts: now,
+            last_message_status: 'sent',
+            updated_at: now,
+          }).eq('id', convId);
+        }
+
+        // Update optimistic message with real ID so dedup works when webhook arrives
+        setMessages(prev => prev.map(m =>
+          m.id === optimisticMsg.id ? { ...m, id: realMsgId, key: { ...m.key, id: realMsgId } } : m
+        ));
+      }
     } catch (e: any) {
       // Remove optimistic message on failure
       setMessages(prev => prev.filter(m => m.id !== optimisticMsg.id));
@@ -3189,7 +3529,7 @@ export default function WhatsAppInbox() {
             )}
 
             {/* Messages area */}
-            <div ref={chatScrollRef} className="flex-1 overflow-y-auto"
+            <div ref={chatScrollRef} className="flex-1 overflow-y-auto" onScroll={handleChatScroll}
               style={{
                 backgroundImage: `url("data:image/svg+xml,%3Csvg width='300' height='300' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3Cpattern id='p' patternUnits='userSpaceOnUse' width='60' height='60'%3E%3Cpath d='M30 5 L35 15 L30 10 L25 15Z' fill='%23182229' opacity='0.3'/%3E%3Ccircle cx='10' cy='40' r='3' fill='%23182229' opacity='0.2'/%3E%3Ccircle cx='50' cy='30' r='2' fill='%23182229' opacity='0.2'/%3E%3C/pattern%3E%3C/defs%3E%3Crect width='300' height='300' fill='%230b141a'/%3E%3Crect width='300' height='300' fill='url(%23p)'/%3E%3C/svg%3E")`,
                 backgroundColor: '#0b141a',
@@ -3231,6 +3571,32 @@ export default function WhatsAppInbox() {
                 <div ref={messagesEndRef} />
               </div>
             </div>
+
+            {/* Scroll to bottom button — inside message area */}
+            {!isAtBottom && selectedChat && (
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    scrollToBottom();
+                    // Clear unread badge on this chat
+                    if (selectedChat) {
+                      setChats(prev => prev.map(c => c.remoteJid === selectedChat.remoteJid ? { ...c, unreadCount: 0 } : c));
+                      if (selectedChat.dbConvId) {
+                        db.from('whatsapp_conversations').update({ unread_count: 0 }).eq('id', selectedChat.dbConvId).then(() => {});
+                      }
+                    }
+                  }}
+                  className="absolute bottom-2 right-4 z-30 w-9 h-9 rounded-full bg-[#202c33] shadow-lg flex items-center justify-center hover:bg-[#2a3942] transition-colors"
+                >
+                  <ArrowDown className="w-[18px] h-[18px] text-[#8696a0]" />
+                  {newMsgCount > 0 && (
+                    <span className="absolute -top-1.5 -right-1 min-w-[18px] h-[18px] rounded-full bg-[#00a884] text-white text-[10px] font-bold flex items-center justify-center px-1">
+                      {newMsgCount}
+                    </span>
+                  )}
+                </button>
+              </div>
+            )}
 
             {/* Emoji picker */}
             {showEmoji && (

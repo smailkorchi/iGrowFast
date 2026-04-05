@@ -132,4 +132,29 @@ export const whatsappService = {
   async handleLabel(instanceName: string, number: string, labelId: string, action: 'add' | 'remove') {
     return this.invokeClient('handle-label', { instanceName, number, labelId, action });
   },
+
+  // ── Server-side sync (via evolution-sync edge function) ────────────
+  async startSync(instanceId: string, instanceName: string, businessId: string) {
+    const { data, error } = await supabase.functions.invoke('evolution-sync', {
+      body: { action: 'start', instance_id: instanceId, instance_name: instanceName, business_id: businessId },
+    });
+    if (error) throw new Error(error.message);
+    return data;
+  },
+
+  async cancelSync(jobId: string) {
+    const { data, error } = await supabase.functions.invoke('evolution-sync', {
+      body: { action: 'cancel', job_id: jobId },
+    });
+    if (error) throw new Error(error.message);
+    return data;
+  },
+
+  async retrySync(jobId: string) {
+    const { data, error } = await supabase.functions.invoke('evolution-sync', {
+      body: { action: 'retry', job_id: jobId },
+    });
+    if (error) throw new Error(error.message);
+    return data;
+  },
 };
