@@ -1178,9 +1178,9 @@ function NewChatPanel({ instanceName, onSelectContact, onClose }: { instanceName
 
 // ── Lists Panel (WhatsApp-style side panel) ─────────────────────────────────
 
-function ListsPanel({ labels, chatLabelsMap, chats, selectedChatJid, businessId, onUpdate, onClose }: {
+function ListsPanel({ labels, chatLabelsMap, chats, selectedChatJid, businessId, instanceId, onUpdate, onClose }: {
   labels: Label[]; chatLabelsMap: Record<string, string[]>; chats: EvolutionChat[];
-  selectedChatJid?: string; businessId: string; onUpdate: () => void; onClose: () => void;
+  selectedChatJid?: string; businessId: string; instanceId?: string | null; onUpdate: () => void; onClose: () => void;
 }) {
   const [view, setView] = useState<'overview' | 'editor' | 'picker'>('overview');
   const [editingLabel, setEditingLabel] = useState<Label | null>(null);
@@ -1224,7 +1224,7 @@ function ListsPanel({ labels, chatLabelsMap, chats, selectedChatJid, businessId,
     if (editingLabel) {
       await db.from('whatsapp_labels').update({ name: editorName.trim(), color: editorColor }).eq('id', editingLabel.id);
     } else {
-      const { data } = await db.from('whatsapp_labels').insert({ business_id: businessId, name: editorName.trim(), color: editorColor }).select().single();
+      const { data } = await db.from('whatsapp_labels').insert({ business_id: businessId, instance_id: instanceId, name: editorName.trim(), color: editorColor }).select().single();
       if (data) labelId = data.id;
     }
 
@@ -1950,9 +1950,10 @@ export default function WhatsAppInbox() {
 
   // ── Switch to a specific instance ───────────────────────────────────────
   const switchToInstance = async (name: string) => {
-    // Clear all caches for clean switch
+    // Clear avatar caches for clean switch
     _avatarCache.clear();
     _avatarInflight.clear();
+    _ogCache.clear();
 
     setInstanceName(name);
     setSelectedChat(null);
@@ -1962,35 +1963,38 @@ export default function WhatsAppInbox() {
     setInstanceProfile({});
     localStorage.setItem('wa_active_instance', name);
 
-    // Load owner profile
+    // Load owner profile from our DB (reliable) + proxy the pic
     try {
-      const evoInstances = await whatsappService.invokeClient('fetch-instances', {});
-      if (Array.isArray(evoInstances)) {
-        const match = evoInstances.find((i: any) => i.name === name);
-        const ownerPhone = match?.ownerJid?.split('@')[0] || '';
-        const ownerPicUrl = match?.profilePicUrl || null;
-        if (ownerPicUrl) {
-          const picData = await whatsappService.invokeClient('proxy-image', { instanceName: name, url: ownerPicUrl });
-          if (picData?.base64) {
-            setInstanceProfile({ profilePicUrl: picData.base64, ownerJid: ownerPhone });
-            _avatarCache.set(`owner_${name}`, picData.base64);
-          } else {
-            setInstanceProfile({ ownerJid: ownerPhone });
-          }
+      const { data: instRow } = await supabase.from('whatsapp_instances')
+        .select('phone_number, profile_pic')
+        .eq('instance_name', name).single();
+      const ownerPhone = instRow?.phone_number || '';
+      const picUrl = instRow?.profile_pic || null;
+      if (picUrl) {
+        const picData = await whatsappService.invokeClient('proxy-image', { instanceName: name, url: picUrl });
+        if (picData?.base64) {
+          setInstanceProfile({ profilePicUrl: picData.base64, ownerJid: ownerPhone });
+          _avatarCache.set(`owner_${name}`, picData.base64);
         } else {
           setInstanceProfile({ ownerJid: ownerPhone });
         }
+      } else {
+        setInstanceProfile({ ownerJid: ownerPhone });
       }
     } catch { setInstanceProfile({}); }
   };
 
   // ── Load settings, labels, starred ─────────────────────────────────────
   const loadMetadata = useCallback(async () => {
-    if (!businessId) return;
+    if (!businessId || !instanceId) return;
+    const instId = instanceId;
     const [settingsRes, labelsRes, chatLabelsRes, starredRes] = await Promise.all([
-      db.from('whatsapp_chat_settings').select('*').eq('business_id', businessId),
-      db.from('whatsapp_labels').select('*').eq('business_id', businessId),
-      db.from('whatsapp_chat_labels').select('*').eq('business_id', businessId),
+      instId ? db.from('whatsapp_chat_settings').select('*').eq('business_id', businessId).eq('instance_id', instId)
+             : db.from('whatsapp_chat_settings').select('*').eq('business_id', businessId),
+      instId ? db.from('whatsapp_labels').select('*').eq('business_id', businessId).eq('instance_id', instId)
+             : db.from('whatsapp_labels').select('*').eq('business_id', businessId),
+      instId ? db.from('whatsapp_chat_labels').select('*').eq('business_id', businessId).eq('instance_id', instId)
+             : db.from('whatsapp_chat_labels').select('*').eq('business_id', businessId),
       db.from('whatsapp_starred_messages').select('message_id').eq('business_id', businessId),
     ]);
     if (settingsRes.data) {
@@ -2008,7 +2012,7 @@ export default function WhatsAppInbox() {
       setChatLabelsMap(map);
     }
     if (starredRes.data) setStarredMsgIds(new Set(starredRes.data.map((s: any) => s.message_id)));
-  }, [businessId]);
+  }, [businessId, instanceId]);
 
   useEffect(() => { loadMetadata(); }, [loadMetadata]);
 
@@ -3369,6 +3373,7 @@ export default function WhatsAppInbox() {
             chats={chats}
             selectedChatJid={selectedChat?.remoteJid}
             businessId={businessId}
+            instanceId={instanceId}
             onUpdate={loadMetadata}
             onClose={() => setSidePanel('none')}
           />

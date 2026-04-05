@@ -622,12 +622,16 @@ async function syncLabels(
 
   if (Array.isArray(labelsData)) {
     for (const label of labelsData) {
+      // Strip invisible Unicode characters (LRM, RLM, ZWNJ, ZWJ, etc.)
+      const cleanName = (label.name || '').replace(/[\u200B-\u200F\u2028-\u202F\uFEFF]/g, '').trim();
+      if (!cleanName) continue;
       await supabase.from("whatsapp_labels").upsert(
         {
           business_id,
           instance_id,
-          name: label.name,
+          name: cleanName,
           color: label.color || "#00a884",
+          whatsapp_label_id: label.id || null,
         },
         { onConflict: "business_id, instance_id, name" }
       );

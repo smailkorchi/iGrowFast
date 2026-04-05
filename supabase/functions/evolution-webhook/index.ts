@@ -768,12 +768,15 @@ Deno.serve(async (req) => {
       const instanceData = await resolveInstance(supabase, instanceName);
       if (!instanceData) return ok({ skipped: 'instance not found' });
 
-      if (data.name) {
+      // Strip invisible Unicode characters from label name
+      const cleanName = (data.name || '').replace(/[\u200B-\u200F\u2028-\u202F\uFEFF]/g, '').trim();
+      if (cleanName) {
         await supabase.from('whatsapp_labels').upsert({
           business_id: instanceData.business_id,
           instance_id: instanceData.id,
-          name: data.name,
+          name: cleanName,
           color: data.color || '#00a884',
+          whatsapp_label_id: data.id || null,
         }, { onConflict: 'business_id, instance_id, name' });
       }
     }
@@ -790,19 +793,35 @@ Deno.serve(async (req) => {
 
       const assoc = data.association;
       const chatJid = assoc.chatId || assoc.remoteJid;
-      const labelId = assoc.labelId;
+      const waLabelId = assoc.labelId;
       const type = assoc.type; // 'add' or 'remove'
 
-      if (!chatJid || !labelId) return ok({ skipped: 'incomplete label association' });
+      if (!chatJid || !waLabelId) return ok({ skipped: 'incomplete label association' });
 
-      // Find our internal label by matching Evolution's label ID via name lookup
-      // For now, store the association with the Evolution labelId as a reference
-      if (type === 'remove') {
+      // Find our internal label by Evolution's whatsapp_label_id
+      const { data: labelRow } = await supabase.from('whatsapp_labels')
+        .select('id')
+        .eq('business_id', instanceData.business_id)
+        .eq('instance_id', instanceData.id)
+        .eq('whatsapp_label_id', waLabelId)
+        .maybeSingle();
+
+      if (!labelRow) return ok({ skipped: 'label not found in DB' });
+
+      if (type === 'add') {
+        await supabase.from('whatsapp_chat_labels').upsert({
+          business_id: instanceData.business_id,
+          instance_id: instanceData.id,
+          remote_jid: chatJid,
+          label_id: labelRow.id,
+        }, { onConflict: 'business_id, instance_id, remote_jid, label_id' });
+      } else if (type === 'remove') {
         await supabase.from('whatsapp_chat_labels')
           .delete()
           .eq('business_id', instanceData.business_id)
           .eq('instance_id', instanceData.id)
-          .eq('remote_jid', chatJid);
+          .eq('remote_jid', chatJid)
+          .eq('label_id', labelRow.id);
       }
     }
 

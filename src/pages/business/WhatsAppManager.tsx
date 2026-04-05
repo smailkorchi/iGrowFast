@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { whatsappService } from '@/lib/api/whatsappService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Trash2, Smartphone, Phone, Loader2, QrCode, CheckCircle2, MessageSquare, ArrowRight, Users, MessageCircle, Database } from 'lucide-react';
+import { Plus, Trash2, Smartphone, Phone, Loader2, QrCode, CheckCircle2, MessageSquare, ArrowRight, Users, MessageCircle, Database, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -76,6 +76,10 @@ export default function WhatsAppManager() {
   const [loading, setLoading] = useState(true);
   const [newInstanceName, setNewInstanceName] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    id: string; name: string; loading: boolean;
+    counts: { contacts: number; messages: number; conversations: number; groups: number; labels: number } | null;
+  } | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -365,6 +369,29 @@ export default function WhatsAppManager() {
       }
     }, 1500);
   }, []);
+  // ── Confirm delete — fetch data counts then show dialog ────────────
+  const confirmDeleteInstance = async (id: string, instanceName: string) => {
+    setDeleteConfirm({ id, name: instanceName, loading: true, counts: null });
+    try {
+      const [contacts, messages, conversations, groups, labels] = await Promise.all([
+        db.from('whatsapp_contacts').select('id', { count: 'exact', head: true }).eq('instance_id', id),
+        db.from('whatsapp_messages').select('id', { count: 'exact', head: true }).eq('instance_id', id),
+        db.from('whatsapp_conversations').select('id', { count: 'exact', head: true }).eq('instance_id', id),
+        db.from('whatsapp_groups').select('id', { count: 'exact', head: true }).eq('instance_id', id),
+        db.from('whatsapp_labels').select('id', { count: 'exact', head: true }).eq('instance_id', id),
+      ]);
+      setDeleteConfirm(prev => prev ? {
+        ...prev, loading: false,
+        counts: {
+          contacts: contacts.count || 0, messages: messages.count || 0,
+          conversations: conversations.count || 0, groups: groups.count || 0, labels: labels.count || 0,
+        },
+      } : null);
+    } catch {
+      setDeleteConfirm(prev => prev ? { ...prev, loading: false, counts: { contacts: 0, messages: 0, conversations: 0, groups: 0, labels: 0 } } : null);
+    }
+  };
+
   // ── Delete instance ───────────────────────────────────────────────
   const handleDeleteInstance = async (id: string, instanceName: string) => {
     try {
@@ -605,7 +632,7 @@ export default function WhatsAppManager() {
                     variant="ghost" size="sm"
                     className="flex-1 rounded-xl text-red-600/80 hover:text-red-700 hover:bg-red-50 font-medium h-9 text-xs"
                     disabled={actionLoading !== null}
-                    onClick={() => handleDeleteInstance(inst.id, inst.instance_name)}
+                    onClick={() => confirmDeleteInstance(inst.id, inst.instance_name)}
                   >
                     {actionLoading === `delete-${inst.instance_name}` ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <Trash2 className="w-3.5 h-3.5 mr-2" />}
                     Remove
@@ -846,6 +873,72 @@ export default function WhatsAppManager() {
               </Button>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Delete Confirmation Dialog ─────────────────────────────────── */}
+      <Dialog open={!!deleteConfirm} onOpenChange={(open) => { if (!open) setDeleteConfirm(null); }}>
+        <DialogContent className="sm:max-w-[400px] p-0 overflow-hidden bg-white shadow-2xl rounded-3xl border-0">
+          <div className="p-8 flex flex-col items-center">
+            <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center mb-4">
+              <AlertTriangle className="w-7 h-7 text-red-500" />
+            </div>
+            <DialogHeader>
+              <DialogTitle className="text-xl font-medium text-gray-900 text-center">Remove {deleteConfirm?.name}?</DialogTitle>
+              <DialogDescription className="text-center pt-2 text-gray-500 font-light text-sm">
+                This will permanently delete the device and all associated data. This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+
+            {deleteConfirm?.loading ? (
+              <div className="flex items-center gap-2 mt-6">
+                <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                <span className="text-sm text-gray-400">Calculating data...</span>
+              </div>
+            ) : deleteConfirm?.counts && (
+              <div className="w-full mt-6 bg-gray-50 rounded-2xl p-4 space-y-2">
+                <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">Data that will be lost</p>
+                {[
+                  { label: 'Contacts', count: deleteConfirm.counts.contacts, icon: Users },
+                  { label: 'Messages', count: deleteConfirm.counts.messages, icon: MessageCircle },
+                  { label: 'Conversations', count: deleteConfirm.counts.conversations, icon: MessageSquare },
+                  { label: 'Groups', count: deleteConfirm.counts.groups, icon: Users },
+                  { label: 'Labels', count: deleteConfirm.counts.labels, icon: Database },
+                ].filter(i => i.count > 0).map(item => (
+                  <div key={item.label} className="flex items-center justify-between text-sm">
+                    <span className="flex items-center gap-2 text-gray-600">
+                      <item.icon className="w-3.5 h-3.5 text-gray-400" />
+                      {item.label}
+                    </span>
+                    <span className="font-semibold text-gray-900 tabular-nums">{item.count.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex gap-3 w-full mt-6">
+              <Button
+                variant="outline"
+                onClick={() => setDeleteConfirm(null)}
+                className="flex-1 rounded-2xl h-10 font-medium text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={deleteConfirm?.loading || actionLoading !== null}
+                onClick={async () => {
+                  if (!deleteConfirm) return;
+                  setDeleteConfirm(null);
+                  await handleDeleteInstance(deleteConfirm.id, deleteConfirm.name);
+                }}
+                className="flex-1 rounded-2xl h-10 font-medium text-xs bg-red-600 hover:bg-red-700"
+              >
+                {actionLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                Delete permanently
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
