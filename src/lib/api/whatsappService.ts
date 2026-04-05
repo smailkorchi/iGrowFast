@@ -26,7 +26,8 @@ export const whatsappService = {
   async createInstance(instanceName: string) {
     return this.invokeClient('create-instance', {
       instanceName,
-      integration: "WHATSAPP-BAILEYS"
+      integration: "WHATSAPP-BAILEYS",
+      syncFullHistory: true,
     });
   },
 
@@ -108,5 +109,27 @@ export const whatsappService = {
 
   async syncChats(instanceName: string) {
     return this.invokeClient('sync-chats', { instanceName });
+  },
+
+  // ── Groups ──────────────────────────────────────────────────────────
+  async fetchAllGroups(instanceName: string) {
+    return this.invokeClient('fetch-all-groups', { instanceName });
+  },
+
+  async findGroupInfo(instanceName: string, groupJid: string) {
+    return this.invokeClient('find-group-info', { instanceName, groupJid });
+  },
+
+  async findGroupParticipants(instanceName: string, groupJid: string) {
+    return this.invokeClient('find-group-participants', { instanceName, groupJid });
+  },
+
+  // ── Labels ──────────────────────────────────────────────────────────
+  async findLabels(instanceName: string) {
+    return this.invokeClient('find-labels', { instanceName });
+  },
+
+  async handleLabel(instanceName: string, number: string, labelId: string, action: 'add' | 'remove') {
+    return this.invokeClient('handle-label', { instanceName, number, labelId, action });
   },
 };

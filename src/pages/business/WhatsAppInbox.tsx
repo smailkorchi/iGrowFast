@@ -11,7 +11,7 @@ import {
   Star, StarOff, BellOff, Bell, Trash2, Ban, Heart, Pin, PinOff,
   Archive, Tag, MessageSquarePlus, Users, Image as ImageIcon, FileText,
   Camera, Headphones, UserPlus, BarChart3, Calendar, Sticker, ChevronDown,
-  Copy, Forward, Info, CheckSquare, Clock, Lock, List, Edit3,
+  Copy, Forward, Info, CheckSquare, Clock, Lock, List, Edit3, Smartphone,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import data from '@emoji-mart/data';
@@ -34,6 +34,8 @@ interface EvolutionChat {
     status: string;
   } | null;
   unreadCount: number;
+  type: 'individual' | 'group' | 'broadcast';
+  groupId?: string | null;
 }
 
 interface EvolutionMessage {
@@ -45,6 +47,8 @@ interface EvolutionMessage {
   messageTimestamp: number;
   source: string;
   MessageUpdate?: { status: string }[];
+  senderJid?: string;
+  senderName?: string;
 }
 
 interface ChatSettings {
@@ -69,7 +73,7 @@ interface ChatLabel {
 }
 
 type SidePanel = 'none' | 'new-chat' | 'starred' | 'contact-info' | 'lists';
-type FilterTab = 'all' | 'unread' | 'favorites' | 'label';
+type FilterTab = 'all' | 'unread' | 'favorites' | 'groups' | 'label';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -752,6 +756,14 @@ function MessageBubble({ msg, isStarred, isPinned, reactions, instanceName, chat
               <ChevronDown className="w-4 h-4 text-[#8696a0]" />
             </button>
           )}
+          {/* Group message: sender name */}
+          {!isOut && msg.senderJid && (
+            <div className="text-[12.5px] font-medium mb-[2px]" style={{
+              color: `hsl(${Math.abs(msg.senderJid.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) % 360}, 70%, 65%)`,
+            }}>
+              {msg.senderName || msg.senderJid.split('@')[0]}
+            </div>
+          )}
           {/* Quoted/reply message bar */}
           {(() => {
             // Check all possible contextInfo paths (varies by message type)
@@ -899,6 +911,7 @@ function ContactItem({ chat, isActive, isPinned, isMuted, onClick, onContextMenu
   const preview = getMessagePreview(chat.lastMessage);
   const ts = chat.lastMessage?.messageTimestamp;
   const isFromMe = chat.lastMessage?.key.fromMe;
+  const isGroup = chat.type === 'group';
 
   return (
     <div
@@ -906,10 +919,17 @@ function ContactItem({ chat, isActive, isPinned, isMuted, onClick, onContextMenu
       onContextMenu={onContextMenu}
       className={`flex items-center gap-[13px] px-[13px] py-[10px] cursor-pointer hover:bg-[#202c33] transition-colors ${isActive ? 'bg-[#2a3942]' : ''}`}
     >
-      <Avatar name={displayName} jid={chat.remoteJid} picUrl={chat.profilePicUrl} instanceName={instanceName} />
+      {isGroup ? (
+        <div className="w-[49px] h-[49px] rounded-full bg-[#00a884]/20 flex items-center justify-center flex-shrink-0">
+          <Users className="w-[22px] h-[22px] text-[#00a884]" />
+        </div>
+      ) : (
+        <Avatar name={displayName} jid={chat.remoteJid} picUrl={chat.profilePicUrl} instanceName={instanceName} />
+      )}
       <div className="flex-1 min-w-0 border-b border-[#222d34] py-[10px]">
         <div className="flex justify-between items-baseline">
           <span className="text-[17px] text-[#e9edef] truncate leading-[21px] flex items-center gap-1">
+            {isGroup && <Users className="w-3.5 h-3.5 text-[#8696a0] flex-shrink-0" />}
             {displayName}
             {isMuted && <BellOff className="w-3.5 h-3.5 text-[#667781] flex-shrink-0" />}
           </span>
@@ -1762,6 +1782,8 @@ export default function WhatsAppInbox() {
   const [instanceName, setInstanceName] = useState<string | null>(null);
   const [instanceProfile, setInstanceProfile] = useState<{ profilePicUrl?: string; ownerJid?: string }>({});
   const [businessId, setBusinessId] = useState<string | null>(null);
+  const [availableInstances, setAvailableInstances] = useState<{ instance_name: string; phone_number: string | null; profile_pic: string | null; avatarBase64?: string | null }[]>([]);
+  const [showInstancePicker, setShowInstancePicker] = useState(false);
   // Maps LID JIDs to phone JIDs for sending messages
   const [lidToPhoneMap, setLidToPhoneMap] = useState<Record<string, string>>({});
   const lidToPhoneRef = useRef<Record<string, string>>({});
@@ -1797,44 +1819,79 @@ export default function WhatsAppInbox() {
   const [forwardingMsg, setForwardingMsg] = useState<EvolutionMessage | null>(null);
   const [pinnedMessage, setPinnedMessage] = useState<{ message_id: string; content: string | null } | null>(null);
 
-  // ── Init ─────────────────────────────────────────────────────────────────
+  // ── Init: load all open instances, select first ──────────────────────────
   useEffect(() => {
     const biz = localStorage.getItem('activeBusinessId');
     if (biz) setBusinessId(biz);
 
     (async () => {
       if (!biz) return;
-      const { data } = await supabase.from('whatsapp_instances').select('instance_name, profile_pic, phone_number')
-        .eq('business_id', biz).eq('status', 'open').limit(1).single();
-      if (data) {
-        setInstanceName(data.instance_name);
-        // Get owner info from Evolution API
-        try {
-          const evoInstances = await whatsappService.invokeClient('fetch-instances', {});
-          if (Array.isArray(evoInstances)) {
-            const match = evoInstances.find((i: any) => i.name === data.instance_name);
-            const ownerPhone = match?.ownerJid?.split('@')[0] || data.phone_number;
-            const ownerPicUrl = match?.profilePicUrl || null;
-            // Proxy the owner's profile pic through edge function
-            if (ownerPicUrl) {
-              const picData = await whatsappService.invokeClient('proxy-image', { instanceName: data.instance_name, url: ownerPicUrl });
-              if (picData?.base64) {
-                setInstanceProfile({ profilePicUrl: picData.base64, ownerJid: ownerPhone });
-                _avatarCache.set('owner', picData.base64);
-              } else {
-                setInstanceProfile({ ownerJid: ownerPhone });
-              }
-            } else {
-              setInstanceProfile({ ownerJid: ownerPhone });
-            }
-            if (ownerPhone && ownerPhone !== data.phone_number) {
-              await supabase.from('whatsapp_instances').update({ phone_number: ownerPhone }).eq('instance_name', data.instance_name);
-            }
+      const { data: allInstances } = await supabase.from('whatsapp_instances')
+        .select('instance_name, profile_pic, phone_number')
+        .eq('business_id', biz).eq('status', 'open').order('created_at', { ascending: true });
+
+      if (allInstances && allInstances.length > 0) {
+        setAvailableInstances(allInstances);
+
+        // Select previously active or first instance
+        const lastActive = localStorage.getItem('wa_active_instance');
+        const target = allInstances.find(i => i.instance_name === lastActive) || allInstances[0];
+        switchToInstance(target.instance_name);
+
+        // Proxy profile pics for dropdown (background, non-blocking)
+        for (const inst of allInstances) {
+          if (inst.profile_pic) {
+            whatsappService.invokeClient('proxy-image', { instanceName: inst.instance_name, url: inst.profile_pic })
+              .then((res: any) => {
+                if (res?.base64) {
+                  setAvailableInstances(prev => prev.map(i =>
+                    i.instance_name === inst.instance_name ? { ...i, avatarBase64: res.base64 } : i
+                  ));
+                }
+              }).catch(() => {});
           }
-        } catch (_e) { /* fallback: no pic */ }
+        }
+      } else {
+        setLoadingChats(false);
       }
     })();
   }, []);
+
+  // ── Switch to a specific instance ───────────────────────────────────────
+  const switchToInstance = async (name: string) => {
+    // Clear all caches for clean switch
+    _avatarCache.clear();
+    _avatarInflight.clear();
+
+    setInstanceName(name);
+    setSelectedChat(null);
+    setMessages([]);
+    setChats([]);
+    setLoadingChats(true);
+    setInstanceProfile({});
+    localStorage.setItem('wa_active_instance', name);
+
+    // Load owner profile
+    try {
+      const evoInstances = await whatsappService.invokeClient('fetch-instances', {});
+      if (Array.isArray(evoInstances)) {
+        const match = evoInstances.find((i: any) => i.name === name);
+        const ownerPhone = match?.ownerJid?.split('@')[0] || '';
+        const ownerPicUrl = match?.profilePicUrl || null;
+        if (ownerPicUrl) {
+          const picData = await whatsappService.invokeClient('proxy-image', { instanceName: name, url: ownerPicUrl });
+          if (picData?.base64) {
+            setInstanceProfile({ profilePicUrl: picData.base64, ownerJid: ownerPhone });
+            _avatarCache.set(`owner_${name}`, picData.base64);
+          } else {
+            setInstanceProfile({ ownerJid: ownerPhone });
+          }
+        } else {
+          setInstanceProfile({ ownerJid: ownerPhone });
+        }
+      }
+    } catch { setInstanceProfile({}); }
+  };
 
   // ── Load settings, labels, starred ─────────────────────────────────────
   const loadMetadata = useCallback(async () => {
@@ -1864,11 +1921,10 @@ export default function WhatsAppInbox() {
 
   useEffect(() => { loadMetadata(); }, [loadMetadata]);
 
-  // ── Fetch chats (from Supabase) ─────────────────────────────────────────
+  // ── Fetch chats from whatsapp_conversations table ───────────────────────
   const fetchChats = useCallback(async () => {
     if (!instanceName || !businessId) return;
     try {
-      // Get the instance ID
       const { data: instData } = await supabase
         .from('whatsapp_instances')
         .select('id')
@@ -1876,164 +1932,73 @@ export default function WhatsAppInbox() {
         .single();
       if (!instData) { setLoadingChats(false); return; }
 
-      // Load JID mappings, contacts, and latest message per remote_jid in parallel
-      const [jidRes, contactsRes] = await Promise.all([
-        db.from('whatsapp_jid_mappings').select('lid_jid, phone_jid').eq('business_id', businessId),
-        db.from('whatsapp_contacts').select('phone_number, name, profile_pic').eq('business_id', businessId),
-      ]);
-
-      // Build LID→phone map from DB
+      // Load JID mappings for display resolution
+      const jidRes = await db.from('whatsapp_jid_mappings').select('lid_jid, phone_jid').eq('instance_id', instData.id);
       const lidToPhone: Record<string, string> = {};
-      if (jidRes.data) {
-        for (const m of jidRes.data) lidToPhone[m.lid_jid] = m.phone_jid;
-      }
+      if (jidRes.data) for (const m of jidRes.data) lidToPhone[m.lid_jid] = m.phone_jid;
       setLidToPhoneMap(lidToPhone);
 
-      // Build contact lookup: JID -> { name, profilePic }
-      const contactMap: Record<string, { name: string; profilePic: string | null }> = {};
-      if (contactsRes.data) {
-        for (const c of contactsRes.data) {
-          if (c.name) contactMap[c.phone_number] = { name: c.name, profilePic: c.profile_pic };
-        }
-      }
-
-      // Get distinct chats with last message using raw SQL via a direct query
-      // We query the last message per remote_jid for this instance
-      const { data: chatRows } = await db
-        .from('whatsapp_messages')
-        .select('remote_jid, content, type, direction, status, created_at, message_id')
+      // Fetch all conversations ordered by last message time
+      const { data: conversations } = await db
+        .from('whatsapp_conversations')
+        .select('*')
         .eq('instance_id', instData.id)
-        .order('created_at', { ascending: false });
+        .order('last_message_ts', { ascending: false, nullsFirst: false });
 
-      if (!chatRows) { setLoadingChats(false); return; }
+      if (!conversations || conversations.length === 0) { setLoadingChats(false); return; }
 
-      // Group by remote_jid, keep only the latest message per JID
-      const chatMap = new Map<string, any>();
-      const countMap = new Map<string, number>();
-      for (const row of chatRows) {
-        if (!chatMap.has(row.remote_jid)) {
-          chatMap.set(row.remote_jid, row);
-          countMap.set(row.remote_jid, 0);
-        }
-      }
+      // Map conversations to EvolutionChat objects
+      const enriched: EvolutionChat[] = conversations.map((c: any) => {
+        let displayName = c.display_name || '';
+        const jid = c.jid;
 
-      // Deduplicate: if we have both LID and phone JID entries, merge them
-      const phonesToRemove = new Set(Object.values(lidToPhone));
-      const deduped: string[] = [];
-      for (const jid of chatMap.keys()) {
-        // Skip phone JIDs that have a LID entry
-        if (jid.includes('@s.whatsapp.net') && phonesToRemove.has(jid)) {
-          // Merge into the LID entry
-          const lidJid = Object.keys(lidToPhone).find(k => lidToPhone[k] === jid);
-          if (lidJid && chatMap.has(lidJid)) {
-            const lidRow = chatMap.get(lidJid);
-            const phoneRow = chatMap.get(jid);
-            // Keep newer message
-            if (phoneRow && new Date(phoneRow.created_at) > new Date(lidRow.created_at)) {
-              chatMap.set(lidJid, phoneRow);
-            }
-            continue;
-          }
-        }
-        deduped.push(jid);
-      }
-
-      // Also fetch contact_id → contact for messages with LID JIDs
-      // This resolves names via the message→contact FK chain
-      const { data: msgContacts } = await db
-        .from('whatsapp_messages')
-        .select('remote_jid, contact_id, whatsapp_contacts(name, phone_number, profile_pic)')
-        .eq('business_id', businessId)
-        .not('contact_id', 'is', null);
-
-      // Build LID→contact map from message FK relationships
-      const lidContactMap: Record<string, { name: string; phone: string; pic: string | null }> = {};
-      if (msgContacts) {
-        for (const mc of msgContacts) {
-          if (!mc.remote_jid?.includes('@lid')) continue;
-          const c = mc.whatsapp_contacts as any;
-          if (c?.name && !lidContactMap[mc.remote_jid]) {
-            lidContactMap[mc.remote_jid] = { name: c.name, phone: c.phone_number, pic: c.profile_pic };
-          }
-        }
-      }
-
-      // Build EvolutionChat objects
-      const enriched: EvolutionChat[] = deduped.map(jid => {
-        const row = chatMap.get(jid)!;
-        const ts = Math.floor(new Date(row.created_at).getTime() / 1000);
-
-        // Resolve contact name — multiple strategies
-        let displayName = '';
-        let profilePic: string | null = null;
-
-        // 1. Direct contact lookup by JID
-        const contact = contactMap[jid];
-        if (contact?.name) { displayName = contact.name; profilePic = contact.profilePic; }
-
-        // 2. For LID JIDs, try phone JID via mapping table
-        if (!displayName && jid.includes('@lid')) {
-          const phoneJid = lidToPhone[jid];
-          if (phoneJid) {
-            const phoneContact = contactMap[phoneJid];
-            if (phoneContact?.name) { displayName = phoneContact.name; profilePic = phoneContact.profilePic || profilePic; }
-            else displayName = '+' + phoneJid.split('@')[0];
-          }
-        }
-
-        // 3. For LID JIDs still unresolved, use message→contact FK
-        if (!displayName && jid.includes('@lid') && lidContactMap[jid]) {
-          const mc = lidContactMap[jid];
-          displayName = mc.name;
-          profilePic = mc.pic || profilePic;
-          // Also show phone if available
-          if (!displayName && mc.phone.includes('@s.whatsapp.net')) {
-            displayName = '+' + mc.phone.split('@')[0];
-          }
-        }
-
-        // 4. Fallback
+        // Fallback display name resolution
         if (!displayName) {
           if (jid.includes('@s.whatsapp.net')) displayName = '+' + jid.split('@')[0];
-          else displayName = '~ Contact';
+          else if (jid.includes('@lid')) {
+            const phoneJid = lidToPhone[jid];
+            displayName = phoneJid ? '+' + phoneJid.split('@')[0] : '#' + jid.split('@')[0];
+          } else if (jid.includes('@g.us')) displayName = 'Group';
+          else displayName = jid.split('@')[0];
         }
+
+        const ts = c.last_message_ts ? Math.floor(new Date(c.last_message_ts).getTime() / 1000) : 0;
 
         return {
           id: jid,
           remoteJid: jid,
           pushName: displayName,
-          profilePicUrl: profilePic,
-          updatedAt: row.created_at,
-          lastMessage: {
-            key: { id: row.message_id, fromMe: row.direction === 'outgoing' },
-            pushName: row.direction === 'outgoing' ? 'You' : displayName,
-            messageType: row.type || 'conversation',
-            message: row.type === 'audioMessage' ? { audioMessage: {} }
-              : row.type === 'imageMessage' ? { imageMessage: { caption: row.content } }
-              : row.type === 'videoMessage' ? { videoMessage: { caption: row.content } }
-              : row.type === 'documentMessage' ? { documentMessage: { fileName: row.content } }
-              : { conversation: row.content },
+          profilePicUrl: c.profile_pic || null,
+          updatedAt: c.last_message_ts || c.created_at,
+          type: c.type || 'individual',
+          groupId: c.group_id || null,
+          lastMessage: c.last_message_id ? {
+            key: { id: c.last_message_id, fromMe: c.last_message_direction === 'outgoing' },
+            pushName: c.last_message_direction === 'outgoing' ? 'You' : displayName,
+            messageType: c.last_message_type || 'conversation',
+            message: c.last_message_type === 'audioMessage' ? { audioMessage: {} }
+              : c.last_message_type === 'imageMessage' ? { imageMessage: { caption: c.last_message_content } }
+              : c.last_message_type === 'videoMessage' ? { videoMessage: { caption: c.last_message_content } }
+              : c.last_message_type === 'documentMessage' ? { documentMessage: { fileName: c.last_message_content } }
+              : { conversation: c.last_message_content },
             messageTimestamp: ts,
-            status: row.status || 'sent',
-          },
-          unreadCount: 0, // Computed from chat_settings.last_read_at
+            status: c.last_message_status || 'sent',
+          } : null,
+          unreadCount: c.unread_count || 0,
         };
       });
 
-      // Compute unread counts from chat_settings
-      const enrichedWithUnread = enriched.map(chat => {
+      // Apply unread from chat_settings where available
+      const withUnread = enriched.map(chat => {
         const s = chatSettings[chat.remoteJid];
         if (!s?.last_read_at || !chat.lastMessage) return chat;
-        // Count messages after last_read_at for this JID
-        const lastReadTs = s.last_read_at;
-        const msgTs = chat.lastMessage.messageTimestamp;
-        if (msgTs > lastReadTs && !chat.lastMessage.key.fromMe) {
-          return { ...chat, unreadCount: 1 }; // At least 1 unread
+        if (chat.lastMessage.messageTimestamp > s.last_read_at && !chat.lastMessage.key.fromMe) {
+          return { ...chat, unreadCount: Math.max(chat.unreadCount, 1) };
         }
         return chat;
       });
 
-      setChats(enrichedWithUnread);
+      setChats(withUnread);
     } catch (e) { console.error(e); }
     finally { setLoadingChats(false); }
   }, [instanceName, businessId, chatSettings]);
@@ -2041,11 +2006,18 @@ export default function WhatsAppInbox() {
   useEffect(() => {
     if (!instanceName) return;
     fetchChats();
-    const channel = supabase.channel('whatsapp_inbox_rt')
+    // Get instance ID for filtering realtime events
+    let currentInstanceId: string | null = null;
+    supabase.from('whatsapp_instances').select('id').eq('instance_name', instanceName).single()
+      .then(({ data }) => { if (data) currentInstanceId = data.id; });
+
+    const channel = supabase.channel(`whatsapp_inbox_rt_${instanceName}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_messages' }, (payload) => {
         // Optimistically update chat list preview + order from the realtime payload
         if (payload.new) {
           const nm = payload.new as any;
+          // Skip messages from other instances
+          if (currentInstanceId && nm.instance_id !== currentInstanceId) return;
           const jid = nm.remote_jid;
           const map = lidToPhoneRef.current;
           // Find which chat this belongs to (could be phone or LID jid)
@@ -2131,6 +2103,7 @@ export default function WhatsAppInbox() {
         // Update message ticks in the thread in realtime
         if (payload.new) {
           const updated = payload.new as any;
+          if (currentInstanceId && updated.instance_id !== currentInstanceId) return;
           const msgId = updated.message_id;
           const newStatus = updated.status; // 'sent' | 'delivered' | 'read'
           if (msgId && newStatus) {
@@ -2143,6 +2116,49 @@ export default function WhatsAppInbox() {
               return m;
             }));
           }
+        }
+      })
+      // Subscribe to conversation updates (handles chat list refresh from webhook-driven conversation upserts)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_conversations' }, (payload) => {
+        if (payload.new) {
+          const conv = payload.new as any;
+          if (currentInstanceId && conv.instance_id !== currentInstanceId) return;
+          // Update the chat list entry from the conversation record
+          setChats(prev => {
+            const idx = prev.findIndex(c => c.remoteJid === conv.jid);
+            const displayName = conv.display_name || conv.jid.split('@')[0];
+            const ts = conv.last_message_ts ? Math.floor(new Date(conv.last_message_ts).getTime() / 1000) : 0;
+            const chatEntry: EvolutionChat = {
+              id: conv.jid,
+              remoteJid: conv.jid,
+              pushName: displayName,
+              profilePicUrl: conv.profile_pic || null,
+              updatedAt: conv.last_message_ts || conv.updated_at,
+              type: conv.type || 'individual',
+              groupId: conv.group_id || null,
+              lastMessage: conv.last_message_id ? {
+                key: { id: conv.last_message_id, fromMe: conv.last_message_direction === 'outgoing' },
+                pushName: conv.last_message_direction === 'outgoing' ? 'You' : displayName,
+                messageType: conv.last_message_type || 'conversation',
+                message: { conversation: conv.last_message_content },
+                messageTimestamp: ts,
+                status: conv.last_message_status || 'sent',
+              } : null,
+              unreadCount: conv.unread_count || 0,
+            };
+            if (idx >= 0) {
+              const updated = [...prev];
+              updated[idx] = { ...updated[idx], ...chatEntry };
+              // Move to top if new message
+              if (conv.last_message_ts) {
+                const [item] = updated.splice(idx, 1);
+                updated.unshift(item);
+              }
+              return updated;
+            }
+            // New conversation — prepend
+            return [chatEntry, ...prev];
+          });
         }
       })
       .subscribe();
@@ -2163,11 +2179,16 @@ export default function WhatsAppInbox() {
         if (lidJid) jids.push(lidJid);
       }
 
-      // Fetch messages from Supabase
+      // Get instance ID for scoping
+      const { data: instData } = await supabase.from('whatsapp_instances')
+        .select('id').eq('instance_name', instanceName).single();
+      if (!instData) { setLoadingMessages(false); return; }
+
+      // Fetch messages scoped to THIS instance
       const { data: msgRows } = await db
         .from('whatsapp_messages')
         .select('*')
-        .eq('business_id', businessId)
+        .eq('instance_id', instData.id)
         .in('remote_jid', jids)
         .neq('type', 'protocolMessage')
         .order('created_at', { ascending: false })
@@ -2213,6 +2234,8 @@ export default function WhatsAppInbox() {
             messageTimestamp: ts,
             source: 'database',
             MessageUpdate: [{ status: row.status === 'read' ? 'READ' : row.status === 'delivered' ? 'DELIVERY_ACK' : 'SERVER_ACK' }],
+            senderJid: row.sender_jid || null,
+            senderName: row.sender_jid ? (row.sender_jid.includes('@') ? '+' + row.sender_jid.split('@')[0] : row.sender_jid) : null,
             _rawKey: rawKey, // Preserved for media retrieval
           } as EvolutionMessage & { _rawKey?: any };
         });
@@ -2253,11 +2276,15 @@ export default function WhatsAppInbox() {
         if (lidJid) jids.push(lidJid);
       }
 
+      const { data: instData } = await supabase.from('whatsapp_instances')
+        .select('id').eq('instance_name', instanceName).single();
+      if (!instData) { setLoadingOlder(false); return; }
+
       const offset = nextPageRef.current;
       const { data: olderRows } = await db
         .from('whatsapp_messages')
         .select('*')
-        .eq('business_id', businessId)
+        .eq('instance_id', instData.id)
         .in('remote_jid', jids)
         .neq('type', 'protocolMessage')
         .neq('type', 'reactionMessage')
@@ -2553,11 +2580,13 @@ export default function WhatsAppInbox() {
 
   // Resolve JID to a phone number for sending messages
   const getPhoneNumber = useCallback((jid: string): string => {
+    // Groups: pass full JID (Evolution API accepts group JID as 'number')
+    if (jid.includes('@g.us')) return jid;
     if (jid.includes('@s.whatsapp.net')) return jid.split('@')[0];
     const phoneJid = lidToPhoneMap[jid];
     if (phoneJid) return phoneJid.split('@')[0];
-    // LID with no mapping — return empty (can't send to this)
-    return '';
+    // LID with no phone mapping — send using the full LID JID
+    return jid;
   }, [lidToPhoneMap]);
 
   // Format for display: phone with + prefix, or empty for unresolved LIDs
@@ -2756,6 +2785,7 @@ export default function WhatsAppInbox() {
 
     if (filterTab === 'unread') list = list.filter(c => c.unreadCount > 0);
     if (filterTab === 'favorites') list = list.filter(c => chatSettings[c.remoteJid]?.is_favorited);
+    if (filterTab === 'groups') list = list.filter(c => c.type === 'group');
     if (filterTab === 'label' && activeLabelFilter) {
       list = list.filter(c => chatLabelsMap[c.remoteJid]?.includes(activeLabelFilter!));
     }
@@ -2793,6 +2823,15 @@ export default function WhatsAppInbox() {
     }
   }, [showFilterDropdown]);
 
+  // ── Instance picker close ─────────────────────────────────────────────
+  useEffect(() => {
+    if (showInstancePicker) {
+      const handler = () => setShowInstancePicker(false);
+      const timer = setTimeout(() => document.addEventListener('click', handler), 10);
+      return () => { clearTimeout(timer); document.removeEventListener('click', handler); };
+    }
+  }, [showInstancePicker]);
+
   // ── Start new chat from contacts panel ─────────────────────────────────
   const startChatFromContact = (jid: string, name: string) => {
     // If forwarding a message, send it to the selected contact
@@ -2813,6 +2852,49 @@ export default function WhatsAppInbox() {
     }
     setSidePanel('none');
   };
+
+  // ── Empty state: no instance connected ─────────────────────────────────────
+  if (!loadingChats && !instanceName && availableInstances.length === 0) {
+    return (
+      <div className="flex h-[calc(100vh-64px)] overflow-hidden bg-[#111b21] rounded-2xl">
+        <div className="flex-1 flex flex-col items-center justify-center relative overflow-hidden">
+          {/* Animated gradient background */}
+          <div className="absolute inset-0 bg-gradient-to-br from-[#111b21] via-[#0a1a14] to-[#111b21]" />
+          <div className="absolute inset-0 opacity-[0.03]" style={{
+            backgroundImage: 'radial-gradient(circle at 25% 25%, #00a884 0%, transparent 50%), radial-gradient(circle at 75% 75%, #25d366 0%, transparent 50%)',
+          }} />
+
+          <div className="relative z-10 max-w-[520px] text-center px-8">
+            {/* WhatsApp icon with glow */}
+            <div className="relative mx-auto mb-10 w-[120px] h-[120px]">
+              <div className="absolute inset-0 rounded-full bg-[#25d366]/10 animate-pulse" />
+              <div className="absolute inset-3 rounded-full bg-[#25d366]/5" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <svg viewBox="0 0 24 24" className="w-16 h-16 text-[#25d366]/30" fill="currentColor">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                </svg>
+              </div>
+            </div>
+
+            <h1 className="text-[28px] font-extralight text-[#e9edef] mb-3 tracking-tight">
+              No WhatsApp Instance Connected
+            </h1>
+            <p className="text-[14px] text-[#8696a0] leading-[22px] mb-8">
+              Connect a WhatsApp instance from the manager to start sending and receiving messages directly from your dashboard.
+            </p>
+
+            <a
+              href="/business/whatsapp/manager"
+              className="inline-flex items-center gap-2.5 px-8 py-3 bg-[#00a884] hover:bg-[#00c49a] text-white text-[14px] font-medium rounded-xl transition-all duration-300 shadow-lg shadow-[#00a884]/20 hover:shadow-[#00a884]/40 hover:scale-[1.02]"
+            >
+              <Smartphone className="w-[18px] h-[18px]" />
+              Go to Instance Manager
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-[calc(100vh-64px)] overflow-hidden bg-[#111b21] rounded-2xl">
@@ -2861,8 +2943,49 @@ export default function WhatsAppInbox() {
 
         {/* Header */}
         <div className="h-[59px] bg-[#202c33] flex items-center justify-between px-4 flex-shrink-0">
-          <Avatar name={instanceName || 'WA'} size={40}
-            jid={'owner'} picUrl={instanceProfile.profilePicUrl} instanceName={instanceName || undefined} />
+          <div className="relative">
+            <button
+              onClick={() => setShowInstancePicker(!showInstancePicker)}
+              className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+              title="Switch WhatsApp account"
+            >
+              <Avatar name={instanceName || 'WA'} size={40}
+                jid={`owner_${instanceName}`} picUrl={instanceProfile.profilePicUrl} instanceName={instanceName || undefined} />
+              {availableInstances.length > 1 && (
+                <ChevronDown className={`w-3.5 h-3.5 text-[#aebac1] transition-transform ${showInstancePicker ? 'rotate-180' : ''}`} />
+              )}
+            </button>
+            {showInstancePicker && availableInstances.length > 1 && (
+              <div className="absolute top-full left-0 mt-1 bg-[#233138] rounded-xl shadow-xl border border-[#374045] z-50 min-w-[220px] py-1 animate-in fade-in slide-in-from-top-2 duration-150">
+                {availableInstances.map(inst => (
+                  <button
+                    key={inst.instance_name}
+                    onClick={() => { switchToInstance(inst.instance_name); setShowInstancePicker(false); }}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 hover:bg-[#374045] transition-colors ${
+                      inst.instance_name === instanceName ? 'bg-[#2a3942]' : ''
+                    }`}
+                  >
+                    <div className="w-8 h-8 rounded-full bg-[#374045] flex items-center justify-center overflow-hidden flex-shrink-0">
+                      {inst.avatarBase64 ? (
+                        <img src={inst.avatarBase64} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-xs text-[#aebac1] font-medium">{inst.instance_name.substring(0, 2).toUpperCase()}</span>
+                      )}
+                    </div>
+                    <div className="text-left min-w-0">
+                      <p className="text-sm text-[#e9edef] font-medium truncate">{inst.instance_name}</p>
+                      {inst.phone_number && (
+                        <p className="text-[10px] text-[#8696a0]">+{inst.phone_number}</p>
+                      )}
+                    </div>
+                    {inst.instance_name === instanceName && (
+                      <Check className="w-4 h-4 text-emerald-400 ml-auto flex-shrink-0" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <div className="flex items-center gap-1 text-[#aebac1]">
             <button onClick={() => setSidePanel('new-chat')} className="p-2 hover:bg-[#374045] rounded-full transition-colors" title="New chat">
               <MessageSquarePlus className="w-[20px] h-[20px]" />
@@ -2907,6 +3030,10 @@ export default function WhatsAppInbox() {
             className={`px-3 py-[5px] rounded-full text-[13px] transition-colors ${filterTab === 'favorites' ? 'bg-[#00a884] text-[#111b21] font-medium' : 'bg-[#202c33] text-[#8696a0] hover:bg-[#2a3942]'}`}>
             Favorites
           </button>
+          <button onClick={() => { setFilterTab('groups'); setActiveLabelFilter(null); }}
+            className={`px-3 py-[5px] rounded-full text-[13px] transition-colors flex items-center gap-1.5 ${filterTab === 'groups' ? 'bg-[#00a884] text-[#111b21] font-medium' : 'bg-[#202c33] text-[#8696a0] hover:bg-[#2a3942]'}`}>
+            <Users className="w-3 h-3" /> Groups
+          </button>
           {/* Label filters */}
           <div className="relative">
             <button onClick={(e) => { e.stopPropagation(); setShowFilterDropdown(!showFilterDropdown); }}
@@ -2940,7 +3067,7 @@ export default function WhatsAppInbox() {
             <div className="flex items-center justify-center h-32"><Loader2 className="w-6 h-6 text-[#00a884] animate-spin" /></div>
           ) : filteredChats.length === 0 ? (
             <div className="flex items-center justify-center h-32 text-[#8696a0] text-sm">
-              {filterTab === 'unread' ? 'No unread messages' : filterTab === 'favorites' ? 'No favorites yet' : instanceName ? 'No conversations' : 'No connected instance'}
+              {filterTab === 'unread' ? 'No unread messages' : filterTab === 'favorites' ? 'No favorites yet' : filterTab === 'groups' ? 'No group chats' : instanceName ? 'No conversations' : 'No connected instance'}
             </div>
           ) : (
             filteredChats.map((chat) => (
@@ -2997,11 +3124,22 @@ export default function WhatsAppInbox() {
             {/* Chat header */}
             <div className="h-[59px] bg-[#202c33] flex items-center justify-between px-4 flex-shrink-0">
               <div className="flex items-center gap-[13px] cursor-pointer" onClick={() => setSidePanel('contact-info')}>
-                <Avatar name={selectedChat.pushName || selectedChat.remoteJid} size={40}
-                  jid={selectedChat.remoteJid} picUrl={selectedChat.profilePicUrl} instanceName={instanceName || undefined} />
+                {selectedChat.type === 'group' ? (
+                  <div className="w-[40px] h-[40px] rounded-full bg-[#00a884]/20 flex items-center justify-center flex-shrink-0">
+                    <Users className="w-[18px] h-[18px] text-[#00a884]" />
+                  </div>
+                ) : (
+                  <Avatar name={selectedChat.pushName || selectedChat.remoteJid} size={40}
+                    jid={selectedChat.remoteJid} picUrl={selectedChat.profilePicUrl} instanceName={instanceName || undefined} />
+                )}
                 <div>
-                  <div className="text-[16px] text-[#e9edef] leading-[21px]">{selectedChat.pushName || selectedChat.remoteJid}</div>
-                  <div className="text-[13px] text-[#8696a0] leading-[20px]">{getDisplayPhone(selectedChat.remoteJid) || selectedChat.pushName}</div>
+                  <div className="text-[16px] text-[#e9edef] leading-[21px] flex items-center gap-1.5">
+                    {selectedChat.type === 'group' && <Users className="w-3.5 h-3.5 text-[#8696a0]" />}
+                    {selectedChat.pushName || selectedChat.remoteJid}
+                  </div>
+                  <div className="text-[13px] text-[#8696a0] leading-[20px]">
+                    {selectedChat.type === 'group' ? 'Group' : (getDisplayPhone(selectedChat.remoteJid) || selectedChat.pushName)}
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-2 text-[#aebac1]">
@@ -3158,18 +3296,55 @@ export default function WhatsAppInbox() {
             )}
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center bg-[#222e35] border-b-[6px] border-b-[#00a884]">
-            <div className="w-[320px] text-center">
-              <div className="mx-auto mb-[38px]">
-                <svg viewBox="0 0 303 172" width="320" className="text-[#364147]" preserveAspectRatio="xMidYMid meet">
-                  <path fill="currentColor" d="M229.565 160.229c32.647-10.984 57.366-41.988 53.825-86.81C279.376 22.166 241.886-5.1 189.42.89c-28.093 3.208-54.519 17.733-69.493 28.18-11.618 8.108-22.067 17.917-30.86 29.209a141.592 141.592 0 00-7.672 11.344c-21.39-6.062-39.2-8.098-50.478-4.479-18.2 5.839-28.15 17.397-25.132 41.28 3.254 25.738 29.412 44.106 54.89 49.543 17.993 3.843 34.587 2.456 46.609-2.312 3.112 1.341 6.34 2.595 9.634 3.809l-.035-.071c7.973 2.921 16.283 5.394 24.353 7.755 26.155 7.651 52.518 15.381 47.834 20.253-.928 1.135 2.942-5.429 3.141-5.834 2.955-6.028 7.622-8.248 8.073-5.854.517 2.73-8.659 6.652-7.676 10.741.983 4.088 14.555-2.882 32.481-12.56a138.321 138.321 0 0014.975-8.578c-18.265 11.467-37.807 15.236-61.324 3.713z" />
-                </svg>
+          <div className="flex-1 flex flex-col items-center justify-center bg-[#222e35] border-b-[6px] border-b-[#00a884] relative overflow-hidden">
+            {/* Subtle animated background accents */}
+            <div className="absolute inset-0 opacity-[0.02]" style={{
+              backgroundImage: 'radial-gradient(circle at 30% 20%, #25d366 0%, transparent 40%), radial-gradient(circle at 70% 80%, #00a884 0%, transparent 40%)',
+            }} />
+
+            <div className="relative z-10 max-w-[480px] text-center px-6">
+              {/* WhatsApp icon with elegant glow ring */}
+              <div className="relative mx-auto mb-10 w-[100px] h-[100px]">
+                <div className="absolute inset-0 rounded-full border border-[#25d366]/10" />
+                <div className="absolute inset-2 rounded-full border border-[#25d366]/5" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <svg viewBox="0 0 24 24" className="w-12 h-12 text-[#25d366]/40" fill="currentColor">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                  </svg>
+                </div>
               </div>
-              <h1 className="text-[32px] font-light text-[#e9edef] mb-[14px] leading-[40px]">WhatsApp Web</h1>
-              <p className="text-[14px] text-[#8696a0] leading-[20px]">
-                Send and receive messages without keeping your phone online.<br />
-                Use WhatsApp on up to 4 linked devices and 1 phone at the same time.
+
+              {/* Title */}
+              <h1 className="text-[36px] font-extralight text-[#e9edef] mb-2 leading-[44px] tracking-tight">
+                WhatsApp
+              </h1>
+              <div className="flex items-center justify-center gap-2 mb-6">
+                <div className="h-px w-8 bg-gradient-to-r from-transparent to-[#00a884]/40" />
+                <span className="text-[11px] font-bold uppercase tracking-[0.25em] text-[#00a884]/70">
+                  Built into DigiCom
+                </span>
+                <div className="h-px w-8 bg-gradient-to-l from-transparent to-[#00a884]/40" />
+              </div>
+
+              <p className="text-[15px] text-[#8696a0] leading-[24px] mb-4">
+                The entire WhatsApp experience, rebuilt and embedded directly into your dashboard.
               </p>
+              <p className="text-[13px] text-[#8696a0]/60 leading-[20px]">
+                Powered by AI to help you respond faster, manage conversations smarter, and never miss a beat &mdash; all without leaving DigiCom.
+              </p>
+
+              {/* Subtle feature pills */}
+              <div className="flex items-center justify-center gap-2 mt-8">
+                <span className="px-3 py-1 rounded-full bg-[#00a884]/[0.06] border border-[#00a884]/10 text-[11px] text-[#00a884]/70 font-medium tracking-wide">
+                  AI-Enhanced
+                </span>
+                <span className="px-3 py-1 rounded-full bg-[#00a884]/[0.06] border border-[#00a884]/10 text-[11px] text-[#00a884]/70 font-medium tracking-wide">
+                  Real-time Sync
+                </span>
+                <span className="px-3 py-1 rounded-full bg-[#00a884]/[0.06] border border-[#00a884]/10 text-[11px] text-[#00a884]/70 font-medium tracking-wide">
+                  Full Messaging
+                </span>
+              </div>
             </div>
           </div>
         )}

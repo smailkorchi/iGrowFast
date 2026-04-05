@@ -68,6 +68,19 @@ const navigation: NavSection[] = [
         items: [
             { icon: Home, label: 'Dashboard', path: '/' },
             { icon: BarChart2, label: 'Analytics', path: '/analytics' },
+        ]
+    },
+    {
+        label: 'WhatsApp',
+        icon: FaWhatsapp,
+        items: [
+            { icon: Smartphone, label: 'Instances', path: '/business/whatsapp/manager' },
+            { icon: FaWhatsapp, label: 'Inbox', path: '/business/whatsapp/inbox' },
+            { icon: Bot, label: 'Automations', path: '/business/whatsapp/automations' },
+        ]
+    },
+    {
+        items: [
             { icon: ShoppingBag, label: 'Orders', path: '/orders' },
         ]
     },
@@ -118,15 +131,6 @@ const navigation: NavSection[] = [
         items: [
             { icon: LayoutDashboard, label: 'Overview', path: '/business' },
             { icon: Wallet, label: 'Payments', path: '/business/payments' },
-        ]
-    },
-    {
-        label: 'WhatsApp',
-        icon: FaWhatsapp,
-        items: [
-            { icon: Smartphone, label: 'Instances', path: '/business/whatsapp/manager' },
-            { icon: FaWhatsapp, label: 'Inbox', path: '/business/whatsapp/inbox' },
-            { icon: Bot, label: 'Automations', path: '/business/whatsapp/automations' },
         ]
     },
     {

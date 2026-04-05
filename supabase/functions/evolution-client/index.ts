@@ -10,6 +10,13 @@ const WEBHOOK_EVENTS = [
   "CONNECTION_UPDATE",
   "CONTACTS_UPDATE",
   "CONTACTS_UPSERT",
+  "GROUPS_UPSERT",
+  "GROUP_UPDATE",
+  "GROUP_PARTICIPANTS_UPDATE",
+  "CHATS_UPSERT",
+  "CHATS_UPDATE",
+  "LABELS_EDIT",
+  "LABELS_ASSOCIATION",
 ];
 
 const corsHeaders = {
@@ -145,6 +152,12 @@ Deno.serve(async (req) => {
         body = null;
         break;
 
+      // ── Fetch full profile (name, phone, pic) for a number or LID JID ─
+      case 'fetch-profile':
+        endpoint = `/chat/fetchProfile/${payload.instanceName}`;
+        body = JSON.stringify({ number: payload.number });
+        break;
+
       // ── Profile picture URL (lightweight — returns URL only, no proxy) ─
       case 'fetch-profile-url':
         endpoint = `/chat/fetchProfilePictureUrl/${payload.instanceName}`;
@@ -169,6 +182,47 @@ Deno.serve(async (req) => {
           limit: payload.limit || 50,
           ...(payload.page ? { page: payload.page } : {}),
         });
+        break;
+
+      // ── Groups ───────────────────────────────────────────────────────
+      case 'fetch-all-groups':
+        endpoint = `/group/fetchAllGroups/${payload.instanceName}?getParticipants=true`;
+        method = "GET";
+        body = null;
+        break;
+
+      case 'find-group-info':
+        endpoint = `/group/findGroupInfos/${payload.instanceName}?groupJid=${encodeURIComponent(payload.groupJid)}`;
+        method = "GET";
+        body = null;
+        break;
+
+      case 'find-group-participants':
+        endpoint = `/group/participants/${payload.instanceName}?groupJid=${encodeURIComponent(payload.groupJid)}`;
+        method = "GET";
+        body = null;
+        break;
+
+      // ── Labels ──────────────────────────────────────────────────────
+      case 'find-labels':
+        endpoint = `/label/findLabels/${payload.instanceName}`;
+        method = "GET";
+        body = null;
+        break;
+
+      case 'handle-label':
+        endpoint = `/label/handleLabel/${payload.instanceName}`;
+        body = JSON.stringify({
+          number: payload.number,
+          labelId: payload.labelId,
+          action: payload.action,
+        });
+        break;
+
+      // ── Find chats (returns both individual + group) ────────────────
+      case 'find-chats':
+        endpoint = `/chat/findChats/${payload.instanceName}`;
+        body = JSON.stringify({});
         break;
 
       // ── Profile / avatar proxy ──────────────────────────────────────
@@ -231,14 +285,20 @@ Deno.serve(async (req) => {
       data = { message: responseText };
     }
 
+    // Always return 200 to the client — include upstream status in body if non-2xx
+    if (!response.ok) {
+      data._upstreamStatus = response.status;
+      if (!data.error) data.error = data.message || `Evolution API returned ${response.status}`;
+    }
+
     return new Response(JSON.stringify(data), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: response.status,
+      status: 200,
     });
   } catch (error) {
     return new Response(JSON.stringify({ error: (error as Error).message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 400,
+      status: 200,
     });
   }
 });
