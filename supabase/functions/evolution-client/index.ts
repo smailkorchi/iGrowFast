@@ -66,15 +66,24 @@ Deno.serve(async (req) => {
         endpoint = `/message/sendText/${payload.instanceName}`;
         break;
 
-      case 'send-media':
+      case 'send-media': {
         endpoint = `/message/sendMedia/${payload.instanceName}`;
+        // Strip data URI prefix — Evolution API wants raw base64 or URL, not data:...;base64,...
+        let mediaValue = payload.mediaMessage?.media || payload.media || '';
+        if (mediaValue.includes(';base64,')) {
+          mediaValue = mediaValue.split(';base64,')[1];
+        }
+        const mimeMatch = (payload.mediaMessage?.media || payload.media || '').match(/^data:([^;]+)/);
         body = JSON.stringify({
           number: payload.number,
           mediatype: payload.mediaMessage?.mediatype || payload.mediatype || 'document',
           caption: payload.mediaMessage?.caption || payload.caption || '',
-          media: payload.mediaMessage?.media || payload.media || '',
+          media: mediaValue,
+          mimetype: mimeMatch ? mimeMatch[1] : undefined,
+          fileName: payload.mediaMessage?.fileName || payload.fileName || undefined,
         });
         break;
+      }
 
       case 'send-audio':
         endpoint = `/message/sendWhatsAppAudio/${payload.instanceName}`;

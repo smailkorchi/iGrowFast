@@ -97,16 +97,95 @@ function getInitials(name: string) {
   return name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2);
 }
 
-function getMessagePreview(msg: EvolutionChat['lastMessage']): string {
+// ── URL detection regex ──────────────────────────────────────────────────────
+const URL_REGEX = /(https?:\/\/[^\s<>"'`,;)}\]]+)/gi;
+
+// Renders text with clickable links
+function LinkifyText({ text }: { text: string }) {
+  const parts = text.split(URL_REGEX);
+  if (parts.length === 1) return <>{text}</>;
+  return (
+    <>
+      {parts.map((part, i) =>
+        URL_REGEX.test(part) ? (
+          <a key={i} href={part} target="_blank" rel="noopener noreferrer"
+            className="text-[#53bdeb] underline underline-offset-2 hover:brightness-125 break-all">
+            {part}
+          </a>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
+    </>
+  );
+}
+
+// OG link preview card — fetches metadata client-side
+const _ogCache = new Map<string, { title?: string; description?: string; image?: string; siteName?: string } | null>();
+
+function LinkPreviewCard({ url, isOut }: { url: string; isOut: boolean }) {
+  const [og, setOg] = useState<{ title?: string; description?: string; image?: string; siteName?: string } | null>(
+    () => _ogCache.get(url) ?? null
+  );
+  const [loading, setLoading] = useState(!_ogCache.has(url));
+
+  useEffect(() => {
+    if (_ogCache.has(url)) { setOg(_ogCache.get(url)!); setLoading(false); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        // Use a CORS proxy or our own edge function to fetch OG tags
+        const res = await fetch(`https://api.microlink.io?url=${encodeURIComponent(url)}`);
+        const data = await res.json();
+        if (data.status === 'success' && !cancelled) {
+          const result = {
+            title: data.data?.title,
+            description: data.data?.description,
+            image: data.data?.image?.url,
+            siteName: data.data?.publisher || new URL(url).hostname,
+          };
+          _ogCache.set(url, result);
+          setOg(result);
+        } else {
+          _ogCache.set(url, null);
+        }
+      } catch {
+        _ogCache.set(url, null);
+      }
+      if (!cancelled) setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [url]);
+
+  if (loading || !og || (!og.title && !og.image)) return null;
+
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer"
+      className={`block rounded-md overflow-hidden mb-[4px] border ${isOut ? 'border-[#025144] bg-[#025144]' : 'border-[#1a2730] bg-[#1a2730]'} hover:brightness-110 transition cursor-pointer`}>
+      {og.image && (
+        <div className="w-full max-h-[160px] overflow-hidden">
+          <img src={og.image} alt="" className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
+        </div>
+      )}
+      <div className="px-[10px] py-[6px]">
+        {og.siteName && <div className="text-[11px] text-[#667781] uppercase tracking-wide">{og.siteName}</div>}
+        {og.title && <div className="text-[13px] text-[#e9edef] font-medium leading-[17px] line-clamp-2">{og.title}</div>}
+        {og.description && <div className="text-[12px] text-[#8696a0] leading-[16px] line-clamp-2 mt-[2px]">{og.description}</div>}
+      </div>
+    </a>
+  );
+}
+
+function getMessagePreview(msg: EvolutionChat['lastMessage']): React.ReactNode {
   if (!msg) return '';
   const t = msg.messageType;
   const m = msg.message || {};
   if (t === 'conversation') return m.conversation || '';
   if (t === 'extendedTextMessage') return m.extendedTextMessage?.text || '';
-  if (t === 'imageMessage') return m.imageMessage?.caption || '📷 Photo';
-  if (t === 'videoMessage') return m.videoMessage?.caption || '🎥 Video';
-  if (t === 'audioMessage') return '🎤 Voice message';
-  if (t === 'documentMessage') return `📄 ${m.documentMessage?.fileName || 'Document'}`;
+  if (t === 'imageMessage') return <><ImageIcon className="w-[14px] h-[14px] flex-shrink-0" /> {m.imageMessage?.caption || 'Photo'}</>;
+  if (t === 'videoMessage') return <><Video className="w-[14px] h-[14px] flex-shrink-0" /> {m.videoMessage?.caption || 'Video'}</>;
+  if (t === 'audioMessage') return <><Mic className="w-[14px] h-[14px] flex-shrink-0" /> Voice message</>;
+  if (t === 'documentMessage') return <><FileText className="w-[14px] h-[14px] flex-shrink-0" /> {m.documentMessage?.fileName || 'Document'}</>;
   if (t === 'stickerMessage') return 'Sticker';
   if (t === 'reactionMessage') return `Reacted ${m.reactionMessage?.text || ''}`;
   if (t === 'protocolMessage') return '';
@@ -825,7 +904,12 @@ function MessageBubble({ msg, isStarred, isPinned, reactions, instanceName, chat
             );
           })()}
           {renderMedia()}
-          {text && t !== 'documentMessage' && <span className="text-[14.2px] leading-[19px] whitespace-pre-wrap break-words">{text}</span>}
+          {/* Link preview for URLs in text messages */}
+          {text && (t === 'conversation' || t === 'extendedTextMessage') && URL_REGEX.test(text) && (() => {
+            const urlMatch = text.match(URL_REGEX);
+            return urlMatch ? <LinkPreviewCard url={urlMatch[0]} isOut={isOut} /> : null;
+          })()}
+          {text && t !== 'documentMessage' && <span className="text-[14.2px] leading-[19px] whitespace-pre-wrap break-words"><LinkifyText text={text} /></span>}
           {/* Hide default timestamp for audio — VoiceNotePlayer renders its own */}
           {t !== 'audioMessage' && t !== 'documentMessage' && t !== 'imageMessage' && t !== 'videoMessage' && (
             <span className="float-right mt-[4px] ml-[8px] flex items-center gap-[2px]">
@@ -964,7 +1048,7 @@ function AttachmentMenu({ onSelect, onClose }: { onSelect: (type: string) => voi
   const items = [
     { icon: FileText, label: 'Document', type: 'document', color: '#7f66ff' },
     { icon: ImageIcon, label: 'Photos & Videos', type: 'image', color: '#007bfc' },
-    { icon: Camera, label: 'Camera', type: 'image', color: '#ff2e74' },
+    { icon: Camera, label: 'Camera', type: 'camera', color: '#ff2e74' },
     { icon: Headphones, label: 'Audio', type: 'audio', color: '#ff6723' },
     { icon: UserPlus, label: 'Contact', type: 'contact', color: '#009de2' },
     { icon: BarChart3, label: 'Poll', type: 'poll', color: '#f4c950' },
@@ -2310,7 +2394,7 @@ export default function WhatsAppInbox() {
       setReactionsMap(newReactions);
 
       // Build sender name lookup for group messages
-      const senderJids = [...new Set(regularRows.filter((r: any) => r.sender_jid).map((r: any) => r.sender_jid))];
+      const senderJids: string[] = [...new Set<string>(regularRows.filter((r: any) => r.sender_jid).map((r: any) => r.sender_jid))];
       const senderNameMap: Record<string, string> = {};
       if (senderJids.length > 0) {
         // Look up contacts by phone_number (sender_jid can be LID or phone format)
@@ -2703,13 +2787,22 @@ export default function WhatsAppInbox() {
     if (!file || !selectedChat || !instanceName) return;
     e.target.value = '';
 
+    // File size limit — Supabase Edge Functions have ~6MB body limit, base64 adds ~33% overhead
+    const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4MB
+    if (file.size > MAX_FILE_SIZE) {
+      toast({ title: 'File too large', description: `Max ${Math.round(MAX_FILE_SIZE / 1024 / 1024)}MB. Your file is ${(file.size / 1024 / 1024).toFixed(1)}MB.`, variant: 'destructive' });
+      return;
+    }
+
     // Capture everything NOW
     const number = getPhoneNumber(selectedChat.remoteJid);
     const chatJid = selectedChat.remoteJid;
     const convId = selectedChat.dbConvId;
-    const mediaType = fileInputType || 'document';
+    const rawType = fileInputType || 'document';
+    const mediaType = rawType === 'camera' ? 'image' : rawType;
     const msgType = mediaType === 'image' ? 'imageMessage' : mediaType === 'video' ? 'videoMessage' : 'documentMessage';
-    const contentPreview = mediaType === 'image' ? '[Photo]' : mediaType === 'video' ? '[Video]' : file.name;
+    const contentPreview = mediaType === 'image' ? '' : mediaType === 'video' ? '' : file.name;
+    const listPreview = mediaType === 'image' ? '[Photo]' : mediaType === 'video' ? '[Video]' : file.name;
     const optId = `opt-media-${Date.now()}`;
     const ts = Math.floor(Date.now() / 1000);
 
@@ -2735,7 +2828,7 @@ export default function WhatsAppInbox() {
     scrollToBottom();
     setChats(prev => {
       const updated = prev.map(c => c.remoteJid === chatJid
-        ? { ...c, lastMessage: { key: { id: optId, fromMe: true }, pushName: 'You', messageType: msgType, message: { conversation: contentPreview }, messageTimestamp: ts, status: 'SERVER_ACK' } }
+        ? { ...c, lastMessage: { key: { id: optId, fromMe: true }, pushName: 'You', messageType: msgType, message: { conversation: listPreview }, messageTimestamp: ts, status: 'SERVER_ACK' } }
         : c);
       const idx = updated.findIndex(c => c.remoteJid === chatJid);
       if (idx > 0) { const [chat] = updated.splice(idx, 1); updated.unshift(chat); }
@@ -2744,7 +2837,7 @@ export default function WhatsAppInbox() {
 
     // 3. Send via API
     try {
-      const result = await whatsappService.sendMedia(instanceName, number, { type: mediaType, url: base64 });
+      const result = await whatsappService.sendMedia(instanceName, number, { type: mediaType, url: base64, fileName: file.name });
       const realId = result?.key?.id || optId;
       const now = new Date().toISOString();
 
@@ -2773,7 +2866,7 @@ export default function WhatsAppInbox() {
         }, { onConflict: 'message_id' });
         if (convId) {
           await db.from('whatsapp_conversations').update({
-            last_message_content: contentPreview, last_message_type: msgType,
+            last_message_content: listPreview, last_message_type: msgType,
             last_message_direction: 'outgoing', last_message_ts: now, last_message_status: 'sent', updated_at: now,
           }).eq('id', convId);
         }
@@ -3185,7 +3278,7 @@ export default function WhatsAppInbox() {
     } else {
       const fakeChat: EvolutionChat = {
         id: jid, remoteJid: jid, pushName: name, profilePicUrl: null,
-        updatedAt: new Date().toISOString(), lastMessage: null, unreadCount: 0,
+        updatedAt: new Date().toISOString(), lastMessage: null, unreadCount: 0, type: 'individual',
       };
       setSelectedChat(fakeChat);
       setMessages([]);

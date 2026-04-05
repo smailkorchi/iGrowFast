@@ -59,7 +59,7 @@ export const whatsappService = {
     });
   },
 
-  async sendMedia(instanceName: string, number: string, mediaData: { type: string, url: string, caption?: string }) {
+  async sendMedia(instanceName: string, number: string, mediaData: { type: string, url: string, caption?: string, fileName?: string }) {
     return this.invokeClient('send-media', {
       instanceName,
       number,
@@ -67,7 +67,8 @@ export const whatsappService = {
       mediaMessage: {
         mediatype: mediaData.type,
         caption: mediaData.caption || "",
-        media: mediaData.url
+        media: mediaData.url,
+        fileName: mediaData.fileName,
       }
     });
   },
