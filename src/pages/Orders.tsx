@@ -285,6 +285,40 @@ const Orders = () => {
     const [filterDateField, setFilterDateField] = useState<string>('date');
     const [filterTimeRange, setFilterTimeRange] = useState<string>('all');
     const [filterCustomRange, setFilterCustomRange] = useState<DateRange | undefined>(undefined);
+    const [calendarRange, setCalendarRange] = useState<DateRange | undefined>(undefined);
+    const [hoveredCalendarDate, setHoveredCalendarDate] = useState<Date | undefined>(undefined);
+    const calendarPreviewRange = calendarRange?.from && !calendarRange.to && hoveredCalendarDate
+        ? (hoveredCalendarDate.getTime() >= calendarRange.from.getTime()
+            ? { from: calendarRange.from, to: hoveredCalendarDate }
+            : { from: hoveredCalendarDate, to: calendarRange.from })
+        : undefined;
+    const handleCustomRangeSelect = (range: DateRange | undefined) => {
+        // Click on the already-active single day -> clear filter.
+        if (
+            calendarRange?.from &&
+            !calendarRange.to &&
+            range?.from &&
+            range.to &&
+            range.from.getTime() === range.to.getTime() &&
+            range.from.getTime() === calendarRange.from.getTime()
+        ) {
+            setCalendarRange(undefined);
+            setFilterCustomRange(undefined);
+            return;
+        }
+        if (range?.from && range.to) {
+            setCalendarRange(range);
+            setFilterCustomRange(range);
+            return;
+        }
+        if (range?.from && !range.to) {
+            setCalendarRange({ from: range.from, to: undefined });
+            setFilterCustomRange({ from: range.from, to: range.from });
+            return;
+        }
+        setCalendarRange(undefined);
+        setFilterCustomRange(undefined);
+    };
     const [showCalendar, setShowCalendar] = useState(false);
     const [filterCustomerName, setFilterCustomerName] = useState('');
     const [filterPhone, setFilterPhone] = useState('');
@@ -2108,8 +2142,12 @@ const Orders = () => {
                                             <PopoverContent className="w-auto p-0 rounded-[24px] border-none shadow-2xl shadow-brand-navy/10" align="start">
                                                 <CalendarComponent
                                                     mode="range"
-                                                    selected={filterCustomRange}
-                                                    onSelect={setFilterCustomRange}
+                                                    selected={calendarRange}
+                                                    onSelect={handleCustomRangeSelect}
+                                                    onDayMouseEnter={(day) => setHoveredCalendarDate(day)}
+                                                    onDayMouseLeave={() => setHoveredCalendarDate(undefined)}
+                                                    modifiers={calendarPreviewRange ? { preview: calendarPreviewRange } : undefined}
+                                                    modifiersClassNames={{ preview: 'bg-accent text-accent-foreground' }}
                                                     numberOfMonths={2}
                                                     className="rounded-[24px] p-4"
                                                 />

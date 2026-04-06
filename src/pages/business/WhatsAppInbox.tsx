@@ -1028,7 +1028,12 @@ function ContactItem({ chat, isActive, isPinned, isMuted, onClick, onContextMenu
         </div>
         <div className="flex justify-between items-center mt-[2px]">
           <span className="text-[14px] text-[#8696a0] truncate leading-[20px] flex items-center gap-1">
-            {isFromMe && <CheckCheck className="w-[16px] h-[16px] inline-block flex-shrink-0 text-[#53bdeb]" />}
+            {isFromMe && (() => {
+              const s = chat.lastMessage?.status || 'sent';
+              if (s === 'read') return <CheckCheck className="w-[16px] h-[16px] inline-block flex-shrink-0 text-[#53bdeb]" />;
+              if (s === 'delivered') return <CheckCheck className="w-[16px] h-[16px] inline-block flex-shrink-0 text-[#8696a0]" />;
+              return <Check className="w-[16px] h-[16px] inline-block flex-shrink-0 text-[#8696a0]" />;
+            })()}
             {preview}
           </span>
           {chat.unreadCount > 0 && (
@@ -2265,6 +2270,24 @@ export default function WhatsAppInbox() {
               }
               return m;
             }));
+
+            // Also patch the chat list preview if this message is the latest of any chat.
+            // Status only advances (sent → delivered → read), never downgrade.
+            const rank: Record<string, number> = { sent: 1, delivered: 2, read: 3 };
+            setChats(prev => {
+              let changed = false;
+              const next = prev.map(c => {
+                if (c.lastMessage?.key?.id === msgId) {
+                  const cur = c.lastMessage.status || 'sent';
+                  if ((rank[newStatus] || 0) > (rank[cur] || 0)) {
+                    changed = true;
+                    return { ...c, lastMessage: { ...c.lastMessage, status: newStatus } };
+                  }
+                }
+                return c;
+              });
+              return changed ? next : prev;
+            });
           }
         }
       })

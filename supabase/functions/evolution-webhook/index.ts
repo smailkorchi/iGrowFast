@@ -510,6 +510,9 @@ Deno.serve(async (req) => {
         else if (rawStatus === 'DELIVERY_ACK' || rawStatus === 3) mappedStatus = 'delivered';
         else if (rawStatus === 'SERVER_ACK' || rawStatus === 2) mappedStatus = 'sent';
 
+        // Update the message row. The DB trigger trg_sync_conv_last_msg_status
+        // automatically cascades the new status into whatsapp_conversations
+        // when this message is the conversation's last_message_id.
         await supabase
           .from('whatsapp_messages')
           .update({ status: mappedStatus })

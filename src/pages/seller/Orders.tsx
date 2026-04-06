@@ -310,6 +310,40 @@ const Orders = () => {
     const [filterDateField, setFilterDateField] = useState<string>('date');
     const [filterTimeRange, setFilterTimeRange] = useState<string>('all');
     const [filterCustomRange, setFilterCustomRange] = useState<DateRange | undefined>(undefined);
+    const [calendarRange, setCalendarRange] = useState<DateRange | undefined>(undefined);
+    const [hoveredCalendarDate, setHoveredCalendarDate] = useState<Date | undefined>(undefined);
+    const calendarPreviewRange = calendarRange?.from && !calendarRange.to && hoveredCalendarDate
+        ? (hoveredCalendarDate.getTime() >= calendarRange.from.getTime()
+            ? { from: calendarRange.from, to: hoveredCalendarDate }
+            : { from: hoveredCalendarDate, to: calendarRange.from })
+        : undefined;
+    const handleCustomRangeSelect = (range: DateRange | undefined) => {
+        // Click on the already-active single day -> clear filter.
+        if (
+            calendarRange?.from &&
+            !calendarRange.to &&
+            range?.from &&
+            range.to &&
+            range.from.getTime() === range.to.getTime() &&
+            range.from.getTime() === calendarRange.from.getTime()
+        ) {
+            setCalendarRange(undefined);
+            setFilterCustomRange(undefined);
+            return;
+        }
+        if (range?.from && range.to) {
+            setCalendarRange(range);
+            setFilterCustomRange(range);
+            return;
+        }
+        if (range?.from && !range.to) {
+            setCalendarRange({ from: range.from, to: undefined });
+            setFilterCustomRange({ from: range.from, to: range.from });
+            return;
+        }
+        setCalendarRange(undefined);
+        setFilterCustomRange(undefined);
+    };
     const [showCalendar, setShowCalendar] = useState(false);
     const [filterCustomerName, setFilterCustomerName] = useState('');
     const [filterPhone, setFilterPhone] = useState('');
@@ -677,7 +711,7 @@ const Orders = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('order_statuses')
-                .select('id, code, label, ranking, color, show_in_order')
+                .select('id, code, label, ranking, color, show_in_order, recheck')
                 .eq('active', true)
                 .order('ranking', { ascending: true });
             if (error) throw error;
@@ -710,7 +744,7 @@ const Orders = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('package_statuses')
-                .select('id, code, label, color')
+                .select('id, code, label, color, ranking, recheck')
                 .eq('active', true)
                 .order('ranking', { ascending: true });
             if (error) throw error;
@@ -1476,6 +1510,105 @@ const Orders = () => {
         return baseFilteredOrders.filter(o => isOrderInTab(o, activeTab));
     }, [baseFilteredOrders, activeTab]);
 
+    // Recheck status pill buckets for Confirmation/Suivi tabs.
+    // Apply all base filters EXCEPT the one the pill itself controls.
+    const orderPassesNonStatusFilters = (o: any) => {
+        if (!orderMatchesTopSearch(o, searchQuery)) return false;
+        if (filterCity !== 'all' && o.master_city_id !== filterCity && o.city_id !== filterCity) return false;
+        if (filterSource !== 'all' && o.source_name !== filterSource) return false;
+        if (filterProvider !== 'all' && o.courier_id !== filterProvider && o.company_id !== filterProvider) return false;
+        if (getDateRange) {
+            const fieldKey = DATE_FIELD_MAP[filterDateField] || 'date';
+            const dateVal = o[fieldKey];
+            if (!dateVal) return false;
+            if (!isWithinInterval(new Date(dateVal), { start: getDateRange.from, end: getDateRange.to })) return false;
+        }
+        if (filterCustomerName && !o.name?.toLowerCase().includes(filterCustomerName.toLowerCase())) return false;
+        if (filterPhone && !o.phone?.includes(filterPhone)) return false;
+        if (!orderMatchesTrackingFilter(o, filterTracking)) return false;
+        if (filterProduct !== 'all' && !o.items?.some((item: any) => item.product_id === filterProduct)) return false;
+        if (filterExchange !== 'all') {
+            if (filterExchange === 'yes' && !o.replace) return false;
+            if (filterExchange === 'no' && o.replace) return false;
+        }
+        return true;
+    };
+
+    const recheckOrderStatusBuckets = useMemo(() => {
+        if (activeTab !== 'confirmation') return [] as Array<{ id: string; label: string; color: string; count: number; ranking: number }>;
+        const seed = (orderStatuses as any[] | undefined)?.filter((s) => s.recheck === true) ?? [];
+        const buckets = new Map<string, { id: string; label: string; color: string; count: number; ranking: number }>();
+        for (const s of seed) {
+            buckets.set(s.id, {
+                id: s.id,
+                label: s.label || 'Status',
+                color: s.color || '#94a3b8',
+                ranking: s.ranking ?? 9999,
+                count: 0,
+            });
+        }
+        for (const o of (orders as any[] | undefined) ?? []) {
+            if (!orderPassesNonStatusFilters(o)) continue;
+            if (filterPackageStatus !== 'all' && o.package_status_id !== filterPackageStatus) continue;
+            if (!isOrderInTab(o, 'confirmation')) continue;
+            const sid = o.status?.id;
+            if (!sid) continue;
+            const existing = buckets.get(sid);
+            if (existing) {
+                existing.count++;
+            } else if (o.status?.recheck === true) {
+                buckets.set(sid, {
+                    id: sid,
+                    label: o.status.label || 'Status',
+                    color: o.status.color || '#94a3b8',
+                    ranking: o.status.ranking ?? 9999,
+                    count: 1,
+                });
+            }
+        }
+        return Array.from(buckets.values()).sort((a, b) => a.ranking - b.ranking);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [orders, orderStatuses, activeTab, searchQuery, filterCity, filterSource, filterProvider, getDateRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterPackageStatus, filterExchange]);
+
+    const recheckPackageStatusBuckets = useMemo(() => {
+        if (activeTab !== 'suivi') return [] as Array<{ id: string; label: string; color: string; count: number; ranking: number }>;
+        const seedFromMaster = (packageStatuses as any[] | undefined)?.filter((s) => s.recheck === true) ?? [];
+        const buckets = new Map<string, { id: string; label: string; color: string; count: number; ranking: number }>();
+        for (const s of seedFromMaster) {
+            buckets.set(s.id, {
+                id: s.id,
+                label: s.label || 'Status',
+                color: s.color || '#94a3b8',
+                ranking: s.ranking ?? 9999,
+                count: 0,
+            });
+        }
+        // Also seed any package status flagged as the 'recheck' category even if recheck flag missing.
+        for (const s of (packageStatuses as any[] | undefined) ?? []) {
+            if (buckets.has(s.id)) continue;
+            if (statusCats.isPkgCategory(s.id, 'recheck')) {
+                buckets.set(s.id, {
+                    id: s.id,
+                    label: s.label || 'Status',
+                    color: s.color || '#94a3b8',
+                    ranking: s.ranking ?? 9999,
+                    count: 0,
+                });
+            }
+        }
+        for (const o of (orders as any[] | undefined) ?? []) {
+            if (!orderPassesNonStatusFilters(o)) continue;
+            if (filterStatus !== 'all' && o.order_status_id !== filterStatus) continue;
+            if (!isOrderInTab(o, 'suivi')) continue;
+            const sid = o.package_status?.id;
+            if (!sid) continue;
+            const existing = buckets.get(sid);
+            if (existing) existing.count++;
+        }
+        return Array.from(buckets.values()).sort((a, b) => a.ranking - b.ranking);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [orders, packageStatuses, activeTab, searchQuery, filterStatus, filterCity, filterSource, filterProvider, getDateRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterExchange]);
+
     // Calculate seller-specific statistics
     useEffect(() => {
         const calculateSellerStats = async () => {
@@ -1751,6 +1884,80 @@ const Orders = () => {
                 })}
             </div>
 
+            {/* Recheck status pills (Confirmation = order_statuses.recheck, Suivi = package_statuses.recheck) */}
+            {(activeTab === 'confirmation' || activeTab === 'suivi') && (() => {
+                const buckets = activeTab === 'confirmation' ? recheckOrderStatusBuckets : recheckPackageStatusBuckets;
+                if (!buckets.length) return null;
+                const activeId = activeTab === 'confirmation' ? filterStatus : filterPackageStatus;
+                const setActiveId = activeTab === 'confirmation' ? setFilterStatus : setFilterPackageStatus;
+                const HeaderIcon = activeTab === 'confirmation' ? Phone : Truck;
+                const headerLabel = activeTab === 'confirmation' ? 'Order Status' : 'Package Status';
+                const total = buckets.reduce((sum, b) => sum + b.count, 0);
+                return (
+                    <div className="bg-white/60 backdrop-blur-md rounded-2xl shadow-sm border border-brand-navy/5 p-3 animate-in fade-in slide-in-from-top-1 duration-300">
+                        <div className="flex items-center gap-3">
+                            <div className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl bg-brand-navy/[0.04] shrink-0">
+                                <HeaderIcon className="w-3.5 h-3.5 text-brand-navy/60" />
+                                <span className="text-[10px] font-black uppercase tracking-widest text-brand-navy/60 whitespace-nowrap">{headerLabel}</span>
+                            </div>
+                            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar flex-1 min-w-0">
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveId('all')}
+                                    className={cn(
+                                        "shrink-0 inline-flex items-center gap-2 h-9 px-4 rounded-full text-[11px] font-black uppercase tracking-widest transition-all",
+                                        activeId === 'all'
+                                            ? "bg-brand-navy text-white shadow-md shadow-brand-navy/20"
+                                            : "bg-brand-navy/[0.04] text-brand-navy/60 hover:bg-brand-navy/[0.08] hover:text-brand-navy"
+                                    )}
+                                >
+                                    All
+                                    <span className={cn(
+                                        "min-w-[20px] h-[18px] flex items-center justify-center px-1.5 rounded-full text-[10px] font-black",
+                                        activeId === 'all' ? "bg-white/25 text-white" : "bg-brand-navy/10 text-brand-navy/70"
+                                    )}>
+                                        {total}
+                                    </span>
+                                </button>
+                                {buckets.map((bucket) => {
+                                    const isActive = activeId === bucket.id;
+                                    return (
+                                        <button
+                                            key={bucket.id}
+                                            type="button"
+                                            onClick={() => setActiveId(isActive ? 'all' : bucket.id)}
+                                            className={cn(
+                                                "shrink-0 inline-flex items-center gap-2 h-9 px-4 rounded-full text-[11px] font-black uppercase tracking-widest transition-all border border-transparent",
+                                                isActive ? "text-white" : "hover:brightness-95"
+                                            )}
+                                            style={isActive
+                                                ? { backgroundColor: bucket.color, boxShadow: `0 8px 20px -8px ${bucket.color}80` }
+                                                : { backgroundColor: `${bucket.color}14`, color: bucket.color }
+                                            }
+                                        >
+                                            <span
+                                                className="w-2 h-2 rounded-full shrink-0"
+                                                style={{ backgroundColor: isActive ? '#ffffff' : bucket.color }}
+                                            />
+                                            <span className="truncate max-w-[160px]">{bucket.label}</span>
+                                            <span
+                                                className={cn(
+                                                    "min-w-[20px] h-[18px] flex items-center justify-center px-1.5 rounded-full text-[10px] font-black",
+                                                    isActive ? "bg-white/25 text-white" : ""
+                                                )}
+                                                style={!isActive ? { backgroundColor: '#ffffff', color: bucket.color } : undefined}
+                                            >
+                                                {bucket.count}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
+
             {/* Filters Toolbar (admin parity; seller-scoped city/provider/product; no Confirmed By / Assigned To) */}
             <div className="space-y-4 pb-4">
                 <div className="flex flex-col xl:flex-row gap-4 items-start xl:items-center justify-between">
@@ -1974,8 +2181,12 @@ const Orders = () => {
                                             <PopoverContent className="w-auto p-0 rounded-[24px] border-none shadow-2xl shadow-brand-navy/10" align="start">
                                                 <CalendarComponent
                                                     mode="range"
-                                                    selected={filterCustomRange}
-                                                    onSelect={setFilterCustomRange}
+                                                    selected={calendarRange}
+                                                    onSelect={handleCustomRangeSelect}
+                                                    onDayMouseEnter={(day) => setHoveredCalendarDate(day)}
+                                                    onDayMouseLeave={() => setHoveredCalendarDate(undefined)}
+                                                    modifiers={calendarPreviewRange ? { preview: calendarPreviewRange } : undefined}
+                                                    modifiersClassNames={{ preview: 'bg-accent text-accent-foreground' }}
                                                     numberOfMonths={2}
                                                     className="rounded-[24px] p-4"
                                                 />

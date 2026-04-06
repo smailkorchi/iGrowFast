@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -31,6 +31,25 @@ interface AnalyticsDateFilterProps {
 
 export const AnalyticsDateFilter = ({ dateFilter, onDateFilterChange }: AnalyticsDateFilterProps) => {
     const [open, setOpen] = useState(false);
+    const [tempRange, setTempRange] = useState<DateRange | undefined>({
+        from: dateFilter.from,
+        to: dateFilter.to,
+    });
+    const [hoveredDate, setHoveredDate] = useState<Date | undefined>(undefined);
+
+    const previewRange = tempRange?.from && !tempRange.to && hoveredDate
+        ? (hoveredDate.getTime() >= tempRange.from.getTime()
+            ? { from: tempRange.from, to: hoveredDate }
+            : { from: hoveredDate, to: tempRange.from })
+        : undefined;
+
+    useEffect(() => {
+        if (open) {
+            setTempRange({ from: dateFilter.from, to: dateFilter.to });
+        } else {
+            setHoveredDate(undefined);
+        }
+    }, [open, dateFilter.from, dateFilter.to]);
 
     const handlePreset = (preset: typeof PRESETS[number]) => {
         const range = preset.getRange();
@@ -38,15 +57,44 @@ export const AnalyticsDateFilter = ({ dateFilter, onDateFilterChange }: Analytic
     };
 
     const handleRangeSelect = (range: DateRange | undefined) => {
-        if (range) {
+        // Click on the already-active single day -> clear filter.
+        if (
+            tempRange?.from &&
+            !tempRange.to &&
+            range?.from &&
+            range.to &&
+            range.from.getTime() === range.to.getTime() &&
+            range.from.getTime() === tempRange.from.getTime()
+        ) {
+            setTempRange(undefined);
+            onDateFilterChange({ from: undefined, to: undefined, label: 'All Time' });
+            return;
+        }
+
+        // Second click: full range selected -> commit and close.
+        if (range?.from && range.to) {
+            setTempRange(range);
             onDateFilterChange({
                 from: range.from,
                 to: range.to,
-                label: range.from && range.to
-                    ? `${format(range.from, 'MMM d')} - ${format(range.to, 'MMM d, yyyy')}`
-                    : 'Custom',
+                label: `${format(range.from, 'MMM d')} - ${format(range.to, 'MMM d, yyyy')}`,
             });
+            setOpen(false);
+            return;
         }
+
+        // First click (or reset): treat as single-day filter, keep popover open for hover preview + second click.
+        if (range?.from && !range.to) {
+            setTempRange({ from: range.from, to: undefined });
+            onDateFilterChange({
+                from: range.from,
+                to: range.from,
+                label: format(range.from, 'MMM d, yyyy'),
+            });
+            return;
+        }
+
+        setTempRange(range);
     };
 
     return (
@@ -86,8 +134,12 @@ export const AnalyticsDateFilter = ({ dateFilter, onDateFilterChange }: Analytic
                 <PopoverContent className="w-auto p-0 rounded-2xl" align="end">
                     <Calendar
                         mode="range"
-                        selected={{ from: dateFilter.from, to: dateFilter.to }}
+                        selected={tempRange}
                         onSelect={handleRangeSelect}
+                        onDayMouseEnter={(day) => setHoveredDate(day)}
+                        onDayMouseLeave={() => setHoveredDate(undefined)}
+                        modifiers={previewRange ? { preview: previewRange } : undefined}
+                        modifiersClassNames={{ preview: 'bg-accent text-accent-foreground' }}
                         numberOfMonths={2}
                         disabled={{ after: new Date() }}
                     />
