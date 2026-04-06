@@ -89,6 +89,8 @@ import {
     OrderContactSubmenu,
 } from '@/components/orders/OrderPhoneQuickActions';
 import { ParcelTrackingDialog } from '@/components/orders/ParcelTrackingDialog';
+import { SyncTrackingStatus } from '@/components/orders/SyncTrackingStatus';
+import { useTrackingSyncStatus } from '@/hooks/useTrackingSyncStatus';
 import { getLatestTrackableCompanyParcel } from '@/lib/orders/getLatestTrackableCompanyParcel';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { computeUnpaidCommission, normalizeCommissionBasis, isDeliveredForCommission, type CommissionBasis } from '@/lib/commercialCommission';
@@ -145,7 +147,7 @@ const orderSchema = z.object({
     address: z.string().min(5, "Address is required"),
     source_name: z.string().min(1, "Source is required"),
     shipping_cost: z.coerce.number().min(0),
-    include_delivery_in_total: z.boolean().default(true),
+    include_delivery_in_total: z.boolean().default(false),
     replace: z.boolean().default(false), // "extchange" in request
     note: z.string().optional(),
     delivery_note: z.string().optional(),
@@ -247,11 +249,11 @@ const Orders = () => {
     const [selectedOrder, setSelectedOrder] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
-    const [activeTab, setActiveTab] = useState<'new' | 'confirmation' | 'suivi' | 'reported'>('new');
+    const [activeTab, setActiveTab] = useState<'all' | 'new' | 'confirmation' | 'suivi' | 'reported'>('new');
 
     useEffect(() => {
         const tab = searchParams.get('tab');
-        if (tab === 'new' || tab === 'confirmation' || tab === 'suivi' || tab === 'reported') {
+        if (tab === 'all' || tab === 'new' || tab === 'confirmation' || tab === 'suivi' || tab === 'reported') {
             setActiveTab(tab);
         }
     }, [searchParams]);
@@ -567,6 +569,8 @@ const Orders = () => {
         enabled: !!activeBusinessId && !!userId
     });
 
+    const trackingSyncState = useTrackingSyncStatus(['orders', activeBusinessId, userId]);
+
     const { data: cities } = useQuery({
         queryKey: ['cities-dropdown', activeBusinessId],
         queryFn: async () => {
@@ -802,7 +806,7 @@ const Orders = () => {
             address: '',
             source_name: '',
             shipping_cost: 0,
-            include_delivery_in_total: true,
+            include_delivery_in_total: false,
             replace: false,
             note: '',
             delivery_note: '',
@@ -1128,7 +1132,7 @@ const Orders = () => {
                 address: '',
                 source_name: '',
                 shipping_cost: 0,
-                include_delivery_in_total: true,
+                include_delivery_in_total: false,
                 replace: false,
                 note: '',
                 delivery_note: '',
@@ -1355,6 +1359,8 @@ const Orders = () => {
                 statusCats.isPkgCategory(o.package_status_id, 'recheck'));
 
         switch (tab) {
+            case 'all':
+                return true;
             case 'new':
                 return isNew;
             case 'confirmation':
@@ -1439,12 +1445,13 @@ const Orders = () => {
     };
 
     const tabCounts = useMemo(() => {
-        const counts = { new: 0, confirmation: 0, suivi: 0, reported: 0, reportedToday: false, reportedNow: false };
+        const counts = { all: 0, new: 0, confirmation: 0, suivi: 0, reported: 0, reportedToday: false, reportedNow: false };
         const now = new Date();
         const todayStr = format(now, 'yyyy-MM-dd');
         const currentHour = now.getHours();
 
         baseFilteredOrders.forEach(o => {
+            counts.all++;
             if (isOrderInTab(o, 'new')) counts.new++;
             if (isOrderInTab(o, 'confirmation')) counts.confirmation++;
             if (isOrderInTab(o, 'suivi')) counts.suivi++;
@@ -1603,6 +1610,14 @@ const Orders = () => {
                         <h1 className="text-4xl font-black tracking-tight text-brand-navy">Order Pipeline</h1>
                     </div>
                     <p className="text-muted-foreground text-lg font-medium">Streamline your sales flow and delivery tracking.</p>
+                    <SyncTrackingStatus
+                        latestRun={trackingSyncState.latestRun}
+                        isSyncing={trackingSyncState.isSyncing}
+                        nextSyncAt={trackingSyncState.nextSyncAt}
+                        triggering={trackingSyncState.triggering}
+                        onRunNow={trackingSyncState.runNow}
+                        className="mt-2"
+                    />
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3 items-center">
@@ -1624,7 +1639,7 @@ const Orders = () => {
                                 address: '',
                                 source_name: '',
                                 shipping_cost: 0,
-                                include_delivery_in_total: true,
+                                include_delivery_in_total: false,
                                 replace: false,
                                 note: '',
                                 delivery_note: '',
@@ -1697,6 +1712,7 @@ const Orders = () => {
             {/* Tabs View */}
             <div className="flex bg-white/50 backdrop-blur-md p-1.5 rounded-2xl shadow-sm border border-brand-navy/5 w-full overflow-x-auto hide-scrollbar snap-x">
                 {[
+                    { id: 'all', label: 'All', count: tabCounts.all, icon: LayoutGrid },
                     { id: 'new', label: 'Nouveau', count: tabCounts.new, icon: Package },
                     { id: 'confirmation', label: 'Confirmation', count: tabCounts.confirmation, icon: Phone },
                     { id: 'suivi', label: 'Suivi', count: tabCounts.suivi, icon: Truck },
@@ -2564,7 +2580,7 @@ const Orders = () => {
                             address: '',
                             source_name: '',
                             shipping_cost: 0,
-                            include_delivery_in_total: true,
+                            include_delivery_in_total: false,
                             replace: false,
                             note: '',
                             delivery_note: '',

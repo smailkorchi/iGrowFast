@@ -144,59 +144,80 @@ async function syncContacts(
   await updatePhase(supabase, job.id, pi, {
     status: "running",
     started_at: new Date().toISOString(),
-    progress: { total: 0, processed: 0, detail: "Fetching contacts from WhatsApp..." },
+    progress: { total: 0, processed: 0, detail: "Waiting for WhatsApp to load account..." },
   });
 
-  // Wait for Evolution API to populate contacts (freshly connected instance)
-  await new Promise((r) => setTimeout(r, 5000));
-
-  let contacts = await evoFetch(
-    `/chat/findContacts/${instance_name}`,
-    "POST",
-    {}
-  );
-
-  // Retry if too few contacts (instance still loading)
-  let contactCount = Array.isArray(contacts)
-    ? contacts.filter(
-      (c: any) =>
-        (c.remoteJid || c.id) &&
-        !(c.remoteJid || c.id).endsWith("@g.us") &&
-        (c.remoteJid || c.id) !== "status@broadcast"
-    ).length
-    : 0;
-
-  if (contactCount < 10) {
-    await updatePhase(supabase, job.id, pi, {
-      progress: { total: 0, processed: 0, detail: `Got ${contactCount} contacts, retrying...` },
-    });
-    await new Promise((r) => setTimeout(r, 10000));
-    const retry = await evoFetch(
-      `/chat/findContacts/${instance_name}`,
-      "POST",
-      {}
-    );
-    const retryCount = Array.isArray(retry)
-      ? retry.filter(
-        (c: any) =>
-          (c.remoteJid || c.id) &&
-          !(c.remoteJid || c.id).endsWith("@g.us") &&
-          (c.remoteJid || c.id) !== "status@broadcast"
-      ).length
+  // Helper: count usable (non-group, non-broadcast) contacts in a response
+  const countUsable = (arr: any): number =>
+    Array.isArray(arr)
+      ? arr.filter((c: any) => {
+          const j = c.remoteJid || c.id;
+          return j && !j.endsWith("@g.us") && j !== "status@broadcast";
+        }).length
       : 0;
-    if (retryCount > contactCount) {
-      contacts = retry;
-      contactCount = retryCount;
+
+  // Robust polling: WhatsApp/Baileys can take 30-90s to fully sync chat history
+  // on a freshly paired device. Poll up to ~150s with stability detection
+  // (stop early when count stops growing for 2 consecutive checks).
+  // Pre-warm: small wait so the very first request doesn't fire mid-handshake
+  await new Promise((r) => setTimeout(r, 4000));
+
+  let contacts: any = [];
+  let contactCount = 0;
+  let stableHits = 0;
+  const maxAttempts = 15;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    // Yield before edge runtime kills us — chainNext gives a fresh 120s budget
+    // and Baileys will have had more time to load on the next invocation.
+    if (shouldYield()) {
+      console.log(`[syncContacts] Yielding at attempt ${attempt} (count=${contactCount}) — will resume`);
+      return "yield";
+    }
+    try {
+      const fetched = await evoFetch(
+        `/chat/findContacts/${instance_name}`,
+        "POST",
+        {}
+      );
+      const fetchedCount = countUsable(fetched);
+
+      if (fetchedCount >= contactCount) {
+        contacts = fetched;
+        if (fetchedCount === contactCount && contactCount > 0) {
+          stableHits++;
+        } else {
+          stableHits = 0;
+        }
+        contactCount = fetchedCount;
+      }
+
+      await updatePhase(supabase, job.id, pi, {
+        progress: {
+          total: 0,
+          processed: 0,
+          detail: `Loading contacts... ${contactCount} so far (attempt ${attempt}/${maxAttempts})`,
+        },
+      });
+
+      // Stop conditions
+      if (contactCount >= 200) break;
+      if (contactCount >= 10 && stableHits >= 2) break;
+      if (attempt === maxAttempts) break;
+
+      const waitMs = attempt <= 3 ? 5000 : 8000;
+      await new Promise((r) => setTimeout(r, waitMs));
+    } catch (err) {
+      console.error(`[syncContacts] attempt ${attempt} failed:`, err);
+      await new Promise((r) => setTimeout(r, 6000));
     }
   }
 
-  if (!Array.isArray(contacts)) {
-    await updatePhase(supabase, job.id, pi, {
-      status: "completed",
-      completed_at: new Date().toISOString(),
-      progress: { total: 0, processed: 0, detail: "No contacts returned" },
-    });
-    return "done";
+  if (!Array.isArray(contacts) || contactCount === 0) {
+    // Empty after 15 attempts AND we did not yield → genuine empty account or
+    // Baileys is wedged. Throw to trigger automatic retry (max_retries handles it).
+    throw new Error(
+      `WhatsApp returned no contacts after ${maxAttempts} attempts. The account may be empty or Baileys is stuck — will retry.`
+    );
   }
 
   const filtered = contacts.filter((c: any) => {
@@ -353,19 +374,64 @@ async function syncChatsAndJid(
     progress: { total: 0, processed: 0, detail: "Fetching chats..." },
   });
 
-  const chatData = await evoFetch(
-    `/chat/findChats/${instance_name}`,
-    "POST",
-    {}
-  );
+  // Robust polling for chats — same approach as syncContacts.
+  // Stop early once the count is stable for 2 polls or we hit a clearly-large count.
+  const countUsableChats = (arr: any): number =>
+    Array.isArray(arr)
+      ? arr.filter((c: any) => c.remoteJid && c.remoteJid !== "status@broadcast").length
+      : 0;
 
-  if (!Array.isArray(chatData)) {
-    await updatePhase(supabase, job.id, pi, {
-      status: "completed",
-      completed_at: new Date().toISOString(),
-      progress: { total: 0, processed: 0, detail: "No chats returned" },
-    });
-    return "done";
+  let chatData: any = [];
+  let chatsCount = 0;
+  let stableHits = 0;
+  const maxAttempts = 12;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    if (shouldYield()) {
+      console.log(`[syncChats] Yielding at attempt ${attempt} (count=${chatsCount}) — will resume`);
+      return "yield";
+    }
+    try {
+      const fetched = await evoFetch(
+        `/chat/findChats/${instance_name}`,
+        "POST",
+        {}
+      );
+      const fetchedCount = countUsableChats(fetched);
+
+      if (fetchedCount >= chatsCount) {
+        chatData = fetched;
+        if (fetchedCount === chatsCount && chatsCount > 0) {
+          stableHits++;
+        } else {
+          stableHits = 0;
+        }
+        chatsCount = fetchedCount;
+      }
+
+      await updatePhase(supabase, job.id, pi, {
+        progress: {
+          total: 0,
+          processed: 0,
+          detail: `Loading chats... ${chatsCount} so far (attempt ${attempt}/${maxAttempts})`,
+        },
+      });
+
+      if (chatsCount >= 100) break;
+      if (chatsCount >= 5 && stableHits >= 2) break;
+      if (attempt === maxAttempts) break;
+
+      const waitMs = attempt <= 3 ? 5000 : 8000;
+      await new Promise((r) => setTimeout(r, waitMs));
+    } catch (err) {
+      console.error(`[syncChats] attempt ${attempt} failed:`, err);
+      await new Promise((r) => setTimeout(r, 6000));
+    }
+  }
+
+  if (!Array.isArray(chatData) || chatsCount === 0) {
+    throw new Error(
+      `WhatsApp returned no chats after ${maxAttempts} attempts. Retrying.`
+    );
   }
 
   const allChats = chatData.filter(
@@ -896,6 +962,17 @@ async function syncProfilePics(
   const { instance_name, business_id, instance_id } = job;
   const pi = 5;
   const cursor = job.phase_cursors?.profile_pics || { contact_index: 0 };
+  const isDelta = job.sync_metadata?.mode === "delta";
+
+  // Delta mode: skip profile pic fetching entirely (already cached from full sync)
+  if (isDelta) {
+    await updatePhase(supabase, job.id, pi, {
+      status: "completed",
+      completed_at: new Date().toISOString(),
+      progress: { total: 0, processed: 0, detail: "Skipped (delta sync)" },
+    });
+    return "done";
+  }
 
   await updatePhase(supabase, job.id, pi, {
     status: "running",
@@ -1017,6 +1094,7 @@ async function syncMessages(
   const pi = 6;
   const cursor = job.phase_cursors?.messages || { chat_index: 0, page: 1 };
   const chatJids: any[] = job.sync_metadata?.chat_jids || [];
+  const isDelta = job.sync_metadata?.mode === "delta";
 
   const ownerRes = await supabase
     .from("whatsapp_instances")
@@ -1024,6 +1102,23 @@ async function syncMessages(
     .eq("id", instance_id)
     .single();
   const ownerPhone = ownerRes.data?.phone_number || "";
+
+  // For delta mode: load latest message timestamp per conversation
+  // (only fetch messages newer than this from Evolution API)
+  const conversationCutoffs: Record<string, number> = {};
+  if (isDelta) {
+    const { data: convs } = await supabase
+      .from("whatsapp_conversations")
+      .select("jid, last_message_ts")
+      .eq("instance_id", instance_id);
+    if (convs) {
+      for (const c of convs) {
+        if (c.last_message_ts) {
+          conversationCutoffs[c.jid] = Math.floor(new Date(c.last_message_ts).getTime() / 1000);
+        }
+      }
+    }
+  }
 
   await updatePhase(supabase, job.id, pi, {
     status: "running",
@@ -1136,10 +1231,13 @@ async function syncMessages(
     const conversationId = convRow?.id || null;
 
     // Fetch messages with pagination
-    const maxPages = isGroup ? 3 : 999;
+    // Delta mode: only fetch newer messages than what we already have for this chat
+    const cutoffTs = isDelta ? (conversationCutoffs[jid] || 0) : 0;
+    const maxPages = isDelta ? 5 : (isGroup ? 3 : 999);
     const startPage = ci === cursor.chat_index ? cursor.page : 1;
     let msgPage = startPage;
     let hasMore = true;
+    let hitOldMessage = false;
 
     while (hasMore && msgPage <= maxPages) {
       if (shouldYield()) {
@@ -1176,12 +1274,28 @@ async function syncMessages(
             page: msgPage,
           }
         );
-        const records =
+        let records =
           msgData?.messages?.records || msgData?.records || [];
         const totalPages = msgData?.messages?.pages || 1;
         if (records.length === 0) {
           hasMore = false;
           break;
+        }
+
+        // Delta mode: filter out messages older than the cutoff timestamp
+        // Records come newest-first, so once we hit an old one, stop fetching more pages
+        if (isDelta && cutoffTs > 0) {
+          const filtered = [];
+          for (const r of records) {
+            const ts = r.messageTimestamp || 0;
+            if (ts > cutoffTs) {
+              filtered.push(r);
+            } else {
+              hitOldMessage = true;
+            }
+          }
+          records = filtered;
+          if (hitOldMessage) hasMore = false;
         }
 
         // Extract JID mappings from message keys
@@ -1510,6 +1624,17 @@ Deno.serve(async (req) => {
         return ok({ job_id: existing.id, resumed: true });
       }
 
+      // Detect if this is a reconnect (data already exists) → force delta sync
+      const { count: convCount } = await supabase
+        .from("whatsapp_conversations")
+        .select("*", { count: "exact", head: true })
+        .eq("instance_id", instance_id);
+      const isReconnect = (convCount || 0) > 0;
+
+      // Mode resolution: delta wins on reconnects, otherwise honor user choice, fallback to full
+      const userMode = body.mode as ("full" | "essentials" | undefined);
+      const resolvedMode = isReconnect ? "delta" : (userMode || "full");
+
       // Create new job
       const { data: newJob, error: insertErr } = await supabase
         .from("whatsapp_sync_jobs")
@@ -1521,6 +1646,7 @@ Deno.serve(async (req) => {
           current_phase: 0,
           phases: buildInitialPhases(),
           started_at: new Date().toISOString(),
+          sync_metadata: { mode: resolvedMode },
         })
         .select("*")
         .single();
@@ -1621,6 +1747,20 @@ async function runPhases(supabase: any, job: any) {
     latestJob.instance_id = latestJob.instance_id;
     latestJob.instance_name = latestJob.instance_name;
     latestJob.business_id = latestJob.business_id;
+
+    // Essentials mode: skip profile_pics (5) and messages (6) phases
+    const mode = latestJob.sync_metadata?.mode;
+    if (mode === "essentials" && (pi === 5 || pi === 6)) {
+      console.log(`[essentials] Skipping phase ${PHASE_NAMES[pi]}`);
+      const nowIso = new Date().toISOString();
+      await updatePhase(supabase, job.id, pi, {
+        status: "completed",
+        started_at: nowIso,
+        completed_at: nowIso,
+        progress: { total: 0, processed: 0, detail: "Skipped (Essentials mode)" },
+      });
+      continue;
+    }
 
     try {
       const result = await PHASE_HANDLERS[pi](supabase, latestJob);

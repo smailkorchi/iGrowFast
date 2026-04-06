@@ -135,9 +135,9 @@ export const whatsappService = {
   },
 
   // ── Server-side sync (via evolution-sync edge function) ────────────
-  async startSync(instanceId: string, instanceName: string, businessId: string) {
+  async startSync(instanceId: string, instanceName: string, businessId: string, mode?: 'full' | 'essentials') {
     const { data, error } = await supabase.functions.invoke('evolution-sync', {
-      body: { action: 'start', instance_id: instanceId, instance_name: instanceName, business_id: businessId },
+      body: { action: 'start', instance_id: instanceId, instance_name: instanceName, business_id: businessId, mode },
     });
     if (error) throw new Error(error.message);
     return data;

@@ -12,8 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
-
-const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/provider-integration`;
+import { trackParcelWithFallback } from '@/lib/orders/syncOrderTracking';
 
 type ParcelTrackingDialogProps = {
     open: boolean;
@@ -26,74 +25,6 @@ type DataListItem = {
     value: string | number;
     open_url?: string;
 };
-
-async function trackParcelWithFallback(parcel: {
-    id: string;
-    provider_id: string;
-    tracking_code: string;
-    external_id?: string | null;
-}): Promise<Record<string, unknown>> {
-    const { data: { session } } = await supabase.auth.getSession();
-    let response = await fetch(EDGE_FUNCTION_URL, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session?.access_token}`,
-        },
-        body: JSON.stringify({
-            action: 'track_parcel',
-            provider_id: parcel.provider_id,
-            data: {
-                tracking_code: parcel.tracking_code,
-                external_id: parcel.external_id,
-            },
-        }),
-    });
-
-    const isError = !response.ok;
-    let result = isError ? null : await response.json();
-
-    if (isError || !result?.success) {
-        response = await fetch(EDGE_FUNCTION_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${session?.access_token}`,
-            },
-            body: JSON.stringify({
-                action: 'get_parcel_info',
-                provider_id: parcel.provider_id,
-                data: {
-                    tracking_code: parcel.tracking_code,
-                },
-            }),
-        });
-
-        if (!response.ok) {
-            const errData = await response.json().catch(() => ({ error: 'Failed to fetch tracking data' }));
-            throw new Error(errData.error || `Error ${response.status}`);
-        }
-
-        result = await response.json();
-
-        if (result.success && result.data && !result.data.history && !Array.isArray(result.data)) {
-            result.data.history = [
-                {
-                    status: result.data.status,
-                    statusLabel: result.data.statusLabel || result.data.status,
-                    date: result.data.date || new Date().toISOString(),
-                    comment: result.data.comment || 'Statut actuel (historique indisponible)',
-                    user: 'Synchronisation Coliaty/Provider',
-                },
-            ];
-        }
-    }
-
-    if (result && result.success) {
-        return result.data as Record<string, unknown>;
-    }
-    throw new Error(result?.error || 'Unknown error');
-}
 
 export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrackingDialogProps) {
     const { toast } = useToast();

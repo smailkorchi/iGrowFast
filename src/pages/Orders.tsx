@@ -99,6 +99,8 @@ import {
     OrderContactSubmenu,
 } from '@/components/orders/OrderPhoneQuickActions';
 import { ParcelTrackingDialog } from '@/components/orders/ParcelTrackingDialog';
+import { SyncTrackingStatus } from '@/components/orders/SyncTrackingStatus';
+import { useTrackingSyncStatus } from '@/hooks/useTrackingSyncStatus';
 import { getLatestTrackableCompanyParcel } from '@/lib/orders/getLatestTrackableCompanyParcel';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { Badge } from "@/components/ui/badge";
@@ -545,6 +547,8 @@ const Orders = () => {
             return data;
         },
     });
+
+    const trackingSyncState = useTrackingSyncStatus(['orders', activeBusinessId]);
 
     const { data: cities } = useQuery({
         queryKey: ['cities-dropdown', activeBusinessId],
@@ -1621,6 +1625,14 @@ const Orders = () => {
                         <div>
                             <h1 className="text-4xl font-extralight text-gray-900 mb-2">Order Pipeline</h1>
                             <p className="text-gray-500 font-light">Streamline your sales flow and delivery tracking.</p>
+                            <SyncTrackingStatus
+                                latestRun={trackingSyncState.latestRun}
+                                isSyncing={trackingSyncState.isSyncing}
+                                nextSyncAt={trackingSyncState.nextSyncAt}
+                                triggering={trackingSyncState.triggering}
+                                onRunNow={trackingSyncState.runNow}
+                                className="mt-3"
+                            />
                         </div>
                         <div className="flex flex-col sm:flex-row gap-3 items-center">
                             <div className="relative group sm:w-80">

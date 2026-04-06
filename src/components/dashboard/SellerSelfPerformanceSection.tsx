@@ -15,6 +15,50 @@ import {
     type CommissionBasis,
 } from '@/lib/commercialCommission';
 
+const PRE_CONFIRMATION_LABELS = new Set<string>([
+    'NOUVELLE COMMANDE',
+    'Black liste',
+    'Fausse commande',
+    'ANNULER',
+    'RAPPELE 1',
+    'RAPPELE 2',
+    'RAPPELE 3',
+    'RAPPELE 4',
+    'RAPPELE 5',
+    'RAPPELE 6',
+    'Boite vocale',
+    'Boite vocale + Sms',
+    'Boite vocale + message whatsup',
+    'Pas de réponse',
+    'Pas de réponse + SMS',
+    'Pas de réponse + Message whatsup',
+    'Mauvais numéro',
+].map((l) => l.trim().toLowerCase()));
+
+const POST_CONFIRMATION_LABELS = new Set<string>([
+    'Client pas intéressé',
+    'Mise en distribution',
+    'Relancer',
+    'Relancé nouveau client',
+    'PRÉPARATION RETOUR',
+    'RETURN',
+    'Reporté',
+    'Annulé',
+    'Pas de réponse',
+    'Refusé',
+    'Hors-zone',
+    'Numéro Incorrect',
+    'Pas de réponse + SMS',
+    'Injoignable',
+    'Client na pas commandé',
+    'Boite Vocal',
+    'En voyage',
+    'Programmé',
+    'Retourné',
+].map((l) => l.trim().toLowerCase()));
+
+const normalizeLabel = (l: string | null | undefined) => (l || '').trim().toLowerCase();
+
 const SOURCE_COLORS: Record<string, string> = {
     facebook: 'bg-blue-50 text-blue-700',
     instagram: 'bg-pink-50 text-pink-700',
@@ -118,7 +162,10 @@ export function SellerSelfPerformanceSection({
             sourceBreakdown[src] = (sourceBreakdown[src] || 0) + 1;
         });
 
-        const preConfOrders = sellerOrders.filter((o: any) => !isExcludedFromConfirmation(o.order_status_id));
+        const preConfOrders = sellerOrders.filter((o: any) => {
+            const label = (o.order_statuses as any)?.label;
+            return PRE_CONFIRMATION_LABELS.has(normalizeLabel(label));
+        });
         const preConfirmationBreakdown: Record<string, number> = {};
         preConfOrders.forEach((o: any) => {
             const label = (o.order_statuses as any)?.label || 'Unknown';
@@ -128,7 +175,9 @@ export function SellerSelfPerformanceSection({
         const confirmedCount = sellerOrders.filter((o: any) => confirmedIds.has(o.order_status_id)).length;
         const confirmedPercent = assignedCount > 0 ? (confirmedCount / assignedCount) * 100 : 0;
 
-        const postConfOrders = sellerOrders.filter((o: any) => recheckPackageIds.has(o.package_status_id));
+        const postConfOrders = sellerOrders.filter((o: any) =>
+            POST_CONFIRMATION_LABELS.has(normalizeLabel(o.package_status_label))
+        );
         const postConfirmationBreakdown: Record<string, number> = {};
         postConfOrders.forEach((o: any) => {
             const label = o.package_status_label || 'Unknown';

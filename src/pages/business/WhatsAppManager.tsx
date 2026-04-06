@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { whatsappService } from '@/lib/api/whatsappService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Trash2, Smartphone, Phone, Loader2, QrCode, CheckCircle2, MessageSquare, ArrowRight, Users, MessageCircle, Database, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, Smartphone, Phone, Loader2, QrCode, CheckCircle2, MessageSquare, ArrowRight, Users, MessageCircle, Database, AlertTriangle, Sparkles, ListChecks, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
+import { FaWhatsapp } from 'react-icons/fa';
 
 const db = supabase as any;
 
@@ -25,6 +26,8 @@ interface SyncProgress {
   status: string;
 }
 
+type ImportMode = 'fresh' | 'essentials' | 'full';
+
 interface InstanceSyncState {
   step: ModalStep;
   progress: SyncProgress;
@@ -32,6 +35,7 @@ interface InstanceSyncState {
   qrCode: string | null;
   background: boolean;
   jobId?: string | null;
+  importMode?: ImportMode;
 }
 
 const defaultProgress: SyncProgress = { contacts: { total: 0, synced: 0 }, chats: { total: 0, synced: 0 }, messages: 0, jidMappings: 0, status: 'Preparing...' };
@@ -74,8 +78,12 @@ function deriveSyncProgress(phases: any[], syncMetadata?: any): SyncProgress {
 export default function WhatsAppManager() {
   const [instances, setInstances] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [newInstanceName, setNewInstanceName] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  // ── Add-instance pre-QR steps (modal-local UI state) ────────────────
+  const [preQrStep, setPreQrStep] = useState<'name' | 'mode' | null>(null);
+  const [pendingName, setPendingName] = useState('');
+  const [pendingMode, setPendingMode] = useState<ImportMode | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{
     id: string; name: string; loading: boolean;
     counts: { contacts: number; messages: number; conversations: number; groups: number; labels: number } | null;
@@ -115,7 +123,7 @@ export default function WhatsAppManager() {
 
     // Load any active/recent sync jobs
     const loadActiveJobs = async () => {
-      const { data: jobs } = await supabase
+      const { data: jobs } = await db
         .from('whatsapp_sync_jobs')
         .select('*')
         .eq('business_id', businessId)
@@ -124,7 +132,7 @@ export default function WhatsAppManager() {
 
       if (jobs) {
         const states: Record<string, InstanceSyncState> = {};
-        for (const job of jobs) {
+        for (const job of jobs as any[]) {
           // Only show the most recent job per instance
           if (states[job.instance_name]) continue;
           const step: ModalStep = job.status === 'completed' ? 'complete'
@@ -187,10 +195,13 @@ export default function WhatsAppManager() {
   // ── Poll for connection while QR modal is in scanning state ────────
   // Realtime subscriptions are unreliable for this — direct polling is deterministic.
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const qrRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
     if (modalStep === 'scanning' && modalInstanceName) {
-      // Poll every 3s: check if instance status changed to 'open'
+      // ── Poll connection status every 2s ──
       pollRef.current = setInterval(async () => {
+        // Pause polling while tab is hidden to save resources/quotas
+        if (typeof document !== 'undefined' && document.hidden) return;
         const { data } = await supabase
           .from('whatsapp_instances')
           .select('status')
@@ -198,12 +209,50 @@ export default function WhatsAppManager() {
           .single();
         if (data?.status === 'open') {
           if (pollRef.current) clearInterval(pollRef.current);
+          if (qrRefreshRef.current) clearInterval(qrRefreshRef.current);
           handleInstanceConnected(modalInstanceName);
           fetchInstances();
         }
-      }, 3000);
+      }, 2000);
 
-      return () => { if (pollRef.current) clearInterval(pollRef.current); };
+      // ── Refresh QR every 18s (WhatsApp pairing codes expire ~20s) ──
+      qrRefreshRef.current = setInterval(async () => {
+        if (typeof document !== 'undefined' && document.hidden) return;
+        try {
+          const qrRes = await whatsappService.getQrCode(modalInstanceName);
+          const fresh = qrRes?.qrcode?.base64 || qrRes?.base64 || null;
+          if (fresh) updateSyncState(modalInstanceName, { qrCode: fresh });
+        } catch {}
+      }, 18000);
+
+      // ── On tab visibility regain: instant connection check + QR refresh ──
+      const onVisible = async () => {
+        if (typeof document === 'undefined' || document.hidden) return;
+        try {
+          const { data } = await supabase
+            .from('whatsapp_instances')
+            .select('status')
+            .eq('instance_name', modalInstanceName)
+            .single();
+          if (data?.status === 'open') {
+            if (pollRef.current) clearInterval(pollRef.current);
+            if (qrRefreshRef.current) clearInterval(qrRefreshRef.current);
+            handleInstanceConnected(modalInstanceName);
+            fetchInstances();
+            return;
+          }
+          const qrRes = await whatsappService.getQrCode(modalInstanceName);
+          const fresh = qrRes?.qrcode?.base64 || qrRes?.base64 || null;
+          if (fresh) updateSyncState(modalInstanceName, { qrCode: fresh });
+        } catch {}
+      };
+      document.addEventListener('visibilitychange', onVisible);
+
+      return () => {
+        if (pollRef.current) clearInterval(pollRef.current);
+        if (qrRefreshRef.current) clearInterval(qrRefreshRef.current);
+        document.removeEventListener('visibilitychange', onVisible);
+      };
     }
   }, [modalStep, modalInstanceName]);
 
@@ -233,10 +282,19 @@ export default function WhatsAppManager() {
     setLoading(false);
   };
 
-  // ── Create instance + open modal ──────────────────────────────────
-  const handleCreateInstance = async () => {
-    if (!newInstanceName.trim()) return;
-    const name = newInstanceName.trim();
+  // ── Open the add-instance modal at the name step ──────────────────
+  const openAddInstanceModal = () => {
+    setPendingName('');
+    setPendingMode(null);
+    setPreQrStep('name');
+    setModalInstanceName('');
+    setModalOpen(true);
+  };
+
+  // ── Confirm add-instance: create on Evolution + open scanning step ─
+  const handleConfirmAddInstance = async (rawName: string, mode: ImportMode) => {
+    const name = rawName.trim();
+    if (!name) return;
     try {
       setActionLoading('create');
       let createRes;
@@ -261,7 +319,7 @@ export default function WhatsAppManager() {
         status: 'connecting',
       });
 
-      // Open modal
+      // Transition modal: pre-QR steps → scanning
       setModalInstanceName(name);
       updateSyncState(name, {
         step: 'scanning',
@@ -269,8 +327,9 @@ export default function WhatsAppManager() {
         ownerProfile: { pic: null, phone: '', name: '' },
         qrCode: createRes?.qrcode?.base64 || null,
         background: false,
+        importMode: mode,
       });
-      setModalOpen(true);
+      setPreQrStep(null);
 
       // If no QR in create response, fetch it
       if (!createRes?.qrcode?.base64) {
@@ -281,8 +340,6 @@ export default function WhatsAppManager() {
           } catch {}
         }, 3000);
       }
-
-      setNewInstanceName('');
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     } finally {
@@ -348,6 +405,20 @@ export default function WhatsAppManager() {
       }
     } catch {}
 
+    // Read the user-chosen import mode (set during handleConfirmAddInstance)
+    const chosenMode = getSyncState(instanceName).importMode;
+
+    // Fresh mode: skip server-side sync entirely. Webhook handles everything from now on.
+    if (chosenMode === 'fresh') {
+      setTimeout(() => {
+        updateSyncState(instanceName, {
+          step: 'complete',
+          progress: { ...defaultProgress, status: 'Ready. New messages will appear automatically.' },
+        });
+      }, 1200);
+      return;
+    }
+
     // Trigger server-side sync (runs in Supabase Edge Function, independent of browser)
     setTimeout(async () => {
       const businessId = localStorage.getItem('activeBusinessId');
@@ -361,14 +432,18 @@ export default function WhatsAppManager() {
       if (!instData) return;
 
       try {
-        await whatsappService.startSync(instData.id, instanceName, businessId);
+        // Pass the import mode if it's a user-selectable one (essentials/full).
+        // 'fresh' is handled above; reconnects pass undefined and the edge function forces delta.
+        const modeArg: 'full' | 'essentials' | undefined =
+          chosenMode === 'essentials' || chosenMode === 'full' ? chosenMode : undefined;
+        await whatsappService.startSync(instData.id, instanceName, businessId, modeArg);
         updateSyncState(instanceName, { step: 'syncing' });
       } catch (e: any) {
         console.error('Failed to start sync:', e);
         toast({ title: 'Sync Error', description: e.message, variant: 'destructive' });
       }
     }, 1500);
-  }, []);
+  }, [syncStates]);
   // ── Confirm delete — fetch data counts then show dialog ────────────
   const confirmDeleteInstance = async (id: string, instanceName: string) => {
     setDeleteConfirm({ id, name: instanceName, loading: true, counts: null });
@@ -429,10 +504,10 @@ export default function WhatsAppManager() {
       }
 
       // Cancel any active sync job for this instance
-      const { data: activeJob } = await supabase.from('whatsapp_sync_jobs')
+      const { data: activeJob } = await db.from('whatsapp_sync_jobs')
         .select('id').eq('instance_id', id).in('status', ['pending', 'running', 'paused']).maybeSingle();
       if (activeJob) {
-        await whatsappService.cancelSync(activeJob.id);
+        await whatsappService.cancelSync((activeJob as any).id);
       }
 
       // Delete instance row (cascades: sync_jobs via FK)
@@ -504,51 +579,29 @@ export default function WhatsAppManager() {
         </div>
       </div>
 
-      {/* Create Instance */}
-      <Card className="border-0 shadow-sm rounded-3xl bg-white bg-gradient-to-br from-white to-gray-50/50">
-        <CardContent className="p-8">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-            <div className="space-y-1">
-              <h3 className="text-lg font-medium text-gray-900">Connect New Device</h3>
-              <p className="text-sm font-light text-gray-500">Enter a unique label for your new connection to generate a pairing QR code.</p>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-              <Input
-                placeholder="e.g. Sales-Number-1"
-                value={newInstanceName}
-                onChange={(e) => setNewInstanceName(e.target.value.replace(/\s+/g, '-'))}
-                className="w-full sm:w-[250px] rounded-2xl bg-gray-50/50 border-gray-100 focus-visible:ring-primary/20"
-                disabled={actionLoading === 'create'}
-              />
-              <Button
-                onClick={handleCreateInstance}
-                disabled={!newInstanceName || actionLoading === 'create'}
-                className="rounded-2xl shadow-sm px-6 h-10"
-              >
-                {actionLoading === 'create' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
-                Generate QR
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Instance Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {/* "+" Add Device tile — always first */}
+        <button
+          type="button"
+          onClick={openAddInstanceModal}
+          className="group relative h-full min-h-[220px] rounded-3xl border-2 border-dashed border-gray-200 bg-white/40 hover:bg-white hover:border-primary/40 hover:shadow-md transition-all flex flex-col items-center justify-center gap-3 cursor-pointer"
+        >
+          <div className="w-14 h-14 rounded-2xl bg-primary/5 group-hover:bg-primary/10 flex items-center justify-center transition-colors">
+            <Plus className="w-7 h-7 text-primary/70" strokeWidth={1.5} />
+          </div>
+          <div className="text-center px-4">
+            <p className="text-sm font-medium text-gray-900">Add Device</p>
+            <p className="text-[11px] text-gray-400 font-light mt-0.5">Connect a new WhatsApp account</p>
+          </div>
+        </button>
+
         {loading ? (
           Array.from({ length: 3 }).map((_, i) => (
             <Card key={i} className="animate-pulse border-0 shadow-sm rounded-3xl bg-white">
               <CardContent className="h-[200px]" />
             </Card>
           ))
-        ) : instances.length === 0 ? (
-          <div className="col-span-full py-16 flex flex-col items-center justify-center text-center bg-white rounded-3xl border border-dashed border-gray-200">
-            <div className="w-16 h-16 rounded-full bg-gray-50 flex items-center justify-center mb-4">
-              <MessageSquare className="w-8 h-8 text-gray-300" />
-            </div>
-            <h3 className="text-xl font-light text-gray-900">No devices connected</h3>
-            <p className="text-gray-500 font-light mt-2 max-w-sm">Generate a QR code above to link your first WhatsApp account to the platform.</p>
-          </div>
         ) : (
           instances.map(inst => {
             const isOpen = inst.status === 'open';
@@ -645,41 +698,255 @@ export default function WhatsAppManager() {
       </div>
 
       {/* ── Connection Modal (multi-step) ──────────────────────────────── */}
-      <Dialog open={modalOpen} onOpenChange={(open) => { if (!open) { if (modalStep === 'syncing') handleSyncInBackground(); else handleCloseModal(); } }}>
-        <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-white/95 backdrop-blur-md shadow-2xl rounded-3xl border-0">
+      <Dialog
+        open={modalOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            if (preQrStep) {
+              // Pre-QR steps: nothing to clean up on Evolution side
+              setPreQrStep(null);
+              setPendingName('');
+              setPendingMode(null);
+              setModalOpen(false);
+              return;
+            }
+            if (modalStep === 'syncing') handleSyncInBackground();
+            else handleCloseModal();
+          }
+        }}
+      >
+        <DialogContent className={cn(
+          "p-0 overflow-hidden bg-white/95 backdrop-blur-md shadow-2xl rounded-3xl border-0",
+          preQrStep === 'mode' ? "sm:max-w-3xl" : (!preQrStep && modalStep === 'scanning' ? "sm:max-w-2xl" : "sm:max-w-md")
+        )}>
 
-          {/* ── Step 1: Scanning QR ─────────────────────────────────────── */}
-          {modalStep === 'scanning' && (
+          {/* ── Pre-QR Step A: Name ─────────────────────────────────────── */}
+          {preQrStep === 'name' && (
             <>
               <div className="bg-gradient-to-r from-primary/5 to-transparent p-8 text-center border-b border-gray-100">
                 <DialogHeader>
-                  <DialogTitle className="text-2xl font-extralight text-gray-900 text-center tracking-tight">Pair WhatsApp Device</DialogTitle>
+                  <DialogTitle className="text-2xl font-extralight text-gray-900 text-center tracking-tight">Add WhatsApp Device</DialogTitle>
                   <DialogDescription className="text-center pt-3 font-light text-gray-500">
-                    Open WhatsApp {">"} Settings {">"} Linked Devices {">"} Link a Device
+                    Choose a unique label to identify this device in your inbox.
                   </DialogDescription>
                 </DialogHeader>
               </div>
-              <div className="p-10 flex flex-col items-center justify-center bg-gray-50/50 relative">
-                <div className="relative bg-white p-5 rounded-3xl shadow-sm border border-gray-100">
-                  {qrCode ? (
-                    <img src={qrCode} alt="WhatsApp QR Code" className="w-64 h-64 mx-auto rounded-xl" />
-                  ) : (
-                    <div className="w-64 h-64 flex flex-col items-center justify-center">
-                      <Loader2 className="h-8 w-8 animate-spin text-primary/60 mb-4" />
-                      <p className="text-gray-400 font-light text-sm">Generating secure code...</p>
-                    </div>
-                  )}
+              <div className="p-8 space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Device Name</label>
+                  <Input
+                    autoFocus
+                    placeholder="e.g. Sales-Number-1"
+                    value={pendingName}
+                    onChange={(e) => setPendingName(e.target.value.replace(/\s+/g, '-'))}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && pendingName.trim()) setPreQrStep('mode'); }}
+                    className="h-12 text-base rounded-2xl bg-gray-50/50 border-gray-100 focus-visible:ring-primary/20"
+                  />
                 </div>
-                <div className="flex items-center gap-2 mt-6">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <p className="text-xs text-gray-400 uppercase tracking-widest font-bold">Waiting for scan...</p>
-                </div>
+                <Button
+                  onClick={() => setPreQrStep('mode')}
+                  disabled={!pendingName.trim()}
+                  className="w-full rounded-2xl h-12 font-medium shadow-sm"
+                >
+                  Continue
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
               </div>
             </>
           )}
 
+          {/* ── Pre-QR Step B: Import Mode ──────────────────────────────── */}
+          {preQrStep === 'mode' && (
+            <>
+              <div className="bg-gradient-to-r from-primary/5 to-transparent p-8 text-center border-b border-gray-100 relative">
+                <button
+                  onClick={() => setPreQrStep('name')}
+                  className="absolute left-5 top-5 w-8 h-8 rounded-full bg-white/80 hover:bg-white border border-gray-100 flex items-center justify-center transition-colors"
+                  type="button"
+                >
+                  <ArrowLeft className="w-4 h-4 text-gray-500" />
+                </button>
+                <DialogHeader>
+                  <DialogTitle className="text-2xl font-extralight text-gray-900 text-center tracking-tight">Import Strategy</DialogTitle>
+                  <DialogDescription className="text-center pt-3 font-light text-gray-500">
+                    Pick how much WhatsApp history to bring into <span className="font-medium text-gray-700">{pendingName}</span>.
+                  </DialogDescription>
+                </DialogHeader>
+              </div>
+              <div className="p-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {[
+                  {
+                    key: 'fresh' as ImportMode,
+                    icon: Sparkles,
+                    title: 'Fresh Start',
+                    subtitle: 'Begin with an empty inbox',
+                    bullets: [
+                      'No historical data imported',
+                      'Conversations appear as new messages arrive',
+                      'Fastest setup, zero rate-limit risk',
+                    ],
+                  },
+                  {
+                    key: 'essentials' as ImportMode,
+                    icon: ListChecks,
+                    title: 'Essentials Only',
+                    subtitle: 'Import the basics, skip history',
+                    bullets: [
+                      'Contacts, chats, groups, labels',
+                      'Conversation list ready to use',
+                      'Skips message history & profile pictures',
+                    ],
+                  },
+                  {
+                    key: 'full' as ImportMode,
+                    icon: Database,
+                    title: 'Full Import',
+                    subtitle: 'Bring everything from WhatsApp',
+                    bullets: [
+                      'All contacts, chats, groups, labels',
+                      'Complete message history',
+                      'Profile pictures cached locally',
+                    ],
+                    warning: 'May contain temporary mismatches with WhatsApp servers; resolved in future updates.',
+                  },
+                ].map((opt) => {
+                  const selected = pendingMode === opt.key;
+                  const Icon = opt.icon;
+                  return (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => setPendingMode(opt.key)}
+                      className={cn(
+                        "relative h-full text-left rounded-3xl border bg-gradient-to-br from-white to-gray-50/40 p-5 transition-all hover:shadow-md active:scale-[0.98] flex flex-col",
+                        selected
+                          ? "border-primary/60 ring-2 ring-primary/20 shadow-md"
+                          : "border-gray-100 shadow-sm hover:border-gray-200"
+                      )}
+                    >
+                      {selected && (
+                        <CheckCircle2 className="absolute top-3 right-3 w-4 h-4 text-primary" />
+                      )}
+                      <div className={cn(
+                        "w-12 h-12 rounded-2xl flex items-center justify-center transition-colors mb-4",
+                        selected ? "bg-primary/10" : "bg-gray-50"
+                      )}>
+                        <Icon className={cn("w-5 h-5", selected ? "text-primary" : "text-gray-400")} strokeWidth={1.5} />
+                      </div>
+                      <h4 className="text-sm font-medium text-gray-900">{opt.title}</h4>
+                      <p className="text-xs text-gray-500 font-light mt-0.5">{opt.subtitle}</p>
+                      <ul className="mt-3 space-y-1 flex-1">
+                        {opt.bullets.map((b, i) => (
+                          <li key={i} className="text-[11px] text-gray-500 font-light flex items-start gap-1.5">
+                            <span className="text-gray-300 mt-0.5">•</span>
+                            <span>{b}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      {opt.warning && (
+                        <div className="mt-3 flex items-start gap-1.5 text-[10px] text-amber-700/80 bg-amber-50 border border-amber-100 rounded-xl px-2.5 py-1.5">
+                          <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
+                          <span className="font-light leading-snug">{opt.warning}</span>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="p-6 pt-2 border-t border-gray-50 bg-white/40">
+                <Button
+                  onClick={() => pendingMode && handleConfirmAddInstance(pendingName, pendingMode)}
+                  disabled={!pendingMode || actionLoading === 'create'}
+                  className="w-full rounded-2xl h-12 font-medium shadow-sm"
+                >
+                  {actionLoading === 'create' ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating QR...</>
+                  ) : (
+                    <>Continue<ArrowRight className="w-4 h-4 ml-2" /></>
+                  )}
+                </Button>
+              </div>
+            </>
+          )}
+
+          {/* ── Step 1: Scanning QR ─────────────────────────────────────── */}
+          {!preQrStep && modalStep === 'scanning' && (
+            <div className="relative overflow-hidden">
+              {/* Ambient gradient backdrop */}
+              <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/40 via-white to-teal-50/30 pointer-events-none" />
+              <div className="absolute -top-24 -right-24 w-64 h-64 bg-emerald-200/20 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-teal-200/20 rounded-full blur-3xl pointer-events-none" />
+
+              <div className="relative grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-0">
+                {/* ── Left: instructions ──────────────────────────────── */}
+                <div className="p-8 sm:pr-4 flex flex-col justify-center">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-100 self-start mb-4">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-700">Waiting for scan</span>
+                  </div>
+
+                  <h3 className="text-2xl font-extralight text-gray-900 tracking-tight leading-tight">
+                    Pair your<br />WhatsApp device
+                  </h3>
+                  <p className="text-xs text-gray-500 font-light mt-2 mb-6 max-w-[260px]">
+                    Scan the code with your phone to securely link this device.
+                  </p>
+
+                  <ol className="space-y-3">
+                    {[
+                      'Open WhatsApp on your phone',
+                      'Tap Settings, then Linked Devices',
+                      'Tap "Link a Device" and scan the code',
+                    ].map((txt, i) => (
+                      <li key={i} className="flex items-start gap-3">
+                        <div className="shrink-0 w-6 h-6 rounded-full bg-white border border-emerald-100 shadow-sm flex items-center justify-center">
+                          <span className="text-[10px] font-bold text-emerald-600">{i + 1}</span>
+                        </div>
+                        <span className="text-xs text-gray-600 font-light leading-relaxed pt-0.5">{txt}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+
+                {/* ── Right: QR card ──────────────────────────────────── */}
+                <div className="p-8 sm:pl-4 flex items-center justify-center">
+                  <div className="relative">
+                    {/* Animated gradient ring */}
+                    <div className="absolute -inset-1 rounded-[2rem] bg-gradient-to-br from-emerald-400 via-teal-400 to-emerald-500 opacity-60 blur-md" />
+                    <div className="relative bg-white p-4 rounded-[1.75rem] shadow-2xl border border-white">
+                      {/* Corner brackets */}
+                      <div className="absolute top-2 left-2 w-5 h-5 border-t-2 border-l-2 border-emerald-500 rounded-tl-xl" />
+                      <div className="absolute top-2 right-2 w-5 h-5 border-t-2 border-r-2 border-emerald-500 rounded-tr-xl" />
+                      <div className="absolute bottom-2 left-2 w-5 h-5 border-b-2 border-l-2 border-emerald-500 rounded-bl-xl" />
+                      <div className="absolute bottom-2 right-2 w-5 h-5 border-b-2 border-r-2 border-emerald-500 rounded-br-xl" />
+
+                      {qrCode ? (
+                        <div className="relative">
+                          <img src={qrCode} alt="WhatsApp QR Code" className="w-56 h-56 rounded-2xl" />
+                          {/* WhatsApp logo center overlay */}
+                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <div className="w-12 h-12 rounded-2xl bg-white shadow-lg border border-gray-100 flex items-center justify-center">
+                              <FaWhatsapp className="w-7 h-7 text-[#25D366]" />
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="w-56 h-56 flex flex-col items-center justify-center bg-gradient-to-br from-gray-50 to-white rounded-2xl">
+                          <div className="relative">
+                            <Loader2 className="h-10 w-10 animate-spin text-emerald-500 mb-3" />
+                          </div>
+                          <p className="text-gray-400 font-light text-xs uppercase tracking-widest mt-2">Generating</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ── Step 2: Connected (brief transition) ───────────────────── */}
-          {modalStep === 'connected' && (
+          {!preQrStep && modalStep === 'connected' && (
             <div className="p-10 flex flex-col items-center justify-center animate-in fade-in zoom-in-95 duration-500">
               <div className="relative mb-6">
                 {ownerProfile.pic ? (
@@ -703,7 +970,7 @@ export default function WhatsAppManager() {
           )}
 
           {/* ── Step 3: Syncing ────────────────────────────────────────── */}
-          {modalStep === 'syncing' && (() => {
+          {!preQrStep && modalStep === 'syncing' && (() => {
             // Extract phase data from the sync job for detailed display
             const jobState = syncStates[modalInstanceName];
             const phases = (jobState as any)?._phases || [];
@@ -782,7 +1049,7 @@ export default function WhatsAppManager() {
           })()}
 
           {/* ── Step 4: Complete ───────────────────────────────────────── */}
-          {modalStep === 'complete' && (
+          {!preQrStep && modalStep === 'complete' && (
             <div className="p-10 flex flex-col items-center justify-center animate-in fade-in zoom-in-95 duration-500">
               <div className="relative mb-6">
                 {ownerProfile.pic ? (
@@ -832,7 +1099,7 @@ export default function WhatsAppManager() {
           )}
 
           {/* ── Step 5: Failed ────────────────────────────────────────── */}
-          {modalStep === 'failed' && (
+          {!preQrStep && modalStep === 'failed' && (
             <div className="p-10 flex flex-col items-center justify-center animate-in fade-in zoom-in-95 duration-500">
               <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mb-4 border-4 border-red-100">
                 <Trash2 className="w-8 h-8 text-red-500" />
