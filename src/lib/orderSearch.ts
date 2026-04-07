@@ -19,11 +19,68 @@ function addLocalizedName(bucket: string[], name: unknown) {
 }
 
 /**
+ * Permissive structural shape of the orders row + joined relations that the
+ * search walks. Every field is optional + unknown because this function runs
+ * against rows assembled by many different queries across the app — it must
+ * not enforce strict shape. Arrays are declared so for..of iteration type-checks.
+ */
+type OrderForSearch = {
+    id?: unknown;
+    name?: unknown;
+    phone?: unknown;
+    address?: unknown;
+    tracking_number?: unknown;
+    coliaty_old_tracking?: unknown;
+    ameex_old_tracking?: unknown;
+    note?: unknown;
+    delivery_note?: unknown;
+    source_name?: unknown;
+    delivery_type?: unknown;
+    package_status_label?: unknown;
+    raw_price?: unknown;
+    shipping_cost?: unknown;
+    total_price?: unknown;
+    discount?: unknown;
+    seller_id?: unknown;
+    assign_id?: unknown;
+    confirmed_by_id?: unknown;
+    courier_id?: unknown;
+    company_id?: unknown;
+    order_status_id?: unknown;
+    package_status_id?: unknown;
+    master_city_id?: unknown;
+    city_id?: unknown;
+    city?: { name?: unknown } | null;
+    courier?: { name?: unknown } | null;
+    assignee?: { name?: unknown } | null;
+    company?: { name?: unknown } | null;
+    status?: { label?: unknown } | null;
+    package_status?: { label?: unknown } | null;
+    items?: Array<{
+        product?: { name?: unknown; code?: unknown } | null;
+        accessory?: { name?: unknown; code?: unknown } | null;
+        note?: unknown;
+    }> | null;
+    parcels?: Array<{
+        id?: unknown;
+        tracking_code?: unknown;
+        status_label?: unknown;
+        provider?: { name?: unknown } | null;
+    }> | null;
+    courier_parcels?: Array<{ id?: unknown; tracking_code?: unknown; status_label?: unknown }> | null;
+    history?: Array<{
+        comment?: unknown;
+        user?: { name?: unknown } | null;
+        status?: { label?: unknown } | null;
+    }> | null;
+};
+
+/**
  * Main orders search bar: matches any loaded scalar or joined text on the row
  * (customer, address, notes, status labels, products, parcel/courier tracking,
  * history comments, Coliaty/AMEEX old exchange tracking, ids, etc.).
  */
-export function orderMatchesTopSearch(order: any, raw: string): boolean {
+export function orderMatchesTopSearch(order: OrderForSearch | null | undefined, raw: string): boolean {
     const q = raw.trim();
     if (!q) return true;
 

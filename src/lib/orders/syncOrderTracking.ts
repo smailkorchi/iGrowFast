@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { getLatestTrackableCompanyParcel } from '@/lib/orders/getLatestTrackableCompanyParcel';
+import { getLatestTrackableCompanyParcel, type TrackableCompanyParcelRow } from '@/lib/orders/getLatestTrackableCompanyParcel';
 
 const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/provider-integration`;
 
@@ -191,7 +191,15 @@ function pickStatusFromResponse(
     let rawColor = headlineColor || null;
 
     if (!matched) {
-        const history = (Array.isArray(data.history) ? (data.history as any[]) : []).slice();
+        // Provider tracking history events — external API shape, keys we actually access.
+        type HistoryEvent = {
+            statusLabel?: string | null;
+            status_label?: string | null;
+            status?: string | null;
+            statusColor?: string | null;
+            color?: string | null;
+        };
+        const history = (Array.isArray(data.history) ? (data.history as HistoryEvent[]) : []).slice();
         // Walk newest-first.
         for (const event of history) {
             if (!event) continue;
@@ -258,7 +266,7 @@ type OrderForSync = {
     id: string;
     package_status?: { id?: string | null; category?: string | null } | null;
     package_status_id?: string | null;
-    parcels?: any[];
+    parcels?: TrackableCompanyParcelRow[] | null;
 };
 
 export type BatchSyncResult = {
@@ -313,7 +321,7 @@ export async function syncOrdersTracking(
                 synced++;
                 if (r.updated) changed++;
             } catch (err) {
-                if ((err as any)?.name === 'AbortError') return;
+                if ((err as { name?: string })?.name === 'AbortError') return;
                 failed++;
             }
         }

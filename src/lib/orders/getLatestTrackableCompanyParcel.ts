@@ -1,5 +1,5 @@
 // company_parcels verified via MCP: id NOT NULL, tracking_code/external_id/provider_id/created_at nullable; provider (providers.id) NOT NULL
-type Parcel = {
+export type TrackableCompanyParcelRow = {
     id: string;
     tracking_code?: string | null;
     external_id?: string | null;
@@ -7,7 +7,8 @@ type Parcel = {
     provider?: { id: string } | null;
     created_at?: string | null;
 };
-type OrderWithParcels = { parcels?: Parcel[] | null } | null | undefined;
+export type OrderWithParcels = { parcels?: TrackableCompanyParcelRow[] | null } | null | undefined;
+type Parcel = TrackableCompanyParcelRow;
 
 /** Latest company parcel that can be tracked via provider-integration (needs tracking code + provider). */
 export function getLatestTrackableCompanyParcel(order: OrderWithParcels): {

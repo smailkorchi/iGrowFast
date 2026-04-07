@@ -1,12 +1,14 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { flushSync } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
+import type { SupabaseClient, RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { whatsappNotificationStore } from '@/lib/whatsappNotificationStore';
 import { whatsappService } from '@/lib/api/whatsappService';
 
-// Untyped supabase client for new tables not yet in generated types
-const db = supabase as any;
+// Untyped supabase client for whatsapp_* tables not yet in generated types.
+// All column shapes used below are verified via MCP against the live schema.
+const db = supabase as unknown as SupabaseClient;
 import {
   Search, Send, Smile, Paperclip, Mic, MoreVertical, Phone, Video,
   Check, CheckCheck, Filter, Play, Loader2, ArrowLeft, Plus, X,
@@ -21,6 +23,89 @@ import Picker from '@emoji-mart/react';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
+/**
+ * WhatsApp/Evolution message body. Baileys/Evolution wraps every media kind in a
+ * sibling key (imageMessage, videoMessage, …) whose value contains the fields
+ * below. Shape verified against Evolution API payloads observed in whatsapp_messages.
+ */
+type WaContextInfo = {
+    stanzaId?: string;
+    participant?: string;
+    quotedMessage?: WaMessageBody;
+};
+
+type WaMediaVariant = {
+    text?: string;
+    caption?: string;
+    fileName?: string;
+    url?: string;
+    mimetype?: string;
+    // Baileys encodes Long ints as { low, high, unsigned } objects.
+    fileLength?: number | string | { low?: number; high?: number; unsigned?: boolean };
+    pageCount?: number;
+    seconds?: number;
+    contextInfo?: WaContextInfo;
+    key?: { id?: string };
+};
+
+type WaMessageBody = {
+    conversation?: string;
+    extendedTextMessage?: WaMediaVariant;
+    imageMessage?: WaMediaVariant;
+    videoMessage?: WaMediaVariant;
+    audioMessage?: WaMediaVariant;
+    documentMessage?: WaMediaVariant;
+    stickerMessage?: WaMediaVariant;
+    reactionMessage?: WaMediaVariant;
+    protocolMessage?: WaMediaVariant;
+    contactMessage?: WaMediaVariant;
+    locationMessage?: WaMediaVariant;
+    contextInfo?: WaContextInfo;
+};
+
+/** whatsapp_messages row shape verified via MCP. */
+type WaMessageRow = {
+    id: string;
+    business_id: string;
+    instance_id: string;
+    contact_id: string | null;
+    remote_jid: string;
+    message_id: string;
+    type: string;
+    content: string | null;
+    media_url: string | null;
+    direction: string;
+    status: string;
+    created_at: string;
+    raw_key: unknown;
+    conversation_id: string | null;
+    sender_jid: string | null;
+};
+
+/** whatsapp_conversations row shape verified via MCP. */
+type WaConversationRow = {
+    id: string;
+    business_id: string;
+    instance_id: string;
+    jid: string;
+    type: string;
+    display_name: string | null;
+    profile_pic: string | null;
+    last_message_id: string | null;
+    last_message_content: string | null;
+    last_message_type: string | null;
+    last_message_direction: string | null;
+    last_message_ts: string | null;
+    last_message_status: string | null;
+    unread_count: number | null;
+    contact_id: string | null;
+    group_id: string | null;
+    created_at: string | null;
+    updated_at: string | null;
+    phone_jid: string | null;
+    lid_jid: string | null;
+};
+
 interface EvolutionChat {
   id: string;
   remoteJid: string;
@@ -32,7 +117,7 @@ interface EvolutionChat {
     key: { id: string; fromMe: boolean };
     pushName: string;
     messageType: string;
-    message: Record<string, any>;
+    message: WaMessageBody;
     messageTimestamp: number;
     status: string;
   } | null;
@@ -46,7 +131,7 @@ interface EvolutionMessage {
   key: { id: string; fromMe: boolean; remoteJid: string };
   pushName: string;
   messageType: string;
-  message: Record<string, any>;
+  message: WaMessageBody;
   messageTimestamp: number;
   source: string;
   MessageUpdate?: { status: string }[];
@@ -195,7 +280,7 @@ function getMessagePreview(msg: EvolutionChat['lastMessage']): React.ReactNode {
 }
 
 /** Extract reactions from Evolution API message records into a map of targetMessageId -> emoji[] */
-function buildReactionsFromRecords(records: any[]): Record<string, string[]> {
+function buildReactionsFromRecords(records: { messageType?: string; message?: WaMessageBody }[]): Record<string, string[]> {
   const map: Record<string, string[]> = {};
   for (const r of records) {
     if (r.messageType !== 'reactionMessage') continue;
@@ -274,7 +359,7 @@ function formatPhoneFromJid(jid: string): string {
 
 // ── Dropdown menu component ──────────────────────────────────────────────────
 
-function DropdownMenu({ items, onClose }: { items: { icon: any; label: string; onClick: () => void; danger?: boolean; divider?: boolean }[]; onClose: () => void }) {
+function DropdownMenu({ items, onClose }: { items: { icon: React.ComponentType<{ className?: string }>; label: string; onClick: () => void; danger?: boolean; divider?: boolean }[]; onClose: () => void }) {
   const handlerRef = useRef<((e: MouseEvent) => void) | null>(null);
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -350,7 +435,7 @@ function Avatar({ name, size = 49, jid, picUrl, instanceName }: {
       if (!promise) {
         // Proxy the profilePicUrl through our edge function (server-side fetch, returns base64)
         promise = whatsappService.invokeClient('proxy-image', { instanceName, url: picUrl })
-          .then((d: any) => d?.base64 || null)
+          .then((d: { base64?: string } | null) => d?.base64 || null)
           .catch(() => null)
           .finally(() => _avatarInflight.delete(cacheKey));
         _avatarInflight.set(cacheKey, promise);
@@ -515,8 +600,10 @@ function MediaImage({ msgKey, instanceName, caption, isSticker, timestamp, statu
   const [failed, setFailed] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
 
-  const load = async () => {
-    if (src || loading) return;
+  const didLoadRef = useRef(false);
+  const load = useCallback(async () => {
+    if (didLoadRef.current) return;
+    didLoadRef.current = true;
     setLoading(true);
     try {
       const data = await whatsappService.getMedia(instanceName, msgKey);
@@ -525,10 +612,10 @@ function MediaImage({ msgKey, instanceName, caption, isSticker, timestamp, statu
       } else { setFailed(true); }
     } catch { setFailed(true); }
     finally { setLoading(false); }
-  };
+  }, [instanceName, msgKey]);
 
   // Auto-load on mount
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   if (isSticker) {
     return src ? <img src={src} alt="" className="w-[128px] h-[128px]" /> : (
@@ -790,9 +877,11 @@ function MessageBubble({ msg, isStarred, isPinned, reactions, instanceName, chat
     // Documents don't need mediaUrl — they use getMedia API on download
     if (t === 'documentMessage') {
       const doc = msg.message?.documentMessage || {};
+      const fl = doc.fileLength;
+      const fileSize = typeof fl === 'number' ? fl : (typeof fl === 'object' && fl ? (fl.low || 0) : 0);
       return <DocumentBubble msgKey={msg.key} instanceName={instanceName}
         fileName={doc.fileName || 'Document'} mimetype={doc.mimetype || ''}
-        fileSize={doc.fileLength?.low || 0} pageCount={doc.pageCount}
+        fileSize={fileSize} pageCount={doc.pageCount}
         timestamp={msg.messageTimestamp} status={status} isOut={isOut} />;
     }
     if (!mediaUrl) return null;
@@ -853,9 +942,8 @@ function MessageBubble({ msg, isStarred, isPinned, reactions, instanceName, chat
           {(() => {
             // Check all possible contextInfo paths (varies by message type)
             const m = msg.message || {};
-            const ctx = (msg as any).contextInfo
+            const ctx = m.contextInfo
               || m.extendedTextMessage?.contextInfo
-              || m.conversation?.contextInfo
               || m.imageMessage?.contextInfo
               || m.videoMessage?.contextInfo
               || m.audioMessage?.contextInfo
@@ -959,7 +1047,7 @@ function MessageBubble({ msg, isStarred, isPinned, reactions, instanceName, chat
 
           {showReactionPicker && (
             <div className="mb-1">
-              <Picker data={data} onEmojiSelect={(emoji: any) => handleLocalReact(emoji.native)}
+              <Picker data={data} onEmojiSelect={(emoji: { native: string }) => handleLocalReact(emoji.native)}
                 theme="dark" previewPosition="none" skinTonePosition="none" perLine={8} />
             </div>
           )}
@@ -978,7 +1066,7 @@ function MessageBubble({ msg, isStarred, isPinned, reactions, instanceName, chat
                 {item.divider && <div className="border-t border-[#2a3942] my-[4px]" />}
                 <button onClick={() => { item.onClick(); if (item.label !== 'React') setShowCtxMenu(null); }}
                   className={`w-full flex items-center gap-3 px-5 py-[10px] text-[14.5px] hover:bg-[#182229] transition-colors ${item.danger ? 'text-[#e96c4c]' : 'text-[#d1d7db]'}`}>
-                  <item.icon className={`w-[18px] h-[18px] flex-shrink-0 ${'iconCls' in item ? (item as any).iconCls : ''}`} />
+                  <item.icon className={`w-[18px] h-[18px] flex-shrink-0 ${'iconCls' in item ? (item as { iconCls?: string }).iconCls || '' : ''}`} />
                   {item.label}
                 </button>
               </div>
@@ -1081,8 +1169,16 @@ function AttachmentMenu({ onSelect, onClose }: { onSelect: (type: string) => voi
 
 // ── New Chat Panel ───────────────────────────────────────────────────────────
 
+type NewChatContact = {
+  remoteJid: string;
+  pushName: string;
+  profilePicUrl: string | null;
+  _chatJid: string;
+  _displayPhone: string;
+};
+
 function NewChatPanel({ instanceName, onSelectContact, onClose }: { instanceName: string; onSelectContact: (jid: string, name: string) => void; onClose: () => void }) {
-  const [contacts, setContacts] = useState<any[]>([]);
+  const [contacts, setContacts] = useState<NewChatContact[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -1092,16 +1188,18 @@ function NewChatPanel({ instanceName, onSelectContact, onClose }: { instanceName
         const businessId = localStorage.getItem('activeBusinessId');
         if (!businessId) { setLoading(false); return; }
 
-        // Read contacts from Supabase
-        const { data } = await (supabase as any).from('whatsapp_contacts')
+        // Read contacts from Supabase. whatsapp_contacts columns verified via MCP:
+        // phone_number text NOT NULL, name text nullable, profile_pic text nullable.
+        const { data } = await db.from('whatsapp_contacts')
           .select('phone_number, name, profile_pic')
           .eq('business_id', businessId)
           .order('name', { ascending: true, nullsFirst: false });
 
         if (Array.isArray(data)) {
-          const filtered = data
-            .filter((c: any) => c.phone_number && !c.phone_number.endsWith('@g.us') && c.phone_number !== 'status@broadcast')
-            .map((c: any) => ({
+          const rows = data as { phone_number: string; name: string | null; profile_pic: string | null }[];
+          const filtered: NewChatContact[] = rows
+            .filter((c) => c.phone_number && !c.phone_number.endsWith('@g.us') && c.phone_number !== 'status@broadcast')
+            .map((c) => ({
               remoteJid: c.phone_number,
               pushName: c.name || '+' + c.phone_number.split('@')[0],
               profilePicUrl: c.profile_pic,
@@ -1123,7 +1221,7 @@ function NewChatPanel({ instanceName, onSelectContact, onClose }: { instanceName
 
   // Group by first letter
   const grouped = useMemo(() => {
-    const groups: Record<string, any[]> = {};
+    const groups: Record<string, NewChatContact[]> = {};
     for (const c of filteredContacts) {
       const letter = (c.pushName || c._displayPhone || '#')[0].toUpperCase();
       const key = /[A-Z]/.test(letter) ? letter : '#';
@@ -1155,7 +1253,7 @@ function NewChatPanel({ instanceName, onSelectContact, onClose }: { instanceName
           grouped.map(([letter, items]) => (
             <div key={letter}>
               <div className="px-[30px] py-2 text-[14px] text-[#00a884] font-medium">{letter}</div>
-              {items.map((c: any) => (
+              {items.map((c) => (
                 <button
                   key={c._chatJid || c.remoteJid}
                   onClick={() => onSelectContact(c._chatJid || c.remoteJid, c.pushName || c._displayPhone || c.remoteJid)}
@@ -1454,6 +1552,11 @@ function VoiceRecorderBar({ onSend, onCancel }: { onSend: (blob: Blob) => void; 
 
   const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
+  // Hold the latest onCancel in a ref so the mount-only setup effect can call it
+  // without re-running whenever the parent re-renders.
+  const onCancelRef = useRef(onCancel);
+  useEffect(() => { onCancelRef.current = onCancel; }, [onCancel]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -1492,7 +1595,7 @@ function VoiceRecorderBar({ onSend, onCancel }: { onSend: (blob: Blob) => void; 
           animFrameRef.current = requestAnimationFrame(animate);
         };
         animate();
-      } catch (_e) { onCancel(); }
+      } catch (_e) { onCancelRef.current(); }
     })();
 
     return () => {
@@ -1580,10 +1683,22 @@ function VoiceRecorderBar({ onSend, onCancel }: { onSend: (blob: Blob) => void; 
 
 // ── Starred Messages Panel ───────────────────────────────────────────────────
 
+// whatsapp_starred_messages columns verified via MCP: id/business_id/remote_jid/message_id/created_at NOT NULL; content/instance_id nullable.
+type StarredMessageRow = {
+  id: string;
+  business_id: string;
+  remote_jid: string;
+  message_id: string;
+  created_at: string;
+  content: string | null;
+  instance_id: string | null;
+  type?: string | null; // legacy field — may not exist in current schema
+};
+
 function StarredMessagesPanel({ starredMsgIds, businessId, onUnstar, onClose }: {
   starredMsgIds: Set<string>; businessId: string; onUnstar: (msgId: string) => void; onClose: () => void;
 }) {
-  const [starredMessages, setStarredMessages] = useState<any[]>([]);
+  const [starredMessages, setStarredMessages] = useState<StarredMessageRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -1591,7 +1706,7 @@ function StarredMessagesPanel({ starredMsgIds, businessId, onUnstar, onClose }: 
       if (!businessId) { setLoading(false); return; }
       const { data } = await db.from('whatsapp_starred_messages').select('*')
         .eq('business_id', businessId).order('created_at', { ascending: false });
-      setStarredMessages(data || []);
+      setStarredMessages((data || []) as StarredMessageRow[]);
       setLoading(false);
     })();
   }, [businessId, starredMsgIds.size]);
@@ -1614,7 +1729,7 @@ function StarredMessagesPanel({ starredMsgIds, businessId, onUnstar, onClose }: 
             <p className="text-[#667781] text-[13px] mt-1">Tap and hold on any message to star it so you can find it later.</p>
           </div>
         ) : (
-          starredMessages.map((msg: any) => (
+          starredMessages.map((msg) => (
             <div key={msg.id} className="px-4 py-3 border-b border-[#222d34] hover:bg-[#202c33]">
               <div className="flex justify-between items-start">
                 <div className="flex-1 min-w-0">
@@ -1643,7 +1758,7 @@ function MessageSearchPanel({ remoteJid, lidToPhoneMap, instanceName, chatName, 
   onClose: () => void; onScrollTo: (msgId: string) => void;
 }) {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<any[]>([]);
+  const [results, setResults] = useState<(EvolutionMessage & { _matchText?: string })[]>([]);
   const [searching, setSearching] = useState(false);
   const [progress, setProgress] = useState('');
   const [showCalendar, setShowCalendar] = useState(false);
@@ -1664,7 +1779,7 @@ function MessageSearchPanel({ remoteJid, lidToPhoneMap, instanceName, chatName, 
     setProgress('Searching...');
 
     const qLower = q.toLowerCase();
-    const found: any[] = [];
+    const found: (EvolutionMessage & { _matchText?: string })[] = [];
     let page = 1;
     let totalPages = 1;
 
@@ -1929,8 +2044,10 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
 
     (async () => {
       if (!biz) return;
-      // Build base query — owners see all open instances for the business
-      let query: any = (supabase as any).from('whatsapp_instances')
+      // Build base query — owners see all open instances for the business.
+      // whatsapp_instances columns verified via MCP.
+      type InstanceRow = { id: string; instance_name: string; profile_pic: string | null; phone_number: string | null };
+      let query = db.from('whatsapp_instances')
         .select('id, instance_name, profile_pic, phone_number')
         .eq('business_id', biz)
         .eq('status', 'open');
@@ -1944,9 +2061,10 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
         }
         query = query.in('id', restrictToInstanceIds);
       }
-      const { data: allInstances } = await query.order('created_at', { ascending: true });
+      const { data: allInstancesRaw } = await query.order('created_at', { ascending: true });
+      const allInstances = (allInstancesRaw || []) as InstanceRow[];
 
-      if (allInstances && allInstances.length > 0) {
+      if (allInstances.length > 0) {
         setAvailableInstances(allInstances);
 
         // Select previously active or first instance
@@ -1958,7 +2076,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
         for (const inst of allInstances) {
           if (inst.profile_pic) {
             whatsappService.invokeClient('proxy-image', { instanceName: inst.instance_name, url: inst.profile_pic })
-              .then((res: any) => {
+              .then((res: { base64?: string } | null) => {
                 if (res?.base64) {
                   setAvailableInstances(prev => prev.map(i =>
                     i.instance_name === inst.instance_name ? { ...i, avatarBase64: res.base64 } : i
@@ -2088,7 +2206,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
       }
       setChatLabelsMap(map);
     }
-    if (starredRes.data) setStarredMsgIds(new Set(starredRes.data.map((s: any) => s.message_id)));
+    if (starredRes.data) setStarredMsgIds(new Set((starredRes.data as { message_id: string }[]).map((s) => s.message_id)));
   }, [businessId, instanceId]);
 
   useEffect(() => { loadMetadata(); }, [loadMetadata]);
@@ -2121,7 +2239,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
       if (!conversations || conversations.length === 0) { setLoadingChats(false); return; }
 
       // Map conversations to EvolutionChat objects
-      const enriched: EvolutionChat[] = conversations.map((c: any) => {
+      const enriched: EvolutionChat[] = (conversations as WaConversationRow[]).map((c) => {
         let displayName = c.display_name || '';
         const jid = c.jid;
 
@@ -2137,24 +2255,25 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
 
         const ts = c.last_message_ts ? Math.floor(new Date(c.last_message_ts).getTime() / 1000) : 0;
 
+        const chatType: EvolutionChat['type'] = (c.type === 'group' || c.type === 'broadcast') ? c.type : 'individual';
         return {
           id: jid,
           remoteJid: jid,
           dbConvId: c.id,
           pushName: displayName,
           profilePicUrl: c.profile_pic || null,
-          updatedAt: c.last_message_ts || c.created_at,
-          type: c.type || 'individual',
+          updatedAt: c.last_message_ts || c.created_at || '',
+          type: chatType,
           groupId: c.group_id || null,
           lastMessage: c.last_message_id ? {
             key: { id: c.last_message_id, fromMe: c.last_message_direction === 'outgoing' },
             pushName: c.last_message_direction === 'outgoing' ? 'You' : displayName,
             messageType: c.last_message_type || 'conversation',
             message: c.last_message_type === 'audioMessage' ? { audioMessage: {} }
-              : c.last_message_type === 'imageMessage' ? { imageMessage: { caption: c.last_message_content } }
-              : c.last_message_type === 'videoMessage' ? { videoMessage: { caption: c.last_message_content } }
-              : c.last_message_type === 'documentMessage' ? { documentMessage: { fileName: c.last_message_content } }
-              : { conversation: c.last_message_content },
+              : c.last_message_type === 'imageMessage' ? { imageMessage: { caption: c.last_message_content || undefined } }
+              : c.last_message_type === 'videoMessage' ? { videoMessage: { caption: c.last_message_content || undefined } }
+              : c.last_message_type === 'documentMessage' ? { documentMessage: { fileName: c.last_message_content || undefined } }
+              : { conversation: c.last_message_content || undefined },
             messageTimestamp: ts,
             status: c.last_message_status || 'sent',
           } : null,
@@ -2177,11 +2296,17 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
     finally { setLoadingChats(false); }
   }, [instanceName, businessId, chatSettings]);
 
+  // Ref latest fetchChats/scrollToBottom so the realtime-subscription effect below
+  // can call the current version without resubscribing when unrelated deps change.
+  const fetchChatsRef = useRef(fetchChats);
+  useEffect(() => { fetchChatsRef.current = fetchChats; }, [fetchChats]);
+  const scrollToBottomRef = useRef<(instant?: boolean) => void>(() => {});
+
   useEffect(() => {
     if (!instanceName) return;
-    fetchChats();
+    fetchChatsRef.current();
 
-    let channel: any = null;
+    let channel: RealtimeChannel | null = null;
     let currentInstanceId: string | null = null;
 
     // Resolve instance ID BEFORE setting up realtime (eliminates race condition)
@@ -2194,7 +2319,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_messages' }, (payload) => {
         // Optimistically update chat list preview + order from the realtime payload
         if (payload.new) {
-          const nm = payload.new as any;
+          const nm = payload.new as WaMessageRow;
           // Skip messages from other instances
           if (currentInstanceId && nm.instance_id !== currentInstanceId) return;
           const jid = nm.remote_jid;
@@ -2209,7 +2334,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
               const altJid = Object.keys(map).find(k => map[k] === jid) || map[jid];
               if (altJid) idx = prev.findIndex(c => c.remoteJid === altJid);
             }
-            if (idx === -1) { fetchChats(); return prev; } // unknown chat, full refresh
+            if (idx === -1) { fetchChatsRef.current(); return prev; } // unknown chat, full refresh
             const updated = [...prev];
             const chat = { ...updated[idx] };
             chat.lastMessage = {
@@ -2233,7 +2358,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
         // For messages: append the new message directly instead of reloading everything
         const current = selectedChatRef.current;
         if (current && payload.new) {
-          const newMsg = payload.new as any;
+          const newMsg = payload.new as WaMessageRow;
           // Match by conversation UUID first, then JID, then cross-JID
           let matchesCurrent = false;
           if (current.dbConvId && newMsg.conversation_id) {
@@ -2270,21 +2395,21 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
             }
             // Convert Supabase row to EvolutionMessage-like shape for display
             const msgType = newMsg.type || 'conversation';
-            let msgBody: Record<string, any>;
+            let msgBody: WaMessageBody;
             if (msgType === 'audioMessage') {
-              msgBody = { audioMessage: { seconds: parseInt(newMsg.content?.match(/\d+/)?.[0] || '0'), url: newMsg.media_url } };
+              msgBody = { audioMessage: { seconds: parseInt(newMsg.content?.match(/\d+/)?.[0] || '0'), url: newMsg.media_url || undefined } };
             } else if (msgType === 'imageMessage') {
-              msgBody = { imageMessage: { caption: newMsg.content, url: newMsg.media_url } };
+              msgBody = { imageMessage: { caption: newMsg.content || undefined, url: newMsg.media_url || undefined } };
             } else if (msgType === 'videoMessage') {
-              msgBody = { videoMessage: { caption: newMsg.content, url: newMsg.media_url, seconds: 0 } };
+              msgBody = { videoMessage: { caption: newMsg.content || undefined, url: newMsg.media_url || undefined, seconds: 0 } };
             } else if (msgType === 'documentMessage') {
-              msgBody = { documentMessage: { fileName: newMsg.content, url: newMsg.media_url } };
+              msgBody = { documentMessage: { fileName: newMsg.content || undefined, url: newMsg.media_url || undefined } };
             } else if (msgType === 'stickerMessage') {
-              msgBody = { stickerMessage: { url: newMsg.media_url } };
+              msgBody = { stickerMessage: { url: newMsg.media_url || undefined } };
             } else if (msgType === 'extendedTextMessage') {
-              msgBody = { extendedTextMessage: { text: newMsg.content } };
+              msgBody = { extendedTextMessage: { text: newMsg.content || undefined } };
             } else {
-              msgBody = { conversation: newMsg.content };
+              msgBody = { conversation: newMsg.content || undefined };
             }
             const evoMsg: EvolutionMessage = {
               id: newMsg.id,
@@ -2295,7 +2420,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
               messageTimestamp: Math.floor(new Date(newMsg.created_at).getTime() / 1000),
               source: 'webhook',
               MessageUpdate: [{ status: newMsg.status === 'read' ? 'READ' : newMsg.status === 'delivered' ? 'DELIVERY_ACK' : 'SERVER_ACK' }],
-              senderJid: newMsg.sender_jid || null,
+              senderJid: newMsg.sender_jid || undefined,
             };
             setMessages(prev => {
               const existingIdx = prev.findIndex(m => m.key.id === evoMsg.key.id);
@@ -2319,7 +2444,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
             const el = chatScrollRef.current;
             const atBottom = el ? (el.scrollHeight - el.scrollTop - el.clientHeight < 150) : true;
             if (atBottom || evoMsg.key.fromMe) {
-              scrollToBottom();
+              scrollToBottomRef.current();
             } else {
               setNewMsgCount(c => c + 1);
             }
@@ -2329,7 +2454,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'whatsapp_messages' }, (payload) => {
         // Update message ticks in the thread in realtime
         if (payload.new) {
-          const updated = payload.new as any;
+          const updated = payload.new as WaMessageRow;
           if (currentInstanceId && updated.instance_id !== currentInstanceId) return;
           const msgId = updated.message_id;
           const newStatus = updated.status; // 'sent' | 'delivered' | 'read'
@@ -2366,7 +2491,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
       // Subscribe to conversation updates (handles chat list refresh from webhook-driven conversation upserts)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_conversations' }, (payload) => {
         if (payload.new) {
-          const conv = payload.new as any;
+          const conv = payload.new as WaConversationRow;
           if (currentInstanceId && conv.instance_id !== currentInstanceId) return;
 
           // Resolve display name
@@ -2381,25 +2506,26 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
           }
 
           const ts = conv.last_message_ts ? Math.floor(new Date(conv.last_message_ts).getTime() / 1000) : 0;
+          const chatType: EvolutionChat['type'] = (conv.type === 'group' || conv.type === 'broadcast') ? conv.type : 'individual';
           const chatEntry: EvolutionChat = {
             id: conv.jid,
             remoteJid: conv.jid,
             dbConvId: conv.id, // critical: include UUID for reliable matching
             pushName: displayName,
             profilePicUrl: conv.profile_pic || null,
-            updatedAt: conv.last_message_ts || conv.updated_at,
-            type: conv.type || 'individual',
+            updatedAt: conv.last_message_ts || conv.updated_at || '',
+            type: chatType,
             groupId: conv.group_id || null,
             lastMessage: conv.last_message_id ? {
               key: { id: conv.last_message_id, fromMe: conv.last_message_direction === 'outgoing' },
               pushName: conv.last_message_direction === 'outgoing' ? 'You' : displayName,
               messageType: conv.last_message_type || 'conversation',
-              message: { conversation: conv.last_message_content },
+              message: { conversation: conv.last_message_content || undefined },
               messageTimestamp: ts,
               status: conv.last_message_status || 'sent',
             } : null,
             unreadCount: conv.unread_count || 0,
-          } as any;
+          };
 
           setChats(prev => {
             // Match by conversation UUID first, then by JID, then by phone/lid cross-ref
@@ -2420,7 +2546,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
               if (isCurrentChat) {
                 chatEntry.unreadCount = 0;
                 // Reset in DB too (fire-and-forget)
-                if (conv.unread_count > 0) {
+                if ((conv.unread_count || 0) > 0) {
                   db.from('whatsapp_conversations').update({ unread_count: 0 }).eq('id', conv.id).then(() => {});
                 }
               }
@@ -2474,10 +2600,11 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
         .limit(50);
 
       if (!msgRows) { setLoadingMessages(false); return; }
+      const allRows = msgRows as WaMessageRow[];
 
       // Separate reactions from regular messages
-      const reactionRows = msgRows.filter((m: any) => m.type === 'reactionMessage');
-      const regularRows = msgRows.filter((m: any) => m.type !== 'reactionMessage');
+      const reactionRows = allRows.filter((m) => m.type === 'reactionMessage');
+      const regularRows = allRows.filter((m) => m.type !== 'reactionMessage');
 
       // Build reactions map from DB data
       const newReactions: Record<string, string[]> = {};
@@ -2493,7 +2620,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
       setReactionsMap(newReactions);
 
       // Build sender name lookup for group messages
-      const senderJids: string[] = [...new Set<string>(regularRows.filter((r: any) => r.sender_jid).map((r: any) => r.sender_jid))];
+      const senderJids: string[] = [...new Set<string>(regularRows.filter((r): r is WaMessageRow & { sender_jid: string } => !!r.sender_jid).map((r) => r.sender_jid))];
       const senderNameMap: Record<string, string> = {};
       if (senderJids.length > 0) {
         // Look up contacts by phone_number (sender_jid can be LID or phone format)
@@ -2537,8 +2664,8 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
 
       // Convert DB rows to EvolutionMessage format (sorted ascending)
       const records: EvolutionMessage[] = regularRows
-        .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-        .map((row: any) => {
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+        .map((row) => {
           const ts = Math.floor(new Date(row.created_at).getTime() / 1000);
           const rawKey = row.raw_key || { id: row.message_id, fromMe: row.direction === 'outgoing', remoteJid: row.remote_jid };
           const resolvedSenderName = row.sender_jid
@@ -2549,20 +2676,20 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
             key: { id: row.message_id, fromMe: row.direction === 'outgoing', remoteJid: row.remote_jid },
             pushName: row.direction === 'outgoing' ? 'You' : (resolvedSenderName || ''),
             messageType: row.type || 'conversation',
-            message: row.type === 'audioMessage' ? { audioMessage: { seconds: parseInt(row.content?.match(/\d+/)?.[0] || '0'), url: row.media_url } }
-              : row.type === 'imageMessage' ? { imageMessage: { caption: row.content, url: row.media_url } }
-              : row.type === 'videoMessage' ? { videoMessage: { caption: row.content, url: row.media_url, seconds: 0 } }
-              : row.type === 'documentMessage' ? { documentMessage: { fileName: row.content, url: row.media_url } }
-              : row.type === 'stickerMessage' ? { stickerMessage: { url: row.media_url } }
-              : row.type === 'extendedTextMessage' ? { extendedTextMessage: { text: row.content } }
-              : { conversation: row.content },
+            message: row.type === 'audioMessage' ? { audioMessage: { seconds: parseInt(row.content?.match(/\d+/)?.[0] || '0'), url: row.media_url || undefined } }
+              : row.type === 'imageMessage' ? { imageMessage: { caption: row.content || undefined, url: row.media_url || undefined } }
+              : row.type === 'videoMessage' ? { videoMessage: { caption: row.content || undefined, url: row.media_url || undefined, seconds: 0 } }
+              : row.type === 'documentMessage' ? { documentMessage: { fileName: row.content || undefined, url: row.media_url || undefined } }
+              : row.type === 'stickerMessage' ? { stickerMessage: { url: row.media_url || undefined } }
+              : row.type === 'extendedTextMessage' ? { extendedTextMessage: { text: row.content || undefined } }
+              : { conversation: row.content || undefined },
             messageTimestamp: ts,
             source: 'database',
             MessageUpdate: [{ status: row.status === 'read' ? 'READ' : row.status === 'delivered' ? 'DELIVERY_ACK' : 'SERVER_ACK' }],
-            senderJid: row.sender_jid || null,
-            senderName: resolvedSenderName,
+            senderJid: row.sender_jid || undefined,
+            senderName: resolvedSenderName || undefined,
             _rawKey: rawKey,
-          } as EvolutionMessage & { _rawKey?: any };
+          } as EvolutionMessage & { _rawKey?: unknown };
         });
 
       // Track pagination
@@ -2619,7 +2746,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
         .order('created_at', { ascending: false })
         .range(offset, offset + 49);
 
-      const records = olderRows || [];
+      const records = (olderRows || []) as WaMessageRow[];
 
       if (records.length < 50) {
         setHasMoreMessages(false);
@@ -2638,7 +2765,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
 
         if (reactionRows) {
           const olderReactions: Record<string, string[]> = {};
-          for (const r of reactionRows) {
+          for (const r of reactionRows as { content: string | null }[]) {
             try {
               const { targetMessageId, emoji } = JSON.parse(r.content || '{}');
               if (targetMessageId && emoji) {
@@ -2658,21 +2785,22 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
 
         // Convert DB rows to EvolutionMessage format
         const filtered: EvolutionMessage[] = records
-          .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-          .map((row: any) => {
+          .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+          .map((row) => {
             const ts = Math.floor(new Date(row.created_at).getTime() / 1000);
-            const rawKey = row.raw_key || { id: row.message_id, fromMe: row.direction === 'outgoing', remoteJid: row.remote_jid };
+            // Preserved for callers that expect a raw key on legacy records — unused by the returned object.
+            void (row.raw_key || { id: row.message_id, fromMe: row.direction === 'outgoing', remoteJid: row.remote_jid });
             return {
               id: row.id,
               key: { id: row.message_id, fromMe: row.direction === 'outgoing', remoteJid: row.remote_jid },
               pushName: row.direction === 'outgoing' ? 'You' : '',
               messageType: row.type || 'conversation',
-              message: row.type === 'audioMessage' ? { audioMessage: { seconds: parseInt(row.content?.match(/\d+/)?.[0] || '0'), url: row.media_url } }
-                : row.type === 'imageMessage' ? { imageMessage: { caption: row.content, url: row.media_url } }
-                : row.type === 'videoMessage' ? { videoMessage: { caption: row.content, url: row.media_url, seconds: 0 } }
-                : row.type === 'documentMessage' ? { documentMessage: { fileName: row.content, url: row.media_url } }
-                : row.type === 'stickerMessage' ? { stickerMessage: { url: row.media_url } }
-                : { conversation: row.content },
+              message: row.type === 'audioMessage' ? { audioMessage: { seconds: parseInt(row.content?.match(/\d+/)?.[0] || '0'), url: row.media_url || undefined } }
+                : row.type === 'imageMessage' ? { imageMessage: { caption: row.content || undefined, url: row.media_url || undefined } }
+                : row.type === 'videoMessage' ? { videoMessage: { caption: row.content || undefined, url: row.media_url || undefined, seconds: 0 } }
+                : row.type === 'documentMessage' ? { documentMessage: { fileName: row.content || undefined, url: row.media_url || undefined } }
+                : row.type === 'stickerMessage' ? { stickerMessage: { url: row.media_url || undefined } }
+                : { conversation: row.content || undefined },
               messageTimestamp: ts,
               source: 'database',
               MessageUpdate: [{ status: row.status === 'read' ? 'READ' : row.status === 'delivered' ? 'DELIVERY_ACK' : 'SERVER_ACK' }],
@@ -2765,7 +2893,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
       db.from('whatsapp_pinned_messages').select('message_id, content')
         .eq('business_id', businessId).eq('remote_jid', chat.remoteJid)
         .order('created_at', { ascending: false }).limit(1).maybeSingle()
-        .then(({ data }: any) => { setPinnedMessage(data || null); });
+        .then(({ data }) => { setPinnedMessage((data as { message_id: string; content: string | null } | null) || null); });
     }
   };
 
@@ -2790,6 +2918,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
     setNewMsgCount(0);
     setIsAtBottom(true);
   }, []);
+  useEffect(() => { scrollToBottomRef.current = scrollToBottom; }, [scrollToBottom]);
 
   // ── Send text ──────────────────────────────────────────────────────────
   // (handleSend removed — handleSendWithReply handles all sends)
@@ -2998,7 +3127,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
   };
 
   // ── Chat settings actions ──────────────────────────────────────────────
-  const updateChatSetting = async (jid: string, field: string, value: any) => {
+  const updateChatSetting = async (jid: string, field: string, value: string | number | boolean | null) => {
     if (!businessId) return;
     // Optimistic update
     setChatSettings(prev => ({
@@ -3195,7 +3324,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
       const convId = selectedChat.dbConvId;
 
       // Send via Evolution API
-      let apiResult: any = null;
+      let apiResult: { key?: { id?: string } } | null = null;
       if (wasReplyingTo) {
         apiResult = await whatsappService.invokeClient('send-text', {
           instanceName, number, text: sentText, delay: 1200,
@@ -3639,7 +3768,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
                 onClick: () => updateChatSetting(contextMenu.chat.remoteJid, 'is_pinned', !chatSettings[contextMenu.chat.remoteJid]?.is_pinned) },
               { icon: Ban, label: 'Block', onClick: () => blockContact(contextMenu.chat.remoteJid), divider: true, danger: true },
               { icon: Trash2, label: 'Delete chat', onClick: () => deleteChatPermanent(contextMenu.chat.remoteJid), danger: true },
-            ].map((item: any, i) => (
+            ].map((item, i) => (
               <div key={i}>
                 {item.divider && <div className="border-t border-[#2a3942] my-[4px]" />}
                 <button onClick={() => { item.onClick(); setContextMenu(null); }}
@@ -3797,7 +3926,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowEmoji(false)} />
                 <div className="absolute bottom-[62px] left-[420px] z-50">
-                  <Picker data={data} onEmojiSelect={(emoji: any) => setReplyText(prev => prev + emoji.native)} theme="dark"
+                  <Picker data={data} onEmojiSelect={(emoji: { native: string }) => setReplyText(prev => prev + emoji.native)} theme="dark"
                     previewPosition="none" skinTonePosition="none" />
                 </div>
               </>

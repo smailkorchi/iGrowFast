@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { whatsappService } from '@/lib/api/whatsappService';
 import { Button } from '@/components/ui/button';
@@ -13,7 +14,58 @@ import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { FaWhatsapp } from 'react-icons/fa';
 
-const db = supabase as any;
+// Untyped supabase client for whatsapp_* tables not yet in generated types.
+// Column shapes used below are verified via MCP against the live schema.
+const db = supabase as unknown as SupabaseClient;
+
+// ── whatsapp_instances row (MCP-verified) ───────────────────────────────
+type WaInstanceRow = {
+  id: string;
+  business_id: string;
+  instance_name: string;
+  status: string;
+  phone_number: string | null;
+  profile_pic: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+// ── Sync job phase/metadata shape (driven by the edge function contract) ──
+type SyncPhaseProgress = {
+  total?: number;
+  processed?: number;
+  detail?: string;
+};
+
+type SyncPhase = {
+  status?: 'pending' | 'running' | 'completed' | 'failed' | string;
+  progress?: SyncPhaseProgress;
+};
+
+type SyncMetadata = {
+  messages_synced?: number;
+  [k: string]: unknown;
+};
+
+// ── whatsapp_sync_jobs row (MCP-verified) ───────────────────────────────
+type WaSyncJobRow = {
+  id: string;
+  business_id: string;
+  instance_id: string;
+  instance_name: string;
+  status: string;
+  current_phase: number;
+  phases: SyncPhase[];
+  phase_cursors: Record<string, unknown>;
+  sync_metadata: SyncMetadata;
+  error_message: string | null;
+  retry_count: number;
+  max_retries: number;
+  created_at: string;
+  updated_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+};
 
 // ── Connection modal step types ──────────────────────────────────────────
 type ModalStep = 'scanning' | 'connected' | 'syncing' | 'complete' | 'failed';
@@ -36,12 +88,13 @@ interface InstanceSyncState {
   background: boolean;
   jobId?: string | null;
   importMode?: ImportMode;
+  _phases?: SyncPhase[];
 }
 
 const defaultProgress: SyncProgress = { contacts: { total: 0, synced: 0 }, chats: { total: 0, synced: 0 }, messages: 0, jidMappings: 0, status: 'Preparing...' };
 
 // ── Derive SyncProgress from server job phases + metadata ────────────────
-function deriveSyncProgress(phases: any[], syncMetadata?: any): SyncProgress {
+function deriveSyncProgress(phases: SyncPhase[] | null | undefined, syncMetadata?: SyncMetadata | null): SyncProgress {
   if (!phases || phases.length === 0) return { ...defaultProgress };
   const contactsPhase = phases[0]; // contacts
   const chatsPhase = phases[1]; // chats_jid
@@ -49,8 +102,8 @@ function deriveSyncProgress(phases: any[], syncMetadata?: any): SyncProgress {
   const jidPhase = phases[1]; // chats_jid (includes mappings)
 
   // Find the currently running phase for status text
-  const running = phases.find((p: any) => p.status === 'running');
-  const lastCompleted = [...phases].reverse().find((p: any) => p.status === 'completed');
+  const running = phases.find((p) => p.status === 'running');
+  const lastCompleted = [...phases].reverse().find((p) => p.status === 'completed');
   const status = running?.progress?.detail || lastCompleted?.progress?.detail || 'Preparing...';
 
   // Extract message count from detail string or sync_metadata
@@ -76,7 +129,7 @@ function deriveSyncProgress(phases: any[], syncMetadata?: any): SyncProgress {
 }
 
 export default function WhatsAppManager() {
-  const [instances, setInstances] = useState<any[]>([]);
+  const [instances, setInstances] = useState<WaInstanceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
@@ -93,21 +146,33 @@ export default function WhatsAppManager() {
 
   // ── Per-instance sync state (supports multiple concurrent syncs) ────
   const [syncStates, setSyncStates] = useState<Record<string, InstanceSyncState>>({});
+  // Ref latest syncStates so stable callbacks can read the current value
+  // without recreating whenever syncStates changes.
+  const syncStatesRef = useRef(syncStates);
+  useEffect(() => { syncStatesRef.current = syncStates; }, [syncStates]);
+  // Forward-ref for handleInstanceConnected so the poll effect (declared before the
+  // callback) can invoke the latest version without creating a TDZ reference.
+  const handleInstanceConnectedRef = useRef<((instanceName: string) => void) | null>(null);
 
   // ── Modal state (which instance is currently shown in the modal) ────
   const [modalOpen, setModalOpen] = useState(false);
   const [modalInstanceName, setModalInstanceName] = useState('');
 
-  // Helpers to read/write per-instance sync state
+  // Helpers to read/write per-instance sync state.
+  // getSyncState reads current state (for render); updateSyncState is stable and uses
+  // the functional setter so it never needs to re-run dependent callbacks.
   const getSyncState = (name: string): InstanceSyncState => syncStates[name] || {
     step: 'scanning', progress: { ...defaultProgress }, ownerProfile: { pic: null, phone: '', name: '' }, qrCode: null, background: false, jobId: null,
   };
-  const updateSyncState = (name: string, patch: Partial<InstanceSyncState>) => {
-    setSyncStates(prev => {
-      const next = { ...prev, [name]: { ...getSyncState(name), ...prev[name], ...patch } };
-      return next;
-    });
+  const defaultSyncState: InstanceSyncState = {
+    step: 'scanning', progress: { ...defaultProgress }, ownerProfile: { pic: null, phone: '', name: '' }, qrCode: null, background: false, jobId: null,
   };
+  const updateSyncState = useCallback((name: string, patch: Partial<InstanceSyncState>) => {
+    setSyncStates(prev => ({ ...prev, [name]: { ...defaultSyncState, ...prev[name], ...patch } }));
+    // defaultSyncState is a stable literal recreated each render but only read inside the
+    // setter — it never causes stale closures.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Derived state for the currently viewed modal instance
   const currentSync = getSyncState(modalInstanceName);
@@ -132,7 +197,7 @@ export default function WhatsAppManager() {
 
       if (jobs) {
         const states: Record<string, InstanceSyncState> = {};
-        for (const job of jobs as any[]) {
+        for (const job of jobs as WaSyncJobRow[]) {
           // Only show the most recent job per instance
           if (states[job.instance_name]) continue;
           const step: ModalStep = job.status === 'completed' ? 'complete'
@@ -147,7 +212,7 @@ export default function WhatsAppManager() {
             background: true,
             jobId: job.id,
             _phases: job.phases,
-          } as any;
+          };
         }
         setSyncStates(prev => ({ ...prev, ...states }));
       }
@@ -162,8 +227,8 @@ export default function WhatsAppManager() {
         schema: 'public',
         table: 'whatsapp_sync_jobs',
         filter: `business_id=eq.${businessId}`,
-      }, (payload: any) => {
-        const job = payload.new;
+      }, (payload) => {
+        const job = payload.new as WaSyncJobRow | undefined;
         if (!job) return;
         const step: ModalStep = job.status === 'completed' ? 'complete'
           : job.status === 'failed' ? 'failed'
@@ -181,7 +246,7 @@ export default function WhatsAppManager() {
             background: prev[job.instance_name]?.background ?? true,
             jobId: job.id,
             _phases: job.phases,
-          } as any,
+          },
         }));
       })
       .subscribe();
@@ -210,7 +275,7 @@ export default function WhatsAppManager() {
         if (data?.status === 'open') {
           if (pollRef.current) clearInterval(pollRef.current);
           if (qrRefreshRef.current) clearInterval(qrRefreshRef.current);
-          handleInstanceConnected(modalInstanceName);
+          handleInstanceConnectedRef.current?.(modalInstanceName);
           fetchInstances();
         }
       }, 2000);
@@ -237,7 +302,7 @@ export default function WhatsAppManager() {
           if (data?.status === 'open') {
             if (pollRef.current) clearInterval(pollRef.current);
             if (qrRefreshRef.current) clearInterval(qrRefreshRef.current);
-            handleInstanceConnected(modalInstanceName);
+            handleInstanceConnectedRef.current?.(modalInstanceName);
             fetchInstances();
             return;
           }
@@ -254,7 +319,7 @@ export default function WhatsAppManager() {
         document.removeEventListener('visibilitychange', onVisible);
       };
     }
-  }, [modalStep, modalInstanceName]);
+  }, [modalStep, modalInstanceName, updateSyncState]);
 
   const fetchInstances = async () => {
     const businessId = localStorage.getItem('activeBusinessId');
@@ -267,11 +332,12 @@ export default function WhatsAppManager() {
       .order('created_at', { ascending: false });
 
     if (data) {
-      setInstances(data);
+      const rows = data as WaInstanceRow[];
+      setInstances(rows);
       // Auto-heal webhooks on open instances
-      for (const inst of data) {
+      for (const inst of rows) {
         if (inst.status === 'open') {
-          whatsappService.findWebhook(inst.instance_name).then((wh: any) => {
+          whatsappService.findWebhook(inst.instance_name).then((wh: { enabled?: boolean } | null) => {
             if (!wh || !wh.enabled) whatsappService.setWebhook(inst.instance_name).catch(() => {});
           }).catch(() => {
             whatsappService.setWebhook(inst.instance_name).catch(() => {});
@@ -297,12 +363,13 @@ export default function WhatsAppManager() {
     if (!name) return;
     try {
       setActionLoading('create');
-      let createRes;
+      let createRes: { qrcode?: { base64?: string | null } | null } | null = null;
       try {
         createRes = await whatsappService.createInstance(name);
-      } catch (firstErr: any) {
+      } catch (firstErr) {
         // If instance already exists on Evolution API (e.g. orphaned from previous delete), clean up and retry
-        if (firstErr.message?.toLowerCase().includes('forbidden') || firstErr.message?.toLowerCase().includes('already')) {
+        const msg = (firstErr instanceof Error ? firstErr.message : String(firstErr)).toLowerCase();
+        if (msg.includes('forbidden') || msg.includes('already')) {
           try { await whatsappService.deleteInstance(name); } catch { /* ignore */ }
           // Small delay then retry
           await new Promise(r => setTimeout(r, 1500));
@@ -341,7 +408,7 @@ export default function WhatsAppManager() {
         }, 3000);
       }
     } catch (e) {
-      toast({ title: "Error", description: e.message, variant: "destructive" });
+      toast({ title: "Error", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally {
       setActionLoading(null);
       fetchInstances();
@@ -371,7 +438,7 @@ export default function WhatsAppManager() {
         toast({ title: "Status", description: "Device is already connected or QR unavailable." });
       }
     } catch (err) {
-      toast({ title: "Connection Error", description: err.message, variant: "destructive" });
+      toast({ title: "Connection Error", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
     } finally {
       setActionLoading(null);
     }
@@ -406,7 +473,7 @@ export default function WhatsAppManager() {
     } catch { /* ignore */ }
 
     // Read the user-chosen import mode (set during handleConfirmAddInstance)
-    const chosenMode = getSyncState(instanceName).importMode;
+    const chosenMode = syncStatesRef.current[instanceName]?.importMode;
 
     // Fresh mode: skip server-side sync entirely. Webhook handles everything from now on.
     if (chosenMode === 'fresh') {
@@ -440,10 +507,11 @@ export default function WhatsAppManager() {
         updateSyncState(instanceName, { step: 'syncing' });
       } catch (e) {
         console.error('Failed to start sync:', e);
-        toast({ title: 'Sync Error', description: e.message, variant: 'destructive' });
+        toast({ title: 'Sync Error', description: e instanceof Error ? e.message : String(e), variant: 'destructive' });
       }
     }, 1500);
-  }, [syncStates]);
+  }, [toast, updateSyncState]);
+  useEffect(() => { handleInstanceConnectedRef.current = handleInstanceConnected; }, [handleInstanceConnected]);
   // ── Confirm delete — fetch data counts then show dialog ────────────
   const confirmDeleteInstance = async (id: string, instanceName: string) => {
     setDeleteConfirm({ id, name: instanceName, loading: true, counts: null });
@@ -476,8 +544,8 @@ export default function WhatsAppManager() {
       // Delete from Evolution API — try multiple approaches to ensure cleanup
       try {
         await whatsappService.deleteInstance(instanceName);
-      } catch (evoErr: any) {
-        console.warn('Evolution delete attempt 1 failed:', evoErr.message);
+      } catch (evoErr) {
+        console.warn('Evolution delete attempt 1 failed:', evoErr instanceof Error ? evoErr.message : evoErr);
         // Try logout first, then delete again
         try {
           await whatsappService.invokeClient('fetch-instances', { instanceName });
@@ -507,7 +575,7 @@ export default function WhatsAppManager() {
       const { data: activeJob } = await db.from('whatsapp_sync_jobs')
         .select('id').eq('instance_id', id).in('status', ['pending', 'running', 'paused']).maybeSingle();
       if (activeJob) {
-        await whatsappService.cancelSync((activeJob as any).id);
+        await whatsappService.cancelSync((activeJob as { id: string }).id);
       }
 
       // Delete instance row (cascades: sync_jobs via FK)
@@ -517,7 +585,7 @@ export default function WhatsAppManager() {
       toast({ title: "Deleted", description: "Instance and all data removed." });
       fetchInstances();
     } catch (err) {
-      toast({ title: "Delete Error", description: err.message, variant: "destructive" });
+      toast({ title: "Delete Error", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
     } finally {
       setActionLoading(null);
     }
@@ -973,9 +1041,9 @@ export default function WhatsAppManager() {
           {!preQrStep && modalStep === 'syncing' && (() => {
             // Extract phase data from the sync job for detailed display
             const jobState = syncStates[modalInstanceName];
-            const phases = (jobState as any)?._phases || [];
+            const phases: SyncPhase[] = jobState?._phases || [];
             const phaseLabels = ['Contacts', 'Chats & JID', 'Groups', 'Labels', 'Conversations', 'Profile Pics', 'Messages', 'Name Backfill'];
-            const completedCount = phases.filter((p: any) => p?.status === 'completed').length;
+            const completedCount = phases.filter((p) => p?.status === 'completed').length;
             const overallPct = phases.length > 0 ? Math.round((completedCount / phases.length) * 100) : 0;
 
             return (
