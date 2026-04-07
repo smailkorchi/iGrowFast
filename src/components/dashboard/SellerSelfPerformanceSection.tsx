@@ -76,6 +76,21 @@ export interface SellerSelfPerformanceSectionProps {
     dateFilter: DateFilter;
 }
 
+// Types verified against public.{orders, order_items, order_statuses, users} via MCP
+type SSPOrderItem = { product_id: string; quantity: number };
+type SSPOrder = {
+    id: string;
+    date: string | null;
+    price: number | null;
+    order_status_id: string | null;
+    package_status_id: string | null;
+    package_status_label: string | null;
+    seller_id: string | null;
+    source_name: string | null;
+    order_items: SSPOrderItem[] | null;
+    order_statuses: { code: string; label: string } | null;
+};
+
 export function SellerSelfPerformanceSection({
     sellerId,
     businessId,
@@ -126,16 +141,16 @@ export function SellerSelfPerformanceSection({
     });
 
     const loading = loadingSeller || loadingOrders;
-    const commissionBasis: CommissionBasis = normalizeCommissionBasis(
-        sellerRow?.commission_basis as string | null | undefined
-    );
+    const commissionBasis: CommissionBasis = normalizeCommissionBasis(sellerRow?.commission_basis);
     const commissionPrice = Number(sellerRow?.commission_price ?? 0) || 0;
-    const attributedProducts: string[] = Array.isArray(sellerRow?.products)
-        ? (sellerRow!.products as string[]).filter((id): id is string => typeof id === 'string' && id.length > 0)
-        : [];
 
     const metrics = useMemo(() => {
         if (!orders || !sellerRow) return null;
+
+        // Computed inside the memo so its array identity doesn't bust memoization every render.
+        const attributedProducts: string[] = Array.isArray(sellerRow.products)
+            ? (sellerRow.products as string[]).filter((id): id is string => typeof id === 'string' && id.length > 0)
+            : [];
 
         const recheckPackageIds = new Set(getPkgsByCategories(['recheck']).map((p) => p.id));
         const isExcludedFromConfirmation = (statusId: string) =>
@@ -151,26 +166,27 @@ export function SellerSelfPerformanceSection({
             });
         };
 
-        const filtered = (orders as any[]).filter((o) => isInRange(o.date));
+        const ordersTyped = orders as unknown as SSPOrder[];
+        const filtered = ordersTyped.filter((o) => isInRange(o.date));
         const totalOrders = filtered.length;
 
-        const sellerOrders = filtered.filter((o: any) => o.seller_id === sellerId);
+        const sellerOrders = filtered.filter((o) => o.seller_id === sellerId);
         const assignedCount = sellerOrders.length;
         const assignedPercent = totalOrders > 0 ? (assignedCount / totalOrders) * 100 : 0;
 
         const sourceBreakdown: Record<string, number> = {};
-        sellerOrders.forEach((o: any) => {
+        sellerOrders.forEach((o) => {
             const src = (o.source_name || 'other').toLowerCase();
             sourceBreakdown[src] = (sourceBreakdown[src] || 0) + 1;
         });
 
-        const preConfOrders = sellerOrders.filter((o: any) => {
-            const label = (o.order_statuses as any)?.label;
+        const preConfOrders = sellerOrders.filter((o) => {
+            const label = o.order_statuses?.label;
             return PRE_CONFIRMATION_LABELS.has(normalizeLabel(label));
         });
         const preConfirmationBreakdown: Record<string, { count: number; color: string }> = {};
-        preConfOrders.forEach((o: any) => {
-            const label = (o.order_statuses as any)?.label || 'Unknown';
+        preConfOrders.forEach((o) => {
+            const label = o.order_statuses?.label || 'Unknown';
             if (!preConfirmationBreakdown[label]) {
                 preConfirmationBreakdown[label] = {
                     count: 0,
@@ -180,14 +196,14 @@ export function SellerSelfPerformanceSection({
             preConfirmationBreakdown[label].count += 1;
         });
 
-        const confirmedCount = sellerOrders.filter((o: any) => confirmedIds.has(o.order_status_id)).length;
+        const confirmedCount = sellerOrders.filter((o) => !!o.order_status_id && confirmedIds.has(o.order_status_id)).length;
         const confirmedPercent = assignedCount > 0 ? (confirmedCount / assignedCount) * 100 : 0;
 
-        const postConfOrders = sellerOrders.filter((o: any) =>
+        const postConfOrders = sellerOrders.filter((o) =>
             POST_CONFIRMATION_LABELS.has(normalizeLabel(o.package_status_label))
         );
         const postConfirmationBreakdown: Record<string, { count: number; color: string }> = {};
-        postConfOrders.forEach((o: any) => {
+        postConfOrders.forEach((o) => {
             const label = o.package_status_label || 'Unknown';
             if (!postConfirmationBreakdown[label]) {
                 postConfirmationBreakdown[label] = {
@@ -198,12 +214,12 @@ export function SellerSelfPerformanceSection({
             postConfirmationBreakdown[label].count += 1;
         });
 
-        const delivered = sellerOrders.filter((o: any) => isDeliveredForCommission(o, deliveredPkgIds));
+        const delivered = sellerOrders.filter((o) => isDeliveredForCommission(o, deliveredPkgIds));
         const deliveredCount = delivered.length;
         const deliveredPercent = confirmedCount > 0 ? (deliveredCount / confirmedCount) * 100 : 0;
 
         const commissionEarned = delivered.reduce(
-            (s: number, o: any) =>
+            (s: number, o) =>
                 s +
                 commissionAccruedForDeliveredOrder({
                     order: o,
@@ -244,7 +260,6 @@ export function SellerSelfPerformanceSection({
         getPkgStatusColor,
         commissionBasis,
         commissionPrice,
-        attributedProducts,
     ]);
 
     if (!sellerId) return null;

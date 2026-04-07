@@ -88,10 +88,23 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
 
                 if (error) throw error;
 
-                const mapped: OrderRecord[] = (data || []).map((o: any) => ({
+                // Types verified via MCP: orders (id NOT NULL, date/created_at/raw_price/*_status_id nullable),
+                // order_statuses/package_statuses.code/label text NOT NULL, color text nullable.
+                type FetchedOrderRow = {
+                    id: string;
+                    date: string | null;
+                    created_at: string | null;
+                    raw_price: number | null;
+                    order_status_id: string | null;
+                    package_status_id: string | null;
+                    package_status_label: string | null;
+                    status: { code: string; label: string; color: string | null } | null;
+                    package_status: { code: string; label: string } | null;
+                };
+                const mapped: OrderRecord[] = ((data || []) as unknown as FetchedOrderRow[]).map((o) => ({
                     id: o.id,
-                    date: o.date || o.created_at,
-                    created_at: o.created_at,
+                    date: o.date || o.created_at || '',
+                    created_at: o.created_at || '',
                     raw_price: Number(o.raw_price) || 0,
                     order_status_id: o.order_status_id || null,
                     package_status_id: o.package_status_id || null,
@@ -307,7 +320,7 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
                                                 fontWeight: 700,
                                                 padding: '8px 12px',
                                             }}
-                                            formatter={(value: any, name: string) => [
+                                            formatter={(value: number | string, name: string) => [
                                                 name === 'orders' ? `${value} orders` : `${value} DH`,
                                                 name === 'orders' ? 'Orders' : 'Revenue'
                                             ]}

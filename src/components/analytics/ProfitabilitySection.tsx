@@ -90,7 +90,8 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
         if (!orders) return null;
 
         type ProfitOrder = Parameters<typeof isDeliveredForCommission>[0] & { order_status_id: string | null };
-        type ProfitOrderItem = { quantity: number | null; product_id: string | null; accessory_id: string | null; accessory_quantity: number | null };
+        // order_items: quantity integer NOT NULL, product_id uuid NOT NULL, accessory_id uuid nullable, accessory_quantity integer nullable (verified via MCP)
+        type ProfitOrderItem = { quantity: number; product_id: string; accessory_id: string | null; accessory_quantity: number | null };
         const isPaidAndDelivered = (o: ProfitOrder) =>
             o.order_status_id && isOrderCategory(o.order_status_id, 'paid') &&
             isDeliveredForCommission(o, deliveredPkgIds);

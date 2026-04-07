@@ -54,16 +54,19 @@ const AiChatbot = () => {
         }
     });
 
+    // Only the model name matters for the history lookup. Pulling it out as a primitive
+    // lets the effect depend on a simple string (satisfies exhaustive-deps cleanly).
+    const selectedModelName = selectedModel?.modelName;
     useEffect(() => {
-        if (selectedModel) {
-            const saved = localStorage.getItem(getHistoryKey(selectedModel.modelName));
+        if (selectedModelName) {
+            const saved = localStorage.getItem(getHistoryKey(selectedModelName));
             if (saved) {
                 try { setMessages(JSON.parse(saved)); } catch { setMessages([]); }
             } else {
                 setMessages([]);
             }
         }
-    }, [selectedModel?.modelName]);
+    }, [selectedModelName]);
 
     useEffect(() => {
         if (selectedModel && messages.length > 0 && !messages.some(m => m.isStreaming)) {

@@ -54,7 +54,7 @@ const SuspensionOverlay: React.FC<SuspensionOverlayProps> = ({ role, businessId 
         if (businessInfo?.plan?.price != null && !amount) {
             setAmount(String(businessInfo.plan.price));
         }
-    }, [businessInfo]);
+    }, [businessInfo, amount]);
 
     const { data: bankInfo } = useQuery({
         queryKey: ['platform-settings-bank'],

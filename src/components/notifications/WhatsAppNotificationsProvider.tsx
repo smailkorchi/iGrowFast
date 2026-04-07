@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import type { SupabaseClient, RealtimeChannel, RealtimePostgresInsertPayload } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import {
   whatsappNotificationStore,
@@ -6,7 +7,36 @@ import {
 } from '@/lib/whatsappNotificationStore';
 import { WhatsAppNotificationStack } from './WhatsAppNotificationCard';
 
-const db = supabase as any;
+// whatsapp_* tables are not yet in database.types.ts; cast to untyped client for .from() calls.
+// All column types below verified via MCP against the live schema.
+const db = supabase as unknown as SupabaseClient;
+
+// whatsapp_messages row (INSERT payload)
+type WaMessageRow = {
+  message_id: string;
+  conversation_id: string | null;
+  remote_jid: string;
+  instance_id: string;
+  sender_jid: string | null;
+  direction: string;
+  type: string;
+  content: string | null;
+  created_at: string;
+  business_id: string;
+};
+
+type WaConversationRow = {
+  id: string;
+  jid: string;
+  display_name: string | null;
+  profile_pic: string | null;
+  type: string;
+};
+
+type WaContactRow = { name: string | null; profile_pic: string | null };
+type WaInstanceRow = { id: string; instance_name: string; profile_pic: string | null };
+type WaUserInstanceRow = { instance_id: string | null; scope: string };
+type WaUserProfile = { id: string; role: string | null; 'DigiCom Business': string | null };
 
 // Truncate long previews so cards don't grow huge.
 const MAX_PREVIEW = 140;
@@ -32,20 +62,20 @@ function jidToDisplayPhone(jid: string | null): string {
 
 // Resolve the bag of metadata required to render a notification card.
 // One DB round-trip per inbound message — cheap.
-async function resolveNotificationContext(messageRow: any): Promise<WhatsAppNotification | null> {
+async function resolveNotificationContext(messageRow: WaMessageRow): Promise<WhatsAppNotification | null> {
   try {
     const messageId = messageRow.message_id;
     if (!messageId) return null;
 
     // Conversation row → display name + jid + profile pic
-    let conv: any = null;
+    let conv: WaConversationRow | null = null;
     if (messageRow.conversation_id) {
       const { data } = await db
         .from('whatsapp_conversations')
         .select('id, jid, display_name, profile_pic, type')
         .eq('id', messageRow.conversation_id)
         .maybeSingle();
-      conv = data;
+      conv = data as WaConversationRow | null;
     }
     // Fallback: look up by (instance_id, jid) if conversation_id is null
     if (!conv && messageRow.remote_jid && messageRow.instance_id) {
@@ -55,7 +85,7 @@ async function resolveNotificationContext(messageRow: any): Promise<WhatsAppNoti
         .eq('instance_id', messageRow.instance_id)
         .eq('jid', messageRow.remote_jid)
         .maybeSingle();
-      conv = data;
+      conv = data as WaConversationRow | null;
     }
 
     // Group messages: prefer the actual sender (sender_jid) over the group jid
@@ -70,8 +100,9 @@ async function resolveNotificationContext(messageRow: any): Promise<WhatsAppNoti
         .select('name, profile_pic')
         .eq('phone_number', messageRow.sender_jid)
         .maybeSingle();
-      senderName = contact?.name || jidToDisplayPhone(messageRow.sender_jid);
-      senderAvatarUrl = contact?.profile_pic || null;
+      const contactRow = contact as WaContactRow | null;
+      senderName = contactRow?.name || jidToDisplayPhone(messageRow.sender_jid);
+      senderAvatarUrl = contactRow?.profile_pic || null;
     } else {
       senderName = conv?.display_name || jidToDisplayPhone(messageRow.remote_jid) || 'Unknown';
       senderAvatarUrl = conv?.profile_pic || null;
@@ -84,11 +115,12 @@ async function resolveNotificationContext(messageRow: any): Promise<WhatsAppNoti
     }
 
     // Instance row → instance name + profile pic
-    const { data: inst } = await db
+    const { data: instData } = await db
       .from('whatsapp_instances')
       .select('id, instance_name, profile_pic')
       .eq('id', messageRow.instance_id)
       .maybeSingle();
+    const inst = instData as WaInstanceRow | null;
 
     if (!inst) return null;
 
@@ -118,10 +150,10 @@ async function resolveNotificationContext(messageRow: any): Promise<WhatsAppNoti
  * filters them according to the viewer's role and assigned instances, then
  * pushes results into the notification store. Renders the visual stack.
  */
-const log = (...args: any[]) => console.log('[wa-notif]', ...args);
+const log = (...args: unknown[]) => console.log('[wa-notif]', ...args);
 
 export function WhatsAppNotificationsProvider({ children }: { children: React.ReactNode }) {
-  const channelRef = useRef<any>(null);
+  const channelRef = useRef<RealtimeChannel | null>(null);
   const setupEpochRef = useRef(0);                        // monotonic counter to discard stale async setups
   const allowedInstanceIdsRef = useRef<Set<string> | 'all' | null>(null);
   const seenIdsRef = useRef<Set<string>>(new Set());      // persistent — never cleared
@@ -152,11 +184,12 @@ export function WhatsAppNotificationsProvider({ children }: { children: React.Re
       const userId = session?.user?.id || null;
       if (!userId) { log('no session'); return; }
 
-      const { data: profile } = await db
+      const { data: profileData } = await db
         .from('users')
         .select('id, role, "DigiCom Business"')
         .eq('id', userId)
         .maybeSingle();
+      const profile = profileData as WaUserProfile | null;
       if (unmounted || epoch !== setupEpochRef.current) { log('stale 2', epoch); return; }
       if (!profile) { log('no profile'); return; }
 
@@ -177,11 +210,11 @@ export function WhatsAppNotificationsProvider({ children }: { children: React.Re
           .select('instance_id, scope')
           .eq('user_id', userId);
         if (unmounted || epoch !== setupEpochRef.current) { log('stale 3', epoch); return; }
-        const list = rows || [];
-        if (list.some((r: any) => r.scope === 'all')) {
+        const list = (rows || []) as WaUserInstanceRow[];
+        if (list.some((r) => r.scope === 'all')) {
           allowedInstanceIdsRef.current = 'all';
         } else {
-          const ids = list.map((r: any) => r.instance_id).filter(Boolean);
+          const ids = list.map((r) => r.instance_id).filter((x): x is string => !!x);
           if (ids.length === 0) {
             allowedInstanceIdsRef.current = new Set();
             log('seller has no WA access — skip subscribe');
@@ -208,7 +241,7 @@ export function WhatsAppNotificationsProvider({ children }: { children: React.Re
             table: 'whatsapp_messages',
             filter: `business_id=eq.${businessId}`,
           },
-          async (payload: any) => {
+          async (payload: RealtimePostgresInsertPayload<WaMessageRow>) => {
             const row = payload.new;
             log('event recv', { msg_id: row?.message_id, dir: row?.direction, inst: row?.instance_id });
             if (!row) return;
@@ -240,7 +273,7 @@ export function WhatsAppNotificationsProvider({ children }: { children: React.Re
             whatsappNotificationStore.push(notification);
           },
         )
-        .subscribe((status: string, err: any) => {
+        .subscribe((status, err) => {
           log('channel status', status, err || '');
         });
 
@@ -277,7 +310,7 @@ export function WhatsAppNotificationsProvider({ children }: { children: React.Re
     window.addEventListener('storage', onStorage);
 
     // Expose a debug helper.
-    (window as any).__waNotif = {
+    (window as unknown as { __waNotif: unknown }).__waNotif = {
       reload: () => setupForCurrentSession('manual:reload'),
       state: () => ({
         channel: channelRef.current?.state,

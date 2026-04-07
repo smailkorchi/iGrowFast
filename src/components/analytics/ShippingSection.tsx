@@ -151,12 +151,13 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
             };
         });
 
+        // master_cities: name text NOT NULL, lat numeric nullable, lng numeric nullable (verified via MCP)
         const cityDeliveries: Record<string, { count: number; lat: number; lng: number }> = {};
         shippedOrders.forEach(o => {
-            const mc = (o as unknown as { master_cities?: { name?: string | null; lat?: string | null; lng?: string | null } | null }).master_cities;
-            if (!mc?.name || !mc?.lat || !mc?.lng) return;
-            const lat = parseFloat(mc.lat);
-            const lng = parseFloat(mc.lng);
+            const mc = (o as unknown as { master_cities?: { name: string; lat: number | null; lng: number | null } | null }).master_cities;
+            if (!mc?.name || mc.lat == null || mc.lng == null) return;
+            const lat = Number(mc.lat);
+            const lng = Number(mc.lng);
             if (isNaN(lat) || isNaN(lng)) return;
             if (!cityDeliveries[mc.name]) cityDeliveries[mc.name] = { count: 0, lat, lng };
             cityDeliveries[mc.name].count++;

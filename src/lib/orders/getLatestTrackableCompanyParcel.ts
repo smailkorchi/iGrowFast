@@ -1,9 +1,10 @@
+// company_parcels verified via MCP: id NOT NULL, tracking_code/external_id/provider_id/created_at nullable; provider (providers.id) NOT NULL
 type Parcel = {
     id: string;
     tracking_code?: string | null;
     external_id?: string | null;
     provider_id?: string | null;
-    provider?: { id?: string | null } | null;
+    provider?: { id: string } | null;
     created_at?: string | null;
 };
 type OrderWithParcels = { parcels?: Parcel[] | null } | null | undefined;

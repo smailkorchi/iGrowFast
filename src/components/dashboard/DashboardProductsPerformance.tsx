@@ -102,6 +102,14 @@ export const DashboardProductsPerformance = ({ businessId, dateFilter }: Dashboa
     const metrics = useMemo(() => {
         if (!products || !orderItems || !orders) return null;
 
+        // Types verified against public.{orders,order_items,products,accessories,ads_history,seller_payments} via MCP
+        type DPOrder = { id: string; date: string | null; shipping_cost: number | null; order_status_id: string | null; package_status_id: string | null };
+        type DPOrderItem = { order_id: string; product_id: string; quantity: number; unit_price: number; total_price: number | null; accessory_id: string | null; accessory_quantity: number | null };
+        type DPProduct = { id: string; name: string; image_url: string | null; stock: number | null; cost_price: number; selling_price: number; active: boolean | null };
+        type DPAccessory = { id: string; cost_price: number };
+        type DPAd = { product_id: string | null; amount: number; start_date: string };
+        type DPSellerPayment = { total_amount: number | null; created_at: string | null };
+
         const isInRange = (dateStr: string | null) => {
             if (!dateStr) return true;
             if (!dateFilter.from && !dateFilter.to) return true;
@@ -112,29 +120,29 @@ export const DashboardProductsPerformance = ({ businessId, dateFilter }: Dashboa
             });
         };
 
-        const filteredOrders = orders.filter((o: any) => isInRange(o.date));
-        const filteredOrderIds = new Set(filteredOrders.map((o: any) => o.id));
-        const orderMap = new Map<string, any>();
-        filteredOrders.forEach((o: any) => orderMap.set(o.id, o));
+        const filteredOrders = (orders as unknown as DPOrder[]).filter((o) => isInRange(o.date));
+        const filteredOrderIds = new Set(filteredOrders.map((o) => o.id));
+        const orderMap = new Map<string, DPOrder>();
+        filteredOrders.forEach((o) => orderMap.set(o.id, o));
 
         const accessoryCostMap = new Map<string, number>();
-        (accessories || []).forEach((a: any) => accessoryCostMap.set(a.id, Number(a.cost_price || 0)));
+        (accessories || []).forEach((a: DPAccessory) => accessoryCostMap.set(a.id, Number(a.cost_price || 0)));
 
-        const filteredAds = (adsHistory || []).filter((a: any) => isInRange(a.start_date));
+        const filteredAds = ((adsHistory || []) as unknown as DPAd[]).filter((a) => isInRange(a.start_date));
         const adsByProduct = new Map<string, number>();
-        filteredAds.forEach((a: any) => {
+        filteredAds.forEach((a) => {
             if (a.product_id) {
                 adsByProduct.set(a.product_id, (adsByProduct.get(a.product_id) || 0) + Number(a.amount || 0));
             }
         });
 
-        const filteredPayments = (sellerPayments || []).filter((sp: any) => isInRange(sp.created_at));
-        const totalSellerPayments = filteredPayments.reduce((s: number, sp: any) => s + Number(sp.total_amount || 0), 0);
+        const filteredPayments = ((sellerPayments || []) as unknown as DPSellerPayment[]).filter((sp) => isInRange(sp.created_at));
+        const totalSellerPayments = filteredPayments.reduce((s: number, sp) => s + Number(sp.total_amount || 0), 0);
 
         // First pass: count total delivered units across all products for confirmation cost rate
         let globalDeliveredUnits = 0;
-        const filteredItems = orderItems.filter((oi: any) => filteredOrderIds.has(oi.order_id));
-        filteredItems.forEach((oi: any) => {
+        const filteredItems = (orderItems as unknown as DPOrderItem[]).filter((oi) => filteredOrderIds.has(oi.order_id));
+        filteredItems.forEach((oi) => {
             const order = orderMap.get(oi.order_id);
             if (order && order.package_status_id && isPkgCategory(order.package_status_id, 'delivered')) {
                 globalDeliveredUnits += Number(oi.quantity || 1);
@@ -144,14 +152,14 @@ export const DashboardProductsPerformance = ({ businessId, dateFilter }: Dashboa
 
         // Build a map of total quantity per order (for shipping cost allocation)
         const orderTotalQty = new Map<string, number>();
-        filteredItems.forEach((oi: any) => {
+        filteredItems.forEach((oi) => {
             const current = orderTotalQty.get(oi.order_id) || 0;
             orderTotalQty.set(oi.order_id, current + Number(oi.quantity || 1));
         });
 
-        const productData = products.map((product: any) => {
-            const items = filteredItems.filter((oi: any) => oi.product_id === product.id);
-            const totalOrderedUnits = items.reduce((s: number, oi: any) => s + Number(oi.quantity || 1), 0);
+        const productData = (products as unknown as DPProduct[]).map((product) => {
+            const items = filteredItems.filter((oi) => oi.product_id === product.id);
+            const totalOrderedUnits = items.reduce((s: number, oi) => s + Number(oi.quantity || 1), 0);
 
             let deliveredUnits = 0;
             let confirmedUnits = 0;
@@ -159,7 +167,7 @@ export const DashboardProductsPerformance = ({ businessId, dateFilter }: Dashboa
             let shippingTotal = 0;
             let accessoriesTotal = 0;
 
-            items.forEach((oi: any) => {
+            items.forEach((oi) => {
                 const order = orderMap.get(oi.order_id);
                 if (!order) return;
                 const qty = Number(oi.quantity || 1);

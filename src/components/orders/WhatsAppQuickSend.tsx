@@ -2,13 +2,29 @@ import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Loader2, X, ArrowRight, CheckCircle2, AlertCircle, Smartphone, Briefcase, User, ArrowLeft } from 'lucide-react';
 import { FaWhatsapp } from 'react-icons/fa';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { whatsappService } from '@/lib/api/whatsappService';
 import { useToast } from '@/components/ui/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 
-const db = supabase as any;
+// whatsapp_* tables aren't in database.types.ts yet — cast to untyped client.
+// All column shapes verified via MCP against public.whatsapp_{conversations,messages,contacts,instances}.
+const db = supabase as unknown as SupabaseClient;
+
+// Evolution API response shapes (external service, not DB)
+type EvolutionProfile = {
+  picture?: string | null;
+  profilePictureUrl?: string | null;
+  name?: string | null;
+  pushName?: string | null;
+  verifiedName?: string | null;
+  wuid?: string | null;
+  isBusiness?: boolean;
+  businessProfile?: unknown;
+};
+type EvolutionSendTextResult = { key?: { id?: string } } | null | undefined;
 
 // ── Phone normalization ─────────────────────────────────────────────────────
 // Default Morocco (212) since the platform serves MA. Handles already-international.
@@ -130,12 +146,12 @@ export function WhatsAppQuickSend({ phone, open, onClose }: Props) {
         }
 
         // 3. Fetch full profile (name, business flag, picture URL)
-        let profile: any = null;
+        let profile: EvolutionProfile | null = null;
         try {
-          profile = await whatsappService.invokeClient('fetch-profile', {
+          profile = (await whatsappService.invokeClient('fetch-profile', {
             instanceName: lookupInstance.instance_name,
             number: result.jid || targetDigits,
-          });
+          })) as EvolutionProfile | null;
         } catch {
           profile = null;
         }
@@ -190,11 +206,11 @@ export function WhatsAppQuickSend({ phone, open, onClose }: Props) {
       if (!businessId) throw new Error('No active business.');
 
       // 1. Send via Evolution API
-      const apiResult: any = await whatsappService.sendText(
+      const apiResult = (await whatsappService.sendText(
         selected.instance_name,
         contact.number,
         message.trim()
-      );
+      )) as EvolutionSendTextResult;
       const realMsgId = apiResult?.key?.id || `web-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       const now = new Date().toISOString();
 

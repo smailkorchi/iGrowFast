@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { WhatsAppUnreadCard } from './WhatsAppUnreadCard';
 
-const db = supabase as any;
+// whatsapp_user_instances is not yet in database.types.ts. Cast to an untyped client so .from(name) accepts the string.
+// Columns verified via MCP: instance_id uuid nullable, scope text NOT NULL.
+const db = supabase as unknown as SupabaseClient;
+type WaUserInstanceRow = { instance_id: string | null; scope: string };
 
 interface Props {
   businessId: string;
@@ -32,7 +36,7 @@ export function SellerWhatsAppUnreadCard({ businessId }: Props) {
         .eq('user_id', userId);
       if (cancelled) return;
 
-      const list = rows || [];
+      const list = (rows || []) as WaUserInstanceRow[];
       if (list.length === 0) {
         setHasAccess(false);
         setLoading(false);
@@ -40,13 +44,13 @@ export function SellerWhatsAppUnreadCard({ businessId }: Props) {
       }
 
       setHasAccess(true);
-      if (list.some((r: any) => r.scope === 'all')) {
+      if (list.some((r) => r.scope === 'all')) {
         // Wildcard — pass undefined so the card aggregates every business instance
         setAllowedIds(undefined);
       } else {
         const ids = list
-          .map((r: any) => r.instance_id)
-          .filter((x: any): x is string => !!x);
+          .map((r) => r.instance_id)
+          .filter((x): x is string => !!x);
         setAllowedIds(ids);
       }
       setLoading(false);

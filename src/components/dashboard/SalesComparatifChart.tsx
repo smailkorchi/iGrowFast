@@ -42,6 +42,17 @@ export const SalesComparatifChart = ({ businessId, dateFilter }: SalesComparatif
     const chartData = useMemo(() => {
         if (!orders) return [];
 
+        // orders columns verified via MCP: date timestamptz nullable, price/shipping_cost numeric nullable, package_status_label text nullable, order_statuses.code text NOT NULL
+        type SCCOrder = {
+            id: string;
+            date: string | null;
+            price: number | null;
+            shipping_cost: number | null;
+            package_status_label: string | null;
+            order_statuses: { code: string } | null;
+        };
+        const ordersTyped = orders as unknown as SCCOrder[];
+
         const rangeStart = dateFilter.from || subDays(new Date(), 30);
         const rangeEnd = dateFilter.to || new Date();
         const rangeDays = differenceInDays(rangeEnd, rangeStart);
@@ -54,8 +65,8 @@ export const SalesComparatifChart = ({ businessId, dateFilter }: SalesComparatif
             return isWithinInterval(new Date(dateStr), { start: startOfDay(from), end: endOfDay(to) });
         };
 
-        const currentOrders = orders.filter((o: any) => o.date && isInRange(o.date, rangeStart, rangeEnd));
-        const prevOrders = orders.filter((o: any) => o.date && isInRange(o.date, prevStart, prevEnd));
+        const currentOrders = ordersTyped.filter((o) => !!o.date && isInRange(o.date, rangeStart, rangeEnd));
+        const prevOrders = ordersTyped.filter((o) => !!o.date && isInRange(o.date, prevStart, prevEnd));
 
         let intervals: Date[];
         let formatStr: string;
@@ -87,11 +98,11 @@ export const SalesComparatifChart = ({ businessId, dateFilter }: SalesComparatif
                 periodEnd = endOfDay(date);
             }
 
-            const curPeriod = currentOrders.filter((o: any) =>
-                isWithinInterval(new Date(o.date), { start: periodStart, end: periodEnd })
+            const curPeriod = currentOrders.filter((o) =>
+                !!o.date && isWithinInterval(new Date(o.date), { start: periodStart, end: periodEnd })
             );
         // Revenue = orders that are paid (order status code PAID) OR package label indicates delivered
-        const isRevenue = (o: any) => {
+        const isRevenue = (o: SCCOrder) => {
             const pkgLabel = (o.package_status_label || '').toLowerCase();
             const pkgDelivered = pkgLabel.includes('livré') || pkgLabel.includes('livre') || pkgLabel.includes('delivered');
             const orderCode = (o.order_statuses?.code || '').toUpperCase();
@@ -101,17 +112,17 @@ export const SalesComparatifChart = ({ businessId, dateFilter }: SalesComparatif
 
         const curRevenue = curPeriod
             .filter(isRevenue)
-            .reduce((s: number, o: any) => s + Math.max(0, Number(o.price || 0) - Number(o.shipping_cost || 0)), 0);
+            .reduce((s: number, o) => s + Math.max(0, Number(o.price || 0) - Number(o.shipping_cost || 0)), 0);
 
         const prevOffset = rangeDays + 1;
         const prevPeriodStart = subDays(periodStart, prevOffset);
         const prevPeriodEnd = subDays(periodEnd, prevOffset);
-        const prevPeriod = prevOrders.filter((o: any) =>
-            o.date && isWithinInterval(new Date(o.date), { start: prevPeriodStart, end: prevPeriodEnd })
+        const prevPeriod = prevOrders.filter((o) =>
+            !!o.date && isWithinInterval(new Date(o.date), { start: prevPeriodStart, end: prevPeriodEnd })
         );
         const prevRevenue = prevPeriod
             .filter(isRevenue)
-            .reduce((s: number, o: any) => s + Math.max(0, Number(o.price || 0) - Number(o.shipping_cost || 0)), 0);
+            .reduce((s: number, o) => s + Math.max(0, Number(o.price || 0) - Number(o.shipping_cost || 0)), 0);
 
             return {
                 label: format(date, formatStr),

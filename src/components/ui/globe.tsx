@@ -1,6 +1,6 @@
 "use strict";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import createGlobe, { COBEOptions } from "cobe";
 import { cn } from "@/lib/utils";
 
@@ -30,25 +30,27 @@ export const Globe = ({
     className?: string;
     config?: COBEOptions;
 }) => {
-    let phi = 0;
-    let width = 0;
+    // phi and width are instance state — must persist across renders, so use refs.
+    // (Previously these were `let` locals that reset on every render, which was a latent bug.)
+    const phiRef = useRef(0);
+    const widthRef = useRef(0);
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     const onRender = useCallback(
         (state: { phi: number; width: number; height: number }) => {
-            phi += 0.005;
-            state.phi = phi;
-            state.width = width * 2;
-            state.height = width * 2;
+            phiRef.current += 0.005;
+            state.phi = phiRef.current;
+            state.width = widthRef.current * 2;
+            state.height = widthRef.current * 2;
         },
         []
     );
 
-    const onResize = () => {
+    const onResize = useCallback(() => {
         if (canvasRef.current) {
-            width = canvasRef.current.offsetWidth;
+            widthRef.current = canvasRef.current.offsetWidth;
         }
-    };
+    }, []);
 
     useEffect(() => {
         window.addEventListener("resize", onResize);
@@ -56,14 +58,17 @@ export const Globe = ({
 
         const globe = createGlobe(canvasRef.current!, {
             ...config,
-            width: width * 2,
-            height: width * 2,
+            width: widthRef.current * 2,
+            height: widthRef.current * 2,
             onRender,
         });
 
         setTimeout(() => (canvasRef.current!.style.opacity = "1"));
-        return () => globe.destroy();
-    }, [onRender, config]);
+        return () => {
+            globe.destroy();
+            window.removeEventListener("resize", onResize);
+        };
+    }, [onRender, onResize, config]);
 
     return (
         <div

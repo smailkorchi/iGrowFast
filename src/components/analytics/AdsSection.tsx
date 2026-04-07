@@ -62,24 +62,25 @@ interface AdsSectionProps {
     dateFilter: DateFilter;
 }
 
+// Types verified against public.ads_history, public.orders, public.order_items, public.order_statuses via MCP
 type AdsCampaign = {
     id: string;
-    product_id: string;
+    product_id: string | null;
     method: string;
-    amount: number | string | null;
+    amount: number;
     start_date: string;
     end_date: string;
 };
 
-type AdsOrderItem = { product_id: string | null };
+type AdsOrderItem = { product_id: string };
 
 type AdsOrderForMatching = {
     id: string;
     date: string | null;
     source_name: string | null;
-    price: number | string | null;
+    price: number | null;
     package_status_label: string | null;
-    order_statuses: { code: string | null } | null;
+    order_statuses: { code: string } | null;
     order_items: AdsOrderItem[] | null;
 };
 

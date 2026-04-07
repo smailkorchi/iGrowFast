@@ -80,9 +80,86 @@ function parcelPermissionFieldsFromProvider(provider: { provider_type?: string |
 /** Seller: only orders where seller_id|assign_id matches and every line product_id is in this set. */
 export type DeliveryNoteSellerScope = { userId: string; productIds: string[] };
 
-export function orderMatchesSellerProducts(order: any, userId: string, productSet: Set<string>): boolean {
+// Types verified against public.{providers, orders, order_items, master_cities, company_zones, company_delivery_notes, company_parcels} via MCP
+type WizardProvider = {
+    id: string;
+    name: string;
+    provider_type: string | null;
+    coliaty_package_no_open: boolean;
+    ameex_parcel_open: boolean;
+    ameex_parcel_try_on: boolean;
+    ameex_parcel_fragile: boolean;
+    ozon_parcel_open: number;
+    ozon_parcel_fragile: number;
+    ozon_parcel_replace: number;
+    logo_url: string | null;
+    color: string | null;
+};
+
+type WizardOrderItem = {
+    product_id: string;
+    quantity: number;
+    product: { name: string; code: string | null } | null;
+};
+
+type WizardOrder = {
+    id: string;
+    company_id: string | null;
+    master_city_id: string | null;
+    seller_id: string | null;
+    assign_id: string | null;
+    name: string | null;
+    phone: string | null;
+    address: string | null;
+    price: number | null;
+    note: string | null;
+    delivery_note: string | null;
+    replace: boolean | null;
+    coliaty_old_tracking: string | null;
+    ameex_old_tracking: string | null;
+    items: WizardOrderItem[] | null;
+    city: { id: string; name: string; zone_id: string | null } | null;
+    company: WizardProvider | null;
+    /** Runtime-added when company_id is resolved from zone mapping. */
+    _resolvedCompanyId?: string;
+};
+
+/** Lightweight shape used only in the first fetch (no deep join). */
+type WizardOrderLight = {
+    id: string;
+    company_id: string | null;
+    master_city_id: string | null;
+    seller_id: string | null;
+    assign_id: string | null;
+    items: { product_id: string }[] | null;
+};
+
+/** Minimal shape required by orderMatchesSellerProducts — broad enough for all callers. */
+export type OrderForSellerProductsMatch = {
+    seller_id?: string | null;
+    assign_id?: string | null;
+    items?: ReadonlyArray<{ product_id?: string | null | undefined }> | null;
+};
+
+type WizardCompanyZone = {
+    id: string;
+    company_id: string;
+    zone_id: string;
+    provider: WizardProvider | null;
+};
+
+type CreatedParcelEntry = {
+    order: WizardOrder;
+    parcel?: { id: string } | null;
+    tracking_code?: string;
+    error?: string;
+};
+
+type DeliveryNoteEntry = { note: { id: string; reference: string }; providerId: string; isNew: boolean };
+
+export function orderMatchesSellerProducts(order: OrderForSellerProductsMatch, userId: string, productSet: Set<string>): boolean {
     if (order.seller_id !== userId && order.assign_id !== userId) return false;
-    const items = order.items as { product_id?: string }[] | undefined;
+    const items = order.items;
     if (!items?.length) return false;
     return items.every((it) => it.product_id && productSet.has(it.product_id));
 }
@@ -99,8 +176,8 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
     const [step, setStep] = useState<'provider' | 'creating' | 'review' | 'finalizing'>('provider');
     const [selectedProviderId, setSelectedProviderId] = useState<string>(lockProviderId || '');
     const [providerSearch, setProviderSearch] = useState('');
-    const [createdParcels, setCreatedParcels] = useState<any[]>([]);
-    const [deliveryNotes, setDeliveryNotes] = useState<any[]>([]);
+    const [createdParcels, setCreatedParcels] = useState<CreatedParcelEntry[]>([]);
+    const [deliveryNotes, setDeliveryNotes] = useState<DeliveryNoteEntry[]>([]);
     const [currentProvider, setCurrentProvider] = useState<string>('');
 
     // Update selectedProviderId when lockProviderId changes
@@ -133,7 +210,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                 .select(`*, provider:providers(${WIZARD_PROVIDER_SELECT_FOR_PARCEL})`)
                 .eq('DigiCom Business', activeBusinessId);
             if (czError) throw czError;
-            const companyZones = (rawCompanyZones || []) as any[];
+            const companyZones = (rawCompanyZones || []) as unknown as WizardCompanyZone[];
             if (!companyZones.length) return [];
 
             // 2. Get all confirmed orders
@@ -151,14 +228,15 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
             if (ordersError) throw ordersError;
 
             const productSet = sellerScope ? new Set(sellerScope.productIds) : null;
-            const filteredOrders = (orders || []).filter((o: any) =>
+            const lightOrders = (orders || []) as unknown as WizardOrderLight[];
+            const filteredOrders = lightOrders.filter((o) =>
                 !sellerScope || !productSet ? true : orderMatchesSellerProducts(o, sellerScope.userId, productSet)
             );
 
             if (filteredOrders.length === 0) return [];
 
             // 3. Get city → zone mapping for orders without company_id
-            const cityIds = new Set(filteredOrders.map((o: any) => o.master_city_id).filter(Boolean));
+            const cityIds = new Set(filteredOrders.map((o) => o.master_city_id).filter(Boolean) as string[]);
             const { data: cities } = await supabase
                 .from('master_cities')
                 .select('id, zone_id')
@@ -166,7 +244,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
             const cityZoneMap = new Map((cities || []).map(c => [c.id, c.zone_id]));
 
             // 4. Build zone→provider map from company_zones
-            const zoneProviderMap = new Map<string, { providerId: string; provider: any }[]>();
+            const zoneProviderMap = new Map<string, { providerId: string; provider: WizardProvider | null }[]>();
             for (const cz of companyZones) {
                 if (!cz.zone_id || !cz.company_id) continue;
                 if (!zoneProviderMap.has(cz.zone_id)) zoneProviderMap.set(cz.zone_id, []);
@@ -175,7 +253,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
 
             // 5. Count confirmed orders per provider
             const providerOrderCounts = new Map<string, number>();
-            const providerMap = new Map<string, any>();
+            const providerMap = new Map<string, WizardProvider | null>();
 
             for (const order of filteredOrders) {
                 let providerId = order.company_id;
@@ -237,7 +315,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                 .select(`*, provider:providers(${WIZARD_PROVIDER_SELECT_FOR_PARCEL})`)
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
-            return (data || []) as any[];
+            return ((data || []) as unknown) as WizardCompanyZone[];
         },
         enabled: open
     });
@@ -274,14 +352,15 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
             if (error) throw error;
 
             const productSet = sellerScope ? new Set(sellerScope.productIds) : null;
-            const baseOrders = (data || []).filter((order: any) =>
+            const fullOrders = (data || []) as unknown as WizardOrder[];
+            const baseOrders = fullOrders.filter((order) =>
                 !sellerScope || !productSet
                     ? true
                     : orderMatchesSellerProducts(order, sellerScope.userId, productSet)
             );
 
             // Build zone→provider map for resolving orders without company_id
-            const zoneProviders = new Map<string, { providerId: string; provider: any }>();
+            const zoneProviders = new Map<string, { providerId: string; provider: WizardProvider | null }>();
             for (const cz of (companyZonesData || [])) {
                 if (!cz.zone_id || !cz.company_id) continue;
                 // First provider per zone wins (same as old logic)
@@ -291,7 +370,8 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
             }
 
             // Group by provider
-            const grouped = baseOrders.reduce((acc: any, order: any) => {
+            type OrderGroup = { provider: WizardProvider | null; orders: WizardOrder[] };
+            const grouped = baseOrders.reduce<Record<string, OrderGroup>>((acc, order) => {
                 let providerId = order.company_id;
                 let provider = order.company;
 
@@ -334,7 +414,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
 
     // Create parcels for a provider
     const createParcelsMutation = useMutation({
-        mutationFn: async ({ providerId, orders }: { providerId: string; orders: any[] }) => {
+        mutationFn: async ({ providerId, orders }: { providerId: string; orders: WizardOrder[] }) => {
             // Get session once at the start
             const { data: { session } } = await supabase.auth.getSession();
 
@@ -378,8 +458,8 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                         master_city_id: order.master_city_id,
                         city_name: order.city?.name,
                         product_info: order.items
-                            ?.filter((i: any) => i.quantity > 0)
-                            .map((i: any) => `${i.product?.code || 'P'} x${i.quantity}`)
+                            ?.filter((i) => i.quantity > 0)
+                            .map((i) => `${i.product?.code || 'P'} x${i.quantity}`)
                             .join(', '),
                         note: order.note || '', // Internal note
                         delivery_note: order.delivery_note || '', // Public note for courier
@@ -671,9 +751,10 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
 
         setCreatedParcels([]);
 
-        for (const [providerId, group] of Object.entries(ordersGrouped)) {
-            const { provider, orders } = group as { provider: any; orders: any[] };
-            setCurrentProvider(provider.name);
+        type OrderGroup = { provider: WizardProvider | null; orders: WizardOrder[] };
+        for (const [providerId, group] of Object.entries(ordersGrouped as Record<string, OrderGroup>)) {
+            const { provider, orders } = group;
+            setCurrentProvider(provider?.name || '');
             await createParcelsMutation.mutateAsync({ providerId, orders });
         }
 
@@ -684,9 +765,10 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
         setStep('finalizing');
 
         // Group parcels by provider
-        const parcelsByProvider = createdParcels.reduce((acc: any, p: any) => {
-            if (!p.error) {
+        const parcelsByProvider = createdParcels.reduce<Record<string, string[]>>((acc, p) => {
+            if (!p.error && p.tracking_code) {
                 const providerId = p.order.company_id;
+                if (!providerId) return acc;
                 if (!acc[providerId]) acc[providerId] = [];
                 acc[providerId].push(p.tracking_code);
             }
@@ -755,7 +837,8 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
 
     const totalOrderCount = useMemo(() => {
         if (!ordersGrouped) return 0;
-        return Object.values(ordersGrouped as any).reduce((sum: number, g: any) => sum + g.orders.length, 0);
+        type OrderGroup = { provider: WizardProvider | null; orders: WizardOrder[] };
+        return Object.values(ordersGrouped as Record<string, OrderGroup>).reduce((sum: number, g) => sum + g.orders.length, 0);
     }, [ordersGrouped]);
 
     const successfulParcels = createdParcels.filter(p => !p.error);
@@ -871,8 +954,8 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                                 <div className="space-y-3 pt-4 border-t">
                                     <div className="text-sm font-bold text-brand-navy/60">Orders to Process:</div>
                                     <div className="flex gap-3 flex-wrap">
-                                        {Object.values(ordersGrouped as any).map(({ provider, orders }: any) => (
-                                            <div key={provider.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl flex-1 min-w-[200px]">
+                                        {Object.values(ordersGrouped as Record<string, { provider: WizardProvider | null; orders: WizardOrder[] }>).map(({ provider, orders }) => (
+                                            <div key={provider?.id || 'unknown'} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl flex-1 min-w-[200px]">
                                                 <div 
                                                     className="w-10 h-10 rounded-xl flex flex-shrink-0 items-center justify-center overflow-hidden"
                                                     style={{ backgroundColor: provider.logo_url ? 'transparent' : (provider.color ? `${provider.color}15` : 'rgba(59, 130, 246, 0.1)') }}

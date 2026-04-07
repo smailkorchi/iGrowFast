@@ -196,11 +196,13 @@ const Sidebar = () => {
         setExpandedSection(prev => prev === label ? null : label);
     };
 
-    // Auto-expand when path changes
+    // Auto-expand when path changes. Uses the functional setter so we don't depend on `expandedSection`
+    // in closure (which would make the effect re-run after manual toggles and snap the UI back).
     React.useEffect(() => {
         navigation.forEach(section => {
-            if (section.label && expandedSection !== section.label && section.items.some(item => location.pathname === item.path)) {
-                setExpandedSection(section.label);
+            if (section.label && section.items.some(item => location.pathname === item.path)) {
+                const label = section.label;
+                setExpandedSection(prev => (prev !== label ? label : prev));
             }
         });
     }, [location.pathname]);

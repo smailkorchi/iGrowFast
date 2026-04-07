@@ -8,6 +8,7 @@ import { motion } from 'framer-motion';
 import {
     ShoppingCart, CheckCircle2, Truck, XCircle, Clock,
     Package, Ban, FileText, TrendingUp,
+    type LucideIcon,
 } from 'lucide-react';
 import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
 import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
@@ -23,7 +24,7 @@ interface KPICardData {
     title: string;
     value: string | number;
     subtitle?: string;
-    icon: any;
+    icon: LucideIcon;
     iconBg: string;
     iconColor: string;
     onClick?: () => void;
@@ -37,7 +38,6 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
         cancelledIds,
         pendingIds,
         deliveredPkgIds,
-        shippedPkgIds,
         returnedPkgIds,
         getOrderByCategory,
         getPkgByCategory,
@@ -81,7 +81,12 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
             });
         };
 
-        const filtered = orders.filter((o: any) => isInRange(o.date));
+        type KPIOrder = Parameters<typeof isDeliveredForCommission>[0] & {
+            date: string | null;
+            order_status_id: string | null;
+            company_id: string | null;
+        };
+        const filtered = orders.filter((o: KPIOrder) => isInRange(o.date));
         const total = filtered.length;
 
         const confirmedId = getOrderByCategory('confirmed')?.id;
@@ -91,38 +96,40 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
         const shippedPkgId = getPkgByCategory('in_transit')?.id;
         const refusedPkgId = getPkgByCategory('refused')?.id;
 
-        const confirmed = filtered.filter((o: any) =>
+        const confirmed = filtered.filter((o: KPIOrder) =>
             o.order_status_id && confirmedIds.has(o.order_status_id)
         );
-        const delivered = filtered.filter((o: any) => isDeliveredForCommission(o, deliveredPkgIds));
+        const delivered = filtered.filter((o: KPIOrder) => isDeliveredForCommission(o, deliveredPkgIds));
 
-        const shippedOrders = filtered.filter((o: any) => !!o.company_id);
+        const shippedOrders = filtered.filter((o: KPIOrder) => !!o.company_id);
         const deliveryRate = shippedOrders.length > 0
             ? ((delivered.length / shippedOrders.length) * 100).toFixed(1)
             : '0';
 
-        const pendingConfirmation = filtered.filter((o: any) =>
+        const pendingConfirmation = filtered.filter((o: KPIOrder) =>
             o.order_status_id && pendingIds.has(o.order_status_id)
         );
 
-        const enCoursLivraison = filtered.filter((o: any) =>
+        const enCoursLivraison = filtered.filter((o: KPIOrder) =>
             !!o.company_id &&
             (!o.package_status_id ||
                 (!isDeliveredForCommission(o, deliveredPkgIds) && !returnedPkgIds.has(o.package_status_id)))
         );
 
-        const canceled = filtered.filter((o: any) =>
+        const canceled = filtered.filter((o: KPIOrder) =>
             o.order_status_id && cancelledIds.has(o.order_status_id)
         );
 
-        const refused = filtered.filter((o: any) =>
+        const refused = filtered.filter((o: KPIOrder) =>
             o.package_status_id && isPkgCategory(o.package_status_id, 'refused')
         );
 
         const pct = (n: number) => total > 0 ? ((n / total) * 100).toFixed(1) : '0';
 
-        const filteredNotes = (paymentNotes || []).filter((n: any) => isInRange(n.created_at));
-        const notesTotal = filteredNotes.reduce((s: number, n: any) => s + Number(n.net_amount || 0), 0);
+        // company_payment_notes: created_at timestamptz nullable, net_amount numeric NOT NULL (verified via MCP)
+        type PaymentNote = { created_at: string | null; net_amount: number };
+        const filteredNotes = (paymentNotes || []).filter((n: PaymentNote) => isInRange(n.created_at));
+        const notesTotal = filteredNotes.reduce((s: number, n: PaymentNote) => s + Number(n.net_amount || 0), 0);
 
         return [
             {
@@ -207,7 +214,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
                 onClick: () => navigate('/payments'),
             },
         ];
-    }, [orders, paymentNotes, dateFilter, navigate, confirmedIds, cancelledIds, pendingIds, deliveredPkgIds, shippedPkgIds, returnedPkgIds, getOrderByCategory, getPkgByCategory, isPkgCategory]);
+    }, [orders, paymentNotes, dateFilter, navigate, confirmedIds, cancelledIds, pendingIds, deliveredPkgIds, returnedPkgIds, getOrderByCategory, getPkgByCategory, isPkgCategory]);
 
     return (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9 gap-3">

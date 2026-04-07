@@ -49,15 +49,23 @@ export const PendingOrdersBreakdown = ({ businessId, dateFilter }: PendingOrders
             });
         };
 
-        const pending = orders.filter((o: any) =>
-            o.order_status_id && pendingIds.has(o.order_status_id) && isInRange(o.date)
+        // orders columns verified via MCP: order_status_id uuid nullable, date timestamptz nullable, price numeric nullable; created_at timestamptz nullable (not in select, optional here)
+        type POBOrder = {
+            id: string;
+            order_status_id: string | null;
+            date: string | null;
+            price: number | null;
+            created_at?: string | null;
+        };
+        const pending = (orders as unknown as POBOrder[]).filter((o) =>
+            !!o.order_status_id && pendingIds.has(o.order_status_id) && isInRange(o.date)
         );
 
         const now = new Date();
-        const buckets: Record<string, any[]> = { 'today': [], '1-3d': [], '3-7d': [], '7+d': [] };
+        const buckets: Record<string, POBOrder[]> = { 'today': [], '1-3d': [], '3-7d': [], '7+d': [] };
 
-        pending.forEach((o: any) => {
-            const age = differenceInDays(now, new Date(o.date || o.created_at));
+        pending.forEach((o) => {
+            const age = differenceInDays(now, new Date(o.date || o.created_at || 0));
             if (age <= 0) buckets['today'].push(o);
             else if (age <= 3) buckets['1-3d'].push(o);
             else if (age <= 7) buckets['3-7d'].push(o);
@@ -68,7 +76,7 @@ export const PendingOrdersBreakdown = ({ businessId, dateFilter }: PendingOrders
             name: b.label,
             count: buckets[b.key].length,
             color: b.color,
-            value: buckets[b.key].reduce((s: number, o: any) => s + Number(o.price || 0), 0),
+            value: buckets[b.key].reduce((s: number, o) => s + Number(o.price || 0), 0),
         }));
 
         return { total: pending.length, buckets, chartData };
@@ -109,7 +117,7 @@ export const PendingOrdersBreakdown = ({ businessId, dateFilter }: PendingOrders
                             <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                             <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} width={70} />
                             <Tooltip
-                                formatter={(value: any, name: string) => [value, name === 'count' ? 'Orders' : name]}
+                                formatter={(value: number | string, name: string) => [value, name === 'count' ? 'Orders' : name]}
                                 contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', fontSize: 12 }}
                             />
                             <Bar dataKey="count" radius={[0, 8, 8, 0]} barSize={24}>

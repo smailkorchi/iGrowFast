@@ -43,6 +43,10 @@ export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelinePro
     const metrics = useMemo(() => {
         if (!orders || !providers) return null;
 
+        // Types verified via MCP: orders {date,company_id,package_status_id,package_status_label nullable}; providers {id,name NOT NULL, logo_url nullable}
+        type SPOrder = { date: string | null; company_id: string | null; package_status_id: string | null; package_status_label: string | null };
+        type SPProvider = { id: string; name: string; logo_url: string | null };
+
         const isInRange = (dateStr: string | null) => {
             if (!dateStr) return true;
             if (!dateFilter.from && !dateFilter.to) return true;
@@ -53,10 +57,10 @@ export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelinePro
             });
         };
 
-        const shipped = orders.filter((o: any) => !!o.company_id && isInRange(o.date));
+        const shipped = (orders as unknown as SPOrder[]).filter((o) => !!o.company_id && isInRange(o.date));
 
         const statusDist: Record<string, { count: number; statusId: string }> = {};
-        shipped.forEach((o: any) => {
+        shipped.forEach((o) => {
             const label = o.package_status_label;
             const statusId = o.package_status_id;
             if (!label || !statusId) return;
@@ -69,17 +73,19 @@ export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelinePro
             .sort((a, b) => b.count - a.count);
 
         const providerDist: Record<string, { total: number; delivered: number; returned: number }> = {};
-        shipped.forEach((o: any) => {
+        shipped.forEach((o) => {
             const pid = o.company_id;
+            if (!pid) return;
             if (!providerDist[pid]) providerDist[pid] = { total: 0, delivered: 0, returned: 0 };
             providerDist[pid].total++;
             if (o.package_status_id && isPkgCategory(o.package_status_id, 'delivered')) providerDist[pid].delivered++;
             if (o.package_status_id && returnedPkgIds.has(o.package_status_id)) providerDist[pid].returned++;
         });
 
+        const providersTyped = (providers || []) as unknown as SPProvider[];
         const providerList = Object.entries(providerDist)
             .map(([id, stats]) => {
-                const provider = (providers || []).find((p: any) => p.id === id);
+                const provider = providersTyped.find((p) => p.id === id);
                 return {
                     id,
                     name: provider?.name || 'Unknown',
@@ -119,7 +125,7 @@ export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelinePro
                                     <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                                     <YAxis dataKey="label" type="category" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} width={120} />
                                     <Tooltip
-                                        formatter={(value: any) => [`${value} orders`]}
+                                        formatter={(value: number | string) => [`${value} orders`]}
                                         contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', fontSize: 12 }}
                                     />
                                     <Bar dataKey="count" radius={[0, 8, 8, 0]} barSize={20}>

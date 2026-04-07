@@ -64,6 +64,36 @@ const POST_CONFIRMATION_LABELS = new Set<string>([
 
 const normalizeLabel = (l: string | null | undefined) => (l || '').trim().toLowerCase();
 
+// Types verified against public.{orders, order_items, order_statuses, users, ads_history} via MCP
+type DSOrderItem = { product_id: string; quantity: number; unit_price: number; total_price: number | null };
+type DSOrderStatuses = { code: string; label: string } | null;
+type DSOrder = {
+    id: string;
+    date: string | null;
+    price: number | null;
+    raw_price: number | null;
+    shipping_cost: number | null;
+    include_delivery_in_total: boolean;
+    order_status_id: string | null;
+    package_status_id: string | null;
+    package_status_label: string | null;
+    seller_id: string | null;
+    company_id: string | null;
+    source_name: string | null;
+    order_items: DSOrderItem[] | null;
+    order_statuses: DSOrderStatuses;
+};
+type DSSeller = {
+    id: string;
+    name: string;
+    avatar_url: string | null;
+    active: boolean | null;
+    commission_price: number | null;
+    commission_basis: string;
+    products: unknown;
+};
+type DSAd = { product_id: string | null; amount: number; start_date: string };
+
 const SOURCE_COLORS: Record<string, string> = {
     facebook: 'bg-blue-50 text-blue-700',
     instagram: 'bg-pink-50 text-pink-700',
@@ -76,8 +106,8 @@ const SOURCE_COLORS: Record<string, string> = {
 };
 
 /** Product-line revenue only (no shipping). Uses line totals; falls back to raw_price or price − shipping. */
-function productRevenueExcludingShipping(o: any): number {
-    const items = (o.order_items as any[]) || [];
+function productRevenueExcludingShipping(o: DSOrder): number {
+    const items = o.order_items || [];
     let sum = 0;
     for (const oi of items) {
         if (!oi?.product_id) continue;
@@ -171,21 +201,22 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
             });
         };
 
-        const filtered = orders.filter((o: any) => isInRange(o.date));
+        const ordersTyped = orders as unknown as DSOrder[];
+        const filtered = ordersTyped.filter((o) => isInRange(o.date));
         const totalOrders = filtered.length;
 
-        const filteredAds = (adsHistory || []).filter((a: any) => isInRange(a.start_date));
+        const filteredAds = ((adsHistory || []) as unknown as DSAd[]).filter((a) => isInRange(a.start_date));
         const adsByProduct = new Map<string, number>();
-        filteredAds.forEach((a: any) => {
+        filteredAds.forEach((a) => {
             if (a.product_id) {
                 adsByProduct.set(a.product_id, (adsByProduct.get(a.product_id) || 0) + Number(a.amount || 0));
             }
         });
 
         const globalProductDeliveredQty = new Map<string, number>();
-        filtered.forEach((o: any) => {
+        filtered.forEach((o) => {
             if (!isDeliveredForCommission(o, deliveredPkgIds)) return;
-            const items = (o.order_items as any[]) || [];
+            const items = o.order_items || [];
             for (const oi of items) {
                 const pid = oi?.product_id;
                 if (!pid) continue;
@@ -194,24 +225,25 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
             }
         });
 
-        const sellerData = sellers.map((seller: any) => {
-            const sellerOrders = filtered.filter((o: any) => o.seller_id === seller.id);
+        const sellersTyped = sellers as unknown as DSSeller[];
+        const sellerData = sellersTyped.map((seller) => {
+            const sellerOrders = filtered.filter((o) => o.seller_id === seller.id);
             const assignedCount = sellerOrders.length;
             const assignedPercent = totalOrders > 0 ? (assignedCount / totalOrders) * 100 : 0;
 
             const sourceBreakdown: Record<string, number> = {};
-            sellerOrders.forEach((o: any) => {
+            sellerOrders.forEach((o) => {
                 const src = (o.source_name || 'other').toLowerCase();
                 sourceBreakdown[src] = (sourceBreakdown[src] || 0) + 1;
             });
 
-            const preConfOrders = sellerOrders.filter((o: any) => {
-                const label = (o.order_statuses as any)?.label;
+            const preConfOrders = sellerOrders.filter((o) => {
+                const label = o.order_statuses?.label;
                 return PRE_CONFIRMATION_LABELS.has(normalizeLabel(label));
             });
             const preConfirmationBreakdown: Record<string, { count: number; color: string }> = {};
-            preConfOrders.forEach((o: any) => {
-                const label = (o.order_statuses as any)?.label || 'Unknown';
+            preConfOrders.forEach((o) => {
+                const label = o.order_statuses?.label || 'Unknown';
                 if (!preConfirmationBreakdown[label]) {
                     preConfirmationBreakdown[label] = {
                         count: 0,
@@ -221,14 +253,14 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                 preConfirmationBreakdown[label].count += 1;
             });
 
-            const confirmedCount = sellerOrders.filter((o: any) => confirmedIds.has(o.order_status_id)).length;
+            const confirmedCount = sellerOrders.filter((o) => !!o.order_status_id && confirmedIds.has(o.order_status_id)).length;
             const confirmedPercent = assignedCount > 0 ? (confirmedCount / assignedCount) * 100 : 0;
 
-            const postConfOrders = sellerOrders.filter((o: any) =>
+            const postConfOrders = sellerOrders.filter((o) =>
                 POST_CONFIRMATION_LABELS.has(normalizeLabel(o.package_status_label))
             );
             const postConfirmationBreakdown: Record<string, { count: number; color: string }> = {};
-            postConfOrders.forEach((o: any) => {
+            postConfOrders.forEach((o) => {
                 const label = o.package_status_label || 'Unknown';
                 if (!postConfirmationBreakdown[label]) {
                     postConfirmationBreakdown[label] = {
@@ -239,11 +271,11 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                 postConfirmationBreakdown[label].count += 1;
             });
 
-            const delivered = sellerOrders.filter((o: any) => isDeliveredForCommission(o, deliveredPkgIds));
+            const delivered = sellerOrders.filter((o) => isDeliveredForCommission(o, deliveredPkgIds));
             const deliveredCount = delivered.length;
             const deliveredPercent = confirmedCount > 0 ? (deliveredCount / confirmedCount) * 100 : 0;
 
-            const basis: CommissionBasis = normalizeCommissionBasis(seller.commission_basis as string | null | undefined);
+            const basis: CommissionBasis = normalizeCommissionBasis(seller.commission_basis);
             const commissionPrice = Number(seller.commission_price ?? 0) || 0;
             const sellerProductIds: string[] = Array.isArray(seller.products)
                 ? (seller.products as string[]).filter((id): id is string => typeof id === 'string' && id.length > 0)
@@ -252,9 +284,9 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
             let productRevenueDelivered = 0;
             const sellerProductDeliveredQty = new Map<string, number>();
 
-            delivered.forEach((o: any) => {
+            delivered.forEach((o) => {
                 productRevenueDelivered += productRevenueExcludingShipping(o);
-                const items = (o.order_items as any[]) || [];
+                const items = o.order_items || [];
                 for (const oi of items) {
                     const pid = oi?.product_id;
                     if (!pid) continue;
@@ -271,7 +303,7 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
             });
 
             const commissionTotal = delivered.reduce(
-                (s: number, o: any) =>
+                (s: number, o) =>
                     s +
                     commissionAccruedForDeliveredOrder({
                         order: o,
