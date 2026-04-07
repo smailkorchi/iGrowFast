@@ -93,8 +93,8 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
         const shippedOrders = filtered.filter(o => o.package_status_id);
         const total = shippedOrders.length;
 
-        const isDelivered = (o: Record<string, unknown>) => isDeliveredForCommission(o, deliveredPkgIds);
-        const isReturned = (o: { package_status_id?: string | null }) => o.package_status_id && returnedPkgIds.has(o.package_status_id);
+        const isDelivered = (o: any) => isDeliveredForCommission(o, deliveredPkgIds);
+        const isReturned = (o: any) => o.package_status_id && returnedPkgIds.has(o.package_status_id);
 
         const deliveredCount = shippedOrders.filter(isDelivered).length;
         const returnedCount = shippedOrders.filter(isReturned).length;
@@ -152,7 +152,7 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
 
         const cityDeliveries: Record<string, { count: number; lat: number; lng: number }> = {};
         shippedOrders.forEach(o => {
-            const mc = (o as { master_cities?: { name?: string; lat?: string; lng?: string } }).master_cities;
+            const mc = (o as any).master_cities;
             if (!mc?.name || !mc?.lat || !mc?.lng) return;
             const lat = parseFloat(mc.lat);
             const lng = parseFloat(mc.lng);

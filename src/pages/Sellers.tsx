@@ -124,7 +124,7 @@ const Sellers = () => {
         .select('id, seller_id, order_status_id, package_status_id, price, created_at, date_livraison, master_city_id, package_status_label, status:order_statuses(code, label), city:master_cities(name), package_statuses(label), order_items(product_id, quantity)')
         .in('seller_id', sellerIds);
 
-      const orders = (ordersData || []) as Array<Record<string, unknown>>;
+      const orders = (ordersData || []) as any[];
 
       // 3. Fetch daily earnings
       const { data: earningsData } = await supabase
@@ -153,7 +153,7 @@ const Sellers = () => {
 
       // 6. Fetch product names for attributed products
       const allProductIds = [...new Set(sellersData.flatMap(s => s.products || []))];
-      const productsMap: Record<string, { name: string; image: string | null }> = {};
+      let productsMap: Record<string, { name: string; image: string | null }> = {};
       if (allProductIds.length > 0) {
         const { data: prodData } = await supabase
           .from('products')
@@ -162,7 +162,7 @@ const Sellers = () => {
           .in('id', allProductIds);
 
         (prodData || []).forEach(p => {
-          const nameObj = p.name as string | { en?: string; fr?: string } | null;
+          const nameObj = p.name as any;
           const displayName = typeof nameObj === 'string' ? nameObj : (nameObj?.en || nameObj?.fr || 'Unknown');
           productsMap[p.id] = { name: displayName, image: p.image_url };
         });
@@ -211,7 +211,7 @@ const Sellers = () => {
           .filter(p => p.status === 'paid')
           .reduce((sum, p) => sum + (Number(p.delivered_orders) || 0), 0);
 
-        const isDeliveredOrder = (o: Record<string, unknown>) => isDeliveredForCommission(o, deliveredPkgIds);
+        const isDeliveredOrder = (o: any) => isDeliveredForCommission(o, deliveredPkgIds);
         const basis = normalizeCommissionBasis(seller.commission_basis);
         const sellerProductIds = (seller.products || []).filter((id: string) => typeof id === 'string' && id.length > 0);
         const { unpaidCommission: liveCommission } = computeUnpaidCommission({
@@ -247,7 +247,7 @@ const Sellers = () => {
         // Top city from delivered orders
         const cityMap: Record<string, number> = {};
         sellerOrders.filter(o => isDeliveredForCommission(o, deliveredPkgIds)).forEach(o => {
-          const cityName = (o.city as { name?: string } | undefined)?.name || 'Unknown';
+          const cityName = (o.city as any)?.name || 'Unknown';
           cityMap[cityName] = (cityMap[cityName] || 0) + 1;
         });
         const topCity = Object.entries(cityMap).sort((a, b) => b[1] - a[1])[0]?.[0] || null;

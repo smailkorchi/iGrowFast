@@ -60,7 +60,7 @@ interface Payout {
   total_amount: number;
   days_present: number;
   delivered_orders: number;
-  bank_snapshot: Record<string, unknown> | null;
+  bank_snapshot: any;
   status: 'pending' | 'paid';
   created_at: string;
   paid_at: string | null;
@@ -108,7 +108,7 @@ const AdminSalaries = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedSellerId, setSelectedSellerId] = useState<string>('');
   const [selectedMonth, setSelectedMonth] = useState<string>(format(new Date(), 'yyyy-MM-01'));
-  const [payoutPreview, setPayoutPreview] = useState<{ orders: number; commission: number; total: number; days: number; bank: Record<string, unknown> | null; accrualNoun?: string } | null>(null);
+  const [payoutPreview, setPayoutPreview] = useState<any>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [activePayout, setActivePayout] = useState<Payout | null>(null);

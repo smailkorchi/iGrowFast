@@ -47,7 +47,7 @@ interface SellerPayment {
     total_amount: number;
     days_present: number;
     delivered_orders: number;
-    bank_snapshot: Record<string, unknown> | null;
+    bank_snapshot: any;
     status: string;
     paid_at: string | null;
     created_at: string;
@@ -69,7 +69,7 @@ const SellerPayments = () => {
         thisMonth: 0,
         lastMonth: 0
     });
-    const [chartData, setChartData] = useState<Array<{ month: string; amount: number; commission: number }>>([]);
+    const [chartData, setChartData] = useState<any[]>([]);
     const [selectedPayment, setSelectedPayment] = useState<SellerPayment | null>(null);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 

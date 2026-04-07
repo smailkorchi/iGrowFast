@@ -191,7 +191,7 @@ function pickStatusFromResponse(
     let rawColor = headlineColor || null;
 
     if (!matched) {
-        const history = (Array.isArray(data.history) ? (data.history as Array<Record<string, unknown>>) : []).slice();
+        const history = (Array.isArray(data.history) ? (data.history as any[]) : []).slice();
         // Walk newest-first.
         for (const event of history) {
             if (!event) continue;
@@ -258,7 +258,7 @@ type OrderForSync = {
     id: string;
     package_status?: { id?: string | null; category?: string | null } | null;
     package_status_id?: string | null;
-    parcels?: Array<Record<string, unknown>>;
+    parcels?: any[];
 };
 
 export type BatchSyncResult = {
@@ -313,7 +313,7 @@ export async function syncOrdersTracking(
                 synced++;
                 if (r.updated) changed++;
             } catch (err) {
-                if ((err as { name?: string })?.name === 'AbortError') return;
+                if ((err as any)?.name === 'AbortError') return;
                 failed++;
             }
         }

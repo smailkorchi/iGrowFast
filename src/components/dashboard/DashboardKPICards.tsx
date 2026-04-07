@@ -81,7 +81,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
             });
         };
 
-        const filtered = orders.filter((o: Record<string, unknown>) => isInRange(o.date));
+        const filtered = orders.filter((o: any) => isInRange(o.date));
         const total = filtered.length;
 
         const confirmedId = getOrderByCategory('confirmed')?.id;
@@ -91,31 +91,31 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
         const shippedPkgId = getPkgByCategory('in_transit')?.id;
         const refusedPkgId = getPkgByCategory('refused')?.id;
 
-        const confirmed = filtered.filter((o: Record<string, unknown>) =>
+        const confirmed = filtered.filter((o: any) =>
             o.order_status_id && confirmedIds.has(o.order_status_id)
         );
-        const delivered = filtered.filter((o: Record<string, unknown>) => isDeliveredForCommission(o, deliveredPkgIds));
+        const delivered = filtered.filter((o: any) => isDeliveredForCommission(o, deliveredPkgIds));
 
-        const shippedOrders = filtered.filter((o: Record<string, unknown>) => !!o.company_id);
+        const shippedOrders = filtered.filter((o: any) => !!o.company_id);
         const deliveryRate = shippedOrders.length > 0
             ? ((delivered.length / shippedOrders.length) * 100).toFixed(1)
             : '0';
 
-        const pendingConfirmation = filtered.filter((o: Record<string, unknown>) =>
+        const pendingConfirmation = filtered.filter((o: any) =>
             o.order_status_id && pendingIds.has(o.order_status_id)
         );
 
-        const enCoursLivraison = filtered.filter((o: Record<string, unknown>) =>
+        const enCoursLivraison = filtered.filter((o: any) =>
             !!o.company_id &&
             (!o.package_status_id ||
                 (!isDeliveredForCommission(o, deliveredPkgIds) && !returnedPkgIds.has(o.package_status_id)))
         );
 
-        const canceled = filtered.filter((o: Record<string, unknown>) =>
+        const canceled = filtered.filter((o: any) =>
             o.order_status_id && cancelledIds.has(o.order_status_id)
         );
 
-        const refused = filtered.filter((o: Record<string, unknown>) =>
+        const refused = filtered.filter((o: any) =>
             o.package_status_id && isPkgCategory(o.package_status_id, 'refused')
         );
 
