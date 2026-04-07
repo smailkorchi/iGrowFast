@@ -176,7 +176,7 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
             sellerPerformance: sellerPerformance.slice(0, 10),
             trendData,
         };
-    }, [sellers, orders, sellerPayments, presences, dateFilter, deliveredPkgIds.size]);
+    }, [sellers, orders, sellerPayments, presences, dateFilter, deliveredPkgIds]);
 
     return (
         <SectionWrapper

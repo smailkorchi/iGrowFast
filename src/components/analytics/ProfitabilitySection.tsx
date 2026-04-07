@@ -89,7 +89,9 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
     const metrics = useMemo(() => {
         if (!orders) return null;
 
-        const isPaidAndDelivered = (o: any) =>
+        type ProfitOrder = Parameters<typeof isDeliveredForCommission>[0] & { order_status_id: string | null };
+        type ProfitOrderItem = { quantity: number | null; product_id: string | null; accessory_id: string | null; accessory_quantity: number | null };
+        const isPaidAndDelivered = (o: ProfitOrder) =>
             o.order_status_id && isOrderCategory(o.order_status_id, 'paid') &&
             isDeliveredForCommission(o, deliveredPkgIds);
 
@@ -115,8 +117,8 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
         let totalShippingCost = 0;
         revenueOrders.forEach(o => {
             totalShippingCost += Number(o.shipping_cost || 0);
-            const items = (o as any).order_items || [];
-            items.forEach((item: any) => {
+            const items = ((o as unknown as { order_items?: ProfitOrderItem[] }).order_items) || [];
+            items.forEach((item: ProfitOrderItem) => {
                 const productCost = productMap.get(item.product_id) || 0;
                 totalCOGS += Number(item.quantity || 0) * productCost;
                 if (item.accessory_id) {
@@ -174,7 +176,7 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
 
         // ── Provisional: delivered package but order NOT yet paid (unpaid) ──
         // Computed here so we can also stitch provisional into per-month trendData
-        const isDeliveredUnpaid = (o: any) =>
+        const isDeliveredUnpaid = (o: ProfitOrder) =>
             isDeliveredForCommission(o, deliveredPkgIds) &&
             o.order_status_id &&
             isOrderCategory(o.order_status_id, 'unpaid');
@@ -185,8 +187,8 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
         provisionOrders.forEach(o => {
             const ship = Number(o.shipping_cost || 0);
             let cogs = 0;
-            const items = (o as any).order_items || [];
-            items.forEach((item: any) => {
+            const items = ((o as unknown as { order_items?: ProfitOrderItem[] }).order_items) || [];
+            items.forEach((item: ProfitOrderItem) => {
                 const productCost = productMap.get(item.product_id) || 0;
                 cogs += Number(item.quantity || 0) * productCost;
                 if (item.accessory_id) {

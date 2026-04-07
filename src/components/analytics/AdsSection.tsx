@@ -62,6 +62,27 @@ interface AdsSectionProps {
     dateFilter: DateFilter;
 }
 
+type AdsCampaign = {
+    id: string;
+    product_id: string;
+    method: string;
+    amount: number | string | null;
+    start_date: string;
+    end_date: string;
+};
+
+type AdsOrderItem = { product_id: string | null };
+
+type AdsOrderForMatching = {
+    id: string;
+    date: string | null;
+    source_name: string | null;
+    price: number | string | null;
+    package_status_label: string | null;
+    order_statuses: { code: string | null } | null;
+    order_items: AdsOrderItem[] | null;
+};
+
 export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
     const { data: adsHistory, isLoading } = useQuery({
         queryKey: ['analytics-ads-full', businessId],
@@ -103,17 +124,19 @@ export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
         const filtered = adsHistory.filter(a => isInRange(a.start_date));
         const totalSpend = filtered.reduce((s, a) => s + Number(a.amount || 0), 0);
 
-        const getMatchedOrders = (campaign: any) => {
+        const orders = (allOrders || []) as unknown as AdsOrderForMatching[];
+
+        const getMatchedOrders = (campaign: AdsCampaign): AdsOrderForMatching[] => {
             const sourceName = PLATFORM_SOURCE_MAP[campaign.method.toLowerCase()] || '';
             const cStart = new Date(campaign.start_date);
             const cEnd = new Date(campaign.end_date);
             cEnd.setHours(23, 59, 59, 999);
 
-            return allOrders.filter((o: any) => {
-                const orderDate = new Date(o.date);
+            return orders.filter((o) => {
+                const orderDate = new Date(o.date || 0);
                 return orderDate >= cStart && orderDate <= cEnd
                     && sourceName && (o.source_name || '').toLowerCase() === sourceName
-                    && o.order_items?.some((item: any) => item.product_id === campaign.product_id);
+                    && o.order_items?.some((item: AdsOrderItem) => item.product_id === campaign.product_id);
             });
         };
 
@@ -124,13 +147,13 @@ export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
         let totalGrossRevenue = 0;
 
         filtered.forEach(campaign => {
-            const matched = getMatchedOrders(campaign);
-            matched.forEach((o: any) => {
+            const matched = getMatchedOrders(campaign as unknown as AdsCampaign);
+            matched.forEach((o) => {
                 if (seenOrderIds.has(o.id)) return;
                 seenOrderIds.add(o.id);
 
                 totalOrders++;
-                const statusCode = ((o.order_statuses as any)?.code || '').toLowerCase();
+                const statusCode = (o.order_statuses?.code || '').toLowerCase();
                 const packageLabel = (o.package_status_label || '').toLowerCase();
                 if (packageLabel === 'livré') {
                     totalDelivered++;
@@ -153,8 +176,8 @@ export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
             platformBreakdown[platform].spend += Number(campaign.amount || 0);
             platformBreakdown[platform].count++;
 
-            const matched = getMatchedOrders(campaign);
-            matched.forEach((o: any) => {
+            const matched = getMatchedOrders(campaign as unknown as AdsCampaign);
+            matched.forEach((o) => {
                 if (platformBreakdown[platform].orderIds.has(o.id)) return;
                 platformBreakdown[platform].orderIds.add(o.id);
                 if ((o.package_status_label || '').toLowerCase() === 'livré') {
@@ -191,9 +214,9 @@ export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
             const seenIds = new Set<string>();
             let monthRevenue = 0;
             monthAds.forEach(campaign => {
-                getMatchedOrders(campaign)
-                    .filter((o: any) => (o.package_status_label || '').toLowerCase() === 'livré')
-                    .forEach((o: any) => {
+                getMatchedOrders(campaign as unknown as AdsCampaign)
+                    .filter((o) => (o.package_status_label || '').toLowerCase() === 'livré')
+                    .forEach((o) => {
                         if (seenIds.has(o.id)) return;
                         seenIds.add(o.id);
                         monthRevenue += Number(o.price) || 0;

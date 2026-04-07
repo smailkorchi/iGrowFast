@@ -40,7 +40,8 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
     const metrics = useMemo(() => {
         if (!orders) return null;
 
-        const isPaidAndDelivered = (o: any) =>
+        type HealthOrder = Parameters<typeof isDeliveredForCommission>[0] & { order_status_id: string | null };
+        const isPaidAndDelivered = (o: HealthOrder) =>
             o.order_status_id && isOrderCategory(o.order_status_id, 'paid') &&
             isDeliveredForCommission(o, deliveredPkgIds);
 
