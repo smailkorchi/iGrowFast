@@ -171,7 +171,7 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
             });
         };
 
-        const filtered = orders.filter((o: Record<string, unknown>) => isInRange(o.date));
+        const filtered = orders.filter((o: any) => isInRange(o.date));
         const totalOrders = filtered.length;
 
         const filteredAds = (adsHistory || []).filter((a: any) => isInRange(a.start_date));
@@ -183,7 +183,7 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
         });
 
         const globalProductDeliveredQty = new Map<string, number>();
-        filtered.forEach((o: Record<string, unknown>) => {
+        filtered.forEach((o: any) => {
             if (!isDeliveredForCommission(o, deliveredPkgIds)) return;
             const items = (o.order_items as any[]) || [];
             for (const oi of items) {
@@ -195,22 +195,22 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
         });
 
         const sellerData = sellers.map((seller: any) => {
-            const sellerOrders = filtered.filter((o: Record<string, unknown>) => o.seller_id === seller.id);
+            const sellerOrders = filtered.filter((o: any) => o.seller_id === seller.id);
             const assignedCount = sellerOrders.length;
             const assignedPercent = totalOrders > 0 ? (assignedCount / totalOrders) * 100 : 0;
 
             const sourceBreakdown: Record<string, number> = {};
-            sellerOrders.forEach((o: Record<string, unknown>) => {
+            sellerOrders.forEach((o: any) => {
                 const src = (o.source_name || 'other').toLowerCase();
                 sourceBreakdown[src] = (sourceBreakdown[src] || 0) + 1;
             });
 
-            const preConfOrders = sellerOrders.filter((o: Record<string, unknown>) => {
+            const preConfOrders = sellerOrders.filter((o: any) => {
                 const label = (o.order_statuses as any)?.label;
                 return PRE_CONFIRMATION_LABELS.has(normalizeLabel(label));
             });
             const preConfirmationBreakdown: Record<string, { count: number; color: string }> = {};
-            preConfOrders.forEach((o: Record<string, unknown>) => {
+            preConfOrders.forEach((o: any) => {
                 const label = (o.order_statuses as any)?.label || 'Unknown';
                 if (!preConfirmationBreakdown[label]) {
                     preConfirmationBreakdown[label] = {
@@ -221,14 +221,14 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                 preConfirmationBreakdown[label].count += 1;
             });
 
-            const confirmedCount = sellerOrders.filter((o: Record<string, unknown>) => confirmedIds.has(o.order_status_id)).length;
+            const confirmedCount = sellerOrders.filter((o: any) => confirmedIds.has(o.order_status_id)).length;
             const confirmedPercent = assignedCount > 0 ? (confirmedCount / assignedCount) * 100 : 0;
 
-            const postConfOrders = sellerOrders.filter((o: Record<string, unknown>) =>
+            const postConfOrders = sellerOrders.filter((o: any) =>
                 POST_CONFIRMATION_LABELS.has(normalizeLabel(o.package_status_label))
             );
             const postConfirmationBreakdown: Record<string, { count: number; color: string }> = {};
-            postConfOrders.forEach((o: Record<string, unknown>) => {
+            postConfOrders.forEach((o: any) => {
                 const label = o.package_status_label || 'Unknown';
                 if (!postConfirmationBreakdown[label]) {
                     postConfirmationBreakdown[label] = {
@@ -239,7 +239,7 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                 postConfirmationBreakdown[label].count += 1;
             });
 
-            const delivered = sellerOrders.filter((o: Record<string, unknown>) => isDeliveredForCommission(o, deliveredPkgIds));
+            const delivered = sellerOrders.filter((o: any) => isDeliveredForCommission(o, deliveredPkgIds));
             const deliveredCount = delivered.length;
             const deliveredPercent = confirmedCount > 0 ? (deliveredCount / confirmedCount) * 100 : 0;
 
@@ -252,7 +252,7 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
             let productRevenueDelivered = 0;
             const sellerProductDeliveredQty = new Map<string, number>();
 
-            delivered.forEach((o: Record<string, unknown>) => {
+            delivered.forEach((o: any) => {
                 productRevenueDelivered += productRevenueExcludingShipping(o);
                 const items = (o.order_items as any[]) || [];
                 for (const oi of items) {
