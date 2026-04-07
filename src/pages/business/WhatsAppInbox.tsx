@@ -866,7 +866,7 @@ function MessageBubble({ msg, isStarred, isPinned, reactions, instanceName, chat
             // Skip if the quoted content is just a reaction (not a real reply)
             if (quoted.reactionMessage || quoted.protocolMessage) return null;
             // Extract quoted content
-            let quotedText = quoted.conversation
+            const quotedText = quoted.conversation
               || quoted.extendedTextMessage?.text
               || (quoted.imageMessage ? '📷 Photo' : null)
               || (quoted.videoMessage ? '🎥 Video' : null)
@@ -2265,7 +2265,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
                     return rest;
                   });
                 }
-              } catch {}
+              } catch { /* ignore */ }
               return; // Don't add reaction as a visible message
             }
             // Convert Supabase row to EvolutionMessage-like shape for display
@@ -2488,7 +2488,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
             if (!newReactions[targetMessageId]) newReactions[targetMessageId] = [];
             if (!newReactions[targetMessageId].includes(emoji)) newReactions[targetMessageId].push(emoji);
           }
-        } catch {}
+        } catch { /* ignore */ }
       }
       setReactionsMap(newReactions);
 
@@ -2645,7 +2645,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
                 if (!olderReactions[targetMessageId]) olderReactions[targetMessageId] = [];
                 if (!olderReactions[targetMessageId].includes(emoji)) olderReactions[targetMessageId].push(emoji);
               }
-            } catch {}
+            } catch { /* ignore */ }
           }
           setReactionsMap(prev => {
             const merged = { ...prev };
@@ -2877,7 +2877,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
           if (c) fetchMessages(c.remoteJid, c.dbConvId);
         }, 1000);
       }
-    } catch (e: any) {
+    } catch (e) {
       setMessages(prev => prev.filter(m => m.id !== optId));
       toast({ title: 'Send failed', description: e.message, variant: 'destructive' });
     }
@@ -2980,7 +2980,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
         }, 1000);
       }
       toast({ title: 'Media sent' });
-    } catch (err: any) {
+    } catch (err) {
       setMessages(prev => prev.filter(m => m.id !== optId));
       toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
     }
@@ -3109,7 +3109,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
     });
     try {
       await whatsappService.sendReaction(instanceName, msgKey, reaction);
-    } catch (e: any) {
+    } catch (e) {
       toast({ title: 'Reaction failed', description: e.message, variant: 'destructive' });
     }
   };
@@ -3121,7 +3121,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
       // Remove from local state immediately
       setMessages(prev => prev.filter(m => m.key.id !== msg.key.id));
       toast({ title: 'Message deleted' });
-    } catch (e: any) {
+    } catch (e) {
       toast({ title: 'Delete failed', description: e.message, variant: 'destructive' });
     }
   };
@@ -3243,7 +3243,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
           m.id === optimisticMsg.id ? { ...m, id: realMsgId, key: { ...m.key, id: realMsgId } } : m
         ));
       }
-    } catch (e: any) {
+    } catch (e) {
       // Remove optimistic message on failure
       setMessages(prev => prev.filter(m => m.id !== optimisticMsg.id));
       toast({ title: 'Send failed', description: e.message, variant: 'destructive' });
@@ -3260,7 +3260,7 @@ export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxPr
         await whatsappService.sendText(instanceName, number, text);
       }
       toast({ title: 'Message forwarded' });
-    } catch (e: any) {
+    } catch (e) {
       toast({ title: 'Forward failed', description: e.message, variant: 'destructive' });
     }
     setForwardingMsg(null);

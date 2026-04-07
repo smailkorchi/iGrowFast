@@ -45,12 +45,13 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
             });
         };
 
-        const filtered = orders.filter((o: any) => isInRange(o.date));
+        type CityOrderRow = { date?: string | null; master_cities?: { name?: string | null } | null; package_status_id?: string | null; order_status_id?: string | null; price?: number | string | null };
+        const filtered = orders.filter((o: CityOrderRow) => isInRange(o.date));
 
         const cityMap: Record<string, { name: string; total: number; delivered: number; confirmed: number; revenue: number }> = {};
 
-        filtered.forEach((o: any) => {
-            const cityName = (o.master_cities as any)?.name;
+        filtered.forEach((o: CityOrderRow) => {
+            const cityName = o.master_cities?.name;
             if (!cityName) return;
             if (!cityMap[cityName]) cityMap[cityName] = { name: cityName, total: 0, delivered: 0, confirmed: 0, revenue: 0 };
             cityMap[cityName].total++;
@@ -108,7 +109,7 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
                                     <YAxis dataKey="name" type="category" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} width={90} />
                                     <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', fontSize: 12 }} />
                                     <Bar dataKey="orders" name="Orders" radius={[0, 8, 8, 0]} barSize={18}>
-                                        {metrics.chartData.map((_: any, i: number) => (
+                                        {metrics.chartData.map((_, i: number) => (
                                             <Cell key={i} fill={COLORS[i % COLORS.length]} />
                                         ))}
                                     </Bar>

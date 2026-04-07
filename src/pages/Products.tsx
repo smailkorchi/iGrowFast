@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import {
@@ -26,6 +27,7 @@ import {
     Eye,
     ChevronDown,
     ChevronUp,
+    ShoppingCart,
 } from 'lucide-react';
 import {
     Card,
@@ -33,6 +35,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { TruncatedText } from '@/components/ui/truncated-text';
 import {
     Dialog,
     DialogContent,
@@ -97,6 +100,7 @@ const productSchema = z.object({
 type ProductFormValues = z.infer<typeof productSchema>;
 
 const Products = () => {
+    const navigate = useNavigate();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingProduct, setEditingProduct] = useState<any>(null);
     const [productToDelete, setProductToDelete] = useState<any>(null);
@@ -314,7 +318,7 @@ const Products = () => {
 
             form.setValue('image_url', publicUrl);
             toast({ title: "Image uploaded", description: "Product image has been updated." });
-        } catch (error: any) {
+        } catch (error) {
             toast({ title: "Upload failed", description: error.message, variant: "destructive" });
         } finally {
             setIsUploading(false);
@@ -611,8 +615,8 @@ const Products = () => {
                                                     )}
                                                 </div>
                                                 <div className="min-w-0 flex-1">
-                                                    <p className="font-bold text-brand-navy text-sm truncate">{p.name}</p>
-                                                    <p className="text-xs text-muted-foreground font-mono truncate">{p.code}</p>
+                                                    <TruncatedText as="p" text={p.name} className="font-bold text-brand-navy text-sm truncate" />
+                                                    <TruncatedText as="p" text={p.code} className="text-xs text-muted-foreground font-mono truncate" />
                                                 </div>
                                                 <Badge className="shrink-0 bg-red-600 text-white border-none tabular-nums font-black">
                                                     {Number(p.stock ?? 0)} left
@@ -752,15 +756,29 @@ const Products = () => {
                                             <Badge variant="secondary" className="bg-brand-white text-brand-navy font-bold text-xs px-4 py-1.5 rounded-full shadow-lg">INACTIVE</Badge>
                                         </div>
                                     )}
+                                    <div className="absolute bottom-3 right-3 z-20">
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            title="Create order with this product"
+                                            onClick={() => navigate(`/orders?addProductId=${product.id}`)}
+                                            className="h-9 rounded-xl bg-brand-navy text-white hover:bg-brand-navy/90 shadow-lg shadow-brand-navy/30 px-3 gap-1.5 text-[11px] font-black uppercase tracking-wider"
+                                        >
+                                            <ShoppingCart className="w-3.5 h-3.5" />
+                                            New order
+                                        </Button>
+                                    </div>
                                 </div>
 
-                                <CardContent className="p-6 space-y-4">
-                                    <div className="space-y-1">
-                                        <div className="flex items-center justify-between">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">{product.code}</p>
-                                            <Badge variant="outline" className="text-[10px] font-bold border-brand-navy/10 text-brand-navy/60 uppercase">{product.label || 'Regular'}</Badge>
-                                        </div>
-                                        <h3 className="text-xl font-bold text-brand-navy truncate">{product.name}</h3>
+                                <CardContent className="p-5 space-y-4">
+                                    <div className="space-y-2">
+                                        <TruncatedText as="p" text={product.code} className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40 truncate" />
+                                        <TruncatedText as="h3" text={product.name} className="text-base font-bold text-brand-navy leading-snug line-clamp-2 break-words min-h-[2.5rem]" />
+                                        {product.label && product.label.toLowerCase() !== 'regular' && (
+                                            <div className="inline-flex max-w-full">
+                                                <TruncatedText as="span" text={product.label} className="inline-block max-w-full truncate rounded-full bg-brand-navy/[0.05] px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-brand-navy/55" />
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div className="grid grid-cols-2 gap-4">
@@ -825,11 +843,11 @@ const Products = () => {
                                 </div>
 
                                 <div className="flex-1 min-w-0 space-y-2 w-full">
-                                    <div className="flex items-center gap-3">
-                                        <h3 className="text-xl font-bold text-brand-navy truncate">{product.name}</h3>
-                                        <Badge variant="outline" className="text-[10px] font-bold border-brand-navy/10 text-brand-navy/60 uppercase shrink-0">{product.label || 'Regular'}</Badge>
+                                    <div className="flex items-start gap-3">
+                                        <TruncatedText as="h3" text={product.name} className="text-lg sm:text-xl font-bold text-brand-navy leading-snug line-clamp-2 break-words min-w-0 flex-1" />
+                                        <TruncatedText as="span" text={product.label || 'Regular'} className="inline-flex items-center rounded-full border border-brand-navy/10 bg-transparent px-2.5 py-0.5 text-[10px] font-bold text-brand-navy/60 uppercase shrink-0 mt-0.5 max-w-[10rem] truncate" />
                                     </div>
-                                    <p className="text-xs font-black uppercase tracking-widest text-brand-navy/40">{product.code}</p>
+                                    <TruncatedText as="p" text={product.code} className="text-xs font-black uppercase tracking-widest text-brand-navy/40 truncate" />
 
                                     <div className="flex flex-wrap items-center gap-4 sm:gap-6 pt-2">
                                         <div className="flex items-center gap-2">
@@ -853,6 +871,15 @@ const Products = () => {
                                 </div>
 
                                 <div className="shrink-0 flex items-center gap-2 mt-4 sm:mt-0 w-full sm:w-auto justify-end border-t sm:border-t-0 border-brand-navy/5 sm:pt-0 pt-4">
+                                    <Button
+                                        type="button"
+                                        size="icon"
+                                        title="Create order with this product"
+                                        onClick={() => navigate(`/orders?addProductId=${product.id}`)}
+                                        className="h-12 w-12 rounded-2xl bg-brand-navy text-white hover:bg-brand-navy/90 shadow-md shadow-brand-navy/20 transition-all"
+                                    >
+                                        <ShoppingCart className="w-5 h-5" />
+                                    </Button>
                                     <Button
                                         variant="ghost"
                                         size="icon"

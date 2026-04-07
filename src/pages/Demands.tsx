@@ -133,7 +133,7 @@ const Demands = () => {
       const { data, error } = await query;
 
       if (error) throw error;
-      setDemands(data as any || []);
+      setDemands((data as unknown as SellerDemandWithSeller[]) || []);
     } catch (error) {
       console.error('Error fetching demands:', error);
       toast({
@@ -157,7 +157,7 @@ const Demands = () => {
         .from('demand-media')
         .createSignedUrls(paths, 60 * 60); // 1h
       if (error || !data) return list;
-      const byPath = new Map(data.map((d: any) => [d.path, d.signedUrl]));
+      const byPath = new Map(data.map((d: { path: string | null; signedUrl: string }) => [d.path, d.signedUrl]));
       return list.map((m) => ({ ...m, url: byPath.get(m.path) || undefined }));
     };
     const run = async () => {
@@ -242,7 +242,7 @@ const Demands = () => {
     setSubmitting(true);
     setResponseUploadProgress(0);
     try {
-      const updates: any = {
+      const updates: Record<string, unknown> = {
         status: newStatus || selectedDemand.status,
         updated_at: new Date().toISOString()
       };

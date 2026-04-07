@@ -87,6 +87,8 @@ export function SellerSelfPerformanceSection({
         cancelledIds,
         deliveredPkgIds,
         getPkgsByCategories,
+        getOrderStatusColor,
+        getPkgStatusColor,
     } = useStatusCategories();
 
     const { data: sellerRow, isLoading: loadingSeller } = useQuery({
@@ -166,10 +168,16 @@ export function SellerSelfPerformanceSection({
             const label = (o.order_statuses as any)?.label;
             return PRE_CONFIRMATION_LABELS.has(normalizeLabel(label));
         });
-        const preConfirmationBreakdown: Record<string, number> = {};
+        const preConfirmationBreakdown: Record<string, { count: number; color: string }> = {};
         preConfOrders.forEach((o: any) => {
             const label = (o.order_statuses as any)?.label || 'Unknown';
-            preConfirmationBreakdown[label] = (preConfirmationBreakdown[label] || 0) + 1;
+            if (!preConfirmationBreakdown[label]) {
+                preConfirmationBreakdown[label] = {
+                    count: 0,
+                    color: getOrderStatusColor(o.order_status_id),
+                };
+            }
+            preConfirmationBreakdown[label].count += 1;
         });
 
         const confirmedCount = sellerOrders.filter((o: any) => confirmedIds.has(o.order_status_id)).length;
@@ -178,10 +186,16 @@ export function SellerSelfPerformanceSection({
         const postConfOrders = sellerOrders.filter((o: any) =>
             POST_CONFIRMATION_LABELS.has(normalizeLabel(o.package_status_label))
         );
-        const postConfirmationBreakdown: Record<string, number> = {};
+        const postConfirmationBreakdown: Record<string, { count: number; color: string }> = {};
         postConfOrders.forEach((o: any) => {
             const label = o.package_status_label || 'Unknown';
-            postConfirmationBreakdown[label] = (postConfirmationBreakdown[label] || 0) + 1;
+            if (!postConfirmationBreakdown[label]) {
+                postConfirmationBreakdown[label] = {
+                    count: 0,
+                    color: getPkgStatusColor(o.package_status_id),
+                };
+            }
+            postConfirmationBreakdown[label].count += 1;
         });
 
         const delivered = sellerOrders.filter((o: any) => isDeliveredForCommission(o, deliveredPkgIds));
@@ -226,6 +240,8 @@ export function SellerSelfPerformanceSection({
         cancelledIds,
         deliveredPkgIds,
         getPkgsByCategories,
+        getOrderStatusColor,
+        getPkgStatusColor,
         commissionBasis,
         commissionPrice,
         attributedProducts,
@@ -326,13 +342,13 @@ export function SellerSelfPerformanceSection({
                             <BreakdownSection title="Status Before Confirmation">
                                 {Object.entries(s.preConfirmationBreakdown).length > 0 ? (
                                     Object.entries(s.preConfirmationBreakdown)
-                                        .sort(([, a], [, b]) => b - a)
-                                        .map(([label, count]) => (
+                                        .sort(([, a], [, b]) => b.count - a.count)
+                                        .map(([label, { count, color }]) => (
                                             <PillBadge
                                                 key={label}
                                                 label={label}
                                                 count={count}
-                                                className="bg-orange-50 text-orange-700"
+                                                color={color}
                                             />
                                         ))
                                 ) : (
@@ -343,13 +359,13 @@ export function SellerSelfPerformanceSection({
                             <BreakdownSection title="Status After Confirmation">
                                 {Object.entries(s.postConfirmationBreakdown).length > 0 ? (
                                     Object.entries(s.postConfirmationBreakdown)
-                                        .sort(([, a], [, b]) => b - a)
-                                        .map(([label, count]) => (
+                                        .sort(([, a], [, b]) => b.count - a.count)
+                                        .map(([label, { count, color }]) => (
                                             <PillBadge
                                                 key={label}
                                                 label={label}
                                                 count={count}
-                                                className="bg-violet-50 text-violet-700"
+                                                color={color}
                                             />
                                         ))
                                 ) : (
@@ -406,13 +422,25 @@ function BreakdownSection({ title, children }: { title: string; children: ReactN
     );
 }
 
-function PillBadge({ label, count, className }: { label: string; count: number; className: string }) {
+function PillBadge({
+    label,
+    count,
+    className,
+    color,
+}: {
+    label: string;
+    count: number;
+    className?: string;
+    color?: string;
+}) {
+    const style = color ? { backgroundColor: `${color}1A`, color } : undefined;
     return (
         <span
             className={cn(
                 'inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full',
                 className
             )}
+            style={style}
         >
             {label}: {count}
         </span>

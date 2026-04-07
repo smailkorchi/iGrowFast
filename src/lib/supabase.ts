@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '@/lib/database.types';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -34,7 +34,7 @@ export async function fetchAllRows<T = Record<string, unknown>>(
     let from = 0;
 
     for (;;) {
-        let query = (supabase as any)
+        let query = (supabase as unknown as SupabaseClient)
             .from(table)
             .select(select)
             .range(from, from + PAGE_SIZE - 1);

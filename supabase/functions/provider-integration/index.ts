@@ -1121,11 +1121,12 @@ Deno.serve(async (req) => {
                 console.log('Getting parcel info:', data.tracking_code);
                 result = await adapter.getParcelInfo(data.tracking_code);
                 break;
-            case 'get_print_url':
+            case 'get_print_url': {
                 console.log('Getting print URL for:', data.delivery_note_ref, 'Format:', data.label_format, 'Type:', data.print_type);
                 const link = await adapter.getPrintUrl(data.delivery_note_ref, data.label_format, data.print_type);
                 result = { print_html: link };
                 break;
+            }
             case 'create_parcel':
                 console.log('Creating parcel');
                 result = await adapter.createParcel(data, supabase);

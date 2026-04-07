@@ -44,7 +44,8 @@ import {
     ClipboardList,
     PackageCheck,
     Smartphone,
-    Bot
+    Bot,
+    type LucideIcon,
 } from 'lucide-react';
 import { FaWhatsapp } from 'react-icons/fa';
 import { cn } from '@/lib/utils';
@@ -52,14 +53,14 @@ import { supabase } from '@/lib/supabase';
 import { useQuery } from '@tanstack/react-query';
 
 type NavItem = {
-    icon: any;
+    icon: LucideIcon | React.ComponentType<{ className?: string }>;
     label: string;
     path: string;
 };
 
 type NavSection = {
     label?: string;
-    icon?: any;
+    icon?: LucideIcon | React.ComponentType<{ className?: string }>;
     items: NavItem[];
 };
 

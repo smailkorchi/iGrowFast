@@ -6,7 +6,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Bot, Plus, Trash } from 'lucide-react';
 
 export default function WhatsAppAutomations() {
-  const [replies, setReplies] = useState<any[]>([]);
+  const [replies, setReplies] = useState<Array<{ id: string; trigger_keyword: string; reply_message: string; active: boolean }>>([]);
   const [keyword, setKeyword] = useState('');
   const [message, setMessage] = useState('');
   const { toast } = useToast();

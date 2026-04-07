@@ -72,7 +72,7 @@ export const CustomersSection = ({ businessId, dateFilter }: CustomersSectionPro
 
         const regionCounts: Record<string, number> = {};
         filtered.forEach(o => {
-            const region = (o as any).master_cities?.region || (o as any).master_cities?.name || 'Unknown';
+            const region = (o as { master_cities?: { region?: string; name?: string } }).master_cities?.region || (o as { master_cities?: { region?: string; name?: string } }).master_cities?.name || 'Unknown';
             regionCounts[region] = (regionCounts[region] || 0) + 1;
         });
         const regionData = Object.entries(regionCounts)

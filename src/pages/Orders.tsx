@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase, fetchAllRows } from '@/lib/supabase';
 import {
@@ -237,6 +237,8 @@ const SALES_SOURCES = [
 const Orders = () => {
     const location = useLocation();
     const navState = (location.state || {}) as Record<string, string>;
+    const [searchParams, setSearchParams] = useSearchParams();
+    const prefillProductHandledRef = useRef<string | null>(null);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -269,6 +271,7 @@ const Orders = () => {
 
     // Dropdown search states
     const [citySearchOpen, setCitySearchOpen] = useState(false);
+    const cityListRef = useRef<HTMLDivElement>(null);
     const [statusSearchOpen, setStatusSearchOpen] = useState(false);
 
     const { toast } = useToast();
@@ -473,7 +476,7 @@ const Orders = () => {
                 })
             });
 
-            let isError = !response.ok;
+            const isError = !response.ok;
             let result = isError ? null : await response.json();
 
             // Fallback to get_parcel_info if track_parcel fails (e.g. Coliaty 404 for history)
@@ -540,7 +543,7 @@ const Orders = () => {
             } else {
                 throw new Error(result?.error || 'Unknown error');
             }
-        } catch (error: any) {
+        } catch (error) {
             console.error('handleTrackParcel error:', error);
             toast({
                 title: "Tracking Error",
@@ -723,7 +726,7 @@ const Orders = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('products')
-                .select('id, name, code, selling_price, stock')
+                .select('id, name, code, selling_price, stock, image_url')
                 .eq('active', true)
                 .eq('DigiCom Business', activeBusinessId)
                 .order('name');
@@ -768,6 +771,72 @@ const Orders = () => {
             (pa) => pid.has(pa.product_id) && aid.has(pa.accessory_id)
         );
     }, [productAccessories, products, accessories]);
+
+    // ?addProductId=<uuid> — opens the New Order modal with the product
+    // already on line 1 (mirrors what OrderLineProductCombobox does on select).
+    useEffect(() => {
+        const requestedId = searchParams.get('addProductId');
+        if (!requestedId) return;
+        if (prefillProductHandledRef.current === requestedId) return;
+        if (!products?.length) return; // wait for product list to be ready
+
+        const prod = (products as any[]).find((p) => p.id === requestedId);
+        if (!prod) {
+            // Product not in this business / inactive — clean param and bail.
+            const next = new URLSearchParams(searchParams);
+            next.delete('addProductId');
+            setSearchParams(next, { replace: true });
+            prefillProductHandledRef.current = requestedId;
+            return;
+        }
+
+        const accessoriesForLine = (productAccessoriesForOrders ?? [])
+            .filter((pa: any) => pa.product_id === requestedId)
+            .map((pa: any) => {
+                const acc = accessories?.find((a: any) => a.id === pa.accessory_id);
+                return {
+                    accessory_id: pa.accessory_id,
+                    accessory_quantity: pa.default_quantity || 1,
+                    accessory_unit_price: acc ? Number(acc.cost_price || 0) : 0,
+                };
+            });
+
+        form.reset({
+            name: '',
+            phone: '',
+            city_id: '',
+            address: '',
+            source_name: '',
+            shipping_cost: 0,
+            include_delivery_in_total: false,
+            replace: false,
+            note: '',
+            delivery_note: '',
+            delivery_type: 'Home Delivery',
+            order_status_id: defaultNewOrderStatusId,
+            items: [
+                {
+                    product_id: prod.id,
+                    quantity: 1,
+                    unit_price: Number(prod.selling_price || 0),
+                    accessories: accessoriesForLine,
+                },
+            ],
+            courier_id: null,
+            company_id: null,
+            history_comment: '',
+            _reportedDate: '',
+            coliaty_old_tracking: '',
+            ameex_old_tracking: '',
+        });
+        setIsAddModalOpen(true);
+
+        // Mark consumed and strip the param so refresh doesn't re-open.
+        prefillProductHandledRef.current = requestedId;
+        const next = new URLSearchParams(searchParams);
+        next.delete('addProductId');
+        setSearchParams(next, { replace: true });
+    }, [searchParams, products, productAccessoriesForOrders, accessories, defaultNewOrderStatusId, form, setSearchParams]);
 
     const { data: packageStatuses } = useQuery({
         queryKey: ['package-statuses-dropdown', activeBusinessId],
@@ -1159,27 +1228,30 @@ const Orders = () => {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
             setIsAddModalOpen(false);
-            form.reset({
-                name: '',
-                phone: '',
-                city_id: '',
-                address: '',
-                source_name: '',
-                shipping_cost: 0,
-                include_delivery_in_total: false,
-                replace: false,
-                note: '',
-                delivery_note: '',
-                delivery_type: 'Home Delivery',
-                order_status_id: defaultNewOrderStatusId,
-                items: [{ product_id: '', quantity: 1, unit_price: 0, accessories: [] }],
-                courier_id: null,
-                company_id: null,
-                history_comment: '',
-                _reportedDate: '',
-                coliaty_old_tracking: '',
-                ameex_old_tracking: ''
-            });
+            // Defer form.reset so Radix completes its close cycle first.
+            setTimeout(() => {
+                form.reset({
+                    name: '',
+                    phone: '',
+                    city_id: '',
+                    address: '',
+                    source_name: '',
+                    shipping_cost: 0,
+                    include_delivery_in_total: false,
+                    replace: false,
+                    note: '',
+                    delivery_note: '',
+                    delivery_type: 'Home Delivery',
+                    order_status_id: defaultNewOrderStatusId,
+                    items: [{ product_id: '', quantity: 1, unit_price: 0, accessories: [] }],
+                    courier_id: null,
+                    company_id: null,
+                    history_comment: '',
+                    _reportedDate: '',
+                    coliaty_old_tracking: '',
+                    ameex_old_tracking: ''
+                });
+            }, 0);
             toast({ title: "Order Created", description: "Successfully logged new order." });
         },
         onError: (error: any) => {
@@ -2904,27 +2976,31 @@ const Orders = () => {
                         setIsAddModalOpen(false);
                         setIsEditModalOpen(false);
                         setSelectedOrder(null);
-                        form.reset({
-                            name: '',
-                            phone: '',
-                            city_id: '',
-                            address: '',
-                            source_name: '',
-                            shipping_cost: 0,
-                            include_delivery_in_total: false,
-                            replace: false,
-                            note: '',
-                            delivery_note: '',
-                            delivery_type: 'Home Delivery',
-                            order_status_id: defaultNewOrderStatusId,
-                            items: [{ product_id: '', quantity: 1, unit_price: 0, accessories: [] }],
-                            courier_id: null,
-                            company_id: null,
-                            history_comment: '',
-                            _reportedDate: '',
-                            coliaty_old_tracking: '',
-                            ameex_old_tracking: ''
-                        });
+                        // Defer form.reset so Radix completes its close cycle first.
+                        // Resetting synchronously here leaves the overlay mounted until next click.
+                        setTimeout(() => {
+                            form.reset({
+                                name: '',
+                                phone: '',
+                                city_id: '',
+                                address: '',
+                                source_name: '',
+                                shipping_cost: 0,
+                                include_delivery_in_total: false,
+                                replace: false,
+                                note: '',
+                                delivery_note: '',
+                                delivery_type: 'Home Delivery',
+                                order_status_id: defaultNewOrderStatusId,
+                                items: [{ product_id: '', quantity: 1, unit_price: 0, accessories: [] }],
+                                courier_id: null,
+                                company_id: null,
+                                history_comment: '',
+                                _reportedDate: '',
+                                coliaty_old_tracking: '',
+                                ameex_old_tracking: ''
+                            });
+                        }, 0);
                     }
                 }}
             >
@@ -3018,7 +3094,7 @@ const Orders = () => {
                                 }
                             }
 
-                            isEditModalOpen ? updateOrderMutation.mutate(values) : createOrderMutation.mutate(values);
+                            if (isEditModalOpen) updateOrderMutation.mutate(values); else createOrderMutation.mutate(values);
                         })} className="flex flex-col h-full overflow-hidden">
                             <DialogHeader className="px-5 py-3 pr-12 shrink-0 border-b border-brand-navy/[0.08] bg-brand-navy/[0.02]">
                                 <DialogTitle className="text-lg sm:text-xl font-black text-brand-navy tracking-tight leading-tight">
@@ -3133,8 +3209,14 @@ const Orders = () => {
                                                         </PopoverTrigger>
                                                         <PopoverContent className="w-[300px] p-0 border-none shadow-2xl rounded-2xl" align="start" onWheel={(e) => e.stopPropagation()}>
                                                             <Command className="rounded-none">
-                                                                <CommandInput placeholder="Search city..." className="h-12 border-none ring-0 focus:ring-0 shrink-0" />
-                                                                <CommandList className="max-h-[250px] overflow-y-scroll custom-scrollbar overflow-x-hidden">
+                                                                <CommandInput
+                                                                    placeholder="Search city..."
+                                                                    className="h-12 border-none ring-0 focus:ring-0 shrink-0"
+                                                                    onValueChange={() => {
+                                                                        cityListRef.current?.scrollTo({ top: 0 });
+                                                                    }}
+                                                                />
+                                                                <CommandList ref={cityListRef} className="max-h-[250px] overflow-y-scroll custom-scrollbar overflow-x-hidden">
                                                                     <CommandEmpty>No city found.</CommandEmpty>
                                                                     <CommandGroup>
                                                                         {cities?.map((city: any) => (
@@ -3574,17 +3656,17 @@ const Orders = () => {
                                             const productSubtotal = (form.watch(`items.${index}.quantity`) || 0) * (form.watch(`items.${index}.unit_price`) || 0);
                                             return (
                                                 <div key={field.id} className="rounded-2xl border border-brand-navy/10 bg-white p-3 shadow-sm space-y-3 animate-in slide-in-from-left-2 duration-200">
-                                                    <div className="flex items-center justify-between gap-2 border-b border-brand-navy/[0.07] pb-2">
-                                                        <span className="text-[9px] font-black uppercase tracking-wider text-brand-navy/40 tabular-nums">Line {index + 1}</span>
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <span className="text-[9px] font-black uppercase tracking-wider text-brand-navy/35 tabular-nums">Line {index + 1}</span>
                                                         <Button
                                                             type="button"
                                                             variant="ghost"
                                                             size="icon"
                                                             onClick={() => remove(index)}
                                                             disabled={fields.length === 1}
-                                                            className="h-8 w-8 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 shrink-0"
+                                                            className="h-7 w-7 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 shrink-0"
                                                         >
-                                                            <Trash2 className="w-4 h-4" />
+                                                            <Trash2 className="w-3.5 h-3.5" />
                                                         </Button>
                                                     </div>
                                                     <FormField
@@ -3592,7 +3674,6 @@ const Orders = () => {
                                                         name={`items.${index}.product_id`}
                                                         render={({ field }) => (
                                                             <FormItem className="space-y-1.5">
-                                                                <FormLabel className="text-[9px] uppercase font-black text-brand-navy/50 tracking-wide flex items-center gap-1"><Package className="w-3 h-3 opacity-60" /> Product</FormLabel>
                                                                 <FormControl>
                                                                     <OrderLineProductCombobox
                                                                         products={(products || []) as OrderLineProductOption[]}

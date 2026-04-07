@@ -504,7 +504,7 @@ const ImportOrders = () => {
                 setData(mapped);
                 setIsParsing(false);
                 toast({ title: "File Parsed", description: `Found ${mapped.length} rows in the file.` });
-            } catch (error: any) {
+            } catch (error) {
                 console.error(error);
                 setIsParsing(false);
                 toast({ title: "Parsing Error", description: "Could not read the Excel file. Please check the format.", variant: "destructive" });

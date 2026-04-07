@@ -378,7 +378,7 @@ const OwnerUserModal = ({ isOpen, onClose, onSubmit, initialData, loading, title
     });
 
     const handleFormSubmit = async (values: OwnerUserFormValues) => {
-        let finalValues = { ...values };
+        const finalValues = { ...values };
 
         if (avatar) {
             const fileExt = avatar.name.split('.').pop();

@@ -43,12 +43,13 @@ const defaultInputs: CalculatorInputs = {
     salePrice: 199
 };
 
-function ProfitChartTooltip({ active, payload, label }: any) {
+type ChartTooltipPayload = { color?: string; name?: string; value?: number };
+function ProfitChartTooltip({ active, payload, label }: { active?: boolean; payload?: ChartTooltipPayload[]; label?: string }) {
     if (active && payload && payload.length) {
         return (
             <div className="bg-white/95 backdrop-blur-sm px-4 py-3 rounded-xl shadow-lg border border-gray-100">
                 <p className="text-xs font-medium text-gray-500 mb-2">{label}</p>
-                {payload.map((entry: any, index: number) => (
+                {payload.map((entry: ChartTooltipPayload, index: number) => (
                     <p key={index} className="text-sm" style={{ color: entry.color }}>
                         <span className="font-medium">{entry.name}:</span> {entry.value.toLocaleString()} MAD
                     </p>

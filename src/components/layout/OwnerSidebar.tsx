@@ -13,13 +13,14 @@ import {
     RefreshCcw,
     MapPin,
     Map,
+    type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { useQuery } from '@tanstack/react-query';
 
 type NavItem = {
-    icon: any;
+    icon: LucideIcon;
     label: string;
     path: string;
 };

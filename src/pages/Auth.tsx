@@ -78,10 +78,10 @@ const Auth = () => {
             } else {
                 navigate('/');
             }
-        } catch (error: any) {
+        } catch (error) {
             toast({
                 title: "Sign in failed",
-                description: error.message,
+                description: (error as Error).message,
                 variant: "destructive",
             });
         } finally {

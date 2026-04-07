@@ -222,7 +222,7 @@ export default function WhatsAppManager() {
           const qrRes = await whatsappService.getQrCode(modalInstanceName);
           const fresh = qrRes?.qrcode?.base64 || qrRes?.base64 || null;
           if (fresh) updateSyncState(modalInstanceName, { qrCode: fresh });
-        } catch {}
+        } catch { /* ignore */ }
       }, 18000);
 
       // ── On tab visibility regain: instant connection check + QR refresh ──
@@ -244,7 +244,7 @@ export default function WhatsAppManager() {
           const qrRes = await whatsappService.getQrCode(modalInstanceName);
           const fresh = qrRes?.qrcode?.base64 || qrRes?.base64 || null;
           if (fresh) updateSyncState(modalInstanceName, { qrCode: fresh });
-        } catch {}
+        } catch { /* ignore */ }
       };
       document.addEventListener('visibilitychange', onVisible);
 
@@ -303,7 +303,7 @@ export default function WhatsAppManager() {
       } catch (firstErr: any) {
         // If instance already exists on Evolution API (e.g. orphaned from previous delete), clean up and retry
         if (firstErr.message?.toLowerCase().includes('forbidden') || firstErr.message?.toLowerCase().includes('already')) {
-          try { await whatsappService.deleteInstance(name); } catch {}
+          try { await whatsappService.deleteInstance(name); } catch { /* ignore */ }
           // Small delay then retry
           await new Promise(r => setTimeout(r, 1500));
           createRes = await whatsappService.createInstance(name);
@@ -337,10 +337,10 @@ export default function WhatsAppManager() {
           try {
             const qrRes = await whatsappService.getQrCode(name);
             updateSyncState(name, { qrCode: qrRes?.qrcode?.base64 || qrRes?.base64 || null });
-          } catch {}
+          } catch { /* ignore */ }
         }, 3000);
       }
-    } catch (e: any) {
+    } catch (e) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     } finally {
       setActionLoading(null);
@@ -370,7 +370,7 @@ export default function WhatsAppManager() {
       } else {
         toast({ title: "Status", description: "Device is already connected or QR unavailable." });
       }
-    } catch (err: any) {
+    } catch (err) {
       toast({ title: "Connection Error", description: err.message, variant: "destructive" });
     } finally {
       setActionLoading(null);
@@ -394,7 +394,7 @@ export default function WhatsAppManager() {
           try {
             const picData = await whatsappService.invokeClient('proxy-image', { instanceName, url: inst.profilePicUrl });
             picBase64 = picData?.base64 || null;
-          } catch {}
+          } catch { /* ignore */ }
         }
 
         updateSyncState(instanceName, { ownerProfile: { pic: picBase64, phone, name } });
@@ -403,7 +403,7 @@ export default function WhatsAppManager() {
           .update({ phone_number: phone, profile_pic: inst.profilePicUrl || null })
           .eq('instance_name', instanceName);
       }
-    } catch {}
+    } catch { /* ignore */ }
 
     // Read the user-chosen import mode (set during handleConfirmAddInstance)
     const chosenMode = getSyncState(instanceName).importMode;
@@ -438,7 +438,7 @@ export default function WhatsAppManager() {
           chosenMode === 'essentials' || chosenMode === 'full' ? chosenMode : undefined;
         await whatsappService.startSync(instData.id, instanceName, businessId, modeArg);
         updateSyncState(instanceName, { step: 'syncing' });
-      } catch (e: any) {
+      } catch (e) {
         console.error('Failed to start sync:', e);
         toast({ title: 'Sync Error', description: e.message, variant: 'destructive' });
       }
@@ -516,7 +516,7 @@ export default function WhatsAppManager() {
       setSyncStates(prev => { const next = { ...prev }; delete next[instanceName]; return next; });
       toast({ title: "Deleted", description: "Instance and all data removed." });
       fetchInstances();
-    } catch (err: any) {
+    } catch (err) {
       toast({ title: "Delete Error", description: err.message, variant: "destructive" });
     } finally {
       setActionLoading(null);

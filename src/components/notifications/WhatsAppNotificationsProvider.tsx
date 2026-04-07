@@ -248,7 +248,7 @@ export function WhatsAppNotificationsProvider({ children }: { children: React.Re
       // while we awaited the inserts above.
       if (unmounted || epoch !== setupEpochRef.current) {
         log('stale final, removing fresh channel', epoch);
-        try { supabase.removeChannel(channel); } catch {}
+        try { supabase.removeChannel(channel); } catch { /* ignore */ }
         return;
       }
       channelRef.current = channel;

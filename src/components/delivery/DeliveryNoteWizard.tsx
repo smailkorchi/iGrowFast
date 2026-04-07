@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
@@ -468,7 +469,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                         parcel,
                         tracking_code: result.data?.tracking_code || result.data?.reference || 'N/A'
                     });
-                } catch (error: any) {
+                } catch (error) {
                     console.error(`❌ Parcel creation failed for ${order.name}:`, error);
                     results.push({
                         order,
@@ -713,7 +714,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
             console.log(`🚀 Finalizing note for provider ${providerId} with ${parcelCodes.length} parcels`);
             try {
                 await createDeliveryNoteMutation.mutateAsync({ providerId, parcelCodes });
-            } catch (err: any) {
+            } catch (err) {
                 console.error(`❌ Confirmation failed for provider ${providerId}:`, err);
                 toast({
                     title: "Confirmation Failed",

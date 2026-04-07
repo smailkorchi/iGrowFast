@@ -88,7 +88,7 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
 
                 if (error) throw error;
 
-                const mapped: OrderRecord[] = (data || []).map((o: any) => ({
+                const mapped: OrderRecord[] = (data || []).map((o: Record<string, unknown>) => ({
                     id: o.id,
                     date: o.date || o.created_at,
                     created_at: o.created_at,
@@ -307,7 +307,7 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
                                                 fontWeight: 700,
                                                 padding: '8px 12px',
                                             }}
-                                            formatter={(value: any, name: string) => [
+                                            formatter={(value: number | string, name: string) => [
                                                 name === 'orders' ? `${value} orders` : `${value} DH`,
                                                 name === 'orders' ? 'Orders' : 'Revenue'
                                             ]}

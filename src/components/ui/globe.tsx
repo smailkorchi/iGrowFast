@@ -35,7 +35,7 @@ export const Globe = ({
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     const onRender = useCallback(
-        (state: any) => {
+        (state: { phi: number; width: number; height: number }) => {
             phi += 0.005;
             state.phi = phi;
             state.width = width * 2;

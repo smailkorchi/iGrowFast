@@ -141,8 +141,8 @@ const SuspensionOverlay: React.FC<SuspensionOverlayProps> = ({ role, businessId 
             setPreview(null);
             setNotes('');
             toast({ title: 'Payment submitted', description: 'Your proof is under review.' });
-        } catch (err: any) {
-            toast({ title: 'Error', description: err.message, variant: 'destructive' });
+        } catch (err) {
+            toast({ title: 'Error', description: (err as Error).message, variant: 'destructive' });
         } finally {
             setSubmitting(false);
         }

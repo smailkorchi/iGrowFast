@@ -148,9 +148,9 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
+    <TooltipProvider delayDuration={150} skipDelayDuration={150}>
       <Toaster />
-      <Sonner />
+      <Sonner duration={500} />
       <BrowserRouter>
         <WhatsAppNotificationsProvider>
         <Routes>

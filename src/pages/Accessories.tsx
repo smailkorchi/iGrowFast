@@ -33,6 +33,7 @@ import {
     CardContent
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { TruncatedText } from '@/components/ui/truncated-text';
 import { Input } from '@/components/ui/input';
 import {
     Dialog,
@@ -374,7 +375,7 @@ const Accessories = () => {
 
             form.setValue('image_url', publicUrl);
             toast({ title: "Image uploaded", description: "Accessory image has been updated." });
-        } catch (error: any) {
+        } catch (error) {
             toast({ title: "Upload failed", description: error.message, variant: "destructive" });
         } finally {
             setIsUploading(false);
@@ -725,8 +726,8 @@ const Accessories = () => {
                                                     )}
                                                 </div>
                                                 <div className="min-w-0 flex-1">
-                                                    <p className="font-bold text-brand-navy text-sm truncate">{a.name}</p>
-                                                    <p className="text-xs text-muted-foreground font-mono truncate">{a.code}</p>
+                                                    <TruncatedText as="p" text={a.name} className="font-bold text-brand-navy text-sm truncate" />
+                                                    <TruncatedText as="p" text={a.code} className="text-xs text-muted-foreground font-mono truncate" />
                                                 </div>
                                                 <Badge className="shrink-0 bg-red-600 text-white border-none tabular-nums font-black">
                                                     {Number(a.stock ?? 0)} left
@@ -867,10 +868,10 @@ const Accessories = () => {
                                     )}
                                 </div>
 
-                                <CardContent className="p-6 space-y-4">
-                                    <div className="space-y-1">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">{accessory.code}</p>
-                                        <h3 className="text-xl font-bold text-brand-navy truncate">{accessory.name}</h3>
+                                <CardContent className="p-5 space-y-4">
+                                    <div className="space-y-2">
+                                        <TruncatedText as="p" text={accessory.code} className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40 truncate" />
+                                        <TruncatedText as="h3" text={accessory.name} className="text-base font-bold text-brand-navy leading-snug line-clamp-2 break-words min-h-[2.5rem]" />
                                     </div>
 
                                     <div className="space-y-1">
@@ -919,8 +920,8 @@ const Accessories = () => {
                                 </div>
 
                                 <div className="flex-1 min-w-0 space-y-2 w-full">
-                                    <h3 className="text-xl font-bold text-brand-navy truncate">{accessory.name}</h3>
-                                    <p className="text-xs font-black uppercase tracking-widest text-brand-navy/40">{accessory.code}</p>
+                                    <TruncatedText as="h3" text={accessory.name} className="text-lg sm:text-xl font-bold text-brand-navy leading-snug line-clamp-2 break-words" />
+                                    <TruncatedText as="p" text={accessory.code} className="text-xs font-black uppercase tracking-widest text-brand-navy/40 truncate" />
 
                                     <div className="flex flex-wrap items-center gap-4 sm:gap-6 pt-2">
                                         <div className="flex items-center gap-2">
@@ -1233,8 +1234,8 @@ const Accessories = () => {
 
                                                         {/* Product Info */}
                                                         <div className="flex-1 min-w-0" onClick={() => toggleProductAttachment(product.id)}>
-                                                            <p className="text-sm font-bold text-brand-navy truncate">{product.name}</p>
-                                                            <p className="text-[10px] font-bold text-brand-navy/40 uppercase tracking-wider">{product.code}</p>
+                                                            <TruncatedText as="p" text={product.name} className="text-sm font-bold text-brand-navy truncate" />
+                                                            <TruncatedText as="p" text={product.code} className="text-[10px] font-bold text-brand-navy/40 uppercase tracking-wider truncate" />
                                                         </div>
 
                                                         {/* Quantity Selector */}

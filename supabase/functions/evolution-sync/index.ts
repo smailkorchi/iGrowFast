@@ -1599,7 +1599,6 @@ Deno.serve(async (req) => {
 
       // Continue execution in background
       const retryPromise = chainNext(job_id);
-      // @ts-ignore
       if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) EdgeRuntime.waitUntil(retryPromise);
       return ok({ retried: true });
     }
@@ -1619,7 +1618,6 @@ Deno.serve(async (req) => {
       if (existing) {
         // Resume existing job in background
         const resumePromise = chainNext(existing.id);
-        // @ts-ignore
         if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) EdgeRuntime.waitUntil(resumePromise);
         return ok({ job_id: existing.id, resumed: true });
       }
@@ -1659,7 +1657,6 @@ Deno.serve(async (req) => {
       // doesn't get killed waiting for the response to send
       const job = newJob;
       const runPromise = runPhases(supabase, job).catch(e => console.error("Phase execution error:", e));
-      // @ts-ignore
       if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) EdgeRuntime.waitUntil(runPromise);
 
       return ok({ job_id: job.id, started: true });
@@ -1690,7 +1687,6 @@ Deno.serve(async (req) => {
       // Run phases in background — return response immediately
       // This prevents the chained invocation from blocking the caller
       const runPromise = runPhases(supabase, job).catch(e => console.error("Phase execution error:", e));
-      // @ts-ignore
       if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) EdgeRuntime.waitUntil(runPromise);
 
       return ok({ continued: true });
@@ -1717,7 +1713,7 @@ async function runPhases(supabase: any, job: any) {
   job = freshJob;
 
   const phases = job.phases || [];
-  let currentPhase = job.current_phase || 0;
+  const currentPhase = job.current_phase || 0;
 
   for (let pi = currentPhase; pi < PHASE_HANDLERS.length; pi++) {
     // Check cancellation
@@ -1742,11 +1738,6 @@ async function runPhases(supabase: any, job: any) {
       .eq("id", job.id)
       .single();
     if (!latestJob) return;
-
-    // Add convenience fields
-    latestJob.instance_id = latestJob.instance_id;
-    latestJob.instance_name = latestJob.instance_name;
-    latestJob.business_id = latestJob.business_id;
 
     // Essentials mode: skip profile_pics (5) and messages (6) phases
     const mode = latestJob.sync_metadata?.mode;

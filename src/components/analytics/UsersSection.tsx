@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { SectionWrapper } from './SectionWrapper';
@@ -24,7 +24,7 @@ const ROLE_COLORS: Record<string, string> = {
     'seller': '#3B82F6',
 };
 
-const ROLE_ICONS: Record<string, any> = {
+const ROLE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
     'super admin': Shield,
     'admin': Shield,
     'commercial': ShoppingBag,

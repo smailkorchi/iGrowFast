@@ -23,7 +23,7 @@ function addLocalizedName(bucket: string[], name: unknown) {
  * (customer, address, notes, status labels, products, parcel/courier tracking,
  * history comments, Coliaty/AMEEX old exchange tracking, ids, etc.).
  */
-export function orderMatchesTopSearch(order: any, raw: string): boolean {
+export function orderMatchesTopSearch(order: Record<string, unknown> | null | undefined, raw: string): boolean {
     const q = raw.trim();
     if (!q) return true;
 

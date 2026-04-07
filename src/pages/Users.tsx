@@ -683,7 +683,7 @@ const UserModal = ({
     });
 
     const handleFormSubmit = async (values: UserFormValues) => {
-        let finalValues = { ...values };
+        const finalValues = { ...values };
 
         if (avatar) {
             const fileExt = avatar.name.split('.').pop();

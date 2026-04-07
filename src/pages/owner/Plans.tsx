@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import {
     Plus, Search, MoreVertical, Edit2, Trash2, Loader2, CreditCard,
-    Clock, Calendar, Infinity, AlertTriangle, X, GripVertical, Tag,
+    Clock, Calendar, Infinity as InfinityIcon, AlertTriangle, X, GripVertical, Tag,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -46,7 +46,7 @@ type PlanFormValues = z.infer<typeof planSchema>;
 const TYPE_META: Record<string, { icon: any; color: string }> = {
     monthly: { icon: Clock, color: 'text-blue-600 bg-blue-50' },
     yearly: { icon: Calendar, color: 'text-amber-600 bg-amber-50' },
-    lifetime: { icon: Infinity, color: 'text-emerald-600 bg-emerald-50' },
+    lifetime: { icon: InfinityIcon, color: 'text-emerald-600 bg-emerald-50' },
 };
 
 const Plans = () => {
@@ -359,7 +359,7 @@ const PlanModal = ({ isOpen, onClose, onSubmit, initialData, loading }: {
     const LICENSE_TYPES = [
         { value: 'monthly' as const, label: 'Monthly', icon: Clock },
         { value: 'yearly' as const, label: 'Yearly', icon: Calendar },
-        { value: 'lifetime' as const, label: 'Lifetime', icon: Infinity },
+        { value: 'lifetime' as const, label: 'Lifetime', icon: InfinityIcon },
     ];
 
     return (

@@ -102,7 +102,7 @@ export const SalesChannelsSection = ({ businessId, dateFilter }: SalesChannelsSe
         const filtered = orders.filter(o => isInRange(o.date));
         const channelMap = new Map((salesChannels || []).map(c => [c.id, c.name]));
 
-        const isPaidAndDelivered = (o: any) =>
+        const isPaidAndDelivered = (o: Record<string, unknown>) =>
             isDeliveredForCommission(o, deliveredPkgIds) &&
             o.order_status_id && isOrderCategory(o.order_status_id, 'paid');
 
@@ -135,7 +135,7 @@ export const SalesChannelsSection = ({ businessId, dateFilter }: SalesChannelsSe
             const mEnd = new Date(mStart.getFullYear(), mStart.getMonth() + 1, 0);
             const monthOrders = filtered.filter(o => o.date && isWithinInterval(new Date(o.date), { start: mStart, end: mEnd }));
 
-            const result: Record<string, any> = { month: format(month, 'MMM yy') };
+            const result: Record<string, string | number> = { month: format(month, 'MMM yy') };
             channelData.slice(0, 5).forEach(ch => {
                 result[ch.name] = monthOrders.filter(o => (o.source_name || 'Direct') === ch.name).length;
             });

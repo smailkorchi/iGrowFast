@@ -2,7 +2,7 @@ import { supabase } from '../supabase';
 
 export const whatsappService = {
   // ── Edge function proxy (Evolution API actions) ─────────────────────
-  async invokeClient(action: string, payload: any = {}) {
+  async invokeClient(action: string, payload: Record<string, unknown> = {}) {
     const { data, error } = await supabase.functions.invoke('evolution-client', {
       body: { action, payload }
     });
@@ -15,7 +15,7 @@ export const whatsappService = {
           const errData = await error.context.json();
           errMsg = errData?.error || errData?.message || JSON.stringify(errData);
         }
-      } catch (e) {}
+      } catch { /* ignore */ }
       throw new Error(errMsg);
     }
     if (data?.error) throw new Error(data.error);

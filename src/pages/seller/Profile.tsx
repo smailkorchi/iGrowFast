@@ -233,7 +233,7 @@ const SellerProfile = () => {
                     }
                 }
             }
-        } catch (error: any) {
+        } catch (error) {
             console.error('Error fetching profile:', error);
         } finally {
             setLoading(false);
@@ -259,7 +259,7 @@ const SellerProfile = () => {
 
             // Refresh profile to lock the fields
             fetchProfile();
-        } catch (error: any) {
+        } catch (error) {
             console.error('Error updating bank info:', error);
             toast({
                 title: "Error",

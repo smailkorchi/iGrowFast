@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { TruncatedText } from '@/components/ui/truncated-text';
 import { Input } from '@/components/ui/input';
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -300,15 +301,13 @@ const Accessories = () => {
                                     )}
                                 </div>
 
-                                <CardContent className="p-6 space-y-4">
-                                    <div className="space-y-1">
-                                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">{accessory.code}</p>
-                                            {isInactive && (
-                                                <Badge variant="secondary" className="bg-brand-navy/10 text-brand-navy font-bold text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wide shrink-0">Inactive</Badge>
-                                            )}
-                                        </div>
-                                        <h3 className="text-xl font-bold text-brand-navy truncate">{accessory.name}</h3>
+                                <CardContent className="p-5 space-y-4">
+                                    <div className="space-y-2">
+                                        <TruncatedText as="p" text={accessory.code} className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40 truncate" />
+                                        <TruncatedText as="h3" text={accessory.name} className="text-base font-bold text-brand-navy leading-snug line-clamp-2 break-words min-h-[2.5rem]" />
+                                        {isInactive && (
+                                            <span className="inline-block rounded-full bg-brand-navy/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-brand-navy">Inactive</span>
+                                        )}
                                     </div>
 
                                     <div className="pt-2 flex items-center justify-between">
@@ -345,13 +344,13 @@ const Accessories = () => {
                                 </div>
 
                                 <div className="flex-1 min-w-0 space-y-2 w-full">
-                                    <div className="flex items-center gap-3 flex-wrap">
-                                    <h3 className="text-xl font-bold text-brand-navy truncate">{accessory.name}</h3>
+                                    <div className="flex items-start gap-3 flex-wrap">
+                                        <TruncatedText as="h3" text={accessory.name} className="text-lg sm:text-xl font-bold text-brand-navy leading-snug line-clamp-2 break-words min-w-0 flex-1" />
                                         {isInactive && (
-                                            <Badge variant="secondary" className="bg-brand-navy/10 text-brand-navy font-bold text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wide shrink-0">Inactive</Badge>
+                                            <Badge variant="secondary" className="bg-brand-navy/10 text-brand-navy font-bold text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wide shrink-0 mt-0.5">Inactive</Badge>
                                         )}
                                     </div>
-                                    <p className="text-xs font-black uppercase tracking-widest text-brand-navy/40">{accessory.code}</p>
+                                    <TruncatedText as="p" text={accessory.code} className="text-xs font-black uppercase tracking-widest text-brand-navy/40 truncate" />
 
                                     <div className="flex flex-wrap items-center gap-4 sm:gap-6 pt-2">
                                         <div className="flex items-center gap-2">

@@ -107,7 +107,7 @@ export function MapGlobe({
                 <div className="w-full h-full rounded-full overflow-hidden shadow-[0_0_120px_rgba(0,0,0,0.8)] border border-white/5">
                     <Map
                         ref={mapRef}
-                        projection={{ type: "globe" } as any}
+                        projection={{ type: "globe" } as unknown as { type: string }}
                         theme="dark"
                         zoom={zoom}
                         minZoom={2} // Prevent zooming out too far

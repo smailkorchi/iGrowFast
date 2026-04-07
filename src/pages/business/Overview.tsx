@@ -270,8 +270,8 @@ const BusinessOverview = () => {
       const url = await uploadBrandingAsset(activeBusinessId, kind, file);
       setValue(url);
       toast({ title: 'Fichier envoyé', description: 'N’oubliez pas d’enregistrer.' });
-    } catch (e: any) {
-      toast({ title: 'Échec envoi', description: e.message, variant: 'destructive' });
+    } catch (e) {
+      toast({ title: 'Échec envoi', description: (e as Error).message, variant: 'destructive' });
     } finally {
       setUploadKind(null);
     }

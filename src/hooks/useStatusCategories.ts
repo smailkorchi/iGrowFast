@@ -33,7 +33,7 @@ export interface PackageStatus {
   color: string | null;
   category: PkgCategory;
   ranking: number | null;
-  delivery_service_statuses: any;
+  delivery_service_statuses: unknown;
 }
 
 export function useStatusCategories() {

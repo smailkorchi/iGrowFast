@@ -215,7 +215,7 @@ const DeliveryNote = () => {
                 console.error("Tracking result failed:", result.error);
                 throw new Error(result.error || 'Unknown error');
             }
-        } catch (error: any) {
+        } catch (error) {
             console.error("handleTrackParcel catch block:", error);
             toast({
                 title: "Tracking Error",
@@ -259,7 +259,7 @@ const DeliveryNote = () => {
             queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['orders'] });
             queryClient.invalidateQueries({ queryKey: ['confirmed-orders-by-zone'] });
-        } catch (error: any) {
+        } catch (error) {
             const blob = `${error?.message ?? ''} ${error?.details ?? ''}`;
             let description = error?.message ?? 'Échec du retrait du colis.';
             if (blob.includes('order_has_multiple_parcels')) {
@@ -468,7 +468,7 @@ const DeliveryNote = () => {
             } else {
                 throw new Error(result.error || 'Failed to get print content');
             }
-        } catch (error: any) {
+        } catch (error) {
             toast({
                 title: "Print Error",
                 description: error.message,
@@ -553,7 +553,7 @@ const DeliveryNote = () => {
                 setSelectedNote({ ...note, is_finalized: true });
             }
 
-        } catch (error: any) {
+        } catch (error) {
             toast({
                 title: "Finalization Error",
                 description: error.message,
@@ -646,7 +646,7 @@ const DeliveryNote = () => {
                 setSelectedNote({ ...note, is_finalized: false });
             }
 
-        } catch (error: any) {
+        } catch (error) {
             toast({
                 title: "Erreur de réouverture",
                 description: error.message,
@@ -726,7 +726,7 @@ const DeliveryNote = () => {
             queryClient.invalidateQueries({ queryKey: ['orders'] });
             queryClient.invalidateQueries({ queryKey: ['confirmed-orders-by-zone'] });
 
-        } catch (error: any) {
+        } catch (error) {
             const blob = `${error?.message ?? ''} ${error?.details ?? ''}`;
             let description = error?.message ?? 'Échec de la suppression.';
             if (blob.includes('note_finalized')) {

@@ -118,7 +118,7 @@ export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) =>
 
         const cityCounts: Record<string, number> = {};
         filtered.forEach(o => {
-            const city = (o as any).master_cities?.name || (o as any).cities?.name;
+            const city = (o as { master_cities?: { name?: string }; cities?: { name?: string } }).master_cities?.name || (o as { master_cities?: { name?: string }; cities?: { name?: string } }).cities?.name;
             if (!city) return;
             cityCounts[city] = (cityCounts[city] || 0) + 1;
         });

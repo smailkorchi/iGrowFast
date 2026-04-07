@@ -50,13 +50,14 @@ export const ConfirmationPipeline = ({ businessId, dateFilter }: ConfirmationPip
         const isConfirmationStatus = (statusId: string) =>
             statusId && (pendingIds.has(statusId) || callbackIds.has(statusId));
 
-        const confirmationOrders = orders.filter((o: any) =>
+        type OrderRow = { order_status_id?: string | null; date?: string | null; order_statuses?: { label?: string | null; code?: string | null } | null };
+        const confirmationOrders = orders.filter((o: OrderRow) =>
             o.order_status_id && isConfirmationStatus(o.order_status_id) && isInRange(o.date)
         );
 
         const statusCounts: Record<string, { label: string; count: number }> = {};
-        confirmationOrders.forEach((o: any) => {
-            const status = o.order_statuses as any;
+        confirmationOrders.forEach((o: OrderRow) => {
+            const status = o.order_statuses;
             const label = status?.label || status?.code || 'Unknown';
             const id = o.order_status_id || 'unknown';
             if (!statusCounts[id]) statusCounts[id] = { label, count: 0 };
@@ -107,7 +108,7 @@ export const ConfirmationPipeline = ({ businessId, dateFilter }: ConfirmationPip
                                     ))}
                                 </Pie>
                                 <Tooltip
-                                    formatter={(value: any, name: string) => [`${value} orders`, name]}
+                                    formatter={(value: number | string, name: string) => [`${value} orders`, name]}
                                     contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', fontSize: 12 }}
                                 />
                             </PieChart>

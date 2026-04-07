@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { useState, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -40,7 +41,7 @@ interface AddEditBusinessModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSubmit: (values: BusinessFormValues) => void;
-    initialData?: any;
+    initialData?: Partial<BusinessFormValues> & { id?: string; status?: string };
     loading?: boolean;
     onStatusChange?: (businessId: string, action: 'extend' | 'suspend' | 'deactivate' | 'reactivate') => void;
     statusLoading?: boolean;
@@ -103,8 +104,8 @@ export const AddEditBusinessModal: React.FC<AddEditBusinessModalProps> = ({
                 const { data: { publicUrl } } = supabase.storage.from('business-logos').getPublicUrl(filePath);
                 setLogoPreview(publicUrl);
                 form.setValue('logo', publicUrl);
-            } catch (error: any) {
-                toast({ title: 'Upload failed', description: error.message, variant: 'destructive' });
+            } catch (error) {
+                toast({ title: 'Upload failed', description: (error as Error).message, variant: 'destructive' });
             } finally {
                 setIsUploading(false);
             }

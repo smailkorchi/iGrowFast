@@ -39,7 +39,7 @@ const SelectBusiness = () => {
     });
 
     const upsertMutation = useMutation({
-        mutationFn: async (payload: any) => {
+        mutationFn: async (payload: Record<string, unknown> & { id?: string }) => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error("Not authenticated");
 
@@ -63,12 +63,12 @@ const SelectBusiness = () => {
             setIsAddEditModalOpen(false);
             toast({ title: "Success", description: "Business environment registered." });
         },
-        onError: (err: any) => {
+        onError: (err: Error) => {
             toast({ title: "Registration Failed", description: err.message, variant: "destructive" });
         }
     });
 
-    const handleSelect = async (business: any) => {
+    const handleSelect = async (business: { id: string }) => {
         // Update owner's active business in DB so all RLS policies resolve correctly
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {

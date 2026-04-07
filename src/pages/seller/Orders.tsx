@@ -241,8 +241,128 @@ function orderHasTrackingNumber(order: any): boolean {
     return false;
 }
 
+type StatusBucket = { id: string; label: string; color: string; count: number; ranking: number };
+
+function StatusPillsRibbon({
+    buckets,
+    selectedSet,
+    setSelectedSet,
+}: {
+    buckets: StatusBucket[];
+    selectedSet: Set<string>;
+    setSelectedSet: React.Dispatch<React.SetStateAction<Set<string>>>;
+}) {
+    const [expanded, setExpanded] = useState(false);
+    const [hasOverflow, setHasOverflow] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        const SINGLE_ROW_MAX = 44; // pill is h-9 (36px) + container padding tolerance
+        const measure = () => {
+            setHasOverflow(el.scrollHeight > SINGLE_ROW_MAX);
+        };
+        measure();
+        const ro = new ResizeObserver(measure);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [buckets.length]);
+
+    const total = buckets.reduce((sum, b) => sum + b.count, 0);
+    const allActive = selectedSet.size === 0;
+    const togglePill = (id: string) => {
+        setSelectedSet((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    return (
+        <div className="bg-white/60 backdrop-blur-md rounded-2xl shadow-sm border border-brand-navy/5 p-3 animate-in fade-in slide-in-from-top-1 duration-300">
+            <div className="flex items-start gap-2">
+                <div
+                    ref={containerRef}
+                    className={cn(
+                        "flex flex-wrap items-center gap-2 flex-1 min-w-0 transition-[max-height] duration-300 ease-in-out",
+                        !expanded && "max-h-[40px] overflow-hidden"
+                    )}
+                >
+                    <button
+                        type="button"
+                        onClick={() => setSelectedSet(new Set())}
+                        className={cn(
+                            "shrink-0 inline-flex items-center gap-2 h-9 px-4 rounded-full text-[11px] font-black uppercase tracking-widest transition-all",
+                            allActive
+                                ? "bg-brand-navy text-white shadow-md shadow-brand-navy/20"
+                                : "bg-brand-navy/[0.04] text-brand-navy/60 hover:bg-brand-navy/[0.08] hover:text-brand-navy"
+                        )}
+                    >
+                        All
+                        <span
+                            className={cn(
+                                "min-w-[20px] h-[18px] flex items-center justify-center px-1.5 rounded-full text-[10px] font-black",
+                                allActive ? "bg-white/25 text-white" : "bg-brand-navy/10 text-brand-navy/70"
+                            )}
+                        >
+                            {total}
+                        </span>
+                    </button>
+                    {buckets.map((bucket) => {
+                        const isActive = selectedSet.has(bucket.id);
+                        return (
+                            <button
+                                key={bucket.id}
+                                type="button"
+                                onClick={() => togglePill(bucket.id)}
+                                className={cn(
+                                    "shrink-0 inline-flex items-center gap-2 h-9 px-4 rounded-full text-[11px] font-black uppercase tracking-widest transition-all border border-transparent",
+                                    isActive ? "text-white" : "hover:brightness-95"
+                                )}
+                                style={
+                                    isActive
+                                        ? { backgroundColor: bucket.color, boxShadow: `0 8px 20px -8px ${bucket.color}80` }
+                                        : { backgroundColor: `${bucket.color}14`, color: bucket.color }
+                                }
+                            >
+                                <span
+                                    className="w-2 h-2 rounded-full shrink-0"
+                                    style={{ backgroundColor: isActive ? '#ffffff' : bucket.color }}
+                                />
+                                <span className="truncate max-w-[160px]">{bucket.label}</span>
+                                <span
+                                    className={cn(
+                                        "min-w-[20px] h-[18px] flex items-center justify-center px-1.5 rounded-full text-[10px] font-black",
+                                        isActive ? "bg-white/25 text-white" : ""
+                                    )}
+                                    style={!isActive ? { backgroundColor: '#ffffff', color: bucket.color } : undefined}
+                                >
+                                    {bucket.count}
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+                {hasOverflow && (
+                    <button
+                        type="button"
+                        onClick={() => setExpanded((v) => !v)}
+                        aria-label={expanded ? 'Collapse' : 'Expand'}
+                        className="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-full bg-brand-navy/[0.04] text-brand-navy/60 hover:bg-brand-navy/[0.08] hover:text-brand-navy transition-all"
+                    >
+                        <ChevronDown className={cn("w-4 h-4 transition-transform duration-300", expanded && "rotate-180")} />
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+}
+
 const Orders = () => {
-    const [searchParams] = useSearchParams();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const prefillProductHandledRef = useRef<string | null>(null);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -280,6 +400,7 @@ const Orders = () => {
 
     // Dropdown search states
     const [citySearchOpen, setCitySearchOpen] = useState(false);
+    const cityListRef = useRef<HTMLDivElement>(null);
     const [statusSearchOpen, setStatusSearchOpen] = useState(false);
     const [showCustomerInsights, setShowCustomerInsights] = useState(false);
 
@@ -304,6 +425,9 @@ const Orders = () => {
 
     // Filter states
     const [filterStatus, setFilterStatus] = useState<string>("all");
+    // Multi-select pill state for confirmation/suivi tabs (empty Set = "all")
+    const [pillStatusIds, setPillStatusIds] = useState<Set<string>>(new Set());
+    const [pillPackageStatusIds, setPillPackageStatusIds] = useState<Set<string>>(new Set());
     const [filterCity, setFilterCity] = useState<string>("all");
     const [filterSource, setFilterSource] = useState<string>("all");
     const [filterProvider, setFilterProvider] = useState<string>("all");
@@ -492,7 +616,7 @@ const Orders = () => {
                 })
             });
 
-            let isError = !response.ok;
+            const isError = !response.ok;
             let result = isError ? null : await response.json();
 
             // Fallback to get_parcel_info if track_parcel fails (e.g. Coliaty 404 for history)
@@ -559,7 +683,7 @@ const Orders = () => {
             } else {
                 throw new Error(result?.error || 'Unknown error');
             }
-        } catch (error: any) {
+        } catch (error) {
             console.error('handleTrackParcel error:', error);
             toast({
                 title: "Tracking Error",
@@ -783,7 +907,7 @@ const Orders = () => {
             if (!activeBusinessId || sellerProductIds.length === 0) return [];
             const { data, error } = await (supabase as any)
                 .from('products')
-                .select('id, name, code, selling_price, stock')
+                .select('id, name, code, selling_price, stock, image_url')
                 .eq('active', true)
                 .eq('DigiCom Business', activeBusinessId)
                 .in('id', sellerProductIds)
@@ -856,6 +980,70 @@ const Orders = () => {
         }
     });
 
+    // ?addProductId=<uuid> — opens the New Order modal with the product
+    // already on line 1 (mirrors what OrderLineProductCombobox does on select).
+    useEffect(() => {
+        const requestedId = searchParams.get('addProductId');
+        if (!requestedId) return;
+        if (prefillProductHandledRef.current === requestedId) return;
+        if (!products?.length) return;
+
+        const prod = (products as any[]).find((p) => p.id === requestedId);
+        if (!prod) {
+            const next = new URLSearchParams(searchParams);
+            next.delete('addProductId');
+            setSearchParams(next, { replace: true });
+            prefillProductHandledRef.current = requestedId;
+            return;
+        }
+
+        const accessoriesForLine = (productAccessoriesForOrders ?? [])
+            .filter((pa: any) => pa.product_id === requestedId)
+            .map((pa: any) => {
+                const acc = accessories?.find((a: any) => a.id === pa.accessory_id);
+                return {
+                    accessory_id: pa.accessory_id,
+                    accessory_quantity: pa.default_quantity || 1,
+                    accessory_unit_price: acc ? Number(acc.cost_price || 0) : 0,
+                };
+            });
+
+        form.reset({
+            name: '',
+            phone: '',
+            city_id: '',
+            address: '',
+            source_name: '',
+            shipping_cost: 0,
+            include_delivery_in_total: false,
+            replace: false,
+            note: '',
+            delivery_note: '',
+            delivery_type: 'Home Delivery',
+            order_status_id: defaultNewOrderStatusId,
+            items: [
+                {
+                    product_id: prod.id,
+                    quantity: 1,
+                    unit_price: Number(prod.selling_price || 0),
+                    accessories: accessoriesForLine,
+                },
+            ],
+            courier_id: null,
+            company_id: null,
+            history_comment: '',
+            _reportedDate: '',
+            coliaty_old_tracking: '',
+            ameex_old_tracking: '',
+        });
+        setIsAddModalOpen(true);
+
+        prefillProductHandledRef.current = requestedId;
+        const next = new URLSearchParams(searchParams);
+        next.delete('addProductId');
+        setSearchParams(next, { replace: true });
+    }, [searchParams, products, productAccessoriesForOrders, accessories, defaultNewOrderStatusId, form, setSearchParams]);
+
     const watchedOrderItems = useWatch({ control: form.control, name: 'items' });
 
     const newOrderHasZeroStockProduct = useMemo(() => {
@@ -883,7 +1071,9 @@ const Orders = () => {
     const selectedCityId = form.watch('city_id');
     const selectedCourierId = form.watch('courier_id');
     const selectedCompanyId = form.watch('company_id');
-    const shippingFeeLockedByProvider = !!(selectedCourierId || selectedCompanyId);
+    const includeDeliveryWatched = form.watch('include_delivery_in_total');
+    // Shipping fee is editable only when the "Include delivery fees" toggle is ON
+    const shippingFeeReadOnly = !includeDeliveryWatched;
 
     const availableProviders = useMemo(() => {
         if (!selectedCityId || !cities) return [];
@@ -1159,27 +1349,30 @@ const Orders = () => {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
             setIsAddModalOpen(false);
-            form.reset({
-                name: '',
-                phone: '',
-                city_id: '',
-                address: '',
-                source_name: '',
-                shipping_cost: 0,
-                include_delivery_in_total: false,
-                replace: false,
-                note: '',
-                delivery_note: '',
-                delivery_type: 'Home Delivery',
-                order_status_id: defaultNewOrderStatusId,
-                items: [{ product_id: '', quantity: 1, unit_price: 0, accessories: [] }],
-                courier_id: null,
-                company_id: null,
-                history_comment: '',
-                _reportedDate: '',
-                coliaty_old_tracking: '',
-                ameex_old_tracking: ''
-            });
+            // Defer form.reset so Radix completes its close cycle first.
+            setTimeout(() => {
+                form.reset({
+                    name: '',
+                    phone: '',
+                    city_id: '',
+                    address: '',
+                    source_name: '',
+                    shipping_cost: 0,
+                    include_delivery_in_total: false,
+                    replace: false,
+                    note: '',
+                    delivery_note: '',
+                    delivery_type: 'Home Delivery',
+                    order_status_id: defaultNewOrderStatusId,
+                    items: [{ product_id: '', quantity: 1, unit_price: 0, accessories: [] }],
+                    courier_id: null,
+                    company_id: null,
+                    history_comment: '',
+                    _reportedDate: '',
+                    coliaty_old_tracking: '',
+                    ameex_old_tracking: ''
+                });
+            }, 0);
             toast({ title: "Order Created", description: "Successfully logged new order." });
         },
         onError: (error: any) => {
@@ -1417,7 +1610,8 @@ const Orders = () => {
         return orders.filter((o: any) => {
             const matchesSearch = orderMatchesTopSearch(o, searchQuery);
 
-            const matchesStatus = filterStatus === "all" || o.order_status_id === filterStatus;
+            const matchesStatus = (filterStatus === "all" || o.order_status_id === filterStatus)
+                && (pillStatusIds.size === 0 || pillStatusIds.has(o.order_status_id));
             const matchesCity = filterCity === "all" || o.master_city_id === filterCity || o.city_id === filterCity;
             const matchesSource = filterSource === "all" || o.source_name === filterSource;
             const matchesProvider = filterProvider === "all" || o.courier_id === filterProvider || o.company_id === filterProvider;
@@ -1437,17 +1631,20 @@ const Orders = () => {
             const matchesPhone = !filterPhone || o.phone?.includes(filterPhone);
             const matchesTracking = orderMatchesTrackingFilter(o, filterTracking);
             const matchesProduct = filterProduct === 'all' || o.items?.some((item: any) => item.product_id === filterProduct);
-            const matchesPackageStatus = filterPackageStatus === 'all' || o.package_status_id === filterPackageStatus;
+            const matchesPackageStatus = (filterPackageStatus === 'all' || o.package_status_id === filterPackageStatus)
+                && (pillPackageStatusIds.size === 0 || pillPackageStatusIds.has(o.package_status_id));
             const matchesExchange = filterExchange === 'all' || (filterExchange === 'yes' && o.replace) || (filterExchange === 'no' && !o.replace);
 
             return matchesSearch && matchesStatus && matchesCity && matchesSource && matchesProvider
                 && matchesDate && matchesCustomerName && matchesPhone && matchesTracking && matchesProduct && matchesPackageStatus && matchesExchange;
         });
-    }, [orders, searchQuery, filterStatus, filterCity, filterSource, filterProvider, getDateRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterPackageStatus, filterExchange]);
+    }, [orders, searchQuery, filterStatus, filterCity, filterSource, filterProvider, getDateRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterPackageStatus, filterExchange, pillStatusIds, pillPackageStatusIds]);
 
     const activeFilterCount = useMemo(() => {
         let count = 0;
         if (filterStatus !== 'all') count++;
+        if (pillStatusIds.size > 0) count++;
+        if (pillPackageStatusIds.size > 0) count++;
         if (filterCity !== 'all') count++;
         if (filterSource !== 'all') count++;
         if (filterProvider !== 'all') count++;
@@ -1459,10 +1656,12 @@ const Orders = () => {
         if (filterPackageStatus !== 'all') count++;
         if (filterExchange !== 'all') count++;
         return count;
-    }, [filterStatus, filterCity, filterSource, filterProvider, filterTimeRange, filterCustomerName, filterPhone, filterTracking, filterProduct, filterPackageStatus, filterExchange]);
+    }, [filterStatus, filterCity, filterSource, filterProvider, filterTimeRange, filterCustomerName, filterPhone, filterTracking, filterProduct, filterPackageStatus, filterExchange, pillStatusIds, pillPackageStatusIds]);
 
     const clearAllFilters = () => {
         setFilterStatus('all');
+        setPillStatusIds(new Set());
+        setPillPackageStatusIds(new Set());
         setFilterCity('all');
         setFilterSource('all');
         setFilterProvider('all');
@@ -1550,6 +1749,7 @@ const Orders = () => {
         for (const o of (orders as any[] | undefined) ?? []) {
             if (!orderPassesNonStatusFilters(o)) continue;
             if (filterPackageStatus !== 'all' && o.package_status_id !== filterPackageStatus) continue;
+            if (pillPackageStatusIds.size > 0 && !pillPackageStatusIds.has(o.package_status_id)) continue;
             if (!isOrderInTab(o, 'confirmation')) continue;
             const sid = o.status?.id;
             if (!sid) continue;
@@ -1568,7 +1768,7 @@ const Orders = () => {
         }
         return Array.from(buckets.values()).sort((a, b) => a.ranking - b.ranking);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [orders, orderStatuses, activeTab, searchQuery, filterCity, filterSource, filterProvider, getDateRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterPackageStatus, filterExchange]);
+    }, [orders, orderStatuses, activeTab, searchQuery, filterCity, filterSource, filterProvider, getDateRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterPackageStatus, filterExchange, pillPackageStatusIds]);
 
     const recheckPackageStatusBuckets = useMemo(() => {
         if (activeTab !== 'suivi') return [] as Array<{ id: string; label: string; color: string; count: number; ranking: number }>;
@@ -1599,6 +1799,7 @@ const Orders = () => {
         for (const o of (orders as any[] | undefined) ?? []) {
             if (!orderPassesNonStatusFilters(o)) continue;
             if (filterStatus !== 'all' && o.order_status_id !== filterStatus) continue;
+            if (pillStatusIds.size > 0 && !pillStatusIds.has(o.order_status_id)) continue;
             if (!isOrderInTab(o, 'suivi')) continue;
             const sid = o.package_status?.id;
             if (!sid) continue;
@@ -1607,7 +1808,7 @@ const Orders = () => {
         }
         return Array.from(buckets.values()).sort((a, b) => a.ranking - b.ranking);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [orders, packageStatuses, activeTab, searchQuery, filterStatus, filterCity, filterSource, filterProvider, getDateRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterExchange]);
+    }, [orders, packageStatuses, activeTab, searchQuery, filterStatus, filterCity, filterSource, filterProvider, getDateRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterExchange, pillStatusIds]);
 
     // Calculate seller-specific statistics
     useEffect(() => {
@@ -1886,75 +2087,18 @@ const Orders = () => {
 
             {/* Recheck status pills (Confirmation = order_statuses.recheck, Suivi = package_statuses.recheck) */}
             {(activeTab === 'confirmation' || activeTab === 'suivi') && (() => {
-                const buckets = activeTab === 'confirmation' ? recheckOrderStatusBuckets : recheckPackageStatusBuckets;
+                const allBuckets = activeTab === 'confirmation' ? recheckOrderStatusBuckets : recheckPackageStatusBuckets;
+                const selectedSet = activeTab === 'confirmation' ? pillStatusIds : pillPackageStatusIds;
+                const setSelectedSet = activeTab === 'confirmation' ? setPillStatusIds : setPillPackageStatusIds;
+                // Show only buckets with data, or buckets currently selected (so the user can deselect them).
+                const buckets = allBuckets.filter((b) => b.count > 0 || selectedSet.has(b.id));
                 if (!buckets.length) return null;
-                const activeId = activeTab === 'confirmation' ? filterStatus : filterPackageStatus;
-                const setActiveId = activeTab === 'confirmation' ? setFilterStatus : setFilterPackageStatus;
-                const HeaderIcon = activeTab === 'confirmation' ? Phone : Truck;
-                const headerLabel = activeTab === 'confirmation' ? 'Order Status' : 'Package Status';
-                const total = buckets.reduce((sum, b) => sum + b.count, 0);
                 return (
-                    <div className="bg-white/60 backdrop-blur-md rounded-2xl shadow-sm border border-brand-navy/5 p-3 animate-in fade-in slide-in-from-top-1 duration-300">
-                        <div className="flex items-center gap-3">
-                            <div className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl bg-brand-navy/[0.04] shrink-0">
-                                <HeaderIcon className="w-3.5 h-3.5 text-brand-navy/60" />
-                                <span className="text-[10px] font-black uppercase tracking-widest text-brand-navy/60 whitespace-nowrap">{headerLabel}</span>
-                            </div>
-                            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar flex-1 min-w-0">
-                                <button
-                                    type="button"
-                                    onClick={() => setActiveId('all')}
-                                    className={cn(
-                                        "shrink-0 inline-flex items-center gap-2 h-9 px-4 rounded-full text-[11px] font-black uppercase tracking-widest transition-all",
-                                        activeId === 'all'
-                                            ? "bg-brand-navy text-white shadow-md shadow-brand-navy/20"
-                                            : "bg-brand-navy/[0.04] text-brand-navy/60 hover:bg-brand-navy/[0.08] hover:text-brand-navy"
-                                    )}
-                                >
-                                    All
-                                    <span className={cn(
-                                        "min-w-[20px] h-[18px] flex items-center justify-center px-1.5 rounded-full text-[10px] font-black",
-                                        activeId === 'all' ? "bg-white/25 text-white" : "bg-brand-navy/10 text-brand-navy/70"
-                                    )}>
-                                        {total}
-                                    </span>
-                                </button>
-                                {buckets.map((bucket) => {
-                                    const isActive = activeId === bucket.id;
-                                    return (
-                                        <button
-                                            key={bucket.id}
-                                            type="button"
-                                            onClick={() => setActiveId(isActive ? 'all' : bucket.id)}
-                                            className={cn(
-                                                "shrink-0 inline-flex items-center gap-2 h-9 px-4 rounded-full text-[11px] font-black uppercase tracking-widest transition-all border border-transparent",
-                                                isActive ? "text-white" : "hover:brightness-95"
-                                            )}
-                                            style={isActive
-                                                ? { backgroundColor: bucket.color, boxShadow: `0 8px 20px -8px ${bucket.color}80` }
-                                                : { backgroundColor: `${bucket.color}14`, color: bucket.color }
-                                            }
-                                        >
-                                            <span
-                                                className="w-2 h-2 rounded-full shrink-0"
-                                                style={{ backgroundColor: isActive ? '#ffffff' : bucket.color }}
-                                            />
-                                            <span className="truncate max-w-[160px]">{bucket.label}</span>
-                                            <span
-                                                className={cn(
-                                                    "min-w-[20px] h-[18px] flex items-center justify-center px-1.5 rounded-full text-[10px] font-black",
-                                                    isActive ? "bg-white/25 text-white" : ""
-                                                )}
-                                                style={!isActive ? { backgroundColor: '#ffffff', color: bucket.color } : undefined}
-                                            >
-                                                {bucket.count}
-                                            </span>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    </div>
+                    <StatusPillsRibbon
+                        buckets={buckets}
+                        selectedSet={selectedSet}
+                        setSelectedSet={setSelectedSet}
+                    />
                 );
             })()}
 
@@ -2784,27 +2928,31 @@ const Orders = () => {
                         setIsAddModalOpen(false);
                         setIsEditModalOpen(false);
                         setSelectedOrder(null);
-                        form.reset({
-                            name: '',
-                            phone: '',
-                            city_id: '',
-                            address: '',
-                            source_name: '',
-                            shipping_cost: 0,
-                            include_delivery_in_total: false,
-                            replace: false,
-                            note: '',
-                            delivery_note: '',
-                            delivery_type: 'Home Delivery',
-                            order_status_id: defaultNewOrderStatusId,
-                            items: [{ product_id: '', quantity: 1, unit_price: 0, accessories: [] }],
-                            courier_id: null,
-                            company_id: null,
-                            history_comment: '',
-                            _reportedDate: '',
-                            coliaty_old_tracking: '',
-                            ameex_old_tracking: ''
-                        });
+                        // Defer form.reset so Radix completes its close cycle first.
+                        // Resetting synchronously here leaves the overlay mounted until next click.
+                        setTimeout(() => {
+                            form.reset({
+                                name: '',
+                                phone: '',
+                                city_id: '',
+                                address: '',
+                                source_name: '',
+                                shipping_cost: 0,
+                                include_delivery_in_total: false,
+                                replace: false,
+                                note: '',
+                                delivery_note: '',
+                                delivery_type: 'Home Delivery',
+                                order_status_id: defaultNewOrderStatusId,
+                                items: [{ product_id: '', quantity: 1, unit_price: 0, accessories: [] }],
+                                courier_id: null,
+                                company_id: null,
+                                history_comment: '',
+                                _reportedDate: '',
+                                coliaty_old_tracking: '',
+                                ameex_old_tracking: ''
+                            });
+                        }, 0);
                     }
                 }}
             >
@@ -2898,7 +3046,7 @@ const Orders = () => {
                                 }
                             }
 
-                            isEditModalOpen ? updateOrderMutation.mutate(v) : createOrderMutation.mutate(v);
+                            if (isEditModalOpen) updateOrderMutation.mutate(v); else createOrderMutation.mutate(v);
                         })} className="flex flex-col h-full overflow-hidden">
                             <DialogHeader className="px-5 py-3 pr-12 shrink-0 border-b border-brand-navy/[0.08] bg-brand-navy/[0.02]">
                                 <DialogTitle className="text-lg sm:text-xl font-black text-brand-navy tracking-tight leading-tight">
@@ -3014,8 +3162,14 @@ const Orders = () => {
                                                         </PopoverTrigger>
                                                         <PopoverContent className="w-[300px] p-0 border-none shadow-2xl rounded-2xl" align="start" onWheel={(e) => e.stopPropagation()}>
                                                             <Command className="rounded-none">
-                                                                <CommandInput placeholder="Search city..." className="h-12 border-none ring-0 focus:ring-0 shrink-0" />
-                                                                <CommandList className="max-h-[250px] overflow-y-scroll custom-scrollbar overflow-x-hidden">
+                                                                <CommandInput
+                                                                    placeholder="Search city..."
+                                                                    className="h-12 border-none ring-0 focus:ring-0 shrink-0"
+                                                                    onValueChange={() => {
+                                                                        cityListRef.current?.scrollTo({ top: 0 });
+                                                                    }}
+                                                                />
+                                                                <CommandList ref={cityListRef} className="max-h-[250px] overflow-y-scroll custom-scrollbar overflow-x-hidden">
                                                                     <CommandEmpty>No city found.</CommandEmpty>
                                                                     <CommandGroup>
                                                                         {cities?.map((city: any) => (
@@ -3148,8 +3302,8 @@ const Orders = () => {
                                                                 <Input
                                                                     type="number"
                                                                     {...field}
-                                                                    readOnly={shippingFeeLockedByProvider}
-                                                                    className={`h-10 rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy shadow-inner pl-3 pr-10 ${shippingFeeLockedByProvider ? 'cursor-not-allowed opacity-90' : ''}`}
+                                                                    readOnly={shippingFeeReadOnly}
+                                                                    className={`h-10 rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy shadow-inner pl-3 pr-10 ${shippingFeeReadOnly ? 'cursor-not-allowed opacity-60' : ''}`}
                                                                 />
                                                                 <div className="absolute right-4 top-1/2 -translate-y-1/2">
                                                                     <Button
@@ -3161,7 +3315,7 @@ const Orders = () => {
                                                                         title="Calculate Fees"
                                                                         disabled={
                                                                             !selectedCityId ||
-                                                                            shippingFeeLockedByProvider ||
+                                                                            shippingFeeReadOnly ||
                                                                             (!selectedCourierId && !selectedCompanyId)
                                                                         }
                                                                     >
@@ -3455,17 +3609,17 @@ const Orders = () => {
                                             const productSubtotal = (form.watch(`items.${index}.quantity`) || 0) * (form.watch(`items.${index}.unit_price`) || 0);
                                             return (
                                                 <div key={field.id} className="rounded-2xl border border-brand-navy/10 bg-white p-3 shadow-sm space-y-3 animate-in slide-in-from-left-2 duration-200">
-                                                    <div className="flex items-center justify-between gap-2 border-b border-brand-navy/[0.07] pb-2">
-                                                        <span className="text-[9px] font-black uppercase tracking-wider text-brand-navy/40 tabular-nums">Line {index + 1}</span>
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <span className="text-[9px] font-black uppercase tracking-wider text-brand-navy/35 tabular-nums">Line {index + 1}</span>
                                                         <Button
                                                             type="button"
                                                             variant="ghost"
                                                             size="icon"
                                                             onClick={() => remove(index)}
                                                             disabled={fields.length === 1}
-                                                            className="h-8 w-8 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 shrink-0"
+                                                            className="h-7 w-7 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 shrink-0"
                                                         >
-                                                            <Trash2 className="w-4 h-4" />
+                                                            <Trash2 className="w-3.5 h-3.5" />
                                                         </Button>
                                                     </div>
                                                     <FormField
@@ -3473,7 +3627,6 @@ const Orders = () => {
                                                         name={`items.${index}.product_id`}
                                                         render={({ field }) => (
                                                             <FormItem className="space-y-1.5">
-                                                                <FormLabel className="text-[9px] uppercase font-black text-brand-navy/50 tracking-wide flex items-center gap-1"><Package className="w-3 h-3 opacity-60" /> Product</FormLabel>
                                                                 <FormControl>
                                                                     <OrderLineProductCombobox
                                                                         products={(products || []) as OrderLineProductOption[]}

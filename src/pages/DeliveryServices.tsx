@@ -1076,7 +1076,7 @@ function CompanyModal({ isOpen, onClose, onSubmit, initialData, providerTemplate
     const isTemplateCreate = !initialData && !!providerTemplate;
 
     const handleFormSubmit = async (values: DeliveryCompanyValues) => {
-        let finalValues = { ...values };
+        const finalValues = { ...values };
 
         if (logo) {
             const fileExt = logo.name.split('.').pop();

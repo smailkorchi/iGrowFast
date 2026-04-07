@@ -54,7 +54,7 @@ export default function SellerWhatsAppInbox() {
             .filter((x: any): x is string => !!x);
           setAllowedIds(ids);
         }
-      } catch (e: any) {
+      } catch (e) {
         if (!cancelled) setError(e?.message || 'Failed to load access.');
       } finally {
         if (!cancelled) setLoading(false);

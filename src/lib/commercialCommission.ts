@@ -48,11 +48,17 @@ export function normalizeCommissionBasis(v: string | null | undefined): Commissi
  * Sum quantities on order lines: if the seller has no assigned product IDs, count **all** lines;
  * otherwise only lines whose product_id is in the assigned list.
  */
-export function sumAssignedProductUnits(order: any, sellerProductIds: string[]): number {
+type OrderLine = { product_id?: string | null; quantity?: number | string | null };
+type OrderForCommission = {
+  order_items?: OrderLine[] | null;
+  items?: OrderLine[] | null;
+} & Parameters<typeof isDeliveredForCommission>[0] & Parameters<typeof deliveryTimestampForMetrics>[0];
+
+export function sumAssignedProductUnits(order: OrderForCommission, sellerProductIds: string[]): number {
   const items = order.order_items ?? order.items ?? [];
   const set = new Set((sellerProductIds || []).filter(Boolean));
   const countAllLines = set.size === 0;
-  return items.reduce((sum: number, row: any) => {
+  return items.reduce((sum: number, row: OrderLine) => {
     const pid = row.product_id;
     if (!pid) return sum;
     if (!countAllLines && !set.has(pid)) return sum;
@@ -77,7 +83,7 @@ export function deliveryTimestampForMetrics(o: {
 }
 
 /** Delivered for commission, and delivery timestamp falls on the given local calendar day. */
-export function isDeliveredOnLocalDay(o: any, deliveredPkgIds: Set<string>, day: Date): boolean {
+export function isDeliveredOnLocalDay(o: OrderForCommission, deliveredPkgIds: Set<string>, day: Date): boolean {
   if (!isDeliveredForCommission(o, deliveredPkgIds)) return false;
   const t = deliveryTimestampForMetrics(o);
   if (!t) return false;
@@ -86,7 +92,7 @@ export function isDeliveredOnLocalDay(o: any, deliveredPkgIds: Set<string>, day:
 
 /** Gross commission for one order (already delivered); does not subtract payouts. */
 export function commissionAccruedForDeliveredOrder(params: {
-  order: any;
+  order: OrderForCommission;
   basis: CommissionBasis;
   commissionPrice: number;
   sellerProductIds: string[];
@@ -103,8 +109,8 @@ export function commissionAccruedForDeliveredOrder(params: {
  * Total accrual count for commission: order count (per_order) or sum of assigned-product units (per_unit).
  */
 export function totalAccruedForCommission(
-  orders: any[],
-  isDelivered: (o: any) => boolean,
+  orders: OrderForCommission[],
+  isDelivered: (o: OrderForCommission) => boolean,
   basis: CommissionBasis,
   sellerProductIds: string[],
 ): number {
@@ -118,8 +124,8 @@ export function totalAccruedForCommission(
 export function computeUnpaidCommission(params: {
   basis: CommissionBasis;
   commissionPrice: number;
-  orders: any[];
-  isDelivered: (o: any) => boolean;
+  orders: OrderForCommission[];
+  isDelivered: (o: OrderForCommission) => boolean;
   sellerProductIds: string[];
   /** Sum of seller_payments.delivered_orders for paid payouts */
   paidTally: number;

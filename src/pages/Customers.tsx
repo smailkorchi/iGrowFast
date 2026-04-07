@@ -207,7 +207,7 @@ const Customers = () => {
             // Aggregation map
             const customerMap = new Map<string, Customer>();
 
-            orders?.forEach((order: any) => {
+            orders?.forEach((order: Record<string, unknown> & { city?: { name?: string } | null; status?: { label?: string; color?: string } | null }) => {
                 const phone = order.phone?.replace(/[^0-9]/g, ''); // Normalize phone
                 if (!phone) return;
 
@@ -215,7 +215,7 @@ const Customers = () => {
                 const orderDate = order.date || order.created_at;
 
                 // master_cities returns an object or array depending on the relation. It's usually a single object.
-                const cityName = (order.city as any)?.name || 'Unknown';
+                const cityName = order.city?.name || 'Unknown';
                 const statusLabel = order.status?.label || 'Unknown';
                 const statusColor = order.status?.color || '#000';
 
@@ -227,7 +227,7 @@ const Customers = () => {
                     order_status_id: order.order_status_id || '',
                     package_status_id: order.package_status_id || null,
                     package_status_label: order.package_status_label ?? null,
-                    package_statuses: (order as any).package_statuses ?? null,
+                    package_statuses: (order as { package_statuses?: { label?: string | null; color?: string | null } | null }).package_statuses ?? null,
                     status: { label: statusLabel, color: statusColor },
                     city_name: cityName
                 };
@@ -622,7 +622,7 @@ const Customers = () => {
                             </Button>
                         )}
 
-                        <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
+                        <Select value={sortBy} onValueChange={(v) => setSortBy(v as 'recency' | 'value' | 'frequency')}>
                             <SelectTrigger className="w-full sm:w-[180px] h-12 rounded-xl border-brand-navy/10">
                                 <div className="flex items-center gap-2">
                                     <Filter className="w-4 h-4 opacity-50" />

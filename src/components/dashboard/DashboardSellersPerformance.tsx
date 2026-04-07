@@ -101,6 +101,8 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
         cancelledIds,
         deliveredPkgIds,
         getPkgsByCategories,
+        getOrderStatusColor,
+        getPkgStatusColor,
     } = useStatusCategories();
 
     const toggleSeller = (id: string) => {
@@ -169,7 +171,7 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
             });
         };
 
-        const filtered = orders.filter((o: any) => isInRange(o.date));
+        const filtered = orders.filter((o: Record<string, unknown>) => isInRange(o.date));
         const totalOrders = filtered.length;
 
         const filteredAds = (adsHistory || []).filter((a: any) => isInRange(a.start_date));
@@ -181,7 +183,7 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
         });
 
         const globalProductDeliveredQty = new Map<string, number>();
-        filtered.forEach((o: any) => {
+        filtered.forEach((o: Record<string, unknown>) => {
             if (!isDeliveredForCommission(o, deliveredPkgIds)) return;
             const items = (o.order_items as any[]) || [];
             for (const oi of items) {
@@ -193,39 +195,51 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
         });
 
         const sellerData = sellers.map((seller: any) => {
-            const sellerOrders = filtered.filter((o: any) => o.seller_id === seller.id);
+            const sellerOrders = filtered.filter((o: Record<string, unknown>) => o.seller_id === seller.id);
             const assignedCount = sellerOrders.length;
             const assignedPercent = totalOrders > 0 ? (assignedCount / totalOrders) * 100 : 0;
 
             const sourceBreakdown: Record<string, number> = {};
-            sellerOrders.forEach((o: any) => {
+            sellerOrders.forEach((o: Record<string, unknown>) => {
                 const src = (o.source_name || 'other').toLowerCase();
                 sourceBreakdown[src] = (sourceBreakdown[src] || 0) + 1;
             });
 
-            const preConfOrders = sellerOrders.filter((o: any) => {
+            const preConfOrders = sellerOrders.filter((o: Record<string, unknown>) => {
                 const label = (o.order_statuses as any)?.label;
                 return PRE_CONFIRMATION_LABELS.has(normalizeLabel(label));
             });
-            const preConfirmationBreakdown: Record<string, number> = {};
-            preConfOrders.forEach((o: any) => {
+            const preConfirmationBreakdown: Record<string, { count: number; color: string }> = {};
+            preConfOrders.forEach((o: Record<string, unknown>) => {
                 const label = (o.order_statuses as any)?.label || 'Unknown';
-                preConfirmationBreakdown[label] = (preConfirmationBreakdown[label] || 0) + 1;
+                if (!preConfirmationBreakdown[label]) {
+                    preConfirmationBreakdown[label] = {
+                        count: 0,
+                        color: getOrderStatusColor(o.order_status_id),
+                    };
+                }
+                preConfirmationBreakdown[label].count += 1;
             });
 
-            const confirmedCount = sellerOrders.filter((o: any) => confirmedIds.has(o.order_status_id)).length;
+            const confirmedCount = sellerOrders.filter((o: Record<string, unknown>) => confirmedIds.has(o.order_status_id)).length;
             const confirmedPercent = assignedCount > 0 ? (confirmedCount / assignedCount) * 100 : 0;
 
-            const postConfOrders = sellerOrders.filter((o: any) =>
+            const postConfOrders = sellerOrders.filter((o: Record<string, unknown>) =>
                 POST_CONFIRMATION_LABELS.has(normalizeLabel(o.package_status_label))
             );
-            const postConfirmationBreakdown: Record<string, number> = {};
-            postConfOrders.forEach((o: any) => {
+            const postConfirmationBreakdown: Record<string, { count: number; color: string }> = {};
+            postConfOrders.forEach((o: Record<string, unknown>) => {
                 const label = o.package_status_label || 'Unknown';
-                postConfirmationBreakdown[label] = (postConfirmationBreakdown[label] || 0) + 1;
+                if (!postConfirmationBreakdown[label]) {
+                    postConfirmationBreakdown[label] = {
+                        count: 0,
+                        color: getPkgStatusColor(o.package_status_id),
+                    };
+                }
+                postConfirmationBreakdown[label].count += 1;
             });
 
-            const delivered = sellerOrders.filter((o: any) => isDeliveredForCommission(o, deliveredPkgIds));
+            const delivered = sellerOrders.filter((o: Record<string, unknown>) => isDeliveredForCommission(o, deliveredPkgIds));
             const deliveredCount = delivered.length;
             const deliveredPercent = confirmedCount > 0 ? (deliveredCount / confirmedCount) * 100 : 0;
 
@@ -238,7 +252,7 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
             let productRevenueDelivered = 0;
             const sellerProductDeliveredQty = new Map<string, number>();
 
-            delivered.forEach((o: any) => {
+            delivered.forEach((o: Record<string, unknown>) => {
                 productRevenueDelivered += productRevenueExcludingShipping(o);
                 const items = (o.order_items as any[]) || [];
                 for (const oi of items) {
@@ -299,6 +313,8 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
         cancelledIds,
         deliveredPkgIds,
         getPkgsByCategories,
+        getOrderStatusColor,
+        getPkgStatusColor,
     ]);
 
     if (!metrics) return null;
@@ -418,13 +434,13 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                                     <BreakdownSection title="Status Before Confirmation">
                                         {Object.entries(s.preConfirmationBreakdown).length > 0 ? (
                                             Object.entries(s.preConfirmationBreakdown)
-                                                .sort(([, a], [, b]) => b - a)
-                                                .map(([label, count]) => (
+                                                .sort(([, a], [, b]) => b.count - a.count)
+                                                .map(([label, { count, color }]) => (
                                                     <PillBadge
                                                         key={label}
                                                         label={label}
                                                         count={count}
-                                                        className="bg-orange-50 text-orange-700"
+                                                        color={color}
                                                     />
                                                 ))
                                         ) : (
@@ -435,13 +451,13 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                                     <BreakdownSection title="Status After Confirmation">
                                         {Object.entries(s.postConfirmationBreakdown).length > 0 ? (
                                             Object.entries(s.postConfirmationBreakdown)
-                                                .sort(([, a], [, b]) => b - a)
-                                                .map(([label, count]) => (
+                                                .sort(([, a], [, b]) => b.count - a.count)
+                                                .map(([label, { count, color }]) => (
                                                     <PillBadge
                                                         key={label}
                                                         label={label}
                                                         count={count}
-                                                        className="bg-violet-50 text-violet-700"
+                                                        color={color}
                                                     />
                                                 ))
                                         ) : (
@@ -504,13 +520,25 @@ function BreakdownSection({ title, children }: { title: string; children: React.
     );
 }
 
-function PillBadge({ label, count, className }: { label: string; count: number; className: string }) {
+function PillBadge({
+    label,
+    count,
+    className,
+    color,
+}: {
+    label: string;
+    count: number;
+    className?: string;
+    color?: string;
+}) {
+    const style = color ? { backgroundColor: `${color}1A`, color } : undefined;
     return (
         <span
             className={cn(
                 'inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full',
                 className
             )}
+            style={style}
         >
             {label}: {count}
         </span>

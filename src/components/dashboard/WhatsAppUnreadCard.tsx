@@ -4,7 +4,8 @@ import { Loader2, ArrowRight } from 'lucide-react';
 import { FaWhatsapp } from 'react-icons/fa';
 import { supabase } from '@/lib/supabase';
 
-const db = supabase as any;
+type WaInstanceRow = { id: string; instance_name: string; profile_pic: string | null };
+type WaConvRow = { instance_id: string; unread_count: number | null };
 
 interface InstanceUnread {
   id: string;
@@ -39,7 +40,7 @@ export function WhatsAppUnreadCard({ businessId, restrictToInstanceIds, inboxPat
   // ── Loader ────────────────────────────────────────────────────────
   const load = useCallback(async () => {
     if (!businessId) return;
-    let query: any = db
+    let query = supabase
       .from('whatsapp_instances')
       .select('id, instance_name, profile_pic')
       .eq('business_id', businessId)
@@ -56,22 +57,24 @@ export function WhatsAppUnreadCard({ businessId, restrictToInstanceIds, inboxPat
 
     const { data: instances } = await query;
     if (!instances) { setLoading(false); return; }
+    const instanceRows = instances as unknown as WaInstanceRow[];
 
-    const ids = instances.map((i: any) => i.id);
+    const ids = instanceRows.map((i) => i.id);
     if (ids.length === 0) { setRows([]); setLoading(false); return; }
 
-    const { data: convs } = await db
+    const { data: convs } = await supabase
       .from('whatsapp_conversations')
       .select('instance_id, unread_count')
       .in('instance_id', ids)
       .gt('unread_count', 0);
 
+    const convRows = (convs || []) as unknown as WaConvRow[];
     const totals: Record<string, number> = {};
-    for (const c of convs || []) {
+    for (const c of convRows) {
       totals[c.instance_id] = (totals[c.instance_id] || 0) + (c.unread_count || 0);
     }
 
-    setRows(instances.map((i: any) => ({
+    setRows(instanceRows.map((i) => ({
       id: i.id,
       instance_name: i.instance_name,
       profile_pic: i.profile_pic,

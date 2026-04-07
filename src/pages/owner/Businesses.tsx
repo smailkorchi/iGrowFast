@@ -686,7 +686,7 @@ const CreateAdminModal = ({ isOpen, onClose, onSubmit, loading }: any) => {
     const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop, accept: { 'image/*': [] }, multiple: false });
 
     const handleSubmit = async (values: z.infer<typeof adminUserSchema>) => {
-        let finalValues = { ...values };
+        const finalValues = { ...values };
         if (avatar) {
             const fileExt = avatar.name.split('.').pop();
             const filePath = `avatars/${Math.random()}.${fileExt}`;

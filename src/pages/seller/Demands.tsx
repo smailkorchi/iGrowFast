@@ -117,7 +117,7 @@ const SellerDemands = () => {
                 .from('demand-media')
                 .createSignedUrls(paths, 60 * 60);
             if (error || !data) return list;
-            const byPath = new Map(data.map((d: any) => [d.path, d.signedUrl]));
+            const byPath = new Map(data.map((d: { path: string | null; signedUrl: string }) => [d.path, d.signedUrl]));
             return list.map((m) => ({ ...m, url: byPath.get(m.path) || undefined }));
         };
         const run = async () => {
@@ -273,11 +273,11 @@ const SellerDemands = () => {
             setIsCreateModalOpen(false);
             resetCreateForm();
             fetchDemands();
-        } catch (error: any) {
+        } catch (error) {
             console.error('Error creating demand:', error);
             toast({
                 title: "Error",
-                description: error?.message || "Failed to submit request.",
+                description: (error as Error)?.message || "Failed to submit request.",
                 variant: "destructive"
             });
         } finally {
@@ -482,7 +482,7 @@ const SellerDemands = () => {
                                 <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400 ml-1">Topic Category</label>
                                 <Select
                                     value={newDemand.category}
-                                    onValueChange={(val: any) => setNewDemand(prev => ({ ...prev, category: val }))}
+                                    onValueChange={(val) => setNewDemand(prev => ({ ...prev, category: val }))}
                                 >
                                     <SelectTrigger className="h-12 rounded-2xl border-gray-100 bg-gray-50/50">
                                         <SelectValue />
@@ -500,7 +500,7 @@ const SellerDemands = () => {
                                 <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400 ml-1">Priority Level</label>
                                 <Select
                                     value={newDemand.priority}
-                                    onValueChange={(val: any) => setNewDemand(prev => ({ ...prev, priority: val }))}
+                                    onValueChange={(val) => setNewDemand(prev => ({ ...prev, priority: val }))}
                                 >
                                     <SelectTrigger className="h-12 rounded-2xl border-gray-100 bg-gray-50/50">
                                         <SelectValue />

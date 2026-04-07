@@ -16,7 +16,8 @@ import {
     Truck,
     FileText,
     Package,
-    Puzzle
+    Puzzle,
+    type LucideIcon,
 } from 'lucide-react';
 import { FaWhatsapp } from 'react-icons/fa';
 import { cn } from '@/lib/utils';
@@ -24,7 +25,7 @@ import { supabase } from '@/lib/supabase';
 import { useQuery } from '@tanstack/react-query';
 
 type NavItem = {
-    icon: any;
+    icon: LucideIcon | React.ComponentType<{ className?: string }>;
     label: string;
     path: string;
 };
@@ -91,7 +92,7 @@ const SellerSidebar = () => {
         queryKey: ['seller-wa-access', profile?.id],
         queryFn: async () => {
             if (!profile?.id) return false;
-            const { count } = await (supabase as any)
+            const { count } = await supabase
                 .from('whatsapp_user_instances')
                 .select('id', { count: 'exact', head: true })
                 .eq('user_id', profile.id);
@@ -109,7 +110,7 @@ const SellerSidebar = () => {
     const visibleNavigation: NavItem[] = React.useMemo(() => {
         if (!hasWhatsAppAccess) return navigation;
         const ordersIdx = navigation.findIndex(n => n.path === '/seller/orders');
-        const waItem: NavItem = { icon: FaWhatsapp as any, label: 'WhatsApp', path: '/seller/whatsapp/inbox' };
+        const waItem: NavItem = { icon: FaWhatsapp as React.ComponentType<{ className?: string }>, label: 'WhatsApp', path: '/seller/whatsapp/inbox' };
         if (ordersIdx === -1) return [...navigation, waItem];
         return [
             ...navigation.slice(0, ordersIdx + 1),

@@ -91,7 +91,7 @@ export const InventorySection = ({ businessId, dateFilter }: InventorySectionPro
 
         const productSales: Record<string, { name: string; image_url: string | null; sold: number; revenue: number; cost: number }> = {};
         (orderItems || []).forEach(item => {
-            const orderDate = (item as any).orders?.date;
+            const orderDate = (item as { orders?: { date?: string } }).orders?.date;
             if (!isInRange(orderDate)) return;
             const pid = item.product_id;
             const product = products.find(p => p.id === pid);
@@ -133,7 +133,7 @@ export const InventorySection = ({ businessId, dateFilter }: InventorySectionPro
             const mStart = startOfMonth(month);
             const mEnd = new Date(mStart.getFullYear(), mStart.getMonth() + 1, 0);
             const monthItems = (orderItems || []).filter(item => {
-                const od = (item as any).orders?.date;
+                const od = (item as { orders?: { date?: string } }).orders?.date;
                 return od && isWithinInterval(new Date(od), { start: mStart, end: mEnd });
             });
             return {

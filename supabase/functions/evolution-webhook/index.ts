@@ -154,7 +154,7 @@ async function findOrCreateConversation(
   // COMPREHENSIVE search: find ALL conversations that could belong to this contact
   // Search by JID columns, contact_id, AND display_name in a SINGLE pass
   // This prevents duplicates by finding existing conversations regardless of JID format
-  let orParts = candidates.map(c => `jid.eq.${c},phone_jid.eq.${c},lid_jid.eq.${c}`);
+  const orParts = candidates.map(c => `jid.eq.${c},phone_jid.eq.${c},lid_jid.eq.${c}`);
   // Also search by display_name for individual chats (catches LID↔phone split)
   if (params.displayName && params.type === 'individual') {
     orParts.push(`display_name.eq.${params.displayName}`);

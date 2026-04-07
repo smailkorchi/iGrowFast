@@ -88,7 +88,7 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
         const filtered = orders.filter(o => isInRange(o.date));
         const activeSellers = sellers.filter(s => s.active);
 
-        const isDelivered = (o: any) => isDeliveredForCommission(o, deliveredPkgIds);
+        const isDelivered = (o: Record<string, unknown>) => isDeliveredForCommission(o, deliveredPkgIds);
 
         /** Unpaid commission uses lifetime paid tally — orders must not be date-filtered. */
         const totalPaidToSellers = (sellerPayments || [])
@@ -113,9 +113,10 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
             const paidPayments = (sellerPayments || []).filter(sp => sp.seller_id === seller.id && sp.status === 'paid');
             const totalPaid = paidPayments.reduce((s, sp) => s + Number(sp.total_amount || 0), 0);
             const alreadyPaidDeliveries = paidPayments.reduce((s, sp) => s + Number(sp.delivered_orders || 0), 0);
-            const basis = normalizeCommissionBasis((seller as any).commission_basis);
-            const sellerProductIds = Array.isArray((seller as any).products)
-                ? ((seller as any).products as string[]).filter((id): id is string => typeof id === 'string' && id.length > 0)
+            const sellerExt = seller as { commission_basis?: string | null; products?: unknown };
+            const basis = normalizeCommissionBasis(sellerExt.commission_basis);
+            const sellerProductIds = Array.isArray(sellerExt.products)
+                ? (sellerExt.products as string[]).filter((id): id is string => typeof id === 'string' && id.length > 0)
                 : [];
             const { unpaidCommission: liveCommission } = computeUnpaidCommission({
                 basis,

@@ -170,7 +170,7 @@ export function WhatsAppQuickSend({ phone, open, onClose }: Props) {
         };
         setContact(resolved);
         setStep('preview');
-      } catch (e: any) {
+      } catch (e) {
         if (cancelled) return;
         setStep('error');
         setErrorMsg(e?.message || 'Could not check this number.');
@@ -276,7 +276,7 @@ export function WhatsAppQuickSend({ phone, open, onClose }: Props) {
       } catch { /* contacts upsert is best-effort */ }
 
       setStep('success');
-    } catch (e: any) {
+    } catch (e) {
       setErrorMsg(e?.message || 'Failed to send message.');
       setStep('error');
     }
