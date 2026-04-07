@@ -95,7 +95,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useDropzone } from 'react-dropzone';
 import { cn } from '@/lib/utils';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { FaWhatsapp } from 'react-icons/fa';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -115,6 +116,10 @@ const userSchema = z.object({
     active: z.boolean().default(true),
     permissions: z.record(z.any()).default({}),
     avatar_url: z.string().optional().nullable(),
+    whatsapp_access: z.object({
+        mode: z.enum(['none', 'all', 'specific']).default('none'),
+        instance_ids: z.array(z.string()).default([]),
+    }).default({ mode: 'none', instance_ids: [] }),
 });
 
 type UserFormValues = z.infer<typeof userSchema>;
@@ -193,12 +198,33 @@ const Users = () => {
         },
     });
 
+    // Set of user_ids that have at least one WhatsApp instance assigned for this business.
+    const { data: usersWithWhatsApp } = useQuery({
+        queryKey: ['users-wa-access', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return new Set<string>();
+            const { data, error } = await (supabase as any)
+                .from('whatsapp_user_instances')
+                .select('user_id')
+                .eq('business_id', activeBusinessId);
+            if (error) return new Set<string>();
+            return new Set<string>((data || []).map((r: any) => r.user_id));
+        },
+        enabled: !!activeBusinessId,
+    });
+
     const addUserMutation = useMutation({
         mutationFn: async (values: UserFormValues) => {
             const { data, error } = await supabase.functions.invoke('manage-users', {
                 body: {
                     action: 'create',
-                    userData: { ...values, 'DigiCom Business': activeBusinessId }
+                    userData: {
+                        ...values,
+                        'DigiCom Business': activeBusinessId,
+                        whatsapp_access: values.role === 'commercial'
+                            ? { ...values.whatsapp_access, business_id: activeBusinessId }
+                            : { mode: 'none' },
+                    }
                 }
             });
 
@@ -210,6 +236,7 @@ const Users = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['users'] });
+            queryClient.invalidateQueries({ queryKey: ['users-wa-access'] });
             setIsAddModalOpen(false);
             toast({ title: "User created", description: "The user has been successfully created in Auth and Database." });
         },
@@ -224,7 +251,13 @@ const Users = () => {
                 body: {
                     action: 'update',
                     userId: id,
-                    userData: { ...values, 'DigiCom Business': activeBusinessId }
+                    userData: {
+                        ...values,
+                        'DigiCom Business': activeBusinessId,
+                        whatsapp_access: values.role === 'commercial'
+                            ? { ...values.whatsapp_access, business_id: activeBusinessId }
+                            : { mode: 'none' },
+                    }
                 }
             });
 
@@ -236,6 +269,7 @@ const Users = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['users'] });
+            queryClient.invalidateQueries({ queryKey: ['users-wa-access'] });
             setEditingUser(null);
             toast({ title: "User updated", description: "The user has been successfully updated." });
         },
@@ -254,6 +288,7 @@ const Users = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['users'] });
+            queryClient.invalidateQueries({ queryKey: ['users-wa-access'] });
             toast({ title: "User deleted", description: "The user has been successfully removed from Auth and Database." });
         },
         onError: (error: any) => {
@@ -351,6 +386,7 @@ const Users = () => {
                                             <UserCard
                                                 key={user.id}
                                                 user={user}
+                                                hasWhatsApp={usersWithWhatsApp?.has(user.id) || false}
                                                 onEdit={() => setEditingUser(user)}
                                                 onDelete={() => {
                                                     if (confirm("Are you sure you want to delete this user?")) {
@@ -391,9 +427,17 @@ const Users = () => {
     );
 };
 
-const UserCard = ({ user, onEdit, onDelete }: { user: any, onEdit: () => void, onDelete: () => void }) => {
+const UserCard = ({ user, hasWhatsApp, onEdit, onDelete }: { user: any, hasWhatsApp?: boolean, onEdit: () => void, onDelete: () => void }) => {
     return (
         <Card className="group relative overflow-hidden border-none bg-white/50 backdrop-blur-sm hover:shadow-2xl transition-all duration-300 rounded-[32px]">
+            {hasWhatsApp && (
+                <div
+                    className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-[#25D366]/10 border border-[#25D366]/20 flex items-center justify-center shadow-sm"
+                    title="WhatsApp inbox access enabled"
+                >
+                    <FaWhatsapp className="w-4 h-4 text-[#25D366]" />
+                </div>
+            )}
             <CardHeader className="flex flex-row items-start justify-between pb-2">
                 <div className="flex items-center gap-4">
                     <Avatar className="h-14 w-14 border-2 border-brand-white shadow-sm">
@@ -526,7 +570,47 @@ const UserModal = ({
             products: [],
             active: true,
             permissions: {},
+            whatsapp_access: { mode: 'none', instance_ids: [] },
         }
+    });
+
+    // ── Connected WhatsApp instances for the active business ──────────
+    const { data: waInstances } = useQuery({
+        queryKey: ['whatsapp-instances-user-modal', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return [];
+            const { data, error } = await (supabase as any)
+                .from('whatsapp_instances')
+                .select('id, instance_name, phone_number, profile_pic, status')
+                .eq('business_id', activeBusinessId)
+                .eq('status', 'open')
+                .order('created_at', { ascending: true });
+            if (error) throw error;
+            return data ?? [];
+        },
+        enabled: !!activeBusinessId && isOpen,
+    });
+
+    // ── Existing assignments for the user being edited ────────────────
+    const editingUserId = (initialData as any)?.id;
+    const { data: existingAccess } = useQuery({
+        queryKey: ['whatsapp-user-access', editingUserId],
+        queryFn: async () => {
+            if (!editingUserId) return null;
+            const { data, error } = await (supabase as any)
+                .from('whatsapp_user_instances')
+                .select('instance_id, scope')
+                .eq('user_id', editingUserId);
+            if (error) throw error;
+            const rows = data || [];
+            if (rows.length === 0) return { mode: 'none' as const, instance_ids: [] };
+            if (rows.some((r: any) => r.scope === 'all')) return { mode: 'all' as const, instance_ids: [] };
+            return {
+                mode: 'specific' as const,
+                instance_ids: rows.map((r: any) => r.instance_id).filter(Boolean),
+            };
+        },
+        enabled: !!editingUserId && isOpen,
     });
 
     const { data: products, isLoading: isProductsLoading } = useQuery({
@@ -551,6 +635,9 @@ const UserModal = ({
         p.code.toLowerCase().includes(productSearch.toLowerCase())
     );
 
+    const [activeTab, setActiveTab] = useState<'identity' | 'permissions' | 'performance' | 'whatsapp'>('identity');
+    useEffect(() => { if (isOpen) setActiveTab('identity'); }, [isOpen]);
+
     useEffect(() => {
         if (isOpen) {
             if (initialData) {
@@ -560,6 +647,7 @@ const UserModal = ({
                     commission_basis: normalizeCommissionBasis(initialData.commission_basis),
                     products: Array.isArray(initialData.products) ? initialData.products : [],
                     permissions: initialData.permissions || {},
+                    whatsapp_access: existingAccess || { mode: 'none', instance_ids: [] },
                 });
                 setAvatarPreview(initialData.avatar_url ?? null);
             } else {
@@ -575,11 +663,12 @@ const UserModal = ({
                     products: [],
                     active: true,
                     permissions: {},
+                    whatsapp_access: { mode: 'none', instance_ids: [] },
                 });
                 setAvatarPreview(null);
             }
         }
-    }, [initialData, form, isOpen]);
+    }, [initialData, form, isOpen, existingAccess]);
 
     const onDrop = useCallback((acceptedFiles: File[]) => {
         const file = acceptedFiles[0];
@@ -618,106 +707,135 @@ const UserModal = ({
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="max-w-6xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden overflow-y-auto max-h-[90vh]">
+            <DialogContent className="max-w-3xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(handleFormSubmit)} className="flex flex-col h-full overflow-hidden">
-                        <DialogHeader className="p-8 pb-4 border-b border-brand-navy/5">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <DialogTitle className="text-3xl font-bold text-brand-navy">{title}</DialogTitle>
-                                    <DialogDescription className="text-muted-foreground mt-1 text-base">
-                                        Configure account details and access levels.
+                    <form onSubmit={form.handleSubmit(handleFormSubmit)} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                        {/* ── Compact Header ───────────────────────────────────────── */}
+                        <DialogHeader className="px-8 pt-8 pb-5 border-b border-brand-navy/5">
+                            <div className="flex items-start gap-5">
+                                <div
+                                    {...getRootProps()}
+                                    className={cn(
+                                        "relative group flex-shrink-0 flex items-center justify-center border-2 border-dashed rounded-3xl transition-all duration-300 cursor-pointer overflow-hidden w-20 h-20",
+                                        isDragActive ? "border-brand-blue bg-brand-blue/5 scale-95" : "border-brand-navy/15 hover:border-brand-navy/40 bg-brand-navy/[0.02]",
+                                        avatarPreview ? "border-solid border-brand-navy/10" : ""
+                                    )}
+                                >
+                                    <input {...getInputProps()} />
+                                    {avatarPreview ? (
+                                        <>
+                                            <img src={avatarPreview} alt="" className="w-full h-full object-cover" />
+                                            <div className="absolute inset-0 bg-brand-navy/50 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Upload className="w-4 h-4 text-white" />
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <Upload className="w-5 h-5 text-brand-navy/30" />
+                                    )}
+                                </div>
+                                <div className="flex-1 min-w-0 pt-1">
+                                    <DialogTitle className="text-2xl font-bold text-brand-navy leading-tight">{title}</DialogTitle>
+                                    <DialogDescription className="text-muted-foreground mt-1 text-sm">
+                                        {form.watch('role') === 'super admin' ? 'Highest privilege account.'
+                                            : form.watch('role') === 'admin' ? 'Configure modules this admin can access.'
+                                            : 'Configure parameters, products, and inbox access.'}
                                     </DialogDescription>
                                 </div>
                             </div>
                         </DialogHeader>
 
-                        <div className="flex flex-col lg:flex-row min-h-[500px] max-h-[70vh] overflow-hidden w-full min-w-0">
-                            {/* Main Section - Base Information */}
-                            <ScrollArea className="flex-1 p-8 min-w-0">
-                                <div className="space-y-8">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                        {/* Avatar Section */}
-                                        <div className="space-y-4">
-                                            <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Profile Avatar</FormLabel>
-                                            <div
-                                                {...getRootProps()}
-                                                className={cn(
-                                                    "relative group flex flex-col items-center justify-center border-2 border-dashed rounded-[40px] p-4 transition-all duration-500 cursor-pointer overflow-hidden aspect-square max-w-[180px] bg-brand-navy/[0.02]",
-                                                    isDragActive ? "border-brand-blue bg-brand-blue/5 scale-95" : "border-brand-navy/10 hover:border-brand-navy/30 hover:bg-brand-navy/[0.05]",
-                                                    avatarPreview ? "p-0" : ""
-                                                )}
+                        {/* ── Tabs ──────────────────────────────────────────────────── */}
+                        <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                            <div className="px-8 pt-5">
+                                <TabsList className="bg-brand-navy/[0.04] p-1 rounded-2xl h-auto inline-flex gap-1">
+                                    <TabsTrigger
+                                        value="identity"
+                                        className="rounded-xl px-4 py-2 text-[11px] font-bold uppercase tracking-wider data-[state=active]:bg-brand-white data-[state=active]:text-brand-navy data-[state=active]:shadow-sm text-brand-navy/50 transition-all"
+                                    >
+                                        <UserIcon className="w-3.5 h-3.5 mr-1.5" />
+                                        Identity
+                                    </TabsTrigger>
+                                    {form.watch('role') === 'admin' && (
+                                        <TabsTrigger
+                                            value="permissions"
+                                            className="rounded-xl px-4 py-2 text-[11px] font-bold uppercase tracking-wider data-[state=active]:bg-brand-white data-[state=active]:text-brand-navy data-[state=active]:shadow-sm text-brand-navy/50 transition-all"
+                                        >
+                                            <Shield className="w-3.5 h-3.5 mr-1.5" />
+                                            Page Access
+                                        </TabsTrigger>
+                                    )}
+                                    {form.watch('role') === 'commercial' && (
+                                        <>
+                                            <TabsTrigger
+                                                value="performance"
+                                                className="rounded-xl px-4 py-2 text-[11px] font-bold uppercase tracking-wider data-[state=active]:bg-brand-white data-[state=active]:text-brand-navy data-[state=active]:shadow-sm text-brand-navy/50 transition-all"
                                             >
-                                                <input {...getInputProps()} />
-                                                {avatarPreview ? (
-                                                    <>
-                                                        <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
-                                                        <div className="absolute inset-0 bg-brand-navy/40 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300">
-                                                            <div className="bg-brand-white/20 p-3 rounded-full border border-brand-white/30 backdrop-blur-md">
-                                                                <Upload className="w-6 h-6 text-brand-white" />
-                                                            </div>
-                                                        </div>
-                                                    </>
-                                                ) : (
-                                                    <div className="text-center group-hover:scale-105 transition-transform duration-500">
-                                                        <div className="w-12 h-12 rounded-[18px] bg-brand-navy/5 flex items-center justify-center mx-auto mb-2 border border-brand-navy/5">
-                                                            <Upload className="w-5 h-5 text-brand-navy/40" />
-                                                        </div>
-                                                        <p className="text-[10px] font-bold text-brand-navy">Drop Image</p>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
+                                                <BarChart2 className="w-3.5 h-3.5 mr-1.5" />
+                                                Performance
+                                            </TabsTrigger>
+                                            <TabsTrigger
+                                                value="whatsapp"
+                                                className="rounded-xl px-4 py-2 text-[11px] font-bold uppercase tracking-wider data-[state=active]:bg-brand-white data-[state=active]:text-brand-navy data-[state=active]:shadow-sm text-brand-navy/50 transition-all"
+                                            >
+                                                <FaWhatsapp className="w-3.5 h-3.5 mr-1.5 text-[#25D366]" />
+                                                WhatsApp
+                                            </TabsTrigger>
+                                        </>
+                                    )}
+                                </TabsList>
+                            </div>
 
-                                        {/* Name & Role Section */}
-                                        <div className="space-y-6">
-                                            <FormField
-                                                control={form.control}
-                                                name="name"
-                                                render={({ field }) => (
-                                                    <FormItem className="space-y-2">
-                                                        <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Full Name</FormLabel>
+                            {/* ── Body (scrollable) ───────────────────────────────── */}
+                            <div className="flex-1 min-h-0 overflow-y-auto px-8 py-6">
+                                {/* ── TAB: Identity ───────────────────────────────── */}
+                                <TabsContent value="identity" className="m-0 space-y-6 outline-none">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                        <FormField
+                                            control={form.control}
+                                            name="name"
+                                            render={({ field }) => (
+                                                <FormItem className="space-y-2">
+                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Full Name</FormLabel>
+                                                    <FormControl>
+                                                        <Input placeholder="E.g. Alexander Pierce" {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control}
+                                            name="role"
+                                            render={({ field }) => (
+                                                <FormItem className="space-y-2">
+                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">System Role</FormLabel>
+                                                    <Select onValueChange={field.onChange} value={field.value}>
                                                         <FormControl>
-                                                            <Input placeholder="E.g. Alexander Pierce" {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
+                                                            <SelectTrigger className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy focus:ring-2 focus:ring-brand-navy/10 transition-all shadow-inner">
+                                                                <SelectValue placeholder="Assign a role" />
+                                                            </SelectTrigger>
                                                         </FormControl>
-                                                        <FormMessage />
-                                                    </FormItem>
-                                                )}
-                                            />
-                                            <FormField
-                                                control={form.control}
-                                                name="role"
-                                                render={({ field }) => (
-                                                    <FormItem className="space-y-2">
-                                                        <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">System Role</FormLabel>
-                                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                            <FormControl>
-                                                                <SelectTrigger className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy focus:ring-2 focus:ring-brand-navy/10 transition-all shadow-inner">
-                                                                    <SelectValue placeholder="Assign a role" />
-                                                                </SelectTrigger>
-                                                            </FormControl>
-                                                            <SelectContent className="rounded-2xl border-none shadow-2xl p-2 bg-brand-white/95 backdrop-blur-xl">
-                                                                {['super admin', 'admin', 'commercial'].map((role) => (
-                                                                    <SelectItem key={role} value={role} className="rounded-xl p-3 capitalize font-bold text-brand-navy focus:bg-brand-navy focus:text-brand-white transition-colors cursor-pointer">
-                                                                        {role}
-                                                                    </SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
-                                                        <FormMessage />
-                                                    </FormItem>
-                                                )}
-                                            />
-                                        </div>
+                                                        <SelectContent className="rounded-2xl border-none shadow-2xl p-2 bg-brand-white/95 backdrop-blur-xl">
+                                                            {['super admin', 'admin', 'commercial'].map((role) => (
+                                                                <SelectItem key={role} value={role} className="rounded-xl p-3 capitalize font-bold text-brand-navy focus:bg-brand-navy focus:text-brand-white transition-colors cursor-pointer">
+                                                                    {role}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
                                     </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                         <FormField
                                             control={form.control}
                                             name="username"
                                             render={({ field }) => (
                                                 <FormItem className="space-y-2">
-                                                    <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Username</FormLabel>
+                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Username</FormLabel>
                                                     <FormControl>
                                                         <div className="relative">
                                                             <span className="absolute left-5 top-1/2 -translate-y-1/2 text-brand-navy/30 font-black text-sm">@</span>
@@ -733,7 +851,7 @@ const UserModal = ({
                                             name="email"
                                             render={({ field }) => (
                                                 <FormItem className="space-y-2">
-                                                    <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Email Address</FormLabel>
+                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Email Address</FormLabel>
                                                     <FormControl>
                                                         <div className="relative">
                                                             <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-navy/30" />
@@ -746,13 +864,13 @@ const UserModal = ({
                                         />
                                     </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                         <FormField
                                             control={form.control}
                                             name="password"
                                             render={({ field }) => (
                                                 <FormItem className="space-y-2">
-                                                    <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Password</FormLabel>
+                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Password</FormLabel>
                                                     <FormControl>
                                                         <Input
                                                             type="password"
@@ -770,8 +888,8 @@ const UserModal = ({
                                             control={form.control}
                                             name="active"
                                             render={({ field }) => (
-                                                <FormItem className="flex flex-col justify-end">
-                                                    <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70 mb-2">Account Status</FormLabel>
+                                                <FormItem className="flex flex-col">
+                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 mb-2">Account Status</FormLabel>
                                                     <div className="flex items-center gap-4 h-12 bg-brand-navy/[0.04] px-4 rounded-2xl shadow-inner">
                                                         <Switch
                                                             checked={field.value}
@@ -784,227 +902,325 @@ const UserModal = ({
                                             )}
                                         />
                                     </div>
-                                </div>
-                            </ScrollArea>
+                                </TabsContent>
 
-                            {/* Side Section - Role Specific Details */}
-                            {form.watch('role') !== 'super admin' && (
-                                <div className="w-full lg:w-[450px] lg:max-w-[450px] min-w-0 bg-muted/20 border-l border-brand-navy/5 flex flex-col overflow-hidden">
-                                    <div className="p-8 pb-4">
-                                        <h4 className="text-xl font-bold text-brand-navy">
-                                            {form.watch('role') === 'admin' ? 'Page Access' : 'Business Parameters'}
-                                        </h4>
-                                        <p className="text-xs text-muted-foreground font-medium">
-                                            {form.watch('role') === 'admin' ? 'Select which modules this admin can access.' : 'Configure sales targets and product scope.'}
-                                        </p>
+                                {/* ── TAB: Page Access (admin) ───────────────────── */}
+                                <TabsContent value="permissions" className="m-0 outline-none">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                        {pages.map((page) => {
+                                            const isChecked = form.watch('permissions.pages')?.[page.path];
+                                            return (
+                                                <div
+                                                    key={page.path}
+                                                    className={cn(
+                                                        "flex items-center gap-3 p-3 rounded-2xl transition-all duration-200 cursor-pointer group border-2",
+                                                        isChecked
+                                                            ? "bg-brand-navy border-brand-navy text-brand-white"
+                                                            : "bg-brand-white border-brand-navy/5 hover:border-brand-navy/20"
+                                                    )}
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        const current = form.getValues('permissions.pages') || {};
+                                                        form.setValue('permissions.pages', {
+                                                            ...current,
+                                                            [page.path]: !current[page.path]
+                                                        }, { shouldDirty: true });
+                                                    }}
+                                                >
+                                                    <div className={cn(
+                                                        "w-9 h-9 rounded-xl flex items-center justify-center transition-all shrink-0",
+                                                        isChecked ? "bg-white/10" : "bg-brand-navy/5 text-brand-navy"
+                                                    )}>
+                                                        <page.icon className="w-4 h-4" />
+                                                    </div>
+                                                    <span className="text-xs font-bold flex-1 truncate">{page.label}</span>
+                                                    <div className={cn(
+                                                        "w-5 h-5 rounded-full flex items-center justify-center border-2 transition-all shrink-0",
+                                                        isChecked ? "bg-white border-white text-brand-navy" : "border-brand-navy/10 text-transparent"
+                                                    )}>
+                                                        <Check className="w-3 h-3" />
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </TabsContent>
+
+                                {/* ── TAB: Performance (commercial) ──────────────── */}
+                                <TabsContent value="performance" className="m-0 space-y-5 outline-none">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <FormField
+                                            control={form.control}
+                                            name="assignment"
+                                            render={({ field }) => (
+                                                <FormItem className="space-y-2">
+                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Order Attribution</FormLabel>
+                                                    <FormControl>
+                                                        <Input type="number" placeholder="0" {...field} onChange={e => field.onChange(Number(e.target.value))} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
+                                                    </FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control}
+                                            name="commission_price"
+                                            render={({ field }) => (
+                                                <FormItem className="space-y-2">
+                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Comm. Price</FormLabel>
+                                                    <FormControl>
+                                                        <div className="relative">
+                                                            <Input type="number" placeholder="0" {...field} onChange={e => field.onChange(Number(e.target.value))} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
+                                                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-brand-navy/30 text-xs font-bold">DH</span>
+                                                        </div>
+                                                    </FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
                                     </div>
 
-                                    <div className="flex-1 p-8 pt-2 overflow-y-auto overflow-x-hidden">
-                                        {form.watch('role') === 'admin' && (
-                                            <div className="grid grid-cols-1 gap-3">
-                                                {pages.map((page) => {
-                                                    const isChecked = form.watch('permissions.pages')?.[page.path];
+                                    <FormField
+                                        control={form.control}
+                                        name="commission_basis"
+                                        render={({ field }) => (
+                                            <FormItem className="space-y-3">
+                                                <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Commission Calculation</FormLabel>
+                                                <FormControl>
+                                                    <RadioGroup onValueChange={field.onChange} value={field.value} className="grid grid-cols-2 gap-3">
+                                                        <label className="flex items-start gap-3 cursor-pointer rounded-2xl border-2 border-brand-navy/5 bg-brand-navy/[0.02] p-4 hover:border-brand-navy/20 transition-all has-[:checked]:border-brand-navy has-[:checked]:bg-brand-navy/[0.05]">
+                                                            <RadioGroupItem value="per_order" id="commission-per-order" className="mt-0.5" />
+                                                            <div className="space-y-0.5">
+                                                                <span className="text-xs font-bold text-brand-navy block">Per order</span>
+                                                                <p className="text-[10px] text-muted-foreground leading-snug">Commission × each delivered order</p>
+                                                            </div>
+                                                        </label>
+                                                        <label className="flex items-start gap-3 cursor-pointer rounded-2xl border-2 border-brand-navy/5 bg-brand-navy/[0.02] p-4 hover:border-brand-navy/20 transition-all has-[:checked]:border-brand-navy has-[:checked]:bg-brand-navy/[0.05]">
+                                                            <RadioGroupItem value="per_unit" id="commission-per-unit" className="mt-0.5" />
+                                                            <div className="space-y-0.5">
+                                                                <span className="text-xs font-bold text-brand-navy block">Per unit</span>
+                                                                <p className="text-[10px] text-muted-foreground leading-snug">Commission × total units delivered</p>
+                                                            </div>
+                                                        </label>
+                                                    </RadioGroup>
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    <div className="space-y-3 pt-1">
+                                        <div className="flex items-center justify-between">
+                                            <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Available Products</FormLabel>
+                                            <div className="flex items-center gap-2">
+                                                <Badge variant="outline" className="text-[10px] font-bold rounded-full">{form.watch('products')?.length || 0} / {products?.length || 0}</Badge>
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-7 px-2.5 text-[10px] font-bold uppercase tracking-wider text-brand-navy/60 hover:text-brand-navy hover:bg-brand-navy/5 rounded-lg"
+                                                    onClick={() => {
+                                                        const allIds = products?.map(p => p.id) || [];
+                                                        const current = form.getValues('products') || [];
+                                                        const allSelected = allIds.length > 0 && allIds.every(id => current.includes(id));
+                                                        form.setValue('products', allSelected ? [] : allIds, { shouldDirty: true });
+                                                    }}
+                                                >
+                                                    {(() => {
+                                                        const allIds = products?.map(p => p.id) || [];
+                                                        const current = form.watch('products') || [];
+                                                        return allIds.length > 0 && allIds.every(id => current.includes(id)) ? 'Deselect all' : 'Select all';
+                                                    })()}
+                                                </Button>
+                                            </div>
+                                        </div>
+                                        <div className="relative">
+                                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                            <Input
+                                                placeholder="Search products..."
+                                                value={productSearch}
+                                                onChange={(e) => setProductSearch(e.target.value)}
+                                                className="h-11 pl-11 rounded-2xl border-none bg-brand-navy/[0.04] shadow-inner text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium"
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[280px] overflow-y-auto pr-1">
+                                            {!activeBusinessId ? (
+                                                <p className="col-span-full text-xs text-muted-foreground text-center py-8 px-2">
+                                                    No business selected. Open the app with an active business before assigning products.
+                                                </p>
+                                            ) : isProductsLoading ? (
+                                                <div className="col-span-full flex justify-center py-12">
+                                                    <Loader2 className="w-6 h-6 animate-spin text-brand-navy/40" />
+                                                </div>
+                                            ) : !filteredProducts?.length ? (
+                                                <p className="col-span-full text-xs text-muted-foreground text-center py-8">
+                                                    No active products for this business.
+                                                </p>
+                                            ) : (
+                                                filteredProducts.map((product) => {
+                                                    const isSelected = form.watch('products')?.includes(product.id);
                                                     return (
                                                         <div
-                                                            key={page.path}
-                                                            className={cn(
-                                                                "flex items-center gap-4 p-4 rounded-2xl transition-all duration-200 cursor-pointer group border-2",
-                                                                isChecked
-                                                                    ? "bg-brand-navy border-brand-navy text-brand-white"
-                                                                    : "bg-brand-white border-transparent hover:border-brand-navy/10"
-                                                            )}
-                                                            onClick={(e) => {
-                                                                e.preventDefault();
-                                                                const current = form.getValues('permissions.pages') || {};
-                                                                form.setValue('permissions.pages', {
-                                                                    ...current,
-                                                                    [page.path]: !current[page.path]
-                                                                }, { shouldDirty: true });
+                                                            key={product.id}
+                                                            onClick={() => {
+                                                                const current = form.getValues('products') || [];
+                                                                const next = isSelected
+                                                                    ? current.filter(id => id !== product.id)
+                                                                    : [...current, product.id];
+                                                                form.setValue('products', next, { shouldDirty: true });
                                                             }}
+                                                            className={cn(
+                                                                "flex items-center gap-3 p-2.5 rounded-2xl transition-all cursor-pointer border-2 group min-w-0 overflow-hidden",
+                                                                isSelected ? "bg-brand-navy border-brand-navy text-white" : "bg-white border-brand-navy/5 hover:border-brand-navy/20"
+                                                            )}
                                                         >
-                                                            <div className={cn(
-                                                                "w-10 h-10 rounded-xl flex items-center justify-center transition-all",
-                                                                isChecked ? "bg-white/10" : "bg-brand-navy/5 text-brand-navy"
-                                                            )}>
-                                                                <page.icon className="w-5 h-5" />
+                                                            <Avatar className="h-9 w-9 rounded-xl border border-muted shrink-0">
+                                                                <AvatarImage src={product.image_url || ''} className="object-cover" />
+                                                                <AvatarFallback className="text-[10px] font-bold">PR</AvatarFallback>
+                                                            </Avatar>
+                                                            <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
+                                                                <span className="text-xs font-bold truncate block">{product.name}</span>
+                                                                <span className={cn("text-[10px] font-medium truncate block", isSelected ? "text-white/60" : "text-muted-foreground")}>{product.code}</span>
                                                             </div>
-                                                            <span className="text-sm font-bold flex-1">{page.label}</span>
                                                             <div className={cn(
-                                                                "w-6 h-6 rounded-full flex items-center justify-center border-2 transition-all",
-                                                                isChecked ? "bg-white border-white text-brand-navy" : "border-brand-navy/10 text-transparent"
+                                                                "w-5 h-5 rounded-full flex items-center justify-center border-2 transition-all shrink-0",
+                                                                isSelected ? "bg-white border-white text-brand-navy" : "border-brand-navy/10 text-transparent"
                                                             )}>
-                                                                <Check className="w-3.5 h-3.5" />
+                                                                <Check className="w-3 h-3" />
                                                             </div>
                                                         </div>
                                                     );
-                                                })}
-                                            </div>
-                                        )}
+                                                })
+                                            )}
+                                        </div>
+                                    </div>
+                                </TabsContent>
 
-                                        {form.watch('role') === 'commercial' && (
-                                            <div className="space-y-8">
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    <FormField
-                                                        control={form.control}
-                                                        name="assignment"
-                                                        render={({ field }) => (
-                                                            <FormItem className="space-y-2">
-                                                                <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Order Attribution</FormLabel>
-                                                                <FormControl>
-                                                                    <div className="relative">
-                                                                        <Input type="number" placeholder="0" {...field} onChange={e => field.onChange(Number(e.target.value))} className="h-12 rounded-2xl border-none bg-brand-white text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-sm" />
-                                                                    </div>
-                                                                </FormControl>
-                                                            </FormItem>
-                                                        )}
-                                                    />
-                                                    <FormField
-                                                        control={form.control}
-                                                        name="commission_price"
-                                                        render={({ field }) => (
-                                                            <FormItem className="space-y-2">
-                                                                <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Comm. Price</FormLabel>
-                                                                <FormControl>
-                                                                    <div className="relative">
-                                                                        <Input type="number" placeholder="0" {...field} onChange={e => field.onChange(Number(e.target.value))} className="h-12 rounded-2xl border-none bg-brand-white text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-sm" />
-                                                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-brand-navy/20 text-xs">DH</span>
-                                                                    </div>
-                                                                </FormControl>
-                                                            </FormItem>
-                                                        )}
-                                                    />
-                                                </div>
-
-                                                <FormField
-                                                    control={form.control}
-                                                    name="commission_basis"
-                                                    render={({ field }) => (
-                                                        <FormItem className="space-y-3 rounded-2xl border border-brand-navy/10 bg-brand-navy/[0.02] p-4">
-                                                            <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
-                                                                Commission calculation
-                                                            </FormLabel>
-                                                            <FormControl>
-                                                                <RadioGroup
-                                                                    onValueChange={field.onChange}
-                                                                    value={field.value}
-                                                                    className="grid gap-3"
-                                                                >
-                                                                    <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-transparent p-2 hover:bg-brand-white/80 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand-navy/20">
-                                                                        <RadioGroupItem value="per_order" id="commission-per-order" className="mt-0.5" />
-                                                                        <div className="space-y-0.5">
-                                                                            <span className="text-sm font-bold text-brand-navy">Per order</span>
-                                                                            <p className="text-[11px] text-muted-foreground leading-snug">
-                                                                                Commission price × each delivered order
-                                                                            </p>
-                                                                        </div>
-                                                                    </label>
-                                                                    <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-transparent p-2 hover:bg-brand-white/80 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand-navy/20">
-                                                                        <RadioGroupItem value="per_unit" id="commission-per-unit" className="mt-0.5" />
-                                                                        <div className="space-y-0.5">
-                                                                            <span className="text-sm font-bold text-brand-navy">Per unit</span>
-                                                                            <p className="text-[11px] text-muted-foreground leading-snug">
-                                                                                Commission price × total units (assigned products only) across delivered orders
-                                                                            </p>
-                                                                        </div>
-                                                                    </label>
-                                                                </RadioGroup>
-                                                            </FormControl>
-                                                            <FormMessage />
-                                                        </FormItem>
-                                                    )}
-                                                />
-
-                                                <div className="space-y-4">
-                                                    <div className="flex items-center justify-between">
-                                                        <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Available Products</FormLabel>
-                                                        <div className="flex items-center gap-2">
-                                                            <Badge variant="outline" className="text-[10px] font-bold">{form.watch('products')?.length || 0} / {products?.length || 0} selected</Badge>
-                                                            <Button
-                                                                type="button"
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                className="h-7 px-2.5 text-[10px] font-bold uppercase tracking-wider text-brand-navy/60 hover:text-brand-navy hover:bg-brand-navy/5 rounded-lg"
-                                                                onClick={() => {
-                                                                    const allIds = products?.map(p => p.id) || [];
-                                                                    const current = form.getValues('products') || [];
-                                                                    const allSelected = allIds.length > 0 && allIds.every(id => current.includes(id));
-                                                                    form.setValue('products', allSelected ? [] : allIds, { shouldDirty: true });
-                                                                }}
-                                                            >
-                                                                {(() => {
-                                                                    const allIds = products?.map(p => p.id) || [];
-                                                                    const current = form.watch('products') || [];
-                                                                    return allIds.length > 0 && allIds.every(id => current.includes(id)) ? 'Deselect all' : 'Select all';
-                                                                })()}
-                                                            </Button>
+                                {/* ── TAB: WhatsApp (commercial) ─────────────────── */}
+                                <TabsContent value="whatsapp" className="m-0 outline-none">
+                                    <FormField
+                                        control={form.control}
+                                        name="whatsapp_access"
+                                        render={({ field }) => {
+                                            const access = field.value || { mode: 'none' as const, instance_ids: [] };
+                                            const enabled = access.mode !== 'none';
+                                            const setMode = (mode: 'none' | 'all' | 'specific') => {
+                                                field.onChange({ ...access, mode, instance_ids: mode === 'specific' ? access.instance_ids : [] });
+                                            };
+                                            const toggleInstance = (id: string) => {
+                                                const current = access.instance_ids || [];
+                                                const next = current.includes(id) ? current.filter(x => x !== id) : [...current, id];
+                                                field.onChange({ ...access, mode: 'specific', instance_ids: next });
+                                            };
+                                            return (
+                                                <FormItem className="space-y-5">
+                                                    {/* Top toggle card */}
+                                                    <div className="flex items-center justify-between gap-4 rounded-2xl border-2 border-brand-navy/5 bg-brand-navy/[0.02] p-5">
+                                                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                                                            <div className="w-11 h-11 rounded-2xl bg-[#25D366]/10 flex items-center justify-center shrink-0">
+                                                                <FaWhatsapp className="w-5 h-5 text-[#25D366]" />
+                                                            </div>
+                                                            <div className="space-y-0.5 min-w-0">
+                                                                <FormLabel className="text-xs font-bold text-brand-navy block">Enable inbox access</FormLabel>
+                                                                <p className="text-[11px] text-muted-foreground leading-snug">
+                                                                    Let this seller open the WhatsApp inbox for selected devices.
+                                                                </p>
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                    <div className="relative">
-                                                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                                                        <Input
-                                                            placeholder="Search products..."
-                                                            value={productSearch}
-                                                            onChange={(e) => setProductSearch(e.target.value)}
-                                                            className="h-11 pl-11 rounded-2xl border-none bg-white shadow-sm text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium"
+                                                        <Switch
+                                                            checked={enabled}
+                                                            onCheckedChange={(v) => setMode(v ? 'all' : 'none')}
+                                                            className="data-[state=checked]:bg-[#25D366]"
                                                         />
                                                     </div>
-                                                    <div className="space-y-2 max-h-[400px] overflow-y-auto overflow-x-hidden">
-                                                        {!activeBusinessId ? (
-                                                            <p className="text-xs text-muted-foreground text-center py-8 px-2">
-                                                                No business selected. Open the app with an active business (e.g. from your profile or business switcher) before assigning products.
-                                                            </p>
-                                                        ) : isProductsLoading ? (
-                                                            <div className="flex justify-center py-12">
-                                                                <Loader2 className="w-8 h-8 animate-spin text-brand-navy/40" />
-                                                            </div>
-                                                        ) : !filteredProducts?.length ? (
-                                                            <p className="text-xs text-muted-foreground text-center py-8">
-                                                                No active products for this business.
-                                                            </p>
-                                                        ) : (
-                                                            filteredProducts.map((product) => {
-                                                                const isSelected = form.watch('products')?.includes(product.id);
-                                                                return (
-                                                                    <div
-                                                                        key={product.id}
-                                                                        onClick={() => {
-                                                                            const current = form.getValues('products') || [];
-                                                                            const next = isSelected
-                                                                                ? current.filter(id => id !== product.id)
-                                                                                : [...current, product.id];
-                                                                            form.setValue('products', next, { shouldDirty: true });
-                                                                        }}
-                                                                        className={cn(
-                                                                            "flex items-center gap-3 p-3 rounded-2xl transition-all cursor-pointer border-2 group min-w-0 overflow-hidden",
-                                                                            isSelected ? "bg-brand-navy border-brand-navy text-white" : "bg-white border-transparent hover:border-brand-navy/10"
-                                                                        )}
-                                                                    >
-                                                                        <Avatar className="h-10 w-10 rounded-xl border border-muted group-hover:scale-105 transition-transform">
-                                                                            <AvatarImage src={product.image_url || ''} className="object-cover" />
-                                                                            <AvatarFallback className="text-[10px] font-bold">PR</AvatarFallback>
-                                                                        </Avatar>
-                                                                        <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
-                                                                            <span className="text-xs font-bold truncate block">{product.name}</span>
-                                                                            <span className={cn("text-[10px] font-medium truncate block", isSelected ? "text-white/60" : "text-muted-foreground")}>{product.code}</span>
-                                                                        </div>
-                                                                        <div className={cn(
-                                                                            "w-5 h-5 rounded-full flex items-center justify-center border-2 transition-all",
-                                                                            isSelected ? "bg-white border-white text-brand-navy" : "border-brand-navy/10 text-transparent"
-                                                                        )}>
-                                                                            <Check className="w-3 h-3" />
-                                                                        </div>
+
+                                                    {enabled && (
+                                                        <>
+                                                            {/* Mode selector */}
+                                                            <RadioGroup
+                                                                value={access.mode}
+                                                                onValueChange={(v) => setMode(v as 'all' | 'specific')}
+                                                                className="grid grid-cols-2 gap-3"
+                                                            >
+                                                                <label className="flex items-start gap-3 cursor-pointer rounded-2xl border-2 border-brand-navy/5 bg-brand-white p-4 hover:border-brand-navy/20 transition-all has-[:checked]:border-brand-navy has-[:checked]:bg-brand-navy/[0.04]">
+                                                                    <RadioGroupItem value="all" id="wa-all-tab" className="mt-0.5" />
+                                                                    <div className="space-y-0.5">
+                                                                        <span className="text-xs font-bold text-brand-navy block">All devices</span>
+                                                                        <p className="text-[10px] text-muted-foreground leading-snug">Includes future ones automatically</p>
                                                                     </div>
-                                                                );
-                                                            })
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
+                                                                </label>
+                                                                <label className="flex items-start gap-3 cursor-pointer rounded-2xl border-2 border-brand-navy/5 bg-brand-white p-4 hover:border-brand-navy/20 transition-all has-[:checked]:border-brand-navy has-[:checked]:bg-brand-navy/[0.04]">
+                                                                    <RadioGroupItem value="specific" id="wa-specific-tab" className="mt-0.5" />
+                                                                    <div className="space-y-0.5">
+                                                                        <span className="text-xs font-bold text-brand-navy block">Specific</span>
+                                                                        <p className="text-[10px] text-muted-foreground leading-snug">Pick devices below</p>
+                                                                    </div>
+                                                                </label>
+                                                            </RadioGroup>
+
+                                                            {/* Specific picker */}
+                                                            {access.mode === 'specific' && (
+                                                                <div className="space-y-2">
+                                                                    <div className="flex items-center justify-between">
+                                                                        <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Connected Devices</FormLabel>
+                                                                        <Badge variant="outline" className="text-[10px] font-bold rounded-full">
+                                                                            {(access.instance_ids || []).length} / {waInstances?.length || 0}
+                                                                        </Badge>
+                                                                    </div>
+                                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[260px] overflow-y-auto pr-1">
+                                                                        {!waInstances?.length ? (
+                                                                            <p className="col-span-full text-[11px] text-muted-foreground text-center py-8">
+                                                                                No connected WhatsApp devices for this business yet.
+                                                                            </p>
+                                                                        ) : (
+                                                                            waInstances.map((inst: any) => {
+                                                                                const checked = (access.instance_ids || []).includes(inst.id);
+                                                                                return (
+                                                                                    <div
+                                                                                        key={inst.id}
+                                                                                        onClick={() => toggleInstance(inst.id)}
+                                                                                        className={cn(
+                                                                                            "flex items-center gap-3 p-3 rounded-2xl border-2 cursor-pointer transition-all min-w-0",
+                                                                                            checked
+                                                                                                ? "bg-brand-navy border-brand-navy text-white"
+                                                                                                : "bg-white border-brand-navy/5 hover:border-brand-navy/20"
+                                                                                        )}
+                                                                                    >
+                                                                                        <Avatar className="h-9 w-9 rounded-full border border-muted shrink-0">
+                                                                                            <AvatarImage src={inst.profile_pic || ''} className="object-cover" />
+                                                                                            <AvatarFallback className="text-[10px] font-bold bg-brand-navy/10 text-brand-navy">
+                                                                                                {inst.instance_name.substring(0, 2).toUpperCase()}
+                                                                                            </AvatarFallback>
+                                                                                        </Avatar>
+                                                                                        <div className="flex-1 min-w-0">
+                                                                                            <p className="text-xs font-bold truncate">{inst.instance_name}</p>
+                                                                                            {inst.phone_number && (
+                                                                                                <p className={cn(
+                                                                                                    "text-[10px] truncate",
+                                                                                                    checked ? "text-white/60" : "text-muted-foreground"
+                                                                                                )}>+{inst.phone_number}</p>
+                                                                                            )}
+                                                                                        </div>
+                                                                                        <div className={cn(
+                                                                                            "w-5 h-5 rounded-full flex items-center justify-center border-2 transition-all shrink-0",
+                                                                                            checked ? "bg-white border-white text-brand-navy" : "border-brand-navy/10 text-transparent"
+                                                                                        )}>
+                                                                                            <Check className="w-3 h-3" />
+                                                                                        </div>
+                                                                                    </div>
+                                                                                );
+                                                                            })
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </>
+                                                    )}
+                                                </FormItem>
+                                            );
+                                        }}
+                                    />
+                                </TabsContent>
+                            </div>
+                        </Tabs>
 
                         <DialogFooter className="p-8 pb-8 pt-4 gap-4 bg-brand-white border-t border-brand-navy/5">
                             <Button

@@ -7,6 +7,44 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// ── WhatsApp instance assignment helper ────────────────────────────────────
+// access shape: { mode: 'none'|'all'|'specific', instance_ids?: string[], business_id?: string }
+async function applyWhatsappAccess(supabase: any, userId: string, access: any) {
+  if (!access || !access.mode) return;
+  // Wipe existing assignments first — this function is the source of truth
+  await supabase.from("whatsapp_user_instances").delete().eq("user_id", userId);
+
+  if (access.mode === "none") return;
+
+  const businessId = access.business_id;
+  if (!businessId) {
+    throw new Error("whatsapp_access.business_id is required when mode is not 'none'");
+  }
+
+  if (access.mode === "all") {
+    await supabase.from("whatsapp_user_instances").insert({
+      user_id: userId,
+      business_id: businessId,
+      instance_id: null,
+      scope: "all",
+    });
+    return;
+  }
+
+  if (access.mode === "specific") {
+    const ids: string[] = Array.isArray(access.instance_ids) ? access.instance_ids : [];
+    if (ids.length === 0) return;
+    const rows = ids.map((iid) => ({
+      user_id: userId,
+      business_id: businessId,
+      instance_id: iid,
+      scope: "explicit",
+    }));
+    const { error } = await supabase.from("whatsapp_user_instances").insert(rows);
+    if (error) throw error;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -27,7 +65,7 @@ Deno.serve(async (req) => {
     const { action, userData, userId } = await req.json();
 
     if (action === "create") {
-      const { email, password, name, username, role, ...rest } = userData;
+      const { email, password, name, username, role, whatsapp_access, ...rest } = userData;
 
       const { data: authData, error: authError } = await supabaseClient.auth.admin.createUser({
         email,
@@ -56,6 +94,13 @@ Deno.serve(async (req) => {
         throw profileError;
       }
 
+      // Apply WhatsApp instance assignments (sellers only — caller decides)
+      try {
+        await applyWhatsappAccess(supabaseClient, authData.user.id, whatsapp_access);
+      } catch (waErr) {
+        console.error("applyWhatsappAccess (create) failed:", waErr);
+      }
+
       return new Response(JSON.stringify(profileData), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
@@ -63,7 +108,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "update") {
-      const { email, password, ...rest } = userData;
+      const { email, password, whatsapp_access, ...rest } = userData;
 
       const authUpdates: Record<string, string> = {};
       if (email) authUpdates.email = email;
@@ -85,6 +130,12 @@ Deno.serve(async (req) => {
         .single();
 
       if (profileError) throw profileError;
+
+      try {
+        await applyWhatsappAccess(supabaseClient, userId, whatsapp_access);
+      } catch (waErr) {
+        console.error("applyWhatsappAccess (update) failed:", waErr);
+      }
 
       return new Response(JSON.stringify(profileData), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

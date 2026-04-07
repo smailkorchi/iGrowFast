@@ -185,54 +185,69 @@ const SelectBusiness = () => {
                             </div>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                            {filteredBusinesses?.map((business, index) => (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 auto-rows-fr">
+                            {filteredBusinesses?.map((business, index) => {
+                                const name = business.name || '';
+                                const isLongName = name.length > 28;
+                                const isVeryLongName = name.length > 60;
+                                return (
                                 <div
                                     key={business.id}
                                     onClick={() => handleSelect(business)}
+                                    title={name}
                                     className={cn(
-                                        "group relative aspect-[4/5] bg-white/[0.02] hover:bg-white/[0.05] border border-white/5 rounded-[48px] p-8 cursor-pointer transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] hover:-translate-y-4 hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.4)] flex flex-col justify-between overflow-hidden backdrop-blur-md animate-in fade-in slide-in-from-bottom-12",
+                                        "group relative h-full min-h-[340px] bg-white/[0.02] hover:bg-white/[0.05] border border-white/5 rounded-[40px] p-7 cursor-pointer transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] hover:-translate-y-2 hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.4)] flex flex-col overflow-hidden backdrop-blur-md animate-in fade-in slide-in-from-bottom-12",
                                     )}
                                     style={{ animationDelay: `${index * 100}ms` }}
                                 >
                                     {/* Hover Glow Effect */}
                                     <div className="absolute inset-0 bg-gradient-to-b from-white/[0.05] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
 
-                                    <div className="space-y-6 relative z-10">
-                                        <div className="w-20 h-20 rounded-[28px] bg-white p-4 shadow-2xl group-hover:scale-110 transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)]">
+                                    {/* Header: logo + status */}
+                                    <div className="relative z-10 flex items-start justify-between gap-4">
+                                        <div className="w-16 h-16 rounded-[22px] bg-white p-3 shadow-2xl group-hover:scale-110 transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] shrink-0">
                                             {business.logo ? (
                                                 <img src={business.logo} alt="" className="w-full h-full object-contain" />
                                             ) : (
                                                 <Building2 className="w-full h-full text-brand-navy/20" />
                                             )}
                                         </div>
-
-                                        <div className="space-y-2">
-                                            <h3 className="text-3xl font-black text-brand-white tracking-tighter leading-none group-hover:tracking-tight transition-all duration-700 uppercase">
-                                                {business.name}
-                                            </h3>
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                                <span className="text-[10px] text-white/40 font-black uppercase tracking-widest">Active System</span>
-                                            </div>
+                                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 shrink-0">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
+                                            <span className="text-[9px] text-emerald-300/80 font-black uppercase tracking-widest">Active</span>
                                         </div>
                                     </div>
 
-                                    <div className="relative z-10 flex items-center justify-between">
-                                        <div className="flex flex-col">
+                                    {/* Title block, grows to fill */}
+                                    <div className="relative z-10 mt-6 flex-1 min-h-0">
+                                        <h3
+                                            className={cn(
+                                                "font-black text-brand-white tracking-tight leading-[1.05] uppercase break-words hyphens-auto line-clamp-4",
+                                                isVeryLongName ? "text-base" : isLongName ? "text-xl" : "text-2xl md:text-[26px]"
+                                            )}
+                                            style={{ wordBreak: 'break-word' }}
+                                        >
+                                            {name}
+                                        </h3>
+                                    </div>
+
+                                    {/* Footer pinned */}
+                                    <div className="relative z-10 mt-6 pt-5 border-t border-white/5 flex items-center justify-between gap-3">
+                                        <div className="flex flex-col min-w-0">
                                             <span className="text-[8px] font-black uppercase tracking-[0.3em] text-white/20 mb-1">Entity ID</span>
-                                            <span className="text-[10px] font-bold text-white/40 tracking-wider">#{business.id.substring(0, 8).toUpperCase()}</span>
+                                            <span className="text-[10px] font-bold text-white/40 tracking-wider truncate">#{business.id.substring(0, 8).toUpperCase()}</span>
                                         </div>
 
-                                        <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center text-white/20 group-hover:bg-brand-white group-hover:text-brand-navy transition-all duration-500 shadow-xl">
-                                            <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
+                                        <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-white/20 group-hover:bg-brand-white group-hover:text-brand-navy transition-all duration-500 shadow-xl shrink-0">
+                                            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                                         </div>
                                     </div>
 
                                     {/* Subtle Animated Border on Hover */}
-                                    <div className="absolute inset-0 border-2 border-white/0 group-hover:border-white/10 rounded-[48px] transition-all duration-700" />
+                                    <div className="absolute inset-0 border-2 border-white/0 group-hover:border-white/10 rounded-[40px] transition-all duration-700 pointer-events-none" />
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </div>

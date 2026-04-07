@@ -58,6 +58,8 @@ import SellerDeliveryNote from "./pages/seller/DeliveryNote";
 import SellerReturnNote from "./pages/seller/ReturnNote";
 import SellerProducts from "./pages/seller/Products";
 import SellerAccessories from "./pages/seller/Accessories";
+import SellerWhatsAppInbox from "./pages/seller/WhatsAppInbox";
+import { WhatsAppNotificationsProvider } from "./components/notifications/WhatsAppNotificationsProvider";
 import AppLayout from "./components/layout/AppLayout";
 import SellerLayout from "./components/layout/SellerLayout";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
@@ -150,6 +152,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <WhatsAppNotificationsProvider>
         <Routes>
           <Route path="/auth" element={<Auth />} />
           {/* Owner Routes */}
@@ -192,6 +195,7 @@ const App = () => (
                   <Route path="demands" element={<SellerDemands />} />
                   <Route path="delivery-note" element={<SellerDeliveryNote />} />
                   <Route path="return-note" element={<SellerReturnNote />} />
+                  <Route path="whatsapp/inbox" element={<SellerWhatsAppInbox />} />
                   <Route path="" element={<Navigate to="dashboard" replace />} />
                 </Routes>
               </SellerLayout>
@@ -247,6 +251,7 @@ const App = () => (
             </ProtectedRoute>
           } />
         </Routes>
+        </WhatsAppNotificationsProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

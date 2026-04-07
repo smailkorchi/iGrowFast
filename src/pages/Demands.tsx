@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import {
   MessageSquare,
@@ -16,7 +16,15 @@ import {
   UserCircle,
   BadgeAlert,
   Timer,
-  Info
+  Info,
+  Paperclip,
+  Image as ImageIcon,
+  Film,
+  FileText,
+  Download,
+  ExternalLink,
+  UploadCloud,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -43,6 +51,15 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { format } from 'date-fns';
 
+interface DemandMedia {
+  path: string;
+  name: string;
+  type: string;
+  size: number;
+  /** Resolved at view time via signed URL. */
+  url?: string;
+}
+
 interface SellerDemandWithSeller {
   id: string;
   seller_id: string;
@@ -52,9 +69,11 @@ interface SellerDemandWithSeller {
   content: string;
   status: string;
   admin_response: string | null;
+  admin_response_media: DemandMedia[] | null;
   responded_at: string | null;
   created_at: string;
   updated_at: string;
+  media: DemandMedia[] | null;
   seller: {
     name: string;
     email: string;
@@ -62,12 +81,28 @@ interface SellerDemandWithSeller {
   };
 }
 
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+const ACCEPTED_TYPES = 'image/*,video/*,application/pdf';
+
+const formatFileSize = (bytes: number) => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
 const Demands = () => {
   const { toast } = useToast();
   const [demands, setDemands] = useState<SellerDemandWithSeller[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDemand, setSelectedDemand] = useState<SellerDemandWithSeller | null>(null);
   const [isResponseModalOpen, setIsResponseModalOpen] = useState(false);
+  const [resolvedMedia, setResolvedMedia] = useState<DemandMedia[]>([]);
+  const [resolvedResponseMedia, setResolvedResponseMedia] = useState<DemandMedia[]>([]);
+  const [responseFiles, setResponseFiles] = useState<File[]>([]);
+  const [responseDragging, setResponseDragging] = useState(false);
+  const [responseUploadProgress, setResponseUploadProgress] = useState(0);
+  const responseInputRef = useRef<HTMLInputElement | null>(null);
+  const activeBusinessId = typeof window !== 'undefined' ? localStorage.getItem('activeBusinessId') : null;
 
   // Filters
   const [statusFilter, setStatusFilter] = useState('all');
@@ -80,15 +115,22 @@ const Demands = () => {
 
   useEffect(() => {
     fetchDemands();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBusinessId]);
 
   const fetchDemands = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('seller_demands')
         .select('*, seller:users(name, email, avatar_url)')
         .order('created_at', { ascending: false });
+
+      if (activeBusinessId) {
+        query = query.eq('DigiCom Business', activeBusinessId);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setDemands(data as any || []);
@@ -104,10 +146,101 @@ const Demands = () => {
     }
   };
 
+  // Resolve signed URLs for the selected demand's media (private bucket)
+  useEffect(() => {
+    let cancelled = false;
+    const resolveList = async (list: DemandMedia[] | null | undefined): Promise<DemandMedia[]> => {
+      if (!list || list.length === 0) return [];
+      const paths = list.map((m) => m.path).filter(Boolean);
+      if (paths.length === 0) return [];
+      const { data, error } = await supabase.storage
+        .from('demand-media')
+        .createSignedUrls(paths, 60 * 60); // 1h
+      if (error || !data) return list;
+      const byPath = new Map(data.map((d: any) => [d.path, d.signedUrl]));
+      return list.map((m) => ({ ...m, url: byPath.get(m.path) || undefined }));
+    };
+    const run = async () => {
+      const [seller, response] = await Promise.all([
+        resolveList(selectedDemand?.media),
+        resolveList(selectedDemand?.admin_response_media),
+      ]);
+      if (!cancelled) {
+        setResolvedMedia(seller);
+        setResolvedResponseMedia(response);
+      }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, [selectedDemand]);
+
+  const formatFileSizeLocal = (bytes: number) => formatFileSize(bytes);
+
+  const addResponseFiles = useCallback((files: File[]) => {
+    const valid: File[] = [];
+    for (const file of files) {
+      if (file.size > MAX_FILE_SIZE) {
+        toast({
+          title: "File too large",
+          description: `${file.name} exceeds the 50MB limit.`,
+          variant: "destructive"
+        });
+        continue;
+      }
+      valid.push(file);
+    }
+    if (valid.length) setResponseFiles(prev => [...prev, ...valid]);
+  }, [toast]);
+
+  const handleResponseDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setResponseDragging(false);
+    const files = Array.from(e.dataTransfer.files || []);
+    if (files.length) addResponseFiles(files);
+  };
+
+  const handleResponseFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length) addResponseFiles(files);
+    e.target.value = '';
+  };
+
+  const removeResponseFile = (index: number) => {
+    setResponseFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const uploadResponseMedia = async (demandId: string): Promise<DemandMedia[]> => {
+    if (responseFiles.length === 0) return [];
+    const uploaded: DemandMedia[] = [];
+    for (let i = 0; i < responseFiles.length; i++) {
+      const file = responseFiles[i];
+      const ext = file.name.split('.').pop() || 'bin';
+      const safeName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const path = `responses/${demandId}/${safeName}`;
+      const { error: upErr } = await supabase.storage
+        .from('demand-media')
+        .upload(path, file, {
+          cacheControl: '3600',
+          contentType: file.type || 'application/octet-stream',
+          upsert: false
+        });
+      if (upErr) throw upErr;
+      uploaded.push({
+        path,
+        name: file.name,
+        type: file.type || 'application/octet-stream',
+        size: file.size
+      });
+      setResponseUploadProgress(Math.round(((i + 1) / responseFiles.length) * 100));
+    }
+    return uploaded;
+  };
+
   const handleUpdateDemand = async () => {
     if (!selectedDemand) return;
 
     setSubmitting(true);
+    setResponseUploadProgress(0);
     try {
       const updates: any = {
         status: newStatus || selectedDemand.status,
@@ -117,6 +250,14 @@ const Demands = () => {
       if (adminResponse.trim()) {
         updates.admin_response = adminResponse;
         updates.responded_at = new Date().toISOString();
+      }
+
+      // Upload any new response attachments and append to existing list
+      if (responseFiles.length > 0) {
+        const newMedia = await uploadResponseMedia(selectedDemand.id);
+        const existing = (selectedDemand.admin_response_media || []) as DemandMedia[];
+        updates.admin_response_media = [...existing, ...newMedia];
+        if (!updates.responded_at) updates.responded_at = new Date().toISOString();
       }
 
       const { error } = await supabase
@@ -133,6 +274,8 @@ const Demands = () => {
       setIsResponseModalOpen(false);
       setAdminResponse('');
       setNewStatus('');
+      setResponseFiles([]);
+      setResponseUploadProgress(0);
       fetchDemands();
     } catch (error) {
       console.error('Error updating demand:', error);
@@ -312,7 +455,16 @@ const Demands = () => {
       </div>
 
       {/* Admin Response Modal */}
-      <Dialog open={isResponseModalOpen} onOpenChange={setIsResponseModalOpen}>
+      <Dialog
+        open={isResponseModalOpen}
+        onOpenChange={(open) => {
+          setIsResponseModalOpen(open);
+          if (!open) {
+            setResponseFiles([]);
+            setResponseUploadProgress(0);
+          }
+        }}
+      >
         <DialogContent className="max-w-2xl p-0 border-0 overflow-hidden rounded-[2.5rem] bg-gray-50 flex flex-col max-h-[92vh]">
           {selectedDemand && (
             <div className="overflow-y-auto scrollbar-hide text-left">
@@ -355,6 +507,85 @@ const Demands = () => {
                   </div>
                 </div>
 
+                {/* Attached Media */}
+                {resolvedMedia && resolvedMedia.length > 0 && (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 ml-1">
+                      <Paperclip className="w-4 h-4 text-gray-400" />
+                      <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400">
+                        Attachments ({resolvedMedia.length})
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {resolvedMedia.map((m, idx) => {
+                        const isImage = m.type?.startsWith('image/');
+                        const isVideo = m.type?.startsWith('video/');
+                        const isPdf = m.type === 'application/pdf';
+                        return (
+                          <div
+                            key={`${m.path}-${idx}`}
+                            className="group relative rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-all"
+                          >
+                            <a
+                              href={m.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block"
+                            >
+                              <div className="aspect-square bg-gray-50 flex items-center justify-center overflow-hidden">
+                                {isImage ? (
+                                  <img
+                                    src={m.url}
+                                    alt={m.name}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                  />
+                                ) : isVideo ? (
+                                  <video
+                                    src={m.url}
+                                    className="w-full h-full object-cover"
+                                    muted
+                                    playsInline
+                                  />
+                                ) : (
+                                  <div className="flex flex-col items-center gap-2 text-gray-400">
+                                    {isPdf ? (
+                                      <FileText className="w-10 h-10" />
+                                    ) : (
+                                      <Paperclip className="w-10 h-10" />
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                                <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center">
+                                  <ExternalLink className="w-4 h-4 text-gray-900" />
+                                </div>
+                              </div>
+                            </a>
+                            <div className="p-3 border-t border-gray-50 flex items-center justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="text-[11px] font-medium text-gray-700 truncate" title={m.name}>{m.name}</p>
+                                <p className="text-[9px] text-gray-400">{formatFileSize(m.size)}</p>
+                              </div>
+                              <a
+                                href={m.url}
+                                download={m.name}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-700 shrink-0"
+                                title="Download"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                              </a>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* Action Console */}
                 <div className="space-y-8">
                   <div className="space-y-4">
@@ -392,6 +623,132 @@ const Demands = () => {
                     <p className="text-[10px] text-gray-400 italic mt-2 ml-2">
                       This response will be visible to the seller immediately upon clicking Sync.
                     </p>
+                  </div>
+
+                  {/* Response attachments uploader */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between ml-1">
+                      <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400">Response Attachments</label>
+                      <span className="text-[10px] text-gray-400 font-light">Images, videos, PDF · max 50MB each</span>
+                    </div>
+
+                    {/* Already-attached response media */}
+                    {resolvedResponseMedia.length > 0 && (
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {resolvedResponseMedia.map((m, idx) => {
+                          const isImage = m.type?.startsWith('image/');
+                          const isVideo = m.type?.startsWith('video/');
+                          const isPdf = m.type === 'application/pdf';
+                          return (
+                            <div key={`${m.path}-${idx}`} className="group relative rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+                              <a href={m.url} target="_blank" rel="noopener noreferrer" className="block">
+                                <div className="aspect-square bg-gray-50 flex items-center justify-center overflow-hidden">
+                                  {isImage ? (
+                                    <img src={m.url} alt={m.name} className="w-full h-full object-cover" />
+                                  ) : isVideo ? (
+                                    <video src={m.url} muted playsInline className="w-full h-full object-cover" />
+                                  ) : (
+                                    <FileText className="w-9 h-9 text-gray-300" />
+                                  )}
+                                </div>
+                              </a>
+                              <div className="p-2.5 border-t border-gray-50 flex items-center justify-between gap-2">
+                                <div className="min-w-0">
+                                  <p className="text-[11px] font-medium text-gray-700 truncate" title={m.name}>{m.name}</p>
+                                  <p className="text-[9px] text-gray-400">{formatFileSizeLocal(m.size)}</p>
+                                </div>
+                                <a
+                                  href={m.url}
+                                  download={m.name}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-700 shrink-0"
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                </a>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Drop zone */}
+                    <div
+                      onDragOver={(e) => { e.preventDefault(); setResponseDragging(true); }}
+                      onDragEnter={(e) => { e.preventDefault(); setResponseDragging(true); }}
+                      onDragLeave={() => setResponseDragging(false)}
+                      onDrop={handleResponseDrop}
+                      onClick={() => responseInputRef.current?.click()}
+                      className={`relative cursor-pointer rounded-2xl border-2 border-dashed p-6 text-center transition-all ${
+                        responseDragging
+                          ? 'border-primary bg-primary/5 scale-[1.01]'
+                          : 'border-gray-200 bg-white hover:border-primary/40'
+                      }`}
+                    >
+                      <input
+                        ref={responseInputRef}
+                        type="file"
+                        multiple
+                        accept={ACCEPTED_TYPES}
+                        className="hidden"
+                        onChange={handleResponseFileInput}
+                      />
+                      <div className="flex flex-col items-center gap-2 pointer-events-none">
+                        <div className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-colors ${
+                          responseDragging ? 'bg-primary/10 text-primary' : 'bg-gray-50 text-gray-400'
+                        }`}>
+                          <UploadCloud className="w-5 h-5" />
+                        </div>
+                        <p className="text-sm font-medium text-gray-700">
+                          {responseDragging ? 'Drop files to attach' : 'Drag & drop, or click to browse'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Pending files queued for upload */}
+                    {responseFiles.length > 0 && (
+                      <div className="space-y-2">
+                        {responseFiles.map((file, idx) => {
+                          const isImage = file.type.startsWith('image/');
+                          const isVideo = file.type.startsWith('video/');
+                          const Icon = isImage ? ImageIcon : isVideo ? Film : Paperclip;
+                          const previewUrl = isImage ? URL.createObjectURL(file) : null;
+                          return (
+                            <div key={`${file.name}-${idx}`} className="flex items-center gap-3 p-3 rounded-2xl bg-white border border-gray-100">
+                              <div className="w-10 h-10 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center overflow-hidden shrink-0">
+                                {previewUrl ? (
+                                  <img src={previewUrl} alt={file.name} className="w-full h-full object-cover" />
+                                ) : (
+                                  <Icon className="w-4 h-4 text-gray-400" />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-medium text-gray-800 truncate">{file.name}</p>
+                                <p className="text-[10px] text-gray-400">{formatFileSizeLocal(file.size)}</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); removeResponseFile(idx); }}
+                                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                                disabled={submitting}
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {submitting && responseFiles.length > 0 && (
+                      <div className="pt-1">
+                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-primary transition-all duration-300" style={{ width: `${responseUploadProgress}%` }} />
+                        </div>
+                        <p className="text-[10px] text-gray-400 mt-1 text-center">Uploading {responseUploadProgress}%</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

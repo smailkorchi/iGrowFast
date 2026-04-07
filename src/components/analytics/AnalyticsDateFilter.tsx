@@ -97,6 +97,15 @@ export const AnalyticsDateFilter = ({ dateFilter, onDateFilterChange }: Analytic
         setTempRange(range);
     };
 
+    const isPresetActive = PRESETS.some((p) => p.label === dateFilter.label);
+    const customLabel =
+        !isPresetActive && dateFilter.from
+            ? dateFilter.to && dateFilter.from.getTime() !== dateFilter.to.getTime()
+                ? `${format(dateFilter.from, 'MMM d')} – ${format(dateFilter.to, 'MMM d, yyyy')}`
+                : format(dateFilter.from, 'MMM d, yyyy')
+            : 'Custom';
+    const customActive = !isPresetActive && !!dateFilter.from;
+
     return (
         <div className="flex items-center gap-2 flex-wrap">
             {PRESETS.map((preset) => (
@@ -109,7 +118,7 @@ export const AnalyticsDateFilter = ({ dateFilter, onDateFilterChange }: Analytic
                         'rounded-2xl text-xs font-semibold h-9 px-4 transition-all',
                         dateFilter.label === preset.label
                             ? 'bg-brand-navy text-white hover:bg-brand-navy/90 hover:text-white'
-                            : 'bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy/[0.08]'
+                            : 'bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy/[0.08] hover:text-brand-navy'
                     )}
                 >
                     {preset.label}
@@ -122,12 +131,14 @@ export const AnalyticsDateFilter = ({ dateFilter, onDateFilterChange }: Analytic
                         variant="ghost"
                         size="sm"
                         className={cn(
-                            'rounded-2xl text-xs font-semibold h-9 px-4 gap-2',
-                            'bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy/[0.08]'
+                            'rounded-2xl text-xs font-semibold h-9 px-4 gap-2 transition-all',
+                            customActive
+                                ? 'bg-brand-navy text-white hover:bg-brand-navy/90 hover:text-white'
+                                : 'bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy/[0.08] hover:text-brand-navy'
                         )}
                     >
                         <CalendarDays className="w-3.5 h-3.5" />
-                        Custom
+                        {customLabel}
                         <ChevronDown className="w-3 h-3" />
                     </Button>
                 </PopoverTrigger>

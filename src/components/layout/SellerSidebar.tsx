@@ -18,6 +18,7 @@ import {
     Package,
     Puzzle
 } from 'lucide-react';
+import { FaWhatsapp } from 'react-icons/fa';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { useQuery } from '@tanstack/react-query';
@@ -82,10 +83,40 @@ const SellerSidebar = () => {
         }
     });
 
+    // ── WhatsApp access for the current seller ─────────────────────────
+    // Visible when: at least one row exists in whatsapp_user_instances for the
+    // current user (any scope). Hidden otherwise. The actual filtering of
+    // which instances they see happens inside SellerWhatsAppInbox.
+    const { data: hasWhatsAppAccess } = useQuery({
+        queryKey: ['seller-wa-access', profile?.id],
+        queryFn: async () => {
+            if (!profile?.id) return false;
+            const { count } = await (supabase as any)
+                .from('whatsapp_user_instances')
+                .select('id', { count: 'exact', head: true })
+                .eq('user_id', profile.id);
+            return (count || 0) > 0;
+        },
+        enabled: !!profile?.id,
+    });
+
     const handleLogout = async () => {
         await supabase.auth.signOut();
         navigate('/auth');
     };
+
+    // Build the final navigation list — insert WhatsApp right after Orders if the seller has access.
+    const visibleNavigation: NavItem[] = React.useMemo(() => {
+        if (!hasWhatsAppAccess) return navigation;
+        const ordersIdx = navigation.findIndex(n => n.path === '/seller/orders');
+        const waItem: NavItem = { icon: FaWhatsapp as any, label: 'WhatsApp', path: '/seller/whatsapp/inbox' };
+        if (ordersIdx === -1) return [...navigation, waItem];
+        return [
+            ...navigation.slice(0, ordersIdx + 1),
+            waItem,
+            ...navigation.slice(ordersIdx + 1),
+        ];
+    }, [hasWhatsAppAccess]);
 
     return (
         <aside className={cn(
@@ -123,7 +154,7 @@ const SellerSidebar = () => {
 
                     {/* Navigation Items */}
                     <div className="flex-1 px-3 space-y-1 overflow-y-auto no-scrollbar pb-6 scroll-smooth">
-                        {navigation.map((item, idx) => (
+                        {visibleNavigation.map((item, idx) => (
                             <NavLink
                                 key={item.path}
                                 to={item.path}

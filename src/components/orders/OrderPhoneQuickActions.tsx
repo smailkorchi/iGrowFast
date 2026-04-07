@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Phone, MessageSquare } from 'lucide-react';
 import { FaWhatsapp } from 'react-icons/fa';
 import {
@@ -10,6 +11,7 @@ import {
     DropdownMenuSubTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { WhatsAppQuickSend } from './WhatsAppQuickSend';
 
 function telHref(phone: string) {
     const t = phone.trim().replace(/\s/g, '');
@@ -21,24 +23,29 @@ function smsHref(phone: string) {
     return t ? `sms:${t}` : '#';
 }
 
-function waHref(phone: string) {
-    const d = phone.replace(/\D/g, '');
-    return d ? `https://wa.me/${d}` : '#';
-}
-
 function useContactLinks(phone: string | null | undefined) {
+    // intentionally no waHref — WhatsApp now opens the in-app composer modal
     const raw = (phone || '').trim();
     if (!raw) return null;
     return {
         raw,
         tel: telHref(raw),
         sms: smsHref(raw),
-        wa: waHref(raw),
         hasWa: /\d/.test(raw),
     };
 }
 
-function ContactChannelItems({ tel, sms, wa, hasWa }: { tel: string; sms: string; wa: string; hasWa: boolean }) {
+function ContactChannelItems({
+    tel,
+    sms,
+    hasWa,
+    onWhatsApp,
+}: {
+    tel: string;
+    sms: string;
+    hasWa: boolean;
+    onWhatsApp: () => void;
+}) {
     return (
         <>
             <DropdownMenuItem asChild className="rounded-lg cursor-pointer gap-2 font-bold text-sm">
@@ -54,17 +61,12 @@ function ContactChannelItems({ tel, sms, wa, hasWa }: { tel: string; sms: string
                 </a>
             </DropdownMenuItem>
             {hasWa ? (
-                <DropdownMenuItem asChild className="rounded-lg cursor-pointer gap-2 font-bold text-sm">
-                    <a
-                        href={wa}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2"
-                        onPointerDown={(e) => e.stopPropagation()}
-                    >
-                        <FaWhatsapp className="h-4 w-4 shrink-0 text-[#25D366]" />
-                        WhatsApp
-                    </a>
+                <DropdownMenuItem
+                    onSelect={(e) => { e.preventDefault(); onWhatsApp(); }}
+                    className="rounded-lg cursor-pointer gap-2 font-bold text-sm"
+                >
+                    <FaWhatsapp className="h-4 w-4 shrink-0 text-[#25D366]" />
+                    WhatsApp
                 </DropdownMenuItem>
             ) : (
                 <DropdownMenuItem disabled className="rounded-lg font-bold text-sm opacity-50">
@@ -94,99 +96,111 @@ export function OrderPhoneContactDropdown({
     align = 'end',
 }: OrderPhoneContactDropdownProps) {
     const links = useContactLinks(phone);
+    const [waOpen, setWaOpen] = useState(false);
     if (!links) return null;
 
     return (
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                {variant === 'contact' ? (
-                    <button
-                        type="button"
-                        className={cn(
-                            'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-navy/[0.05] hover:bg-brand-navy text-brand-navy/50 hover:text-white text-[11px] font-bold transition-all duration-200 shrink-0',
-                            className
-                        )}
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <Phone className="w-3.5 h-3.5" />
-                        Contact
-                    </button>
-                ) : (
-                    <button
-                        type="button"
-                        className={cn(
-                            'w-8 h-8 rounded-lg flex items-center justify-center text-brand-navy/30 hover:text-brand-navy hover:bg-brand-navy/5 transition-colors shrink-0',
-                            className
-                        )}
-                        onClick={(e) => e.stopPropagation()}
-                        aria-label="Contact options"
-                    >
-                        <Phone className="w-4 h-4" />
-                    </button>
-                )}
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-                align={align}
-                className={contentClass}
-                onClick={(e) => e.stopPropagation()}
-            >
-                <ContactChannelItems tel={links.tel} sms={links.sms} wa={links.wa} hasWa={links.hasWa} />
-            </DropdownMenuContent>
-        </DropdownMenu>
+        <>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    {variant === 'contact' ? (
+                        <button
+                            type="button"
+                            className={cn(
+                                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-navy/[0.05] hover:bg-brand-navy text-brand-navy/50 hover:text-white text-[11px] font-bold transition-all duration-200 shrink-0',
+                                className
+                            )}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <Phone className="w-3.5 h-3.5" />
+                            Contact
+                        </button>
+                    ) : (
+                        <button
+                            type="button"
+                            className={cn(
+                                'w-8 h-8 rounded-lg flex items-center justify-center text-brand-navy/30 hover:text-brand-navy hover:bg-brand-navy/5 transition-colors shrink-0',
+                                className
+                            )}
+                            onClick={(e) => e.stopPropagation()}
+                            aria-label="Contact options"
+                        >
+                            <Phone className="w-4 h-4" />
+                        </button>
+                    )}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                    align={align}
+                    className={contentClass}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <ContactChannelItems tel={links.tel} sms={links.sms} hasWa={links.hasWa} onWhatsApp={() => setWaOpen(true)} />
+                </DropdownMenuContent>
+            </DropdownMenu>
+            <WhatsAppQuickSend phone={links.raw} open={waOpen} onClose={() => setWaOpen(false)} />
+        </>
     );
 }
 
 /** Nested "Contact → call / SMS / WhatsApp" inside an existing DropdownMenu (overflow menu). */
 export function OrderContactSubmenu({ phone }: { phone: string | null | undefined }) {
     const links = useContactLinks(phone);
+    const [waOpen, setWaOpen] = useState(false);
     if (!links) return null;
 
     return (
-        <DropdownMenuSub>
-            <DropdownMenuSubTrigger
-                className="rounded-lg px-3 py-2 cursor-pointer gap-2.5 text-xs font-bold flex items-center outline-none data-[state=open]:bg-brand-navy/[0.06] focus:bg-brand-navy/[0.06]"
-                onClick={(e) => e.stopPropagation()}
-            >
-                <Phone className="w-3.5 h-3.5" />
-                Contact
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent
-                className={cn(contentClass, 'p-1.5')}
-                onClick={(e) => e.stopPropagation()}
-            >
-                <ContactChannelItems tel={links.tel} sms={links.sms} wa={links.wa} hasWa={links.hasWa} />
-            </DropdownMenuSubContent>
-        </DropdownMenuSub>
+        <>
+            <DropdownMenuSub>
+                <DropdownMenuSubTrigger
+                    className="rounded-lg px-3 py-2 cursor-pointer gap-2.5 text-xs font-bold flex items-center outline-none data-[state=open]:bg-brand-navy/[0.06] focus:bg-brand-navy/[0.06]"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <Phone className="w-3.5 h-3.5" />
+                    Contact
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent
+                    className={cn(contentClass, 'p-1.5')}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <ContactChannelItems tel={links.tel} sms={links.sms} hasWa={links.hasWa} onWhatsApp={() => setWaOpen(true)} />
+                </DropdownMenuSubContent>
+            </DropdownMenuSub>
+            <WhatsAppQuickSend phone={links.raw} open={waOpen} onClose={() => setWaOpen(false)} />
+        </>
     );
 }
 
 /** Compact icon dropdown (form field, order preview header). */
 export function OrderPhoneQuickActions({ phone, className }: { phone: string | null | undefined; className?: string }) {
     const links = useContactLinks(phone);
+    const [waOpen, setWaOpen] = useState(false);
     if (!links) return null;
 
     return (
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <button
-                    type="button"
-                    className={cn(
-                        'h-6 w-6 shrink-0 rounded-md flex items-center justify-center text-brand-navy/35 hover:text-brand-navy hover:bg-brand-navy/10',
-                        className
-                    )}
+        <>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <button
+                        type="button"
+                        className={cn(
+                            'h-6 w-6 shrink-0 rounded-md flex items-center justify-center text-brand-navy/35 hover:text-brand-navy hover:bg-brand-navy/10',
+                            className
+                        )}
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label="Contact options"
+                    >
+                        <Phone className="h-3.5 w-3.5" />
+                    </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                    align="start"
+                    className={contentClass}
                     onClick={(e) => e.stopPropagation()}
-                    aria-label="Contact options"
                 >
-                    <Phone className="h-3.5 w-3.5" />
-                </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-                align="start"
-                className={contentClass}
-                onClick={(e) => e.stopPropagation()}
-            >
-                <ContactChannelItems tel={links.tel} sms={links.sms} wa={links.wa} hasWa={links.hasWa} />
-            </DropdownMenuContent>
-        </DropdownMenu>
+                    <ContactChannelItems tel={links.tel} sms={links.sms} hasWa={links.hasWa} onWhatsApp={() => setWaOpen(true)} />
+                </DropdownMenuContent>
+            </DropdownMenu>
+            <WhatsAppQuickSend phone={links.raw} open={waOpen} onClose={() => setWaOpen(false)} />
+        </>
     );
 }

@@ -1,6 +1,8 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { flushSync } from 'react-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { whatsappNotificationStore } from '@/lib/whatsappNotificationStore';
 import { whatsappService } from '@/lib/api/whatsappService';
 
 // Untyped supabase client for new tables not yet in generated types
@@ -1053,12 +1055,6 @@ function AttachmentMenu({ onSelect, onClose }: { onSelect: (type: string) => voi
   const items = [
     { icon: FileText, label: 'Document', type: 'document', color: '#7f66ff' },
     { icon: ImageIcon, label: 'Photos & Videos', type: 'image', color: '#007bfc' },
-    { icon: Camera, label: 'Camera', type: 'camera', color: '#ff2e74' },
-    { icon: Headphones, label: 'Audio', type: 'audio', color: '#ff6723' },
-    { icon: UserPlus, label: 'Contact', type: 'contact', color: '#009de2' },
-    { icon: BarChart3, label: 'Poll', type: 'poll', color: '#f4c950' },
-    { icon: Calendar, label: 'Event', type: 'event', color: '#e96c4c' },
-    { icon: Sticker, label: 'New sticker', type: 'sticker', color: '#00a884' },
   ];
 
   useEffect(() => {
@@ -1863,7 +1859,18 @@ function MessageSearchPanel({ remoteJid, lidToPhoneMap, instanceName, chatName, 
 
 // ── Main component ───────────────────────────────────────────────────────────
 
-export default function WhatsAppInbox() {
+interface WhatsAppInboxProps {
+  /**
+   * Optional list of instance IDs the current viewer is allowed to see.
+   * - `undefined` (default) → no restriction (admin / business owner usage).
+   * - `[]` → empty allowlist; viewer sees nothing.
+   * - non-empty array → instances are filtered to this set; the picker locks
+   *   automatically if exactly one remains.
+   */
+  restrictToInstanceIds?: string[];
+}
+
+export default function WhatsAppInbox({ restrictToInstanceIds }: WhatsAppInboxProps = {}) {
   const { toast } = useToast();
   const [chats, setChats] = useState<EvolutionChat[]>([]);
   const [messages, setMessages] = useState<EvolutionMessage[]>([]);
@@ -1922,9 +1929,22 @@ export default function WhatsAppInbox() {
 
     (async () => {
       if (!biz) return;
-      const { data: allInstances } = await supabase.from('whatsapp_instances')
-        .select('instance_name, profile_pic, phone_number')
-        .eq('business_id', biz).eq('status', 'open').order('created_at', { ascending: true });
+      // Build base query — owners see all open instances for the business
+      let query: any = (supabase as any).from('whatsapp_instances')
+        .select('id, instance_name, profile_pic, phone_number')
+        .eq('business_id', biz)
+        .eq('status', 'open');
+      // If a restrict list was passed in, filter to it. An empty array means
+      // "no allowed instances" — short-circuit before hitting the DB.
+      if (restrictToInstanceIds !== undefined) {
+        if (restrictToInstanceIds.length === 0) {
+          setAvailableInstances([]);
+          setLoadingChats(false);
+          return;
+        }
+        query = query.in('id', restrictToInstanceIds);
+      }
+      const { data: allInstances } = await query.order('created_at', { ascending: true });
 
       if (allInstances && allInstances.length > 0) {
         setAvailableInstances(allInstances);
@@ -1951,7 +1971,55 @@ export default function WhatsAppInbox() {
         setLoadingChats(false);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restrictToInstanceIds?.join(',')]);
+
+  // ── Clear active chat marker when leaving the inbox entirely ───────────
+  useEffect(() => {
+    return () => {
+      whatsappNotificationStore.setActiveChat(null, null);
+    };
   }, []);
+
+  // ── Deep link from notifications: ?instance=...&jid=... ────────────────
+  // The URL is set by the notification toast click handler. We:
+  //   1. Capture the params on every navigation,
+  //   2. Switch to the requested instance if it isn't current,
+  //   3. Stash the jid in a ref; the chats-loaded effect picks it up
+  //      and selects the matching chat.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const pendingDeepLinkJidRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const targetInstance = params.get('instance');
+    const targetJid = params.get('jid');
+    if (!targetInstance && !targetJid) return;
+
+    if (targetJid) pendingDeepLinkJidRef.current = targetJid;
+
+    // If a different instance was requested, switch first; chats reload will
+    // then trigger the chat-select effect below.
+    if (targetInstance && targetInstance !== instanceName) {
+      switchToInstance(targetInstance);
+    }
+
+    // Strip the params so a refresh doesn't keep re-triggering
+    navigate(location.pathname, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search]);
+
+  // After chats load (or change), if there's a pending deep-link jid, open it.
+  useEffect(() => {
+    const targetJid = pendingDeepLinkJidRef.current;
+    if (!targetJid || chats.length === 0) return;
+    const match = chats.find(c => c.remoteJid === targetJid);
+    if (!match) return;
+    pendingDeepLinkJidRef.current = null;
+    handleSelectChat(match);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chats]);
 
   // ── Switch to a specific instance ───────────────────────────────────────
   const switchToInstance = async (name: string) => {
@@ -1959,6 +2027,10 @@ export default function WhatsAppInbox() {
     _avatarCache.clear();
     _avatarInflight.clear();
     _ogCache.clear();
+
+    // Clear the global "active chat" marker so notifications start firing
+    // again until the user opens a chat in the new instance.
+    whatsappNotificationStore.setActiveChat(null, null);
 
     setInstanceName(name);
     setSelectedChat(null);
@@ -2648,6 +2720,9 @@ export default function WhatsAppInbox() {
 
   const handleSelectChat = (chat: EvolutionChat) => {
     setSelectedChat(chat);
+    // Notify the global notification provider that this chat is now active
+    // → it will suppress notifications for messages arriving in this chat.
+    whatsappNotificationStore.setActiveChat(chat.remoteJid, instanceName);
     setMessages([]);
     setReactionsMap({});
     setPinnedMessage(null);
@@ -3604,8 +3679,6 @@ export default function WhatsAppInbox() {
                 </div>
               </div>
               <div className="flex items-center gap-2 text-[#aebac1]">
-                <button className="p-2 hover:bg-[#374045] rounded-full transition-colors"><Video className="w-[20px] h-[20px]" /></button>
-                <button className="p-2 hover:bg-[#374045] rounded-full transition-colors"><Phone className="w-[20px] h-[20px]" /></button>
                 <button onClick={() => setShowMessageSearch(!showMessageSearch)} className={`p-2 rounded-full transition-colors ${showMessageSearch ? 'text-[#00a884]' : 'hover:bg-[#374045]'}`}><Search className="w-[20px] h-[20px]" /></button>
                 <div className="relative">
                   <button onClick={(e) => { e.stopPropagation(); setShowChatMenu(!showChatMenu); }} className="p-2 hover:bg-[#374045] rounded-full transition-colors">

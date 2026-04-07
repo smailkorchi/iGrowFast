@@ -6,8 +6,16 @@ import {
     User, Mail, ShieldCheck, DollarSign, TrendingUp,
     Calendar, LogOut, Loader2, CreditCard, Building2,
     Fingerprint, MapPin, Zap, CheckCircle2, Target,
-    Search, ChevronLeft, ChevronRight, Package, X
+    Search, ChevronLeft, ChevronRight, Package, X,
+    SlidersHorizontal, ArrowUpDown
 } from 'lucide-react';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -41,7 +49,7 @@ interface SellerProfileData {
 
 interface ProductStat {
     id: string;
-    name: { [key: string]: string };
+    name: string;
     image_url: string | null;
     code: string;
     label: string | null;
@@ -53,6 +61,12 @@ interface ProductStat {
     confirmed: number;
     delivered: number;
 }
+
+type ProductSort = 'attributed' | 'delivered' | 'performance' | 'name';
+type PerformanceBucket = 'all' | 'high' | 'mid' | 'low' | 'none';
+
+const getDeliveryRate = (p: ProductStat) => (p.total > 0 ? (p.delivered / p.total) * 100 : 0);
+const getConfirmRate = (p: ProductStat) => (p.total > 0 ? (p.confirmed / p.total) * 100 : 0);
 
 const SellerProfile = () => {
     const { toast } = useToast();
@@ -81,7 +95,8 @@ const SellerProfile = () => {
     const [productStats, setProductStats] = useState<ProductStat[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedProduct, setSelectedProduct] = useState<ProductStat | null>(null);
-    const carouselRef = React.useRef<HTMLDivElement>(null);
+    const [sortBy, setSortBy] = useState<ProductSort>('attributed');
+    const [performanceBucket, setPerformanceBucket] = useState<PerformanceBucket>('all');
 
     useEffect(() => {
         fetchProfile();
@@ -174,9 +189,28 @@ const SellerProfile = () => {
 
                             const uniqueOrders = Array.from(uniqueOrdersMap.values());
 
+                            // name in DB is text; legacy rows may be a JSON-encoded object string.
+                            let nameStr = '';
+                            if (typeof p.name === 'string') {
+                                const trimmed = p.name.trim();
+                                if (trimmed.startsWith('{')) {
+                                    try {
+                                        const parsed = JSON.parse(trimmed);
+                                        nameStr = parsed.en || Object.values(parsed)[0] || '';
+                                    } catch {
+                                        nameStr = trimmed;
+                                    }
+                                } else {
+                                    nameStr = trimmed;
+                                }
+                            } else if (p.name && typeof p.name === 'object') {
+                                nameStr = (p.name as any).en || Object.values(p.name as any)[0] || '';
+                            }
+                            if (!nameStr) nameStr = p.label || p.code || 'Unnamed Product';
+
                             return {
                                 id: p.id,
-                                name: p.name,
+                                name: nameStr,
                                 image_url: p.image_url,
                                 code: p.code || '',
                                 label: p.label,
@@ -237,19 +271,52 @@ const SellerProfile = () => {
         }
     };
 
-    const scrollCarousel = (direction: 'left' | 'right') => {
-        if (carouselRef.current) {
-            const scrollAmount = 300;
-            carouselRef.current.scrollBy({
-                left: direction === 'left' ? -scrollAmount : scrollAmount,
-                behavior: 'smooth'
+    const filteredProducts = React.useMemo(() => {
+        const q = searchQuery.trim().toLowerCase();
+        let list = productStats.filter((p) => {
+            if (!q) return true;
+            return (
+                p.name.toLowerCase().includes(q) ||
+                (p.code || '').toLowerCase().includes(q) ||
+                (p.label || '').toLowerCase().includes(q)
+            );
+        });
+
+        if (performanceBucket !== 'all') {
+            list = list.filter((p) => {
+                if (p.total === 0) return performanceBucket === 'none';
+                const r = getDeliveryRate(p);
+                if (performanceBucket === 'high') return r >= 60;
+                if (performanceBucket === 'mid') return r >= 30 && r < 60;
+                if (performanceBucket === 'low') return r < 30;
+                return true;
             });
         }
-    };
 
-    const filteredProducts = productStats.filter(p =>
-        JSON.stringify(p.name).toLowerCase().includes(searchQuery.toLowerCase())
-    );
+        const sorted = [...list];
+        sorted.sort((a, b) => {
+            if (sortBy === 'name') return a.name.localeCompare(b.name);
+            if (sortBy === 'attributed') return b.total - a.total;
+            if (sortBy === 'delivered') return b.delivered - a.delivered;
+            if (sortBy === 'performance') return getDeliveryRate(b) - getDeliveryRate(a);
+            return 0;
+        });
+        return sorted;
+    }, [productStats, searchQuery, sortBy, performanceBucket]);
+
+    const bucketCounts = React.useMemo(() => {
+        const c = { all: productStats.length, high: 0, mid: 0, low: 0, none: 0 };
+        productStats.forEach((p) => {
+            if (p.total === 0) c.none++;
+            else {
+                const r = getDeliveryRate(p);
+                if (r >= 60) c.high++;
+                else if (r >= 30) c.mid++;
+                else c.low++;
+            }
+        });
+        return c;
+    }, [productStats]);
 
 
     const handleLogout = async () => {
@@ -592,222 +659,331 @@ const SellerProfile = () => {
                     </Card>
                 </div>
 
-                {/* Product Performance Carousel */}
-                <Card className="lg:col-span-3 border-0 shadow-xl rounded-3xl overflow-hidden bg-white hover:shadow-2xl transition-all duration-500">
+                {/* Inventory Performance */}
+                <Card className="lg:col-span-3 border-0 shadow-xl rounded-3xl overflow-hidden bg-white">
                     <CardHeader className="border-b border-gray-50 bg-gradient-to-r from-gray-50/50 to-transparent p-8">
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center">
-                                    <Package className="w-6 h-6 text-primary" />
+                        <div className="flex flex-col gap-6">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center">
+                                        <Package className="w-6 h-6 text-primary" />
+                                    </div>
+                                    <div>
+                                        <CardTitle className="text-2xl font-light text-gray-900">Inventory Performance</CardTitle>
+                                        <CardDescription className="font-light">
+                                            {filteredProducts.length} of {productStats.length} attributed product{productStats.length === 1 ? '' : 's'}
+                                        </CardDescription>
+                                    </div>
                                 </div>
-                                <div>
-                                    <CardTitle className="text-2xl font-light text-gray-900">Inventory Performance</CardTitle>
-                                    <CardDescription className="font-light">Real-time metrics for each attributed product</CardDescription>
+
+                                <div className="flex items-center gap-3">
+                                    <div className="relative group flex-1 md:w-72">
+                                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
+                                        <Input
+                                            placeholder="Search by name, code, label..."
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            className="pl-11 h-11 rounded-2xl border-gray-100 bg-gray-50/50 focus:bg-white"
+                                        />
+                                        {searchQuery && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setSearchQuery('')}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:bg-gray-100"
+                                            >
+                                                <X className="w-3.5 h-3.5" />
+                                            </button>
+                                        )}
+                                    </div>
+                                    <Select value={sortBy} onValueChange={(v) => setSortBy(v as ProductSort)}>
+                                        <SelectTrigger className="h-11 rounded-2xl border-gray-100 bg-gray-50/50 w-44 gap-2">
+                                            <ArrowUpDown className="w-3.5 h-3.5 text-gray-400" />
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent className="rounded-2xl">
+                                            <SelectItem value="attributed">Most attributed</SelectItem>
+                                            <SelectItem value="delivered">Most delivered</SelectItem>
+                                            <SelectItem value="performance">Best performance</SelectItem>
+                                            <SelectItem value="name">Name (A–Z)</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-4">
-                                <div className="relative group flex-1 md:w-64">
-                                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
-                                    <Input
-                                        placeholder="Search products..."
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="pl-11 h-11 rounded-2xl border-gray-100 bg-gray-50/50 focus:bg-white transition-all duration-300"
-                                    />
-                                </div>
-                                <div className="flex gap-2">
-                                    <Button
-                                        variant="outline"
-                                        size="icon"
-                                        onClick={() => scrollCarousel('left')}
-                                        className="rounded-xl border-gray-100 hover:bg-white hover:border-primary/20 hover:text-primary shadow-sm"
-                                    >
-                                        <ChevronLeft className="w-5 h-5" />
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        size="icon"
-                                        onClick={() => scrollCarousel('right')}
-                                        className="rounded-xl border-gray-100 hover:bg-white hover:border-primary/20 hover:text-primary shadow-sm"
-                                    >
-                                        <ChevronRight className="w-5 h-5" />
-                                    </Button>
-                                </div>
+                            {/* Performance bucket pills */}
+                            <div className="flex items-center gap-2 flex-wrap">
+                                {([
+                                    { id: 'all', label: 'All', count: bucketCounts.all, color: 'text-gray-700', active: 'bg-gray-900 text-white' },
+                                    { id: 'high', label: 'High ≥60%', count: bucketCounts.high, color: 'text-emerald-700', active: 'bg-emerald-600 text-white' },
+                                    { id: 'mid', label: 'Mid 30-60%', count: bucketCounts.mid, color: 'text-amber-700', active: 'bg-amber-500 text-white' },
+                                    { id: 'low', label: 'Low <30%', count: bucketCounts.low, color: 'text-red-700', active: 'bg-red-500 text-white' },
+                                    { id: 'none', label: 'No data', count: bucketCounts.none, color: 'text-gray-500', active: 'bg-gray-500 text-white' },
+                                ] as const).map((b) => {
+                                    const isActive = performanceBucket === b.id;
+                                    return (
+                                        <button
+                                            key={b.id}
+                                            type="button"
+                                            onClick={() => setPerformanceBucket(b.id)}
+                                            className={`h-9 px-4 rounded-2xl text-xs font-semibold transition-all flex items-center gap-2 ${
+                                                isActive
+                                                    ? b.active + ' shadow-md'
+                                                    : `bg-gray-100/70 hover:bg-gray-200/70 ${b.color}`
+                                            }`}
+                                        >
+                                            {b.label}
+                                            <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold ${
+                                                isActive ? 'bg-white/20 text-white' : 'bg-white text-gray-500'
+                                            }`}>
+                                                {b.count}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </div>
                     </CardHeader>
                     <CardContent className="p-8">
-                        <div
-                            ref={carouselRef}
-                            className="flex gap-6 overflow-x-auto pb-6 scrollbar-hide snap-x"
-                            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-                        >
-                            {filteredProducts.length > 0 ? (
-                                filteredProducts.map((p) => (
-                                    <div
-                                        key={p.id}
-                                        className="min-w-[320px] max-w-[320px] snap-start group cursor-pointer"
-                                        onClick={() => setSelectedProduct(p)}
-                                    >
-                                        <div className="bg-gray-50/50 rounded-3xl p-6 border border-transparent group-hover:border-primary/10 group-hover:bg-white group-hover:shadow-xl transition-all duration-500">
-                                            <div className="flex gap-4 mb-6">
-                                                <div className="w-20 h-20 rounded-2xl overflow-hidden bg-white border border-gray-100 shrink-0">
-                                                    {p.image_url ? (
-                                                        <img src={p.image_url} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
-                                                    ) : (
-                                                        <div className="w-full h-full flex items-center justify-center bg-gray-50">
-                                                            <Package className="w-8 h-8 text-gray-200" />
-                                                        </div>
-                                                    )}
+                        {filteredProducts.length > 0 ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                                {filteredProducts.map((p) => {
+                                    const rate = Math.round(getDeliveryRate(p));
+                                    const rateColor = p.total === 0
+                                        ? 'bg-gray-300'
+                                        : rate >= 60
+                                            ? 'bg-emerald-500'
+                                            : rate >= 30
+                                                ? 'bg-amber-500'
+                                                : 'bg-red-500';
+                                    return (
+                                        <button
+                                            key={p.id}
+                                            type="button"
+                                            onClick={() => setSelectedProduct(p)}
+                                            className="group relative text-left bg-white border border-gray-100 rounded-2xl overflow-hidden hover:border-primary/20 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
+                                        >
+                                            <div className="aspect-[4/3] bg-gradient-to-br from-gray-50 to-gray-100 overflow-hidden">
+                                                {p.image_url ? (
+                                                    <img
+                                                        src={p.image_url}
+                                                        alt={p.name}
+                                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                                    />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center">
+                                                        <Package className="w-12 h-12 text-gray-200" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="p-4 space-y-3">
+                                                <div className="min-h-[44px]">
+                                                    <h4 className="text-sm font-semibold text-gray-900 leading-snug line-clamp-2" title={p.name}>
+                                                        {p.name}
+                                                    </h4>
                                                 </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <h4 className="font-medium text-gray-900 truncate mb-1">{p.name?.en || Object.values(p.name || {})[0] || 'Unknown Product'}</h4>
-                                                    <div className="flex items-center gap-2">
-                                                        <Badge variant="secondary" className="bg-white border-gray-100 text-[10px] font-normal px-2 py-0 h-5">
-                                                            ID: {p.id.substring(0, 8)}
-                                                        </Badge>
+                                                <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-gray-400 font-bold">
+                                                    <span>{p.code || '—'}</span>
+                                                    <span className="text-gray-700 font-semibold normal-case tracking-normal">
+                                                        {p.selling_price.toLocaleString()} dh
+                                                    </span>
+                                                </div>
+
+                                                <div className="grid grid-cols-3 gap-1.5 pt-2 border-t border-gray-50">
+                                                    <div className="text-center">
+                                                        <p className="text-[9px] text-gray-400 uppercase font-bold">Attr</p>
+                                                        <p className="text-sm font-bold text-gray-900">{p.total}</p>
+                                                    </div>
+                                                    <div className="text-center">
+                                                        <p className="text-[9px] text-blue-500 uppercase font-bold">Conf</p>
+                                                        <p className="text-sm font-bold text-gray-900">{p.confirmed}</p>
+                                                    </div>
+                                                    <div className="text-center">
+                                                        <p className="text-[9px] text-emerald-500 uppercase font-bold">Deliv</p>
+                                                        <p className="text-sm font-bold text-gray-900">{p.delivered}</p>
+                                                    </div>
+                                                </div>
+
+                                                <div>
+                                                    <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">
+                                                        <span>Delivery</span>
+                                                        <span className="text-gray-700">{p.total === 0 ? '—' : `${rate}%`}</span>
+                                                    </div>
+                                                    <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                                                        <div
+                                                            className={`h-full ${rateColor} transition-all duration-700 ease-out`}
+                                                            style={{ width: `${p.total === 0 ? 100 : rate}%`, opacity: p.total === 0 ? 0.4 : 1 }}
+                                                        />
                                                     </div>
                                                 </div>
                                             </div>
-
-                                            <div className="grid grid-cols-3 gap-4">
-                                                <div className="p-3 bg-white rounded-xl border border-gray-50 text-center">
-                                                    <p className="text-[10px] text-gray-400 uppercase tracking-tighter font-medium mb-1">Attr.</p>
-                                                    <p className="text-lg font-medium text-gray-900">{p.total}</p>
-                                                </div>
-                                                <div className="p-3 bg-white rounded-xl border border-gray-50 text-center">
-                                                    <p className="text-[10px] text-primary uppercase tracking-tighter font-medium mb-1">Conf.</p>
-                                                    <p className="text-lg font-medium text-gray-900">{p.confirmed}</p>
-                                                </div>
-                                                <div className="p-3 bg-white rounded-xl border border-gray-50 text-center">
-                                                    <p className="text-[10px] text-green-600 uppercase tracking-tighter font-medium mb-1">Deliv.</p>
-                                                    <p className="text-lg font-medium text-gray-900">{p.delivered}</p>
-                                                </div>
-                                            </div>
-
-                                            <div className="mt-6 space-y-2">
-                                                <div className="flex justify-between text-[10px] font-medium uppercase tracking-widest text-gray-400">
-                                                    <span>Performance</span>
-                                                    <span>{p.total > 0 ? Math.round((p.delivered / p.total) * 100) : 0}%</span>
-                                                </div>
-                                                <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                                                    <div
-                                                        className="h-full bg-primary transition-all duration-1000 ease-out"
-                                                        style={{ width: `${p.total > 0 ? (p.delivered / p.total) * 100 : 0}%` }}
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))
-                            ) : (
-                                <div className="w-full py-12 flex flex-col items-center justify-center text-gray-400 font-light">
-                                    <Search className="w-12 h-12 mb-4 opacity-10" />
-                                    <p>No products found matching your search.</p>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <div className="py-16 flex flex-col items-center justify-center text-gray-400 font-light">
+                                <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center mb-4">
+                                    <Search className="w-7 h-7 text-gray-300" />
                                 </div>
-                            )}
-                        </div>
+                                <p className="text-sm font-medium text-gray-500">No products match the current filters.</p>
+                                <button
+                                    type="button"
+                                    onClick={() => { setSearchQuery(''); setPerformanceBucket('all'); }}
+                                    className="mt-3 text-xs font-semibold text-primary hover:underline"
+                                >
+                                    Reset filters
+                                </button>
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
             </div>
             {/* Product Detail Modal */}
             <Dialog open={!!selectedProduct} onOpenChange={(open) => !open && setSelectedProduct(null)}>
-                <DialogContent className="max-w-lg p-0 border-none bg-white rounded-[32px] shadow-2xl overflow-hidden">
+                <DialogContent className="max-w-4xl p-0 border-none bg-white rounded-[32px] shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
                     {selectedProduct && (() => {
                         const p = selectedProduct;
-                        const displayName = p.name?.en || Object.values(p.name || {})[0] || 'Unknown Product';
+                        const displayName = p.name || 'Unknown Product';
                         const confirmRate = p.total > 0 ? Math.round((p.confirmed / p.total) * 100) : 0;
                         const deliveryRate = p.total > 0 ? Math.round((p.delivered / p.total) * 100) : 0;
+                        const stockTone = p.stock === 0 ? 'text-red-600' : p.stock < 10 ? 'text-amber-600' : 'text-emerald-600';
+                        const stockLabel = p.stock === 0 ? 'Out of stock' : p.stock < 10 ? 'Low stock' : 'In stock';
+                        const rateColor = (rate: number) =>
+                            rate >= 60 ? { text: 'text-emerald-600', bar: 'bg-emerald-500' }
+                                : rate >= 30 ? { text: 'text-amber-600', bar: 'bg-amber-500' }
+                                : { text: 'text-red-600', bar: 'bg-red-500' };
+                        const cr = rateColor(confirmRate);
+                        const dr = rateColor(deliveryRate);
+
                         return (
-                            <>
-                                {/* Hero Image */}
-                                <div className="relative w-full h-56 bg-gradient-to-br from-gray-100 to-gray-50 overflow-hidden">
+                            <div className="grid grid-cols-1 md:grid-cols-5 flex-1 min-h-0">
+                                {/* Left: hero image */}
+                                <div className="md:col-span-2 relative bg-gradient-to-br from-gray-100 to-gray-50 min-h-[260px] md:min-h-full overflow-hidden">
                                     {p.image_url ? (
                                         <img src={p.image_url} alt={displayName} className="w-full h-full object-cover" />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center">
-                                            <Package className="w-16 h-16 text-gray-200" />
+                                            <Package className="w-20 h-20 text-gray-200" />
                                         </div>
                                     )}
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
-                                    <div className="absolute bottom-4 left-6 right-6">
-                                        <h2 className="text-2xl font-bold text-white drop-shadow-lg leading-tight">{displayName}</h2>
-                                        <div className="flex items-center gap-2 mt-1">
-                                            <Badge className="bg-white/20 backdrop-blur-md text-white border-none text-[10px] font-bold">{p.code}</Badge>
-                                            {p.label && <Badge className="bg-white/20 backdrop-blur-md text-white border-none text-[10px] font-bold">{p.label}</Badge>}
-                                        </div>
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-black/0" />
+                                    <div className="absolute bottom-5 left-5 right-5 flex flex-wrap gap-1.5">
+                                        {p.code && (
+                                            <Badge className="bg-white/15 backdrop-blur-md text-white border-white/10 text-[10px] font-bold">{p.code}</Badge>
+                                        )}
+                                        {p.label && (
+                                            <Badge className="bg-white/15 backdrop-blur-md text-white border-white/10 text-[10px] font-bold">{p.label}</Badge>
+                                        )}
+                                        <Badge className={`bg-white/15 backdrop-blur-md border-white/10 text-[10px] font-bold ${stockTone}`}>
+                                            {stockLabel}
+                                        </Badge>
                                     </div>
                                 </div>
 
-                                {/* Content */}
-                                <div className="p-6 space-y-6">
-                                    {/* Description */}
-                                    {p.description && (
-                                        <p className="text-sm text-gray-500 font-light leading-relaxed">{p.description}</p>
-                                    )}
-
-                                    {/* Price & Stock */}
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="p-4 rounded-2xl bg-gray-50 text-center">
-                                            <p className="text-[10px] text-gray-400 uppercase tracking-widest font-medium mb-1">Selling</p>
-                                            <p className="text-lg font-bold text-gray-900">{p.selling_price}<span className="text-xs font-normal text-gray-400 ml-0.5">DH</span></p>
-                                        </div>
-                                        <div className="p-4 rounded-2xl bg-gray-50 text-center">
-                                            <p className="text-[10px] text-gray-400 uppercase tracking-widest font-medium mb-1">Stock</p>
-                                            <p className="text-lg font-bold text-gray-900">{p.stock}</p>
-                                        </div>
+                                {/* Right: details */}
+                                <div className="md:col-span-3 flex flex-col min-h-0">
+                                    <div className="px-7 pt-7 pb-4 border-b border-gray-50 shrink-0">
+                                        <p className="text-[10px] uppercase tracking-widest font-bold text-primary mb-2">Product Details</p>
+                                        <h2 className="text-2xl font-light text-gray-900 leading-tight" title={displayName}>
+                                            {displayName}
+                                        </h2>
                                     </div>
 
-                                    {/* Performance Stats */}
-                                    <div className="space-y-4">
-                                        <h4 className="text-xs font-bold uppercase tracking-widest text-gray-400">Performance</h4>
+                                    <div className="px-7 py-5 space-y-6 overflow-y-auto flex-1">
+                                        {p.description && (
+                                            <p className="text-sm text-gray-500 font-light leading-relaxed line-clamp-4">{p.description}</p>
+                                        )}
 
-                                        <div className="grid grid-cols-3 gap-3">
-                                            <div className="p-4 rounded-2xl bg-gradient-to-br from-gray-900 to-gray-800 text-center text-white">
-                                                <p className="text-[10px] uppercase tracking-widest font-medium opacity-60 mb-1">Attributed</p>
-                                                <p className="text-2xl font-bold">{p.total}</p>
+                                        {/* Price & stock */}
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100">
+                                                <p className="text-[9px] text-gray-400 uppercase tracking-widest font-bold mb-1">Sell Price</p>
+                                                <p className="text-xl font-bold text-gray-900">{p.selling_price.toLocaleString()}<span className="text-xs font-normal text-gray-400 ml-1">DH</span></p>
                                             </div>
-                                            <div className="p-4 rounded-2xl bg-blue-50 border border-blue-100 text-center">
-                                                <p className="text-[10px] text-blue-500 uppercase tracking-widest font-medium mb-1">Confirmed</p>
-                                                <p className="text-2xl font-bold text-blue-700">{p.confirmed}</p>
-                                            </div>
-                                            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-100 text-center">
-                                                <p className="text-[10px] text-emerald-500 uppercase tracking-widest font-medium mb-1">Delivered</p>
-                                                <p className="text-2xl font-bold text-emerald-700">{p.delivered}</p>
+                                            <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100">
+                                                <p className="text-[9px] text-gray-400 uppercase tracking-widest font-bold mb-1">Stock</p>
+                                                <p className="text-xl font-bold text-gray-900">{p.stock.toLocaleString()}<span className="text-xs font-normal text-gray-400 ml-1">units</span></p>
                                             </div>
                                         </div>
 
-                                        {/* Confirmation Rate */}
-                                        <div className="space-y-2">
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-xs font-medium text-gray-500">Confirmation Rate</span>
-                                                <span className={`text-sm font-bold ${confirmRate >= 60 ? 'text-emerald-600' : confirmRate >= 30 ? 'text-amber-600' : 'text-red-600'}`}>{confirmRate}%</span>
+                                        {/* Performance */}
+                                        <div className="space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <h4 className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Performance</h4>
+                                                <span className="text-[10px] font-semibold text-gray-400">
+                                                    Stock: <span className="text-gray-700">{p.stock}</span>
+                                                </span>
                                             </div>
-                                            <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
-                                                <div
-                                                    className={`h-full rounded-full transition-all duration-700 ease-out ${confirmRate >= 60 ? 'bg-emerald-500' : confirmRate >= 30 ? 'bg-amber-500' : 'bg-red-500'}`}
-                                                    style={{ width: `${confirmRate}%` }}
-                                                />
-                                            </div>
-                                        </div>
 
-                                        {/* Delivery Rate */}
-                                        <div className="space-y-2">
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-xs font-medium text-gray-500">Delivery Rate</span>
-                                                <span className={`text-sm font-bold ${deliveryRate >= 60 ? 'text-emerald-600' : deliveryRate >= 30 ? 'text-amber-600' : 'text-red-600'}`}>{deliveryRate}%</span>
+                                            <div className="grid grid-cols-3 gap-2.5">
+                                                <div className="p-3.5 rounded-2xl bg-gradient-to-br from-gray-900 to-gray-800 text-white">
+                                                    <p className="text-[9px] uppercase tracking-widest font-bold opacity-60 mb-1">Attributed</p>
+                                                    <p className="text-2xl font-bold leading-none">{p.total}</p>
+                                                </div>
+                                                <div className="p-3.5 rounded-2xl bg-blue-50 border border-blue-100">
+                                                    <p className="text-[9px] text-blue-500 uppercase tracking-widest font-bold mb-1">Confirmed</p>
+                                                    <p className="text-2xl font-bold text-blue-700 leading-none">{p.confirmed}</p>
+                                                </div>
+                                                <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-100">
+                                                    <p className="text-[9px] text-emerald-500 uppercase tracking-widest font-bold mb-1">Delivered</p>
+                                                    <p className="text-2xl font-bold text-emerald-700 leading-none">{p.delivered}</p>
+                                                </div>
                                             </div>
-                                            <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
-                                                <div
-                                                    className={`h-full rounded-full transition-all duration-700 ease-out ${deliveryRate >= 60 ? 'bg-emerald-500' : deliveryRate >= 30 ? 'bg-amber-500' : 'bg-red-500'}`}
-                                                    style={{ width: `${deliveryRate}%` }}
-                                                />
+
+                                            <div className="space-y-3 pt-1">
+                                                <div className="space-y-1.5">
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-xs font-semibold text-gray-500">Confirmation Rate</span>
+                                                        <span className={`text-xs font-bold ${cr.text}`}>{p.total === 0 ? '—' : `${confirmRate}%`}</span>
+                                                    </div>
+                                                    <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+                                                        <div
+                                                            className={`h-full rounded-full transition-all duration-700 ease-out ${cr.bar}`}
+                                                            style={{ width: `${p.total === 0 ? 0 : confirmRate}%` }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-1.5">
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-xs font-semibold text-gray-500">Delivery Rate</span>
+                                                        <span className={`text-xs font-bold ${dr.text}`}>{p.total === 0 ? '—' : `${deliveryRate}%`}</span>
+                                                    </div>
+                                                    <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+                                                        <div
+                                                            className={`h-full rounded-full transition-all duration-700 ease-out ${dr.bar}`}
+                                                            style={{ width: `${p.total === 0 ? 0 : deliveryRate}%` }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Funnel summary */}
+                                            <div className="mt-3 p-4 rounded-2xl bg-gray-50/70 border border-gray-100">
+                                                <p className="text-[9px] uppercase tracking-widest font-bold text-gray-400 mb-3">Funnel</p>
+                                                <div className="flex items-center gap-2 text-xs">
+                                                    <div className="flex-1 text-center">
+                                                        <div className="h-1.5 bg-gray-300 rounded-full mb-1.5" />
+                                                        <p className="font-bold text-gray-900">{p.total}</p>
+                                                        <p className="text-[9px] text-gray-400 uppercase font-bold tracking-wider">Attr</p>
+                                                    </div>
+                                                    <ChevronRight className="w-3 h-3 text-gray-300" />
+                                                    <div className="flex-1 text-center">
+                                                        <div className="h-1.5 bg-blue-400 rounded-full mb-1.5" style={{ width: `${p.total === 0 ? 100 : (p.confirmed / p.total) * 100}%`, marginLeft: 'auto', marginRight: 'auto' }} />
+                                                        <p className="font-bold text-blue-700">{p.confirmed}</p>
+                                                        <p className="text-[9px] text-gray-400 uppercase font-bold tracking-wider">Conf</p>
+                                                    </div>
+                                                    <ChevronRight className="w-3 h-3 text-gray-300" />
+                                                    <div className="flex-1 text-center">
+                                                        <div className="h-1.5 bg-emerald-500 rounded-full mb-1.5" style={{ width: `${p.total === 0 ? 100 : (p.delivered / p.total) * 100}%`, marginLeft: 'auto', marginRight: 'auto' }} />
+                                                        <p className="font-bold text-emerald-700">{p.delivered}</p>
+                                                        <p className="text-[9px] text-gray-400 uppercase font-bold tracking-wider">Deliv</p>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                            </>
+                            </div>
                         );
                     })()}
                 </DialogContent>

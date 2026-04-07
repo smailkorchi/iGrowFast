@@ -8,6 +8,7 @@ import { ShippingPipeline } from '@/components/dashboard/ShippingPipeline';
 import { DashboardSellersPerformance } from '@/components/dashboard/DashboardSellersPerformance';
 import { DashboardProductsPerformance } from '@/components/dashboard/DashboardProductsPerformance';
 import { DashboardCityStats } from '@/components/dashboard/DashboardCityStats';
+import { WhatsAppUnreadCard } from '@/components/dashboard/WhatsAppUnreadCard';
 
 const Dashboard = () => {
     const businessId = localStorage.getItem('activeBusinessId') || '';
@@ -49,8 +50,15 @@ const Dashboard = () => {
                 {/* KPI Cards */}
                 <DashboardKPICards businessId={businessId} dateFilter={dateFilter} />
 
-                {/* Sales Chart */}
-                <SalesComparatifChart businessId={businessId} dateFilter={dateFilter} />
+                {/* WhatsApp Unread + Sales Chart row */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+                    <div className="lg:col-span-1 flex min-w-0">
+                        <WhatsAppUnreadCard businessId={businessId} />
+                    </div>
+                    <div className="lg:col-span-2 min-w-0 [&>div]:h-full [&>div]:w-full">
+                        <SalesComparatifChart businessId={businessId} dateFilter={dateFilter} />
+                    </div>
+                </div>
 
                 {/* Pipeline Row: Pending + Confirmation */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

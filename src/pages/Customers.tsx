@@ -662,12 +662,12 @@ const Customers = () => {
                         )} />
 
                         <CardContent className="p-6 pt-8 space-y-4">
-                            <div className="flex items-start justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-12 h-12 rounded-2xl bg-brand-navy/5 flex items-center justify-center text-brand-navy font-bold text-xl group-hover:scale-110 transition-transform">
+                            <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <div className="w-12 h-12 rounded-2xl bg-brand-navy/5 flex items-center justify-center text-brand-navy font-bold text-xl group-hover:scale-110 transition-transform shrink-0">
                                         {customer.name.charAt(0).toUpperCase()}
                                     </div>
-                                    <div>
+                                    <div className="min-w-0">
                                         <h3 className="font-bold text-lg text-brand-navy leading-tight line-clamp-1">{customer.name}</h3>
                                         <div className="flex items-center gap-1.5 text-muted-foreground text-sm mt-0.5">
                                             <Phone className="w-3 h-3" />
@@ -675,6 +675,18 @@ const Customers = () => {
                                         </div>
                                     </div>
                                 </div>
+                                {customer.orders[0]?.status?.label && (
+                                    <Badge
+                                        style={{
+                                            backgroundColor: `${customer.orders[0].status.color}20`,
+                                            color: customer.orders[0].status.color,
+                                        }}
+                                        className="border-none font-bold rounded-full px-2.5 py-1 text-[10px] uppercase tracking-wider whitespace-nowrap shrink-0"
+                                        title={`Latest order: ${customer.orders[0].status.label}`}
+                                    >
+                                        {customer.orders[0].status.label}
+                                    </Badge>
+                                )}
                             </div>
 
                             <div className="grid grid-cols-2 gap-3 py-3 border-y border-dashed border-brand-navy/10">

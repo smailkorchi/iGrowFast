@@ -168,6 +168,13 @@ Deno.serve(async (req) => {
         body = JSON.stringify({ number: payload.number });
         break;
 
+      // ── Check whether one or more numbers are registered on WhatsApp ─
+      // Returns: [{ exists: bool, jid: "212...@s.whatsapp.net", number: "212..." }]
+      case 'check-whatsapp-numbers':
+        endpoint = `/chat/whatsappNumbers/${payload.instanceName}`;
+        body = JSON.stringify({ numbers: payload.numbers || [] });
+        break;
+
       // ── Profile picture URL (lightweight — returns URL only, no proxy) ─
       case 'fetch-profile-url':
         endpoint = `/chat/fetchProfilePictureUrl/${payload.instanceName}`;
