@@ -44,7 +44,7 @@ export type AccessoryPreviewDialogProps = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     accessory: AccessoryPreviewRow | null;
-    variant: 'admin' | 'seller';
+    variant: 'admin' | 'commercial';
     adminActions?: AdminActions;
 };
 

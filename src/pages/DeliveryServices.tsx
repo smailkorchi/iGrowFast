@@ -342,7 +342,7 @@ const DeliveryServices = () => {
             const { data, error } = await supabase
                 .from(USERS_TABLE)
                 .select('*')
-                .eq('role', 'delivery person' as any)
+                .eq('role', 'courier' as any)
                 .eq('DigiCom Business', activeBusinessId)
                 .order('created_at', { ascending: false });
             if (error) throw error;
@@ -371,11 +371,11 @@ const DeliveryServices = () => {
         mutationFn: async ({ values, id, action }: { values: DeliveryPersonValues, id?: string, action: 'create' | 'update' }) => {
             const userData = {
                 ...values,
-                role: 'delivery person',
+                role: 'courier',
                 active: true,
                 assignment: 0,
                 products: [],
-                permissions: { pages: { '/orders': true } }, // Default access
+                permissions: {}, // Courier uses its own /courier/* routes
                 'DigiCom Business': activeBusinessId
             };
 
@@ -391,10 +391,11 @@ const DeliveryServices = () => {
             return data;
         },
         onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['delivery-people', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['users'] });
             setIsPersonModalOpen(false);
             setEditingItem(null);
-            toast({ title: "Success", description: "Delivery person account processed successfully." });
+            toast({ title: "Success", description: "Courier account processed successfully." });
         },
         onError: (err: any) => {
             toast({ title: "Operation failed", description: err.message, variant: "destructive" });
@@ -582,11 +583,6 @@ const DeliveryServices = () => {
                                 onEdit={() => handleEdit(person, 'person')}
                                 onZones={() => { setSelectedCourier(person); setIsZonesModalOpen(true); }}
                                 onFees={() => { setSelectedCourier(person); setIsFeesModalOpen(true); }}
-                                onPermissions={() => {
-                                    setSelectedCompany(null);
-                                    setSelectedCourier(person);
-                                    setIsProviderPermissionsOpen(true);
-                                }}
                                 onDelete={() => {
                                     if (confirm('Delete courier account?')) deleteMutation.mutate({ id: person.id, type: 'person' });
                                 }}
@@ -661,7 +657,7 @@ const DeliveryServices = () => {
 
 // --- Sub-components ---
 
-function CourierCard({ person, onEdit, onZones, onFees, onPermissions, onDelete }: any) {
+function CourierCard({ person, onEdit, onZones, onFees, onDelete }: any) {
     return (
         <Card className="group relative overflow-hidden border-none bg-white hover:shadow-[0_40px_80px_-15px_rgba(0,0,0,0.1)] transition-all duration-500 rounded-[32px] border border-slate-100 flex flex-col h-full">
             <div className="absolute top-0 left-0 w-full h-1.5 bg-brand-navy/5 group-hover:bg-brand-navy transition-colors" />
@@ -717,12 +713,6 @@ function CourierCard({ person, onEdit, onZones, onFees, onPermissions, onDelete 
                             className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground focus:bg-primary focus:text-primary-foreground"
                         >
                             <Coins className="w-4 h-4 mr-3 shrink-0" /> Set City Fees
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                            onClick={onPermissions}
-                            className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground focus:bg-primary focus:text-primary-foreground"
-                        >
-                            <Shield className="w-4 h-4 mr-3 shrink-0" /> Permissions
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem

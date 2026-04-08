@@ -37,6 +37,10 @@ import OwnerStatus from "./pages/owner/Status";
 import OwnerCities from "./pages/owner/Cities";
 import OwnerZones from "./pages/owner/Zones";
 import OwnerLayout from "./components/layout/OwnerLayout";
+import CourierLayout from "./components/layout/CourierLayout";
+import CourierDashboard from "./pages/courier/Dashboard";
+import CourierOrders from "./pages/courier/Orders";
+import CourierPayments from "./pages/courier/Payments";
 import Calculator from "./pages/Calculator";
 import Devis from "./pages/tools/Devis";
 import Facture from "./pages/tools/Facture";
@@ -179,9 +183,23 @@ const App = () => (
             </ProtectedRoute>
           } />
 
+          {/* Courier Routes */}
+          <Route path="/courier/*" element={
+            <ProtectedRoute allowedRoles={['courier']}>
+              <CourierLayout>
+                <Routes>
+                  <Route path="dashboard" element={<CourierDashboard />} />
+                  <Route path="orders" element={<CourierOrders />} />
+                  <Route path="payments" element={<CourierPayments />} />
+                  <Route path="" element={<Navigate to="dashboard" replace />} />
+                </Routes>
+              </CourierLayout>
+            </ProtectedRoute>
+          } />
+
           {/* Seller Routes */}
           <Route path="/seller/*" element={
-            <ProtectedRoute allowedRoles={['seller', 'commercial']}>
+            <ProtectedRoute allowedRoles={['commercial']}>
               <SellerLayout>
                 <Routes>
                   <Route path="dashboard" element={<SellerDashboard />} />
@@ -204,7 +222,7 @@ const App = () => (
 
           {/* Admin Routes (owner can access via new tab) */}
           <Route path="*" element={
-            <ProtectedRoute allowedRoles={['super admin', 'admin', 'mediabuyer', 'delivery person', 'owner']}>
+            <ProtectedRoute allowedRoles={['super admin', 'admin', 'mediabuyer', 'owner']}>
               <BusinessGuard>
                 <AppLayout>
                   <Routes>

@@ -54,7 +54,7 @@ export type ProductPreviewDialogProps = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     product: ProductPreviewRow | null;
-    variant: 'admin' | 'seller';
+    variant: 'admin' | 'commercial';
     adminActions?: AdminActions;
 };
 

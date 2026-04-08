@@ -394,7 +394,7 @@ const Products = () => {
                 open={!!previewProduct}
                 onOpenChange={(open) => !open && setPreviewProduct(null)}
                 product={previewProduct}
-                variant="seller"
+                variant="commercial"
             />
         </div>
     );

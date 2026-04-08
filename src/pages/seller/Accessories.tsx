@@ -381,7 +381,7 @@ const Accessories = () => {
                 open={!!previewAccessory}
                 onOpenChange={(open) => !open && setPreviewAccessory(null)}
                 accessory={previewAccessory}
-                variant="seller"
+                variant="commercial"
             />
         </div>
     );

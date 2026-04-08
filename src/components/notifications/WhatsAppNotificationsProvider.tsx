@@ -194,7 +194,15 @@ export function WhatsAppNotificationsProvider({ children }: { children: React.Re
       if (!profile) { log('no profile'); return; }
 
       const role: string = profile.role || '';
-      const isSeller = role === 'seller' || role === 'commercial';
+
+      // Roles without any WhatsApp access — skip subscription entirely.
+      if (role === 'courier') {
+        log('skip subscribe: role has no WA access', { role });
+        allowedInstanceIdsRef.current = new Set();
+        return;
+      }
+
+      const isSeller = role === 'commercial';
 
       let businessId: string | null = null;
       if (isSeller) {

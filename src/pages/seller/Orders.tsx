@@ -744,7 +744,7 @@ const Orders = () => {
             const { data, error } = await (supabase as any)
                 .from('users')
                 .select('id, name')
-                .eq('role', 'delivery person')
+                .eq('role', 'courier')
                 .eq('active', true)
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;

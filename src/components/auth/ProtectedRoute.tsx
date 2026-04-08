@@ -49,10 +49,12 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
 
             if (allowedRoles && allowedRoles.length > 0) {
                 if (!allowedRoles.includes(userProfile.role)) {
-                    if (userProfile.role === 'seller' || userProfile.role === 'commercial') {
+                    if (userProfile.role === 'commercial') {
                         navigate('/seller/dashboard');
                     } else if (userProfile.role === 'owner') {
                         navigate('/owner/dashboard');
+                    } else if (userProfile.role === 'courier') {
+                        navigate('/courier/dashboard');
                     } else {
                         navigate('/');
                     }

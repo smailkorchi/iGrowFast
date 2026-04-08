@@ -602,7 +602,7 @@ const Orders = () => {
             const { data, error } = await (supabase as any)
                 .from('users')
                 .select('id, name')
-                .eq('role', 'delivery person')
+                .eq('role', 'courier')
                 .eq('active', true)
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
@@ -772,71 +772,8 @@ const Orders = () => {
         );
     }, [productAccessories, products, accessories]);
 
-    // ?addProductId=<uuid> — opens the New Order modal with the product
-    // already on line 1 (mirrors what OrderLineProductCombobox does on select).
-    useEffect(() => {
-        const requestedId = searchParams.get('addProductId');
-        if (!requestedId) return;
-        if (prefillProductHandledRef.current === requestedId) return;
-        if (!products?.length) return; // wait for product list to be ready
-
-        const prod = (products as any[]).find((p) => p.id === requestedId);
-        if (!prod) {
-            // Product not in this business / inactive — clean param and bail.
-            const next = new URLSearchParams(searchParams);
-            next.delete('addProductId');
-            setSearchParams(next, { replace: true });
-            prefillProductHandledRef.current = requestedId;
-            return;
-        }
-
-        const accessoriesForLine = (productAccessoriesForOrders ?? [])
-            .filter((pa: any) => pa.product_id === requestedId)
-            .map((pa: any) => {
-                const acc = accessories?.find((a: any) => a.id === pa.accessory_id);
-                return {
-                    accessory_id: pa.accessory_id,
-                    accessory_quantity: pa.default_quantity || 1,
-                    accessory_unit_price: acc ? Number(acc.cost_price || 0) : 0,
-                };
-            });
-
-        form.reset({
-            name: '',
-            phone: '',
-            city_id: '',
-            address: '',
-            source_name: '',
-            shipping_cost: 0,
-            include_delivery_in_total: false,
-            replace: false,
-            note: '',
-            delivery_note: '',
-            delivery_type: 'Home Delivery',
-            order_status_id: defaultNewOrderStatusId,
-            items: [
-                {
-                    product_id: prod.id,
-                    quantity: 1,
-                    unit_price: Number(prod.selling_price || 0),
-                    accessories: accessoriesForLine,
-                },
-            ],
-            courier_id: null,
-            company_id: null,
-            history_comment: '',
-            _reportedDate: '',
-            coliaty_old_tracking: '',
-            ameex_old_tracking: '',
-        });
-        setIsAddModalOpen(true);
-
-        // Mark consumed and strip the param so refresh doesn't re-open.
-        prefillProductHandledRef.current = requestedId;
-        const next = new URLSearchParams(searchParams);
-        next.delete('addProductId');
-        setSearchParams(next, { replace: true });
-    }, [searchParams, products, productAccessoriesForOrders, accessories, defaultNewOrderStatusId, form, setSearchParams]);
+    // The ?addProductId=<uuid> prefill effect lives below the `form` declaration to
+    // avoid a temporal-dead-zone reference when React evaluates the effect deps array.
 
     const { data: packageStatuses } = useQuery({
         queryKey: ['package-statuses-dropdown', activeBusinessId],
@@ -958,6 +895,74 @@ const Orders = () => {
     });
 
     const watchedOrderItems = useWatch({ control: form.control, name: 'items' });
+
+    // ?addProductId=<uuid> — opens the New Order modal with the product
+    // already on line 1 (mirrors what OrderLineProductCombobox does on select).
+    // Placed below the `form` declaration so React can evaluate the deps array
+    // without hitting a temporal-dead-zone reference.
+    useEffect(() => {
+        const requestedId = searchParams.get('addProductId');
+        if (!requestedId) return;
+        if (prefillProductHandledRef.current === requestedId) return;
+        if (!products?.length) return; // wait for product list to be ready
+
+        const prod = (products as any[]).find((p) => p.id === requestedId);
+        if (!prod) {
+            // Product not in this business / inactive — clean param and bail.
+            const next = new URLSearchParams(searchParams);
+            next.delete('addProductId');
+            setSearchParams(next, { replace: true });
+            prefillProductHandledRef.current = requestedId;
+            return;
+        }
+
+        const accessoriesForLine = (productAccessoriesForOrders ?? [])
+            .filter((pa: any) => pa.product_id === requestedId)
+            .map((pa: any) => {
+                const acc = accessories?.find((a: any) => a.id === pa.accessory_id);
+                return {
+                    accessory_id: pa.accessory_id,
+                    accessory_quantity: pa.default_quantity || 1,
+                    accessory_unit_price: acc ? Number(acc.cost_price || 0) : 0,
+                };
+            });
+
+        form.reset({
+            name: '',
+            phone: '',
+            city_id: '',
+            address: '',
+            source_name: '',
+            shipping_cost: 0,
+            include_delivery_in_total: false,
+            replace: false,
+            note: '',
+            delivery_note: '',
+            delivery_type: 'Home Delivery',
+            order_status_id: defaultNewOrderStatusId,
+            items: [
+                {
+                    product_id: prod.id,
+                    quantity: 1,
+                    unit_price: Number(prod.selling_price || 0),
+                    accessories: accessoriesForLine,
+                },
+            ],
+            courier_id: null,
+            company_id: null,
+            history_comment: '',
+            _reportedDate: '',
+            coliaty_old_tracking: '',
+            ameex_old_tracking: '',
+        });
+        setIsAddModalOpen(true);
+
+        // Mark consumed and strip the param so refresh doesn't re-open.
+        prefillProductHandledRef.current = requestedId;
+        const next = new URLSearchParams(searchParams);
+        next.delete('addProductId');
+        setSearchParams(next, { replace: true });
+    }, [searchParams, products, productAccessoriesForOrders, accessories, defaultNewOrderStatusId, form, setSearchParams]);
 
     const newOrderHasZeroStockProduct = useMemo(() => {
         if (isEditModalOpen) return false;
@@ -2406,7 +2411,7 @@ const Orders = () => {
                                             <SelectValue placeholder="All" />
                                         </SelectTrigger>
                                         <SelectContent className="rounded-2xl border-none shadow-2xl shadow-brand-navy/10 max-h-[300px]">
-                                            <SelectItem value="all" className="font-bold text-xs rounded-xl">All Sellers</SelectItem>
+                                            <SelectItem value="all" className="font-bold text-xs rounded-xl">All Commercials</SelectItem>
                                             {sellers?.map((s: any) => (
                                                 <SelectItem key={s.id} value={s.id} className="font-bold text-xs rounded-xl">{s.name}</SelectItem>
                                             ))}
@@ -2717,7 +2722,7 @@ const Orders = () => {
                                             <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-brand-navy/40">City / Source</th>
                                             <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-brand-navy/40">Status</th>
                                             <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-brand-navy/40">Tracking</th>
-                                            <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-brand-navy/40">Seller</th>
+                                            <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-brand-navy/40">Commercial</th>
                                             <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-brand-navy/40 text-right">Amount</th>
                                             <th className="px-4 py-3 w-28" />
                                         </tr>
@@ -4633,11 +4638,11 @@ const Orders = () => {
                 </DialogContent>
             </Dialog>
 
-            {/* Seller Attribution Modal */}
+            {/* Commercial Attribution Modal */}
             <Dialog open={isAttributionModalOpen} onOpenChange={setIsAttributionModalOpen}>
                 <DialogContent className="max-w-md p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
                     <DialogHeader className="p-8 pb-6 shrink-0 border-b border-brand-navy/[0.05]">
-                        <DialogTitle className="text-3xl font-black text-brand-navy tracking-tight">Assign Seller</DialogTitle>
+                        <DialogTitle className="text-3xl font-black text-brand-navy tracking-tight">Assign Commercial</DialogTitle>
                         <DialogDescription className="text-sm font-bold text-muted-foreground mt-1">
                             Team attribution for {selectedOrders.length} orders
                         </DialogDescription>

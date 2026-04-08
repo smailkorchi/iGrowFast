@@ -108,7 +108,7 @@ const userSchema = z.object({
     username: z.string().min(3, "Username must be at least 3 characters"),
     email: z.string().email("Invalid email address"),
     password: z.string().min(6, "Password must be at least 6 characters").optional().or(z.literal('')),
-    role: z.enum(['super admin', 'admin', 'commercial']),
+    role: z.enum(['super admin', 'admin', 'commercial', 'courier']),
     assignment: z.number().default(0),
     commission_price: z.number().default(0),
     commission_basis: z.enum(['per_order', 'per_unit']).default('per_order'),
@@ -357,14 +357,14 @@ const Users = () => {
                     </div>
                 ) : (
                     <div className="space-y-10 mt-6">
-                        {['super admin', 'admin', 'commercial', 'delivery person', 'others'].map(roleGroup => {
+                        {['super admin', 'admin', 'commercial', 'courier', 'others'].map(roleGroup => {
                             const groupUsers = filteredUsers?.filter(u => {
                                 const r = (u.role || '').toLowerCase();
                                 if (roleGroup === 'super admin') return r === 'super admin';
                                 if (roleGroup === 'admin') return r === 'admin';
                                 if (roleGroup === 'commercial') return r === 'commercial';
-                                if (roleGroup === 'delivery person') return r === 'delivery person' || r === 'courier';
-                                if (roleGroup === 'others') return r !== 'super admin' && r !== 'admin' && r !== 'commercial' && r !== 'delivery person' && r !== 'courier';
+                                if (roleGroup === 'courier') return r === 'courier';
+                                if (roleGroup === 'others') return r !== 'super admin' && r !== 'admin' && r !== 'commercial' && r !== 'courier';
                                 return false;
                             });
 
@@ -373,7 +373,7 @@ const Users = () => {
                             const title = roleGroup === 'super admin' ? 'Super Admins' :
                                 roleGroup === 'admin' ? 'Admins' :
                                     roleGroup === 'commercial' ? 'Commercials' :
-                                        roleGroup === 'delivery person' ? 'Couriers' : 'Others';
+                                        roleGroup === 'courier' ? 'Couriers' : 'Others';
 
                             return (
                                 <div key={roleGroup} className="space-y-4">
@@ -448,7 +448,9 @@ const UserCard = ({ user, hasWhatsApp, onEdit, onDelete }: { user: any, hasWhats
                     </Avatar>
                     <div className="space-y-0.5">
                         <CardTitle className="text-xl font-bold group-hover:text-brand-navy transition-colors">{user.name}</CardTitle>
-                        <CardDescription className="flex items-center text-sm font-medium">
+                        {/* Using a div instead of CardDescription because CardDescription
+                            renders a <p> and Badge renders a <div>, which is invalid DOM nesting. */}
+                        <div className="flex items-center text-sm font-medium text-muted-foreground">
                             <Badge variant="secondary" className={cn(
                                 "rounded-lg text-[10px] uppercase font-bold px-2 py-0.5",
                                 user.role === 'super admin' ? "bg-brand-red/10 text-brand-red" :
@@ -458,7 +460,7 @@ const UserCard = ({ user, hasWhatsApp, onEdit, onDelete }: { user: any, hasWhats
                             )}>
                                 {user.role}
                             </Badge>
-                        </CardDescription>
+                        </div>
                     </div>
                 </div>
                 <DropdownMenu>
@@ -816,7 +818,7 @@ const UserModal = ({
                                                             </SelectTrigger>
                                                         </FormControl>
                                                         <SelectContent className="rounded-2xl border-none shadow-2xl p-2 bg-brand-white/95 backdrop-blur-xl">
-                                                            {['super admin', 'admin', 'commercial'].map((role) => (
+                                                            {['super admin', 'admin', 'commercial', 'courier'].map((role) => (
                                                                 <SelectItem key={role} value={role} className="rounded-xl p-3 capitalize font-bold text-brand-navy focus:bg-brand-navy focus:text-brand-white transition-colors cursor-pointer">
                                                                     {role}
                                                                 </SelectItem>

@@ -69,7 +69,7 @@ const SellerLayout: React.FC<SellerLayoutProps> = ({ children }) => {
                 </div>
             </main>
             {isSuspended && businessId && (
-                <SuspensionOverlay role="seller" businessId={businessId} />
+                <SuspensionOverlay role="commercial" businessId={businessId} />
             )}
         </div>
     );

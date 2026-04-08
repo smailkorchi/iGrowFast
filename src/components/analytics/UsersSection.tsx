@@ -20,8 +20,8 @@ const ROLE_COLORS: Record<string, string> = {
     'admin': '#3b5e5e',
     'commercial': '#F97316',
     'mediabuyer': '#A855F7',
-    'delivery person': '#14B8A6',
-    'seller': '#3B82F6',
+    'courier': '#14B8A6',
+    'owner': '#3B82F6',
 };
 
 const ROLE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -29,8 +29,8 @@ const ROLE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
     'admin': Shield,
     'commercial': ShoppingBag,
     'mediabuyer': Camera,
-    'delivery person': Truck,
-    'seller': Headphones,
+    'courier': Truck,
+    'owner': Headphones,
 };
 
 interface UsersSectionProps {

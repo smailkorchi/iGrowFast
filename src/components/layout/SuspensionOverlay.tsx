@@ -19,7 +19,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 
 interface SuspensionOverlayProps {
-    role: 'admin' | 'seller';
+    role: 'admin' | 'commercial';
     businessId: string;
 }
 
@@ -154,7 +154,7 @@ const SuspensionOverlay: React.FC<SuspensionOverlayProps> = ({ role, businessId 
     const planPrice = businessInfo?.plan?.price;
     const planCurrency = businessInfo?.plan?.currency || 'MAD';
 
-    if (role === 'seller') {
+    if (role === 'commercial') {
         return (
             <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-xl">
                 <div className="relative w-full max-w-md mx-4 rounded-2xl border border-white/20 bg-white/10 backdrop-blur-2xl shadow-2xl p-8 text-center">

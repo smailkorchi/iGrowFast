@@ -71,10 +71,12 @@ const Auth = () => {
                 description: "Successfully signed in to DigiCom.",
             });
 
-            if (profile?.role === 'seller' || profile?.role === 'commercial') {
+            if (profile?.role === 'commercial') {
                 navigate('/seller/dashboard');
             } else if (profile?.role === 'owner') {
                 navigate('/owner/dashboard');
+            } else if (profile?.role === 'courier') {
+                navigate('/courier/dashboard');
             } else {
                 navigate('/');
             }
