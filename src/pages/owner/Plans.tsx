@@ -43,7 +43,28 @@ const planSchema = z.object({
 
 type PlanFormValues = z.infer<typeof planSchema>;
 
-const TYPE_META: Record<string, { icon: any; color: string }> = {
+// plans row shape verified via MCP. features is jsonb stored as a string[] of bullets.
+type PlanRow = {
+    id: string;
+    name: string;
+    license_type: string;
+    price: number;
+    old_price: number | null;
+    currency: string;
+    description: string | null;
+    features: string[] | null;
+    promotion_label: string | null;
+    promotion_active: boolean;
+    active: boolean;
+    sort_order: number;
+    created_at: string;
+    updated_at: string;
+};
+
+const errorMessage = (err: unknown): string =>
+    err instanceof Error ? err.message : String(err);
+
+const TYPE_META: Record<string, { icon: React.ComponentType<{ className?: string }>; color: string }> = {
     monthly: { icon: Clock, color: 'text-blue-600 bg-blue-50' },
     yearly: { icon: Calendar, color: 'text-amber-600 bg-amber-50' },
     lifetime: { icon: InfinityIcon, color: 'text-emerald-600 bg-emerald-50' },
@@ -53,7 +74,7 @@ const Plans = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-    const [selected, setSelected] = useState<any>(null);
+    const [selected, setSelected] = useState<PlanRow | null>(null);
 
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -66,7 +87,7 @@ const Plans = () => {
                 .select('*')
                 .order('sort_order', { ascending: true });
             if (error) throw error;
-            return data;
+            return (data || []) as unknown as PlanRow[];
         },
     });
 
@@ -91,10 +112,12 @@ const Plans = () => {
             };
 
             if (id) {
-                const { error } = await supabase.from('plans').update(dataToSubmit).eq('id', id);
+                // Cast through unknown — generated Update type lists license_type as required
+                // even though our zod-validated PlanFormValues already provides it.
+                const { error } = await supabase.from('plans').update(dataToSubmit as unknown as never).eq('id', id);
                 if (error) throw error;
             } else {
-                const { error } = await supabase.from('plans').insert([dataToSubmit]);
+                const { error } = await supabase.from('plans').insert([dataToSubmit as unknown as never]);
                 if (error) throw error;
             }
         },
@@ -104,8 +127,8 @@ const Plans = () => {
             setSelected(null);
             toast({ title: 'Saved', description: 'Plan has been saved.' });
         },
-        onError: (err: any) => {
-            toast({ title: 'Error', description: err.message, variant: 'destructive' });
+        onError: (err) => {
+            toast({ title: 'Error', description: errorMessage(err), variant: 'destructive' });
         },
     });
 
@@ -120,13 +143,13 @@ const Plans = () => {
             setSelected(null);
             toast({ title: 'Deleted', description: 'Plan removed.' });
         },
-        onError: (err: any) => {
-            toast({ title: 'Error', description: err.message, variant: 'destructive' });
+        onError: (err) => {
+            toast({ title: 'Error', description: errorMessage(err), variant: 'destructive' });
         },
     });
 
-    const openEdit = (plan: any) => { setSelected(plan); setIsModalOpen(true); };
-    const openDelete = (plan: any) => { setSelected(plan); setIsDeleteOpen(true); };
+    const openEdit = (plan: PlanRow) => { setSelected(plan); setIsModalOpen(true); };
+    const openDelete = (plan: PlanRow) => { setSelected(plan); setIsDeleteOpen(true); };
 
     return (
         <div className="space-y-6">
@@ -207,7 +230,7 @@ const Plans = () => {
                     <DialogFooter className="px-6 py-4 border-t border-slate-100 gap-2 sm:gap-2">
                         <Button variant="ghost" onClick={() => setIsDeleteOpen(false)} className="h-9 text-sm text-slate-500">Cancel</Button>
                         <Button
-                            onClick={() => deleteMutation.mutate(selected.id)}
+                            onClick={() => selected && deleteMutation.mutate(selected.id)}
                             disabled={deleteMutation.isPending}
                             className="h-9 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg gap-2"
                         >
@@ -223,7 +246,7 @@ const Plans = () => {
 
 // --- Plan Card ---
 
-const PlanCard = ({ plan, onEdit, onDelete }: { plan: any; onEdit: () => void; onDelete: () => void }) => {
+const PlanCard = ({ plan, onEdit, onDelete }: { plan: PlanRow; onEdit: () => void; onDelete: () => void }) => {
     const meta = TYPE_META[plan.license_type] || TYPE_META.monthly;
     const Icon = meta.icon;
     const features: string[] = Array.isArray(plan.features) ? plan.features : [];
@@ -313,7 +336,7 @@ const PlanModal = ({ isOpen, onClose, onSubmit, initialData, loading }: {
     isOpen: boolean;
     onClose: () => void;
     onSubmit: (values: PlanFormValues) => void;
-    initialData?: any;
+    initialData?: PlanRow | null;
     loading?: boolean;
 }) => {
     const isEditing = !!initialData;
@@ -332,15 +355,19 @@ const PlanModal = ({ isOpen, onClose, onSubmit, initialData, loading }: {
     React.useEffect(() => {
         if (isOpen) {
             if (initialData) {
-                const rawFeatures = Array.isArray(initialData.features) ? initialData.features : [];
+                const rawFeatures: string[] = Array.isArray(initialData.features) ? initialData.features : [];
+                const licenseType: PlanFormValues['license_type'] =
+                    initialData.license_type === 'yearly' || initialData.license_type === 'lifetime'
+                        ? initialData.license_type
+                        : 'monthly';
                 form.reset({
                     name: initialData.name,
-                    license_type: initialData.license_type,
+                    license_type: licenseType,
                     price: initialData.price,
                     old_price: initialData.old_price,
                     currency: initialData.currency || 'MAD',
                     description: initialData.description || '',
-                    features: rawFeatures.map((f: string) => ({ value: f })),
+                    features: rawFeatures.map((f) => ({ value: f })),
                     promotion_label: initialData.promotion_label || '',
                     promotion_active: initialData.promotion_active || false,
                     active: initialData.active,

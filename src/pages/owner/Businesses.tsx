@@ -54,6 +54,42 @@ import { Switch } from '@/components/ui/switch';
 
 import { AddEditBusinessModal, BusinessFormValues } from '@/components/businesses/AddEditBusinessModal';
 
+// businesses row shape verified via MCP, joined with creator (users) and plan (plans).
+type BusinessRow = {
+    id: string;
+    name: string;
+    logo: string | null;
+    creator_id: string | null;
+    active: boolean | null;
+    created_at: string | null;
+    updated_at: string | null;
+    license_type: string;
+    license_start: string;
+    license_end: string | null;
+    status: string;
+    paid: boolean;
+    plan_id: string | null;
+    creator: { id: string; name: string | null; avatar_url: string | null; role: string | null } | null;
+    plan: { id: string; name: string; license_type: string; price: number; currency: string | null } | null;
+};
+
+type BusinessUpdateFields = {
+    name?: string;
+    active?: boolean;
+    logo?: string | null;
+    plan_id?: string;
+    license_type?: string;
+    license_start?: string;
+    license_end?: string | null;
+    status?: string;
+    paid?: boolean;
+    creator_id?: string;
+    updated_at?: string;
+};
+
+const errorMessage = (err: unknown): string =>
+    err instanceof Error ? err.message : String(err);
+
 const adminUserSchema = z.object({
     name: z.string().min(2, 'Name is required'),
     username: z.string().min(3, 'Username is required'),
@@ -91,7 +127,7 @@ const Businesses = () => {
     const [searchQuery, setSearchQuery] = useState("");
     const [isAddEditModalOpen, setIsAddEditModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-    const [selectedBusiness, setSelectedBusiness] = useState<any>(null);
+    const [selectedBusiness, setSelectedBusiness] = useState<BusinessRow | null>(null);
     const [isCreateAdminOpen, setIsCreateAdminOpen] = useState(false);
     const [newBusinessId, setNewBusinessId] = useState<string | null>(null);
 
@@ -115,7 +151,7 @@ const Businesses = () => {
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
-            return data;
+            return (data || []) as unknown as BusinessRow[];
         },
     });
 
@@ -138,7 +174,7 @@ const Businesses = () => {
             const plan = await fetchPlanById(values.plan_id);
             if (!plan) throw new Error("Selected plan not found");
 
-            const dataToSubmit: any = {
+            const dataToSubmit: BusinessUpdateFields = {
                 name: values.name,
                 active: values.active,
                 logo: values.logo,
@@ -175,7 +211,10 @@ const Businesses = () => {
                 dataToSubmit.license_end = computeLicenseEnd(plan.license_type, now);
                 dataToSubmit.status = 'active';
                 dataToSubmit.paid = true;
-                const { data, error } = await supabase.from('businesses').insert([dataToSubmit]).select('id').single();
+                // dataToSubmit is built conditionally above; cast through unknown because the generated
+                // Insert type requires every NOT NULL column even though computeLicenseEnd + branch logic
+                // already guarantees them at runtime.
+                const { data, error } = await supabase.from('businesses').insert([dataToSubmit as unknown as never]).select('id').single();
                 if (error) throw error;
                 return { isNew: true, businessId: data.id };
             }
@@ -193,8 +232,8 @@ const Businesses = () => {
                 toast({ title: "Success", description: "Business information updated." });
             }
         },
-        onError: (err: any) => {
-            toast({ title: "Error", description: err.message, variant: "destructive" });
+        onError: (err) => {
+            toast({ title: "Error", description: errorMessage(err), variant: "destructive" });
         }
     });
 
@@ -203,7 +242,7 @@ const Businesses = () => {
             const target = businesses?.find(b => b.id === businessId);
             if (!target) throw new Error("Business not found");
 
-            const updates: any = { updated_at: new Date().toISOString() };
+            const updates: BusinessUpdateFields = { updated_at: new Date().toISOString() };
 
             switch (action) {
                 case 'extend': {
@@ -250,8 +289,8 @@ const Businesses = () => {
             };
             toast({ title: labels[action], description: "Status updated successfully." });
         },
-        onError: (err: any) => {
-            toast({ title: "Error", description: err.message, variant: "destructive" });
+        onError: (err) => {
+            toast({ title: "Error", description: errorMessage(err), variant: "destructive" });
         },
     });
 
@@ -273,8 +312,8 @@ const Businesses = () => {
             setNewBusinessId(null);
             toast({ title: "Super Admin created", description: "The admin account has been provisioned and linked to the business." });
         },
-        onError: (err: any) => {
-            toast({ title: "Error", description: err.message, variant: "destructive" });
+        onError: (err) => {
+            toast({ title: "Error", description: errorMessage(err), variant: "destructive" });
         },
     });
 
@@ -291,17 +330,17 @@ const Businesses = () => {
             setConfirmDeleteText("");
             toast({ title: "Deleted", description: "Business has been wiped from the system." });
         },
-        onError: (err: any) => {
-            toast({ title: "Deletion Failed", description: err.message, variant: "destructive" });
+        onError: (err) => {
+            toast({ title: "Deletion Failed", description: errorMessage(err), variant: "destructive" });
         }
     });
 
-    const handleEdit = (business: any) => {
+    const handleEdit = (business: BusinessRow) => {
         setSelectedBusiness(business);
         setIsAddEditModalOpen(true);
     };
 
-    const handleDeleteClick = (business: any) => {
+    const handleDeleteClick = (business: BusinessRow) => {
         setSelectedBusiness(business);
         setDeleteStep(1);
         setConfirmName("");
@@ -408,7 +447,17 @@ const Businesses = () => {
                 isOpen={isAddEditModalOpen}
                 onClose={() => { setIsAddEditModalOpen(false); setSelectedBusiness(null); }}
                 onSubmit={(values) => upsertMutation.mutate({ ...values, id: selectedBusiness?.id })}
-                initialData={selectedBusiness}
+                initialData={selectedBusiness ? {
+                    id: selectedBusiness.id,
+                    name: selectedBusiness.name,
+                    active: selectedBusiness.active ?? true,
+                    logo: selectedBusiness.logo,
+                    plan_id: selectedBusiness.plan_id || '',
+                    status: (selectedBusiness.status as 'active' | 'suspended' | 'deactivated') || 'active',
+                    license_end: selectedBusiness.license_end,
+                    license_type: selectedBusiness.license_type,
+                    paid: selectedBusiness.paid,
+                } : undefined}
                 loading={upsertMutation.isPending}
                 onStatusChange={handleStatusChange}
                 statusLoading={statusChangeMutation.isPending}
@@ -446,7 +495,7 @@ const StatusDot = ({ status }: { status: string }) => (
     <div className={cn('w-1.5 h-1.5 rounded-full shrink-0', STATUS_DOT[status] || STATUS_DOT.active)} />
 );
 
-const LicenseMeta = ({ business }: { business: any }) => {
+const LicenseMeta = ({ business }: { business: BusinessRow }) => {
     const type = business.license_type || 'monthly';
     const end = business.license_end ? new Date(business.license_end) : null;
     const isExpired = end && end < new Date();
@@ -477,7 +526,9 @@ const LicenseMeta = ({ business }: { business: any }) => {
     );
 };
 
-const BusinessCard = ({ business, onEdit, onDelete }: any) => (
+type CardProps = { business: BusinessRow; onEdit: () => void; onDelete: () => void };
+
+const BusinessCard = ({ business, onEdit, onDelete }: CardProps) => (
     <Card className="group border border-slate-200/60 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow">
         <CardContent className="p-4 space-y-3">
             <div className="flex items-start justify-between">
@@ -529,7 +580,7 @@ const BusinessCard = ({ business, onEdit, onDelete }: any) => (
     </Card>
 );
 
-const BusinessListItem = ({ business, onEdit, onDelete }: any) => (
+const BusinessListItem = ({ business, onEdit, onDelete }: CardProps) => (
     <div className="group flex items-center justify-between px-4 py-3 rounded-lg border border-slate-200/60 bg-white hover:bg-slate-50/50 transition-colors">
         <div className="flex items-center gap-3 min-w-0">
             <div className="w-9 h-9 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden shrink-0">
@@ -565,6 +616,20 @@ const BusinessListItem = ({ business, onEdit, onDelete }: any) => (
     </div>
 );
 
+type DeleteDialogProps = {
+    isOpen: boolean;
+    onClose: () => void;
+    business: BusinessRow | null;
+    onConfirm: () => void;
+    loading: boolean;
+    step: number;
+    setStep: (s: number) => void;
+    confirmName: string;
+    setConfirmName: (s: string) => void;
+    confirmDeleteText: string;
+    setConfirmDeleteText: (s: string) => void;
+};
+
 const DeleteConfirmationDialog = ({
     isOpen,
     onClose,
@@ -577,7 +642,7 @@ const DeleteConfirmationDialog = ({
     setConfirmName,
     confirmDeleteText,
     setConfirmDeleteText
-}: any) => {
+}: DeleteDialogProps) => {
     return (
         <Dialog open={isOpen} onOpenChange={(v) => !v && onClose()}>
             <DialogContent className="max-w-md p-0 border border-slate-200/60 bg-white rounded-2xl shadow-xl overflow-hidden gap-0">
@@ -660,7 +725,14 @@ const DeleteConfirmationDialog = ({
     );
 };
 
-const CreateAdminModal = ({ isOpen, onClose, onSubmit, loading }: any) => {
+type CreateAdminModalProps = {
+    isOpen: boolean;
+    onClose: () => void;
+    onSubmit: (values: z.infer<typeof adminUserSchema>) => void;
+    loading: boolean;
+};
+
+const CreateAdminModal = ({ isOpen, onClose, onSubmit, loading }: CreateAdminModalProps) => {
     const [avatar, setAvatar] = useState<File | null>(null);
     const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 

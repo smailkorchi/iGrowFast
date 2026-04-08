@@ -73,14 +73,17 @@ type ZoneRow = {
     master_cities?: { id: string }[] | null;
 };
 
+const errorMessage = (err: unknown): string =>
+    err instanceof Error ? err.message : String(err);
+
 function zoneCityCount(zone: ZoneRow): number {
     return zone.master_cities?.length ?? 0;
 }
 
 const Zones = () => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-    const [editingZone, setEditingZone] = useState<any>(null);
-    const [selectedZoneCities, setSelectedZoneCities] = useState<any>(null);
+    const [editingZone, setEditingZone] = useState<ZoneRow | null>(null);
+    const [selectedZoneCities, setSelectedZoneCities] = useState<ZoneRow | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
     const [filterCities, setFilterCities] = useState<string>('all');
@@ -137,8 +140,8 @@ const Zones = () => {
             setIsAddModalOpen(false);
             toast({ title: "Zone created", description: "The zone has been successfully created." });
         },
-        onError: (error: any) => {
-            toast({ title: "Error", description: error.message, variant: "destructive" });
+        onError: (error) => {
+            toast({ title: "Error", description: errorMessage(error), variant: "destructive" });
         }
     });
 
@@ -161,8 +164,8 @@ const Zones = () => {
             setEditingZone(null);
             toast({ title: "Zone updated", description: "The zone has been successfully updated." });
         },
-        onError: (error: any) => {
-            toast({ title: "Error", description: error.message, variant: "destructive" });
+        onError: (error) => {
+            toast({ title: "Error", description: errorMessage(error), variant: "destructive" });
         }
     });
 
@@ -179,8 +182,8 @@ const Zones = () => {
             queryClient.invalidateQueries({ queryKey: ['zones'] });
             toast({ title: "Zone deleted", description: "The zone has been successfully removed." });
         },
-        onError: (error: any) => {
-            toast({ title: "Error", description: error.message, variant: "destructive" });
+        onError: (error) => {
+            toast({ title: "Error", description: errorMessage(error), variant: "destructive" });
         }
     });
 
@@ -605,7 +608,7 @@ const Zones = () => {
                 <ZoneModal
                     isOpen={!!editingZone}
                     onClose={() => setEditingZone(null)}
-                    onSubmit={(values) => updateZoneMutation.mutate({ id: editingZone.id, values })}
+                    onSubmit={(values) => editingZone && updateZoneMutation.mutate({ id: editingZone.id, values })}
                     initialData={editingZone}
                     loading={updateZoneMutation.isPending}
                     title="Edit Zone"
@@ -615,7 +618,7 @@ const Zones = () => {
     );
 };
 
-const ZoneCard = ({ zone, isOwner, onClick, onEdit, onDelete }: { zone: any, isOwner: boolean, onClick: () => void, onEdit: () => void, onDelete: () => void }) => {
+const ZoneCard = ({ zone, isOwner, onClick, onEdit, onDelete }: { zone: ZoneRow, isOwner: boolean, onClick: () => void, onEdit: () => void, onDelete: () => void }) => {
     return (
         <Card
             onClick={onClick}
@@ -672,7 +675,16 @@ const ZoneCard = ({ zone, isOwner, onClick, onEdit, onDelete }: { zone: any, isO
     );
 };
 
-const ZoneModal = ({ isOpen, onClose, onSubmit, initialData, loading, title }: any) => {
+type ZoneModalProps = {
+    isOpen: boolean;
+    onClose: () => void;
+    onSubmit: (values: ZoneFormValues) => void;
+    initialData?: ZoneRow | null;
+    loading?: boolean;
+    title: string;
+};
+
+const ZoneModal = ({ isOpen, onClose, onSubmit, initialData, loading, title }: ZoneModalProps) => {
     const form = useForm<ZoneFormValues>({
         resolver: zodResolver(zoneSchema),
         defaultValues: {
@@ -683,7 +695,7 @@ const ZoneModal = ({ isOpen, onClose, onSubmit, initialData, loading, title }: a
     React.useEffect(() => {
         if (isOpen) {
             if (initialData) {
-                form.reset(initialData);
+                form.reset({ name: initialData.name });
             } else {
                 form.reset({ name: '' });
             }
@@ -743,7 +755,7 @@ const ZoneModal = ({ isOpen, onClose, onSubmit, initialData, loading, title }: a
     );
 };
 
-const ZoneCitiesModal = ({ zone, isOpen, onClose, isOwner }: { zone: any, isOpen: boolean, onClose: () => void, isOwner: boolean }) => {
+const ZoneCitiesModal = ({ zone, isOpen, onClose, isOwner }: { zone: ZoneRow, isOpen: boolean, onClose: () => void, isOwner: boolean }) => {
     const [citySearch, setCitySearch] = useState("");
     const queryClient = useQueryClient();
     const { toast } = useToast();

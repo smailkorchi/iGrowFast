@@ -89,6 +89,27 @@ const statusSchema = z.object({
 
 type StatusFormValues = z.infer<typeof statusSchema>;
 
+// Common shape across order_statuses + package_statuses (verified via MCP).
+type StatusRow = {
+    id: string;
+    code: string;
+    label: string;
+    ranking: number | null;
+    color: string | null;
+    recheck: boolean | null;
+    active: boolean | null;
+    category: string | null;
+    created_at: string | null;
+    updated_at: string | null;
+    // order_statuses only
+    show_in_order?: boolean;
+    // package_statuses only
+    delivery_service_statuses?: string[] | null;
+};
+
+const errorMessage = (err: unknown): string =>
+    err instanceof Error ? err.message : String(err);
+
 function OrderModalHiddenBadge({ className }: { className?: string }) {
     return (
         <Badge
@@ -110,9 +131,9 @@ const Status = () => {
     const [activeTab, setActiveTab] = useState<"orders" | "packages">("orders");
     const [isUpsertOpen, setIsUpsertOpen] = useState(false);
     const [isViewOpen, setIsViewOpen] = useState(false);
-    const [editingStatus, setEditingStatus] = useState<any>(null);
-    const [viewingStatus, setViewingStatus] = useState<any>(null);
-    const [statusToDelete, setStatusToDelete] = useState<any>(null);
+    const [editingStatus, setEditingStatus] = useState<StatusRow | null>(null);
+    const [viewingStatus, setViewingStatus] = useState<StatusRow | null>(null);
+    const [statusToDelete, setStatusToDelete] = useState<StatusRow | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
 
@@ -148,7 +169,7 @@ const Status = () => {
                 .order('ranking', { ascending: true });
 
             if (error) throw error;
-            return data;
+            return (data || []) as unknown as StatusRow[];
         },
     });
 
@@ -219,8 +240,8 @@ const Status = () => {
                 description: `Successfully ${editingStatus ? 'updated' : 'created'} ${form.getValues('label')}.`
             });
         },
-        onError: (error: any) => {
-            toast({ title: "Error", description: error.message, variant: "destructive" });
+        onError: (error) => {
+            toast({ title: "Error", description: errorMessage(error), variant: "destructive" });
         }
     });
 
@@ -237,8 +258,8 @@ const Status = () => {
             setStatusToDelete(null);
             toast({ title: "Status deleted", description: "The status was successfully removed." });
         },
-        onError: (error: any) => {
-            toast({ title: "Error", description: error.message, variant: "destructive" });
+        onError: (error) => {
+            toast({ title: "Error", description: errorMessage(error), variant: "destructive" });
         }
     });
 
@@ -246,7 +267,7 @@ const Status = () => {
         upsertMutation.mutate(values);
     };
 
-    const openUpsert = (status: any = null) => {
+    const openUpsert = (status: StatusRow | null = null) => {
         if (status) {
             setEditingStatus(status);
             // Transform array of strings from DB to array of objects for form
@@ -387,7 +408,7 @@ const Status = () => {
                 </div>
             </div>
 
-            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="space-y-8">
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'orders' | 'packages')} className="space-y-8">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <TabsList className="bg-brand-navy/[0.03] p-1.5 rounded-[24px] h-auto gap-2 w-fit">
                         <TabsTrigger
@@ -788,7 +809,7 @@ const Status = () => {
                                 Safety First
                             </AlertDialogCancel>
                             <AlertDialogAction
-                                onClick={() => deleteMutation.mutate(statusToDelete.id)}
+                                onClick={() => statusToDelete && deleteMutation.mutate(statusToDelete.id)}
                                 className="w-full rounded-2xl h-14 font-bold bg-red-500 hover:bg-red-600 text-brand-white shadow-xl shadow-red-500/20 m-0"
                             >
                                 {deleteMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
@@ -804,7 +825,16 @@ const Status = () => {
 
 // --- Sub-components ---
 
-const StatusListRow = ({ status, activeTab, isOwner, onEdit, onView, onDelete }: any) => {
+type StatusItemProps = {
+    status: StatusRow;
+    activeTab: 'orders' | 'packages';
+    isOwner: boolean;
+    onEdit: () => void;
+    onView: () => void;
+    onDelete: () => void;
+};
+
+const StatusListRow = ({ status, activeTab, isOwner, onEdit, onView, onDelete }: StatusItemProps) => {
     return (
         <div
             className={cn(
@@ -882,7 +912,7 @@ const StatusListRow = ({ status, activeTab, isOwner, onEdit, onView, onDelete }:
     );
 };
 
-const StatusCard = ({ status, activeTab, isOwner, onEdit, onView, onDelete }: any) => {
+const StatusCard = ({ status, activeTab, isOwner, onEdit, onView, onDelete }: StatusItemProps) => {
     return (
         <Card
             className={cn(

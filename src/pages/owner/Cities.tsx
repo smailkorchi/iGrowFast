@@ -280,8 +280,8 @@ function ProviderMappingCell({
 
 const Cities = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingCity, setEditingCity] = useState<any>(null);
-    const [cityToDelete, setCityToDelete] = useState<any>(null);
+    const [editingCity, setEditingCity] = useState<MasterCityRow | null>(null);
+    const [cityToDelete, setCityToDelete] = useState<MasterCityRow | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
     const [filterZoneId, setFilterZoneId] = useState<string>('all');
@@ -449,8 +449,8 @@ const Cities = () => {
             setIsModalOpen(false);
             toast({ title: "City created", description: "The city has been successfully added to Master Cities." });
         },
-        onError: (error: any) => {
-            toast({ title: "Error", description: error.message, variant: "destructive" });
+        onError: (error) => {
+            toast({ title: "Error", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
         }
     });
 
@@ -476,8 +476,8 @@ const Cities = () => {
             setEditingCity(null);
             toast({ title: "City updated", description: "The city has been successfully updated." });
         },
-        onError: (error: any) => {
-            toast({ title: "Error", description: error.message, variant: "destructive" });
+        onError: (error) => {
+            toast({ title: "Error", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
         }
     });
 
@@ -495,8 +495,8 @@ const Cities = () => {
             setCityToDelete(null);
             toast({ title: "City deleted", description: "The city was successfully removed." });
         },
-        onError: (error: any) => {
-            toast({ title: "Error", description: error.message, variant: "destructive" });
+        onError: (error) => {
+            toast({ title: "Error", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
         }
     });
 

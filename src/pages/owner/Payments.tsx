@@ -39,6 +39,51 @@ const STATUS_STYLE: Record<string, string> = {
 const TABS = ['all', 'pending', 'approved', 'denied'] as const;
 type Tab = typeof TABS[number];
 
+// business_payments + joined business/plan/users (verified via MCP).
+type PaymentBusiness = {
+    id: string;
+    name: string;
+    logo: string | null;
+    plan_id: string | null;
+    license_type: string;
+    license_start: string;
+    license_end: string | null;
+    status: string;
+    active: boolean | null;
+    paid: boolean;
+    plan: {
+        id: string;
+        name: string;
+        license_type: string;
+        price: number;
+        currency: string | null;
+        description: string | null;
+    } | null;
+};
+
+type PaymentRow = {
+    id: string;
+    business_id: string;
+    amount: number;
+    currency: string;
+    payment_method: string;
+    license_type: string;
+    notes: string | null;
+    status: string;
+    proof_url: string | null;
+    denial_message: string | null;
+    reviewed_by: string | null;
+    reviewed_at: string | null;
+    submitted_by: string | null;
+    created_at: string;
+    business: PaymentBusiness | null;
+    submitter: { id: string; name: string | null; avatar_url: string | null; email: string | null } | null;
+    reviewer: { id: string; name: string | null } | null;
+};
+
+const errorMessage = (err: unknown): string =>
+    err instanceof Error ? err.message : String(err);
+
 const OwnerPayments = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTab, setActiveTab] = useState<Tab>('all');
@@ -67,7 +112,7 @@ const OwnerPayments = () => {
                 .not('proof_url', 'is', null)
                 .order('created_at', { ascending: false });
             if (error) throw error;
-            return data;
+            return (data || []) as unknown as PaymentRow[];
         },
     });
 
@@ -103,13 +148,13 @@ const OwnerPayments = () => {
             queryClient.invalidateQueries({ queryKey: ['platform-settings-bank'] });
             toast({ title: 'Bank info saved' });
         },
-        onError: (err: any) => {
-            toast({ title: 'Error', description: err.message, variant: 'destructive' });
+        onError: (err) => {
+            toast({ title: 'Error', description: errorMessage(err), variant: 'destructive' });
         },
     });
 
     const approveMutation = useMutation({
-        mutationFn: async (payment: any) => {
+        mutationFn: async (payment: PaymentRow) => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error('Not authenticated');
 
@@ -143,8 +188,8 @@ const OwnerPayments = () => {
             queryClient.invalidateQueries({ queryKey: ['owner-payment-submissions'] });
             toast({ title: 'Payment approved', description: 'Business has been reactivated.' });
         },
-        onError: (err: any) => {
-            toast({ title: 'Error', description: err.message, variant: 'destructive' });
+        onError: (err) => {
+            toast({ title: 'Error', description: errorMessage(err), variant: 'destructive' });
         },
     });
 
@@ -170,8 +215,8 @@ const OwnerPayments = () => {
             setDenyMessage('');
             toast({ title: 'Payment denied' });
         },
-        onError: (err: any) => {
-            toast({ title: 'Error', description: err.message, variant: 'destructive' });
+        onError: (err) => {
+            toast({ title: 'Error', description: errorMessage(err), variant: 'destructive' });
         },
     });
 
@@ -208,7 +253,7 @@ const OwnerPayments = () => {
         return payments.find(p => p.id === denyId) || null;
     }, [denyId, payments]);
 
-    const handlePreview = async (payment: any) => {
+    const handlePreview = async (payment: PaymentRow) => {
         setPreviewId(payment.id);
         setPreviewProofUrl(null);
         if (payment.proof_url) {

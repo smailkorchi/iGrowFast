@@ -15,7 +15,13 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { AddEditBusinessModal } from '@/components/businesses/AddEditBusinessModal';
+import { AddEditBusinessModal, BusinessFormValues } from '@/components/businesses/AddEditBusinessModal';
+
+// Slim businesses row used for the entity picker (full schema verified via MCP).
+type SimpleBusinessRow = { id: string; name: string; logo: string | null };
+
+const errorMessage = (err: unknown): string =>
+    err instanceof Error ? err.message : String(err);
 
 const SelectBusiness = () => {
     const navigate = useNavigate();
@@ -34,12 +40,12 @@ const SelectBusiness = () => {
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
-            return data;
+            return (data || []) as unknown as SimpleBusinessRow[];
         },
     });
 
     const upsertMutation = useMutation({
-        mutationFn: async (payload: any) => {
+        mutationFn: async (payload: BusinessFormValues & { id?: string }) => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error("Not authenticated");
 
@@ -47,14 +53,15 @@ const SelectBusiness = () => {
             const dataToSubmit = {
                 ...values,
                 creator_id: user.id,
-                updated_at: new Date().toISOString()
+                updated_at: new Date().toISOString(),
             };
 
             if (id) {
-                const { error } = await supabase.from('businesses').update(dataToSubmit).eq('id', id);
+                // Generated Update type rejects partial column sets even though zod validates name/plan_id.
+                const { error } = await supabase.from('businesses').update(dataToSubmit as unknown as never).eq('id', id);
                 if (error) throw error;
             } else {
-                const { error } = await supabase.from('businesses').insert([dataToSubmit]);
+                const { error } = await supabase.from('businesses').insert([dataToSubmit as unknown as never]);
                 if (error) throw error;
             }
         },
@@ -63,12 +70,12 @@ const SelectBusiness = () => {
             setIsAddEditModalOpen(false);
             toast({ title: "Success", description: "Business environment registered." });
         },
-        onError: (err: any) => {
-            toast({ title: "Registration Failed", description: err.message, variant: "destructive" });
+        onError: (err) => {
+            toast({ title: "Registration Failed", description: errorMessage(err), variant: "destructive" });
         }
     });
 
-    const handleSelect = async (business: any) => {
+    const handleSelect = async (business: SimpleBusinessRow) => {
         // Update owner's active business in DB so all RLS policies resolve correctly
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {

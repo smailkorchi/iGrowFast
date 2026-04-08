@@ -69,9 +69,24 @@ const ownerUserSchema = z.object({
 
 type OwnerUserFormValues = z.infer<typeof ownerUserSchema>;
 
+// Slim users row used by the owner picker (full schema verified via MCP).
+type OwnerUserRow = {
+    id: string;
+    name: string;
+    username: string;
+    email: string;
+    role: string;
+    avatar_url: string | null;
+    active: boolean | null;
+    created_at: string;
+};
+
+const errorMessage = (err: unknown): string =>
+    err instanceof Error ? err.message : String(err);
+
 const OwnerUsers = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingUser, setEditingUser] = useState<any>(null);
+    const [editingUser, setEditingUser] = useState<OwnerUserRow | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -86,7 +101,7 @@ const OwnerUsers = () => {
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
-            return data;
+            return (data || []) as unknown as OwnerUserRow[];
         },
     });
 
@@ -107,8 +122,8 @@ const OwnerUsers = () => {
             setIsModalOpen(false);
             toast({ title: 'User created', description: 'Owner account has been provisioned.' });
         },
-        onError: (err: any) => {
-            toast({ title: 'Error', description: err.message, variant: 'destructive' });
+        onError: (err) => {
+            toast({ title: 'Error', description: errorMessage(err), variant: 'destructive' });
         },
     });
 
@@ -130,8 +145,8 @@ const OwnerUsers = () => {
             setEditingUser(null);
             toast({ title: 'User updated', description: 'Owner account has been updated.' });
         },
-        onError: (err: any) => {
-            toast({ title: 'Error', description: err.message, variant: 'destructive' });
+        onError: (err) => {
+            toast({ title: 'Error', description: errorMessage(err), variant: 'destructive' });
         },
     });
 
@@ -146,8 +161,8 @@ const OwnerUsers = () => {
             queryClient.invalidateQueries({ queryKey: ['owner-users'] });
             toast({ title: 'User deleted', description: 'Owner account has been removed.' });
         },
-        onError: (err: any) => {
-            toast({ title: 'Error', description: err.message, variant: 'destructive' });
+        onError: (err) => {
+            toast({ title: 'Error', description: errorMessage(err), variant: 'destructive' });
         },
     });
 
@@ -251,7 +266,7 @@ const OwnerUsers = () => {
     );
 };
 
-const OwnerUserCard = ({ user, onEdit, onDelete }: { user: any; onEdit: () => void; onDelete: () => void }) => (
+const OwnerUserCard = ({ user, onEdit, onDelete }: { user: OwnerUserRow; onEdit: () => void; onDelete: () => void }) => (
     <Card className="group relative overflow-hidden border-none bg-white/50 backdrop-blur-sm hover:shadow-2xl transition-all duration-300 rounded-[32px]">
         <CardHeader className="flex flex-row items-start justify-between pb-2">
             <div className="flex items-center gap-4">
@@ -329,7 +344,16 @@ const OwnerUserCard = ({ user, onEdit, onDelete }: { user: any; onEdit: () => vo
     </Card>
 );
 
-const OwnerUserModal = ({ isOpen, onClose, onSubmit, initialData, loading, title }: any) => {
+type OwnerUserModalProps = {
+    isOpen: boolean;
+    onClose: () => void;
+    onSubmit: (values: OwnerUserFormValues) => void;
+    initialData?: OwnerUserRow | null;
+    loading?: boolean;
+    title: string;
+};
+
+const OwnerUserModal = ({ isOpen, onClose, onSubmit, initialData, loading, title }: OwnerUserModalProps) => {
     const [avatar, setAvatar] = useState<File | null>(null);
     const [avatarPreview, setAvatarPreview] = useState<string | null>(initialData?.avatar_url || null);
 
