@@ -3,7 +3,12 @@ import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase';
-import { downloadCourierPayoutPdf } from '@/lib/courierPayoutPdf';
+import {
+    buildCourierPayoutPdfBlob,
+    resolveCourierPayoutImages,
+    type CourierPayoutPdfInput,
+} from '@/lib/courierPayoutPdf';
+import { saveBlob, canDirectSave } from '@/lib/saveBlob';
 import { useToast } from '@/hooks/use-toast';
 import {
     Wallet,
@@ -21,6 +26,8 @@ import {
     Sparkles,
     ArrowDown,
     Receipt,
+    FileText,
+    Save,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -129,69 +136,178 @@ const CourierPayments = () => {
         );
     }, [notes, searchQuery]);
 
-    // ─── Download premium PDF payout (same page, no popup, no print dialog) ───
-    // Uses @react-pdf/renderer to build a real PDF blob client-side and
-    // triggers a direct download. Works identically on iOS Safari, Chrome
-    // Android, and desktop — the user stays on this page and the file
-    // lands in their Downloads / Files app.
+    // ─── PDF save flow ───────────────────────────────────────────────────
+    // Strategy:
+    //   1. Pre-resolve business logo + courier avatar into data URIs at
+    //      page mount, so the click→save path has ZERO await latency for
+    //      image fetching. This is critical on iOS Safari where user
+    //      activation expires quickly and navigator.share() is rejected
+    //      if called after long awaits.
+    //   2. On click: build the PDF blob, then call saveBlob() which tries
+    //      the Web Share API (→ iOS Files / AirDrop / Android share sheet),
+    //      falling back to classic <a download> on desktop.
+    //   3. If save cannot guarantee a clean "save to device" outcome
+    //      (iOS Safari share failed or wasn't available, or user needs a
+    //      second gesture), open a "PDF ready" modal with an explicit
+    //      Save button that fires a guaranteed fresh user gesture.
     const { toast } = useToast();
     const [downloadingId, setDownloadingId] = useState<string | null>(null);
+    const [readyBlob, setReadyBlob] = useState<{
+        blob: Blob;
+        filename: string;
+        noteRef: string;
+    } | null>(null);
+
+    // ── Fetch business meta once ───────────────────────────────────────
+    const { data: businessMeta } = useQuery({
+        queryKey: ['courier-payments-business-meta', businessId],
+        queryFn: async () => {
+            if (!businessId) return null;
+            const { data } = await (supabase as any)
+                .from('businesses')
+                .select('name, logo')
+                .eq('id', businessId)
+                .single();
+            return (data || null) as { name: string | null; logo: string | null } | null;
+        },
+        enabled: !!businessId,
+        staleTime: 10 * 60_000,
+    });
+
+    // ── Pre-resolve remote images into data URIs ───────────────────────
+    // This runs ONCE on mount and caches the result. No image fetch
+    // latency at click time — critical for iOS user activation.
+    const { data: resolvedImages } = useQuery({
+        queryKey: [
+            'courier-payments-pdf-images',
+            businessMeta?.logo || null,
+            me?.avatar_url || null,
+        ],
+        queryFn: async () => {
+            return resolveCourierPayoutImages({
+                businessLogo: businessMeta?.logo || null,
+                courierAvatar: me?.avatar_url || null,
+            });
+        },
+        enabled: !!businessMeta || !!me,
+        staleTime: 30 * 60_000,
+    });
+
+    const buildPdfInput = (note: PaymentNote): CourierPayoutPdfInput => ({
+        reference: note.reference,
+        status: note.status,
+        total_amount: Number(note.total_amount || 0),
+        total_shipping_fees: Number(note.total_shipping_fees || 0),
+        net_amount: Number(note.net_amount || 0),
+        order_count: note.order_count,
+        paid_at: note.paid_at,
+        created_at: note.created_at,
+        line_items: note.line_items.map((li) => ({
+            id: li.id,
+            tracking_code: li.tracking_code,
+            amount: Number(li.amount || 0),
+            shipping_fee: Number(li.shipping_fee || 0),
+        })),
+        business: {
+            name: businessMeta?.name || 'DigiCom',
+            logo: resolvedImages?.businessLogo || null,
+        },
+        courier: {
+            name: me?.name || 'Courier',
+            avatar_url: resolvedImages?.courierAvatar || null,
+        },
+    });
 
     const handlePrint = async (note: PaymentNote) => {
         if (downloadingId) return;
         setDownloadingId(note.id);
         try {
-            // Resolve business name + logo if not already fetched
-            let businessName = 'DigiCom';
-            let businessLogo: string | null = null;
-            if (businessId) {
-                const { data } = await (supabase as any)
-                    .from('businesses')
-                    .select('name, logo')
-                    .eq('id', businessId)
-                    .single();
-                if (data) {
-                    businessName = data.name || businessName;
-                    businessLogo = data.logo || null;
-                }
+            const input = buildPdfInput(note);
+            const blob = await buildCourierPayoutPdfBlob(input);
+            const filename = `${note.reference || 'courier-payout'}.pdf`;
+
+            const result = await saveBlob(blob, {
+                filename,
+                title: `${note.reference} — Payout`,
+                text: `Payout statement ${note.reference}`,
+                mimeType: 'application/pdf',
+            });
+
+            switch (result.status) {
+                case 'shared':
+                    toast({
+                        title: 'Enregistré',
+                        description: `${filename} a été enregistré via le partage système.`,
+                    });
+                    break;
+
+                case 'downloaded':
+                    toast({
+                        title: 'Téléchargé',
+                        description: `${filename} est dans vos téléchargements.`,
+                    });
+                    break;
+
+                case 'cancelled':
+                    // User cancelled the share sheet — no toast, no modal.
+                    break;
+
+                case 'opened':
+                case 'unsupported':
+                case 'failed':
+                default:
+                    // iOS Safari fell back to opening in the viewer, OR the
+                    // share sheet expired, OR we couldn't trigger a save.
+                    // Surface a modal with a big "Save" button that fires a
+                    // fresh user gesture — guaranteed to work on the second tap.
+                    setReadyBlob({ blob, filename, noteRef: note.reference });
+                    break;
             }
-
-            await downloadCourierPayoutPdf({
-                reference: note.reference,
-                status: note.status,
-                total_amount: Number(note.total_amount || 0),
-                total_shipping_fees: Number(note.total_shipping_fees || 0),
-                net_amount: Number(note.net_amount || 0),
-                order_count: note.order_count,
-                paid_at: note.paid_at,
-                created_at: note.created_at,
-                line_items: note.line_items.map((li) => ({
-                    id: li.id,
-                    tracking_code: li.tracking_code,
-                    amount: Number(li.amount || 0),
-                    shipping_fee: Number(li.shipping_fee || 0),
-                })),
-                business: { name: businessName, logo: businessLogo },
-                courier: {
-                    name: me?.name || 'Courier',
-                    avatar_url: me?.avatar_url || null,
-                },
-            });
-
-            toast({
-                title: 'PDF téléchargé',
-                description: `${note.reference}.pdf est dans vos téléchargements.`,
-            });
         } catch (e: any) {
-            console.error('[courier-payments] PDF download failed', e);
+            console.error('[courier-payments] PDF generation failed', e);
             toast({
                 title: 'Téléchargement impossible',
-                description: e?.message || 'Le PDF n\'a pas pu être généré.',
+                description: e?.message || "Le PDF n'a pas pu être généré.",
                 variant: 'destructive',
             });
         } finally {
             setDownloadingId(null);
         }
+    };
+
+    // ── Retry save from the "PDF ready" modal — this is a fresh user gesture ──
+    const handleRetrySave = async () => {
+        if (!readyBlob) return;
+        const result = await saveBlob(readyBlob.blob, {
+            filename: readyBlob.filename,
+            title: `${readyBlob.noteRef} — Payout`,
+            text: `Payout statement ${readyBlob.noteRef}`,
+            mimeType: 'application/pdf',
+        });
+
+        if (result.status === 'shared' || result.status === 'downloaded') {
+            setReadyBlob(null);
+            toast({
+                title: result.status === 'shared' ? 'Enregistré' : 'Téléchargé',
+                description: `${readyBlob.filename} est sauvegardé.`,
+            });
+        } else if (result.status === 'cancelled') {
+            // keep modal open
+        } else {
+            // Still failing — offer the direct URL as last resort
+            toast({
+                title: 'Ouvrez le PDF manuellement',
+                description: 'Utilisez le bouton "Ouvrir" puis le menu Partager.',
+                variant: 'destructive',
+            });
+        }
+    };
+
+    const handleOpenInViewer = () => {
+        if (!readyBlob) return;
+        const url = URL.createObjectURL(readyBlob.blob);
+        window.open(url, '_blank');
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
     };
 
     return (
@@ -335,6 +451,14 @@ const CourierPayments = () => {
                 onClose={() => setSelectedNote(null)}
                 onPrint={() => selectedNote && handlePrint(selectedNote)}
                 isDownloading={!!selectedNote && downloadingId === selectedNote.id}
+            />
+
+            {/* ─── PDF ready modal (iOS Safari fallback for a fresh gesture) ─── */}
+            <PdfReadyModal
+                ready={readyBlob}
+                onClose={() => setReadyBlob(null)}
+                onSave={handleRetrySave}
+                onOpen={handleOpenInViewer}
             />
         </div>
     );
@@ -665,6 +789,112 @@ function PayoutDetailSheet({
                                         Télécharger le PDF
                                     </>
                                 )}
+                            </Button>
+                        </div>
+                    </div>
+                )}
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PDF ready modal
+//
+// Shown when the direct save path couldn't guarantee a clean "save to
+// device" outcome — typically iOS Safari when the first Web Share
+// attempt failed or when `<a download>` would just open the blob inline.
+//
+// The big primary button is a **fresh user gesture**, which satisfies
+// iOS Safari's navigator.share() activation requirements on the retry.
+// The secondary "Open in viewer" button is the absolute last resort —
+// the PDF opens inline and the user taps Safari's own share button to
+// save it manually.
+// ─────────────────────────────────────────────────────────────────────────────
+function PdfReadyModal({
+    ready,
+    onClose,
+    onSave,
+    onOpen,
+}: {
+    ready: { blob: Blob; filename: string; noteRef: string } | null;
+    onClose: () => void;
+    onSave: () => void;
+    onOpen: () => void;
+}) {
+    const directSupported = canDirectSave();
+
+    return (
+        <Dialog open={!!ready} onOpenChange={(v) => !v && onClose()}>
+            <DialogContent
+                className={cn(
+                    'p-0 border-none bg-brand-white overflow-hidden flex flex-col gap-0',
+                    'sm:max-w-[440px] sm:rounded-[32px]',
+                    'max-sm:!left-0 max-sm:!right-0 max-sm:!top-auto max-sm:!bottom-0',
+                    'max-sm:!translate-x-0 max-sm:!translate-y-0',
+                    'max-sm:!w-full max-sm:!max-w-none',
+                    'max-sm:!rounded-t-[28px] max-sm:!rounded-b-none'
+                )}
+            >
+                {ready && (
+                    <div className="flex flex-col">
+                        {/* Mobile drag handle */}
+                        <div className="sm:hidden flex justify-center pt-3 pb-1">
+                            <div className="w-12 h-1.5 rounded-full bg-brand-navy/10" />
+                        </div>
+
+                        <div className="px-6 pt-5 sm:pt-8 pb-6 sm:pb-8">
+                            {/* Hero icon */}
+                            <div className="flex justify-center mb-5">
+                                <div className="relative">
+                                    <div className="absolute inset-0 bg-emerald-300/30 blur-2xl rounded-full" />
+                                    <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                                        <FileText className="w-7 h-7 text-white" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <DialogTitle className="text-center text-xl sm:text-2xl font-black text-brand-navy tracking-tight">
+                                PDF prêt
+                            </DialogTitle>
+                            <DialogDescription className="text-center text-xs sm:text-sm font-semibold text-brand-navy/50 mt-1.5">
+                                {ready.filename}
+                            </DialogDescription>
+
+                            {/* Explainer */}
+                            <div className="mt-5 p-4 rounded-2xl bg-brand-navy/[0.03] border border-brand-navy/5">
+                                <p className="text-[11px] sm:text-xs text-brand-navy/65 font-semibold leading-relaxed text-center">
+                                    {directSupported
+                                        ? 'Touchez « Enregistrer » pour sauvegarder le PDF dans vos fichiers.'
+                                        : 'Touchez « Enregistrer » pour ouvrir la feuille de partage et choisir « Enregistrer dans Fichiers ».'}
+                                </p>
+                            </div>
+
+                            {/* Primary action — fresh user gesture */}
+                            <Button
+                                onClick={onSave}
+                                className="w-full mt-5 h-14 rounded-2xl font-black text-sm bg-brand-navy hover:bg-brand-navy/90 text-white shadow-xl shadow-brand-navy/25"
+                            >
+                                <Save className="w-4 h-4 mr-2" />
+                                Enregistrer
+                            </Button>
+
+                            {/* Escape hatch */}
+                            <Button
+                                variant="ghost"
+                                onClick={onOpen}
+                                className="w-full mt-2 h-12 rounded-2xl font-bold text-xs text-brand-navy/70 hover:bg-brand-navy/5"
+                            >
+                                <Eye className="w-3.5 h-3.5 mr-2" />
+                                Ouvrir dans le visualiseur
+                            </Button>
+
+                            <Button
+                                variant="ghost"
+                                onClick={onClose}
+                                className="w-full mt-1 h-11 rounded-2xl font-semibold text-[11px] text-brand-navy/40 hover:bg-transparent hover:text-brand-navy/60"
+                            >
+                                Annuler
                             </Button>
                         </div>
                     </div>

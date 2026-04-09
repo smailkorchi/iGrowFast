@@ -19,6 +19,7 @@ import {
 } from '@react-pdf/renderer';
 import { format } from 'date-fns';
 import { fetchUrlAsDataUri } from './documentPdf/embedRemoteImages';
+import { saveBlob, type SaveBlobResult } from './saveBlob';
 
 // ─── Brand palette ───────────────────────────────────────────────────────────
 const NAVY = '#3b5e5e';
@@ -463,23 +464,38 @@ function CourierPayoutDocument({ input }: { input: CourierPayoutPdfInput }) {
     );
 }
 
-// ─── Public entrypoint ───────────────────────────────────────────────────────
+// ─── Public entrypoints ──────────────────────────────────────────────────────
+
 /**
- * Generates a courier payout PDF and triggers a direct download on the
- * current page — no popup, no print dialog. Works on iOS Safari, Chrome
- * Android, and desktop identically.
+ * Builds the courier payout PDF and returns the raw Blob.
  *
- * Remote images (business logo, courier avatar) are pre-fetched and
- * inlined as data URIs so @react-pdf/renderer can embed them without
- * CORS failures in the browser bundle.
+ * Split from the save step so the caller can pre-generate the blob (e.g.
+ * during a loading state) and then trigger the save in a fresh user
+ * activation context — this is critical on iOS Safari where user
+ * activation expires quickly and navigator.share() is rejected if called
+ * after long awaits.
+ *
+ * If the caller has already resolved the business logo and courier avatar
+ * as data URIs (recommended — see `resolveCourierPayoutImages`), pass them
+ * via `input` directly; otherwise this function will fetch them here,
+ * which adds latency and risks iOS user-activation expiration.
  */
-export async function downloadCourierPayoutPdf(input: CourierPayoutPdfInput): Promise<void> {
-    // Pre-inline remote images — react-pdf cannot always fetch cross-origin
-    // URLs in the browser bundle reliably, and mobile Safari is strict.
-    const [logoDataUri, avatarDataUri] = await Promise.all([
-        input.business.logo ? fetchUrlAsDataUri(input.business.logo) : Promise.resolve(null),
-        input.courier.avatar_url ? fetchUrlAsDataUri(input.courier.avatar_url) : Promise.resolve(null),
-    ]);
+export async function buildCourierPayoutPdfBlob(input: CourierPayoutPdfInput): Promise<Blob> {
+    // Inline remote images only if they're still URLs (caller may have
+    // already resolved them into data URIs at page load).
+    const needsLogoFetch = !!input.business.logo && !input.business.logo.startsWith('data:');
+    const needsAvatarFetch = !!input.courier.avatar_url && !input.courier.avatar_url.startsWith('data:');
+
+    let logoDataUri = input.business.logo;
+    let avatarDataUri = input.courier.avatar_url;
+    if (needsLogoFetch || needsAvatarFetch) {
+        const [lg, av] = await Promise.all([
+            needsLogoFetch ? fetchUrlAsDataUri(input.business.logo as string) : Promise.resolve(input.business.logo),
+            needsAvatarFetch ? fetchUrlAsDataUri(input.courier.avatar_url as string) : Promise.resolve(input.courier.avatar_url),
+        ]);
+        logoDataUri = lg;
+        avatarDataUri = av;
+    }
 
     const resolved: CourierPayoutPdfInput = {
         ...input,
@@ -487,23 +503,45 @@ export async function downloadCourierPayoutPdf(input: CourierPayoutPdfInput): Pr
         courier: { ...input.courier, avatar_url: avatarDataUri || null },
     };
 
-    // Build blob
-    const blob = await pdf(<CourierPayoutDocument input={resolved} />).toBlob();
+    return pdf(<CourierPayoutDocument input={resolved} />).toBlob();
+}
 
-    // Trigger download via a synthetic <a> click. This keeps the user on
-    // the same page — no popup, no print dialog — and works identically
-    // on iOS Safari, Chrome Android, Firefox, and all desktops.
-    const url = URL.createObjectURL(blob);
-    try {
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${input.reference || 'courier-payout'}.pdf`;
-        // Safari requires the anchor to be in the DOM for .click() to work.
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-    } finally {
-        // Give the browser a tick to start the download before releasing the URL.
-        setTimeout(() => URL.revokeObjectURL(url), 1500);
-    }
+/**
+ * Pre-resolves the courier payout's remote images into data URIs.
+ *
+ * Call this at page mount so the click handler has zero image-fetch
+ * latency. On iOS Safari this is the difference between a working share
+ * sheet and a "user activation expired" rejection.
+ */
+export async function resolveCourierPayoutImages(opts: {
+    businessLogo: string | null;
+    courierAvatar: string | null;
+}): Promise<{ businessLogo: string | null; courierAvatar: string | null }> {
+    const [businessLogo, courierAvatar] = await Promise.all([
+        opts.businessLogo ? fetchUrlAsDataUri(opts.businessLogo) : Promise.resolve(null),
+        opts.courierAvatar ? fetchUrlAsDataUri(opts.courierAvatar) : Promise.resolve(null),
+    ]);
+    return { businessLogo, courierAvatar };
+}
+
+/**
+ * Generates the PDF blob and immediately attempts to save it via the
+ * unified `saveBlob` helper (Web Share API first, anchor download second,
+ * new-tab fallback third).
+ *
+ * Returns the `SaveBlobResult` AND the blob itself — the caller can
+ * re-use the blob to offer a fallback save action inside a "PDF ready"
+ * modal when iOS rejects the first share attempt.
+ */
+export async function downloadCourierPayoutPdf(
+    input: CourierPayoutPdfInput,
+): Promise<{ blob: Blob; save: SaveBlobResult }> {
+    const blob = await buildCourierPayoutPdfBlob(input);
+    const save = await saveBlob(blob, {
+        filename: `${input.reference || 'courier-payout'}.pdf`,
+        title: `${input.reference} — Payout`,
+        text: `Payout statement ${input.reference}`,
+        mimeType: 'application/pdf',
+    });
+    return { blob, save };
 }
