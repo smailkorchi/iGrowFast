@@ -120,8 +120,6 @@ type WizardOrder = {
     items: WizardOrderItem[] | null;
     city: { id: string; name: string; zone_id: string | null } | null;
     company: WizardProvider | null;
-    /** Runtime-added when company_id is resolved from zone mapping. */
-    _resolvedCompanyId?: string;
 };
 
 /** Lightweight shape used only in the first fetch (no deep join). */
@@ -139,13 +137,6 @@ export type OrderForSellerProductsMatch = {
     seller_id?: string | null;
     assign_id?: string | null;
     items?: ReadonlyArray<{ product_id?: string | null | undefined }> | null;
-};
-
-type WizardCompanyZone = {
-    id: string;
-    company_id: string;
-    zone_id: string;
-    provider: WizardProvider | null;
 };
 
 type CreatedParcelEntry = {
@@ -197,7 +188,11 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
         ? [...sellerScope.productIds].sort().join(',')
         : '';
 
-    // Fetch providers that have confirmed orders (via company_zones + orders)
+    // Fetch providers that have confirmed orders — EXPLICIT company_id only.
+    // Mirrors the Orders page "Delivery" filter: an order only shows up in the
+    // wizard if it has been explicitly attributed to a provider via
+    // orders.company_id. No zone-based fallback so unassigned confirmed orders
+    // are never double-counted across the company and courier wizards.
     const { data: availableProviders } = useQuery({
         queryKey: sellerScope
             ? ['wizard-providers-seller', confirmedStatusId, activeBusinessId, sellerScope.userId, sellerProductKey]
@@ -205,20 +200,16 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
         queryFn: async () => {
             if (!activeBusinessId || !confirmedStatusId) return [];
 
-            const { data: rawCompanyZones, error: czError } = await supabase
-                .from('company_zones')
-                .select(`*, provider:providers(${WIZARD_PROVIDER_SELECT_FOR_PARCEL})`)
-                .eq('DigiCom Business', activeBusinessId);
-            if (czError) throw czError;
-            const companyZones = (rawCompanyZones || []) as unknown as WizardCompanyZone[];
-            if (!companyZones.length) return [];
-
-            // 2. Get all confirmed orders
             let ordersQuery = supabase
                 .from('orders')
-                .select('id, company_id, master_city_id, seller_id, assign_id, items:order_items(product_id)')
+                .select(`
+                    id, company_id, master_city_id, seller_id, assign_id,
+                    items:order_items(product_id),
+                    company:providers(${WIZARD_PROVIDER_SELECT_FOR_PARCEL})
+                `)
                 .eq('order_status_id', confirmedStatusId)
-                .eq('DigiCom Business', activeBusinessId);
+                .eq('DigiCom Business', activeBusinessId)
+                .not('company_id', 'is', null);
 
             if (sellerScope) {
                 ordersQuery = ordersQuery.or(`seller_id.eq.${sellerScope.userId},assign_id.eq.${sellerScope.userId}`);
@@ -228,61 +219,23 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
             if (ordersError) throw ordersError;
 
             const productSet = sellerScope ? new Set(sellerScope.productIds) : null;
-            const lightOrders = (orders || []) as unknown as WizardOrderLight[];
+            type OrderRow = WizardOrderLight & { company: WizardProvider | null };
+            const lightOrders = (orders || []) as unknown as OrderRow[];
             const filteredOrders = lightOrders.filter((o) =>
                 !sellerScope || !productSet ? true : orderMatchesSellerProducts(o, sellerScope.userId, productSet)
             );
 
             if (filteredOrders.length === 0) return [];
 
-            // 3. Get city → zone mapping for orders without company_id
-            const cityIds = new Set(filteredOrders.map((o) => o.master_city_id).filter(Boolean) as string[]);
-            const { data: cities } = await supabase
-                .from('master_cities')
-                .select('id, zone_id')
-                .in('id', [...cityIds]);
-            const cityZoneMap = new Map((cities || []).map(c => [c.id, c.zone_id]));
-
-            // 4. Build zone→provider map from company_zones
-            const zoneProviderMap = new Map<string, { providerId: string; provider: WizardProvider | null }[]>();
-            for (const cz of companyZones) {
-                if (!cz.zone_id || !cz.company_id) continue;
-                if (!zoneProviderMap.has(cz.zone_id)) zoneProviderMap.set(cz.zone_id, []);
-                zoneProviderMap.get(cz.zone_id)!.push({ providerId: cz.company_id, provider: cz.provider });
-            }
-
-            // 5. Count confirmed orders per provider
             const providerOrderCounts = new Map<string, number>();
             const providerMap = new Map<string, WizardProvider | null>();
 
             for (const order of filteredOrders) {
-                let providerId = order.company_id;
-
-                // If no company assigned, resolve from zone mapping
-                if (!providerId && order.master_city_id) {
-                    const zoneId = cityZoneMap.get(order.master_city_id);
-                    if (zoneId) {
-                        const zoneProviders = zoneProviderMap.get(zoneId);
-                        if (zoneProviders?.length) {
-                            providerId = zoneProviders[0].providerId;
-                            if (!providerMap.has(providerId)) {
-                                providerMap.set(providerId, zoneProviders[0].provider);
-                            }
-                        }
-                    }
-                }
-
+                const providerId = order.company_id;
                 if (!providerId) continue;
-
                 providerOrderCounts.set(providerId, (providerOrderCounts.get(providerId) || 0) + 1);
-
-                // Store provider info from orders that already have company_id
-                if (order.company_id && !providerMap.has(order.company_id)) {
-                    // We'll fill this from the companyZones data
-                    const czMatch = companyZones.find(cz => cz.company_id === order.company_id);
-                    if (czMatch?.provider) {
-                        providerMap.set(order.company_id, czMatch.provider);
-                    }
+                if (order.company && !providerMap.has(providerId)) {
+                    providerMap.set(providerId, order.company);
                 }
             }
 
@@ -305,24 +258,9 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
         enabled: open && !!confirmedStatusId && (!sellerScope || sellerScope.productIds.length > 0)
     });
 
-    // Fetch company_zones for provider resolution (used during parcel creation)
-    const { data: companyZonesData } = useQuery({
-        queryKey: ['company-zones-all', activeBusinessId],
-        queryFn: async () => {
-            if (!activeBusinessId) return [];
-            const { data, error } = await supabase
-                .from('company_zones')
-                .select(`*, provider:providers(${WIZARD_PROVIDER_SELECT_FOR_PARCEL})`)
-                .eq('DigiCom Business', activeBusinessId);
-            if (error) throw error;
-            return ((data || []) as unknown) as WizardCompanyZone[];
-        },
-        enabled: open
-    });
-
-    // Fetch confirmed orders for selected provider(s) across ALL zones
+    // Fetch confirmed orders for selected provider(s) — EXPLICIT company_id only.
     const { data: ordersGrouped } = useQuery({
-        queryKey: ['confirmed-orders-by-provider', selectedProviderId, sellerScope?.userId, sellerProductKey],
+        queryKey: ['confirmed-orders-by-provider', selectedProviderId, sellerScope?.userId, sellerProductKey, activeBusinessId],
         queryFn: async () => {
             if (!selectedProviderId || !confirmedStatusId) return null;
 
@@ -338,17 +276,14 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                     )
                 `)
                 .eq('order_status_id', confirmedStatusId)
-                .eq('DigiCom Business', activeBusinessId);
+                .eq('DigiCom Business', activeBusinessId)
+                .not('company_id', 'is', null);
 
             if (sellerScope) {
                 q = q.or(`seller_id.eq.${sellerScope.userId},assign_id.eq.${sellerScope.userId}`);
             }
 
-            // If a specific provider is selected (not 'all'), filter by company_id
-            // But we also need orders without company_id that resolve to this provider via zones
-            // So we fetch all and filter client-side
             const { data, error } = await q;
-
             if (error) throw error;
 
             const productSet = sellerScope ? new Set(sellerScope.productIds) : null;
@@ -359,47 +294,17 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                     : orderMatchesSellerProducts(order, sellerScope.userId, productSet)
             );
 
-            // Build zone→provider map for resolving orders without company_id
-            const zoneProviders = new Map<string, { providerId: string; provider: WizardProvider | null }>();
-            for (const cz of (companyZonesData || [])) {
-                if (!cz.zone_id || !cz.company_id) continue;
-                // First provider per zone wins (same as old logic)
-                if (!zoneProviders.has(cz.zone_id)) {
-                    zoneProviders.set(cz.zone_id, { providerId: cz.company_id, provider: cz.provider });
-                }
-            }
-
-            // Group by provider
             type OrderGroup = { provider: WizardProvider | null; orders: WizardOrder[] };
             const grouped = baseOrders.reduce<Record<string, OrderGroup>>((acc, order) => {
-                let providerId = order.company_id;
-                let provider = order.company;
-
-                // If no company assigned, resolve from zone mapping
-                if (!providerId && order.city?.zone_id) {
-                    const zoneProvider = zoneProviders.get(order.city.zone_id);
-                    if (zoneProvider) {
-                        providerId = zoneProvider.providerId;
-                        provider = zoneProvider.provider;
-                        order._resolvedCompanyId = providerId;
-                    }
-                }
-
+                const providerId = order.company_id;
                 if (!providerId) return acc;
 
-                // Filter by selected provider (unless 'all')
-                if (selectedProviderId !== 'all' && providerId !== selectedProviderId) {
-                    return acc;
-                }
-
-                // If lockProviderId is set, only include that provider
-                if (lockProviderId && providerId !== lockProviderId) {
-                    return acc;
-                }
+                if (selectedProviderId !== 'all' && providerId !== selectedProviderId) return acc;
+                if (lockProviderId && providerId !== lockProviderId) return acc;
 
                 if (!acc[providerId]) {
                     acc[providerId] = {
-                        provider,
+                        provider: order.company || null,
                         orders: []
                     };
                 }
@@ -409,7 +314,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
 
             return grouped;
         },
-        enabled: !!selectedProviderId && step === 'provider' && !!companyZonesData && !!confirmedStatusId
+        enabled: !!selectedProviderId && step === 'provider' && !!confirmedStatusId
     });
 
     // Create parcels for a provider
@@ -427,14 +332,6 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
 
             for (const order of orders) {
                 try {
-                    // If company_id was resolved from zone, update the order first
-                    if (order._resolvedCompanyId) {
-                        await supabase
-                            .from('orders')
-                            .update({ company_id: order._resolvedCompanyId })
-                            .eq('id', order.id);
-                        order.company_id = order._resolvedCompanyId;
-                    }
                     const permFields = parcelPermissionFieldsFromProvider(provider || {});
                     const providerType = String(provider?.provider_type || '').toLowerCase();
                     const isColiaty = providerType.includes('coliaty');

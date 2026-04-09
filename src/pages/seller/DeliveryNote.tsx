@@ -37,6 +37,12 @@ import {
     Card,
     CardContent
 } from '@/components/ui/card';
+import {
+    Tabs,
+    TabsContent,
+    TabsList,
+    TabsTrigger,
+} from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -69,6 +75,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { DeliveryNoteWizard } from '@/components/delivery/DeliveryNoteWizard';
+import { CourierDeliveryNoteWizard } from '@/components/delivery/CourierDeliveryNoteWizard';
+import { printCourierDeliveryNote } from '@/lib/courierLabelGenerator';
 import { removeCompanyParcelFromDeliveryNote } from '@/lib/removeCompanyParcelFromDeliveryNote';
 import { deleteOpenCompanyDeliveryNote } from '@/lib/deleteOpenCompanyDeliveryNote';
 
@@ -76,6 +84,9 @@ const DeliveryNote = () => {
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const [isWizardOpen, setIsWizardOpen] = useState(false);
+    const [isCourierWizardOpen, setIsCourierWizardOpen] = useState(false);
+    const [courierWizardLockId, setCourierWizardLockId] = useState<string | undefined>(undefined);
+    const [activeTab, setActiveTab] = useState<'company' | 'courier'>('company');
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [selectedNote, setSelectedNote] = useState<any>(null);
@@ -129,6 +140,25 @@ const DeliveryNote = () => {
         setIsTrackingModalOpen(true);
         setIsTrackingLoading(true);
         setTrackingHistory(null);
+
+        const isCourierParcel = !parcel.provider_id && !selectedNote?.provider_id;
+        if (isCourierParcel) {
+            setTrackingHistory({
+                statusLabel: parcel.status_label || 'Nouveau',
+                statusColor: parcel.status_color || '#3b82f6',
+                history: [
+                    {
+                        status: parcel.status_label || 'Nouveau',
+                        statusLabel: parcel.status_label || 'Nouveau',
+                        date: parcel.created_at || selectedNote?.created_at || null,
+                        comment: 'Colis créé en interne',
+                        color: parcel.status_color || '#3b82f6',
+                    },
+                ],
+            });
+            setIsTrackingLoading(false);
+            return;
+        }
 
         try {
             console.log("Tracking parcel via Edge Function:", {
@@ -234,10 +264,56 @@ const DeliveryNote = () => {
 
     const confirmRemoveParcelFromNote = async () => {
         const parcelId = parcelPendingRemove?.id;
-        if (!parcelId || !selectedNote?.id || !selectedNote?.provider_id) return;
+        if (!parcelId || !selectedNote?.id) return;
         setRemovingParcelId(parcelId);
+        const isCourierNote = !selectedNote?.provider_id && !!selectedNote?.courier_id;
         try {
-            await removeCompanyParcelFromDeliveryNote(parcelId, selectedNote.id);
+            if (isCourierNote) {
+                if (selectedNote.is_finalized) {
+                    throw new Error('note_finalized');
+                }
+
+                const { data: parcelRow, error: parcelLookupError } = await (supabase as any)
+                    .from('courier_parcels')
+                    .select('order_id')
+                    .eq('id', parcelId)
+                    .maybeSingle();
+                if (parcelLookupError) throw parcelLookupError;
+                const orderId = parcelRow?.order_id;
+
+                const { error: delError } = await (supabase as any)
+                    .from('courier_parcels')
+                    .delete()
+                    .eq('id', parcelId);
+                if (delError) throw delError;
+
+                if (orderId) {
+                    const { data: confirmedStatus } = await supabase
+                        .from('order_statuses')
+                        .select('id')
+                        .eq('label', 'CONFIRMER')
+                        .single();
+                    if (confirmedStatus) {
+                        await (supabase as any)
+                            .from('orders')
+                            .update({ order_status_id: confirmedStatus.id, courier_id: null })
+                            .eq('id', orderId);
+                    }
+                }
+
+                const { count } = await (supabase as any)
+                    .from('courier_parcels')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('courier_delivery_note_id', selectedNote.id);
+                await (supabase as any)
+                    .from('courier_delivery_notes')
+                    .update({ parcel_count: count || 0 })
+                    .eq('id', selectedNote.id);
+            } else {
+                if (!selectedNote?.provider_id) return;
+                await removeCompanyParcelFromDeliveryNote(parcelId, selectedNote.id);
+            }
+
             toast({
                 title: 'Colis retiré',
                 description: 'La commande est repassée en confirmée.',
@@ -256,10 +332,11 @@ const DeliveryNote = () => {
             );
             queryClient.invalidateQueries({ queryKey: ['company-delivery-notes'] });
             queryClient.invalidateQueries({ queryKey: ['seller-company-delivery-notes'] });
+            queryClient.invalidateQueries({ queryKey: ['seller-courier-delivery-notes'] });
             queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['orders'] });
             queryClient.invalidateQueries({ queryKey: ['confirmed-orders-by-zone'] });
-        } catch (error) {
+        } catch (error: any) {
             const blob = `${error?.message ?? ''} ${error?.details ?? ''}`;
             let description = error?.message ?? 'Échec du retrait du colis.';
             if (blob.includes('order_has_multiple_parcels')) {
@@ -479,47 +556,61 @@ const DeliveryNote = () => {
     const handleFinalizeNote = async (note: any) => {
         if (!note || note.is_finalized) return;
 
+        const isCourierNote = !note.provider_id && !!note.courier_id;
+
         toast({
             title: "Finalizing Note",
-            description: "Closing the delivery note in the provider's system...",
+            description: isCourierNote
+                ? "Closing the courier delivery note..."
+                : "Closing the delivery note in the provider's system...",
         });
 
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const response = await fetch(EDGE_FUNCTION_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session?.access_token}`
-                },
-                body: JSON.stringify({
-                    action: 'finalize_delivery_note',
-                    provider_id: note.provider_id,
-                    data: {
-                        delivery_note_ref: note.reference,
-                        external_id: note.external_id
-                    }
-                })
-            });
+            if (isCourierNote) {
+                const { error } = await (supabase as any)
+                    .from('courier_delivery_notes')
+                    .update({ is_finalized: true, updated_at: new Date().toISOString() })
+                    .eq('id', note.id);
+                if (error) throw error;
+            } else {
+                const { data: { session } } = await supabase.auth.getSession();
+                const response = await fetch(EDGE_FUNCTION_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${session?.access_token}`
+                    },
+                    body: JSON.stringify({
+                        action: 'finalize_delivery_note',
+                        provider_id: note.provider_id,
+                        data: {
+                            delivery_note_ref: note.reference,
+                            external_id: note.external_id
+                        }
+                    })
+                });
 
-            if (!response.ok) {
-                const errData = await response.json().catch(() => ({ error: 'Failed to finalize delivery note' }));
-                throw new Error(errData.error || `Error ${response.status}`);
+                if (!response.ok) {
+                    const errData = await response.json().catch(() => ({ error: 'Failed to finalize delivery note' }));
+                    throw new Error(errData.error || `Error ${response.status}`);
+                }
+
+                const { error } = await supabase
+                    .from('company_delivery_notes')
+                    .update({ is_finalized: true })
+                    .eq('id', note.id);
+
+                if (error) throw error;
             }
 
-            // Update database
-            const { error } = await supabase
-                .from('company_delivery_notes')
-                .update({ is_finalized: true })
-                .eq('id', note.id);
-
-            if (error) throw error;
-
             // Set all linked orders to PROCESSED → DB trigger deducts stock
-            const { data: linkedParcels } = await supabase
-                .from('company_parcels')
+            const parcelsTable = isCourierNote ? 'courier_parcels' : 'company_parcels';
+            const noteIdField = isCourierNote ? 'courier_delivery_note_id' : 'company_delivery_note_id';
+
+            const { data: linkedParcels } = await (supabase as any)
+                .from(parcelsTable)
                 .select('order_id')
-                .eq('company_delivery_note_id', note.id)
+                .eq(noteIdField, note.id)
                 .not('order_id', 'is', null);
 
             if (linkedParcels && linkedParcels.length > 0) {
@@ -530,7 +621,7 @@ const DeliveryNote = () => {
                     .single();
 
                 if (processedStatus) {
-                    const orderIds = linkedParcels.map(p => p.order_id);
+                    const orderIds = linkedParcels.map((p: any) => p.order_id);
                     await supabase
                         .from('orders')
                         .update({ order_status_id: processedStatus.id })
@@ -543,12 +634,11 @@ const DeliveryNote = () => {
                 description: "The delivery note is now finalized and closed.",
             });
 
-            // Refresh queries
             queryClient.invalidateQueries({ queryKey: ['company-delivery-notes'] });
             queryClient.invalidateQueries({ queryKey: ['seller-company-delivery-notes'] });
+            queryClient.invalidateQueries({ queryKey: ['seller-courier-delivery-notes'] });
             queryClient.invalidateQueries({ queryKey: ['orders'] });
 
-            // If the modal is open, update the local state
             if (selectedNote?.id === note.id) {
                 setSelectedNote({ ...note, is_finalized: true });
             }
@@ -556,7 +646,7 @@ const DeliveryNote = () => {
         } catch (error) {
             toast({
                 title: "Finalization Error",
-                description: error.message,
+                description: (error as Error).message,
                 variant: "destructive"
             });
         }
@@ -565,11 +655,22 @@ const DeliveryNote = () => {
     const handleReopenNote = async (note: any) => {
         if (!note || !note.is_finalized) return;
 
+        const isCourierNote = !note.provider_id && !!note.courier_id;
         const providerType = note.providers?.provider_type?.toLowerCase();
         setIsReopening(true);
 
         try {
-            if (providerType === 'ameex' || providerType === 'ozon') {
+            if (isCourierNote) {
+                toast({
+                    title: "Réouverture en cours",
+                    description: "Réouverture du bon coursier...",
+                });
+                const { error } = await (supabase as any)
+                    .from('courier_delivery_notes')
+                    .update({ is_finalized: false, updated_at: new Date().toISOString() })
+                    .eq('id', note.id);
+                if (error) throw error;
+            } else if (providerType === 'ameex' || providerType === 'ozon') {
                 toast({
                     title: "Réouverture en cours",
                     description: "Ouverture du bon de livraison chez le prestataire...",
@@ -611,10 +712,13 @@ const DeliveryNote = () => {
             }
 
             // Set all linked orders back to CONFIRMED → DB trigger restores stock
-            const { data: linkedParcels } = await supabase
-                .from('company_parcels')
+            const parcelsTable = isCourierNote ? 'courier_parcels' : 'company_parcels';
+            const noteIdField = isCourierNote ? 'courier_delivery_note_id' : 'company_delivery_note_id';
+
+            const { data: linkedParcels } = await (supabase as any)
+                .from(parcelsTable)
                 .select('order_id')
-                .eq('company_delivery_note_id', note.id)
+                .eq(noteIdField, note.id)
                 .not('order_id', 'is', null);
 
             if (linkedParcels && linkedParcels.length > 0) {
@@ -625,7 +729,7 @@ const DeliveryNote = () => {
                     .single();
 
                 if (confirmedStatus) {
-                    const orderIds = linkedParcels.map(p => p.order_id);
+                    const orderIds = linkedParcels.map((p: any) => p.order_id);
                     await supabase
                         .from('orders')
                         .update({ order_status_id: confirmedStatus.id })
@@ -640,6 +744,7 @@ const DeliveryNote = () => {
 
             queryClient.invalidateQueries({ queryKey: ['company-delivery-notes'] });
             queryClient.invalidateQueries({ queryKey: ['seller-company-delivery-notes'] });
+            queryClient.invalidateQueries({ queryKey: ['seller-courier-delivery-notes'] });
             queryClient.invalidateQueries({ queryKey: ['orders'] });
 
             if (selectedNote?.id === note.id) {
@@ -722,11 +827,12 @@ const DeliveryNote = () => {
             queryClient.invalidateQueries({ queryKey: ['company-delivery-notes'] });
             queryClient.invalidateQueries({ queryKey: ['seller-company-delivery-notes'] });
             queryClient.invalidateQueries({ queryKey: ['courier-delivery-notes'] });
+            queryClient.invalidateQueries({ queryKey: ['seller-courier-delivery-notes'] });
             queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
             queryClient.invalidateQueries({ queryKey: ['orders'] });
             queryClient.invalidateQueries({ queryKey: ['confirmed-orders-by-zone'] });
 
-        } catch (error) {
+        } catch (error: any) {
             const blob = `${error?.message ?? ''} ${error?.details ?? ''}`;
             let description = error?.message ?? 'Échec de la suppression.';
             if (blob.includes('note_finalized')) {
@@ -769,10 +875,17 @@ const DeliveryNote = () => {
             } else if (!isCompanyNote && selectedNote.courier_id) {
                 const { data: courier } = await supabase
                     .from('users')
-                    .select('name, phone, email')
+                    .select('name, phone, email, avatar_url')
                     .eq('id', selectedNote.courier_id)
                     .single();
-                providerInfo = { name: courier?.name, business_name: courier?.name };
+                providerInfo = {
+                    name: courier?.name,
+                    business_name: courier?.name,
+                    phone: courier?.phone,
+                    email: courier?.email,
+                    avatar_url: courier?.avatar_url,
+                    isCourier: true,
+                };
             }
 
             // Fetch parcels with tracking codes
@@ -784,9 +897,9 @@ const DeliveryNote = () => {
                     .eq('company_delivery_note_id', selectedNote.id);
                 parcels = data || [];
             } else {
-                const { data } = await supabase
+                const { data } = await (supabase as any)
                     .from('courier_parcels')
-                    .select('id, reference, order_id')
+                    .select('id, reference, order_id, status_id, status_label, status_color, tracking_code, courier_id, created_at')
                     .eq('courier_delivery_note_id', selectedNote.id);
                 parcels = data || [];
             }
@@ -908,6 +1021,27 @@ const DeliveryNote = () => {
         enabled: !!activeBusinessId && !!sellerShippingCtx?.userId,
     });
 
+    // Fetch courier delivery notes created by this seller only
+    const { data: courierNotes, isLoading: loadingCourier } = useQuery({
+        queryKey: ['seller-courier-delivery-notes', activeBusinessId, sellerShippingCtx?.userId],
+        queryFn: async () => {
+            if (!activeBusinessId || !sellerShippingCtx?.userId) return [];
+            const { data, error } = await (supabase as any)
+                .from('courier_delivery_notes')
+                .select(`
+                    *,
+                    courier:users!courier_delivery_notes_courier_id_fkey(id, name, avatar_url, phone)
+                `)
+                .eq('DigiCom Business', activeBusinessId)
+                .eq('created_by', sellerShippingCtx.userId)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            return data || [];
+        },
+        enabled: !!activeBusinessId && !!sellerShippingCtx?.userId,
+    });
+
     const getStatusBadge = (status: string) => {
         switch (status) {
             case 'delivered':
@@ -924,34 +1058,37 @@ const DeliveryNote = () => {
     const getProviderColor = (provider: any) => provider?.color || '#3b82f6';
 
     const renderNoteCard = (note: any, type: 'company' | 'courier') => {
+        const isCourier = type === 'courier';
         const provider = note.providers;
-        const brandColor = getProviderColor(provider);
+        const courier = note.courier;
+        const brandColor = isCourier ? '#2d6d6c' : getProviderColor(provider);
+        const displayName = isCourier
+            ? (courier?.name || 'Local')
+            : (provider?.business_name || provider?.name || 'N/A');
+        const logoUrl = !isCourier ? provider?.logo_url : null;
+        const avatarUrl = isCourier ? courier?.avatar_url : null;
 
         return (
             <Card key={note.id} className="group relative overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-2xl transition-all duration-500 rounded-[32px]">
-                {/* Provider brand color accent */}
                 <div className="absolute top-0 left-0 w-full h-1.5" style={{ backgroundColor: brandColor }} />
 
                 <CardContent className="p-8 space-y-6">
-                    {/* Header with provider logo */}
                     <div className="flex justify-between items-start gap-4">
                         <div className="flex items-center gap-4 flex-1">
-                            {/* Provider Logo */}
-                            {provider?.logo_url ? (
+                            {logoUrl ? (
                                 <div className="p-3 rounded-2xl border-2" style={{ backgroundColor: `${brandColor}15`, borderColor: `${brandColor}40` }}>
-                                    <img
-                                        src={provider.logo_url}
-                                        alt={provider.name}
-                                        className="w-12 h-12 object-contain"
-                                    />
+                                    <img src={logoUrl} alt={displayName} className="w-12 h-12 object-contain" />
+                                </div>
+                            ) : avatarUrl ? (
+                                <div className="w-16 h-16 rounded-2xl overflow-hidden border-2 shadow-sm" style={{ borderColor: `${brandColor}40` }}>
+                                    <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
                                 </div>
                             ) : (
                                 <div className="w-16 h-16 rounded-2xl flex items-center justify-center font-bold text-white" style={{ backgroundColor: brandColor }}>
-                                    {type === 'company' ? <Building2 className="w-7 h-7" /> : <Truck className="w-7 h-7" />}
+                                    {isCourier ? <Truck className="w-7 h-7" /> : <Building2 className="w-7 h-7" />}
                                 </div>
                             )}
 
-                            {/* Note Info */}
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
                                     <h3 className="text-xl font-black text-brand-navy tracking-tight truncate">{note.reference}</h3>
@@ -969,24 +1106,19 @@ const DeliveryNote = () => {
                         </div>
                     </div>
 
-                    {/* Provider and Parcels Info */}
                     <div className="grid grid-cols-2 gap-6">
-                        {/* Provider */}
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${brandColor}15`, color: brandColor }}>
-                                {type === 'company' ? <Building2 className="w-5 h-5" /> : <Truck className="w-5 h-5" />}
+                                {isCourier ? <Truck className="w-5 h-5" /> : <Building2 className="w-5 h-5" />}
                             </div>
                             <div className="flex flex-col min-w-0">
                                 <span className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest leading-none">
-                                    {type === 'company' ? 'Provider' : 'Courier'}
+                                    {isCourier ? 'Courier' : 'Provider'}
                                 </span>
-                                <span className="text-sm font-bold text-brand-navy truncate mt-1">
-                                    {provider?.business_name || provider?.name || 'N/A'}
-                                </span>
+                                <span className="text-sm font-bold text-brand-navy truncate mt-1">{displayName}</span>
                             </div>
                         </div>
 
-                        {/* Parcel Count */}
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${brandColor}15`, color: brandColor }}>
                                 <Package className="w-5 h-5" />
@@ -1000,7 +1132,6 @@ const DeliveryNote = () => {
 
                     <Separator className="bg-brand-navy/[0.05]" />
 
-                    {/* Actions */}
                     <div className="flex items-center justify-between">
                         <Button
                             variant="ghost"
@@ -1015,7 +1146,7 @@ const DeliveryNote = () => {
                             <Eye className="w-4 h-4" /> Preview
                         </Button>
 
-                        {(type === 'courier' || (type === 'company' && !note.is_finalized)) && (
+                        {!note.is_finalized && (
                             <Button
                                 variant="ghost"
                                 size="icon"
@@ -1031,8 +1162,7 @@ const DeliveryNote = () => {
                         )}
                     </div>
 
-                    {/* Finalize / Reopen */}
-                    {!note.is_finalized && note.provider_id && (
+                    {!note.is_finalized && (note.provider_id || note.courier_id) && (
                         <Button
                             onClick={() => handleFinalizeNote(note)}
                             className="w-full bg-emerald-500/10 hover:bg-emerald-500 text-emerald-600 hover:text-white rounded-xl h-10 font-bold text-xs gap-2 transition-all"
@@ -1040,7 +1170,7 @@ const DeliveryNote = () => {
                             <CheckCircle2 className="w-4 h-4" /> Finaliser le Bon
                         </Button>
                     )}
-                    {note.is_finalized && note.provider_id && (
+                    {note.is_finalized && (note.provider_id || note.courier_id) && (
                         <Button
                             onClick={() => handleReopenNote(note)}
                             disabled={isReopening}
@@ -1056,6 +1186,17 @@ const DeliveryNote = () => {
                             onClick={() => {
                                 setWizardProviderId(note.provider_id);
                                 setIsWizardOpen(true);
+                            }}
+                            className="w-full bg-brand-navy/5 hover:bg-brand-navy/10 text-brand-navy rounded-xl h-10 font-bold text-xs gap-2"
+                        >
+                            <PlusCircle className="w-4 h-4" /> Add Orders
+                        </Button>
+                    )}
+                    {!note.is_finalized && isCourier && note.courier_id && (
+                        <Button
+                            onClick={() => {
+                                setCourierWizardLockId(note.courier_id);
+                                setIsCourierWizardOpen(true);
                             }}
                             className="w-full bg-brand-navy/5 hover:bg-brand-navy/10 text-brand-navy rounded-xl h-10 font-bold text-xs gap-2"
                         >
@@ -1081,8 +1222,15 @@ const DeliveryNote = () => {
                     </thead>
                     <tbody className="divide-y divide-brand-navy/[0.03]">
                         {notes.map((note) => {
+                            const isCourier = type === 'courier';
                             const provider = note.providers;
-                            const brandColor = getProviderColor(provider);
+                            const courier = note.courier;
+                            const brandColor = isCourier ? '#2d6d6c' : getProviderColor(provider);
+                            const displayName = isCourier
+                                ? (courier?.name || 'Local')
+                                : (provider?.business_name || provider?.name || 'Local');
+                            const logoUrl = !isCourier ? provider?.logo_url : null;
+                            const avatarUrl = isCourier ? courier?.avatar_url : null;
 
                             return (
                                 <tr key={note.id} className="hover:bg-brand-navy/[0.01] transition-colors group">
@@ -1108,20 +1256,20 @@ const DeliveryNote = () => {
                                     </td>
                                     <td className="p-6">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-xl bg-brand-navy/[0.04] p-2 flex items-center justify-center overflow-hidden border border-brand-navy/[0.03]">
-                                                {provider?.logo_url ? (
-                                                    <img src={provider.logo_url} alt="" className="w-full h-full object-contain" />
+                                            <div className="w-10 h-10 rounded-xl bg-brand-navy/[0.04] flex items-center justify-center overflow-hidden border border-brand-navy/[0.03]">
+                                                {logoUrl ? (
+                                                    <img src={logoUrl} alt="" className="w-full h-full object-contain p-1.5" />
+                                                ) : avatarUrl ? (
+                                                    <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
                                                 ) : (
-                                                    type === 'company' ? <Building2 className="w-4 h-4 text-blue-500" /> : <Truck className="w-4 h-4 text-orange-500" />
+                                                    isCourier ? <Truck className="w-4 h-4 text-brand-navy/50" /> : <Building2 className="w-4 h-4 text-blue-500" />
                                                 )}
                                             </div>
                                             <div className="flex flex-col min-w-0">
                                                 <span className="text-[10px] font-black text-muted-foreground/40 uppercase tracking-widest leading-none">
-                                                    {type === 'company' ? 'Provider' : 'Courier'}
+                                                    {isCourier ? 'Courier' : 'Provider'}
                                                 </span>
-                                                <span className="text-sm font-bold text-brand-navy truncate mt-1">
-                                                    {provider?.business_name || provider?.name || 'Local'}
-                                                </span>
+                                                <span className="text-sm font-bold text-brand-navy truncate mt-1">{displayName}</span>
                                             </div>
                                         </div>
                                     </td>
@@ -1149,7 +1297,7 @@ const DeliveryNote = () => {
                                             >
                                                 <Eye className="w-4 h-4" />
                                             </Button>
-                                            {!note.is_finalized && note.provider_id && (
+                                            {!note.is_finalized && (note.provider_id || note.courier_id) && (
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
@@ -1160,7 +1308,7 @@ const DeliveryNote = () => {
                                                     <CheckCircle2 className="w-4 h-4" />
                                                 </Button>
                                             )}
-                                            {note.is_finalized && note.provider_id && (
+                                            {note.is_finalized && (note.provider_id || note.courier_id) && (
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
@@ -1186,7 +1334,21 @@ const DeliveryNote = () => {
                                                     <PlusCircle className="w-4 h-4" />
                                                 </Button>
                                             )}
-                                            {(type === 'courier' || (type === 'company' && !note.is_finalized)) && (
+                                            {!note.is_finalized && isCourier && note.courier_id && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => {
+                                                        setCourierWizardLockId(note.courier_id);
+                                                        setIsCourierWizardOpen(true);
+                                                    }}
+                                                    className="h-9 w-9 rounded-xl bg-brand-navy/[0.04] hover:bg-emerald-500 text-brand-navy hover:text-white transition-all shadow-sm"
+                                                    title="Add Orders"
+                                                >
+                                                    <PlusCircle className="w-4 h-4" />
+                                                </Button>
+                                            )}
+                                            {!note.is_finalized && (
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
@@ -1233,24 +1395,47 @@ const DeliveryNote = () => {
                                 />
                             </div>
                             <Button
-                                onClick={() => setIsWizardOpen(true)}
+                                onClick={() => {
+                                    if (activeTab === 'courier') {
+                                        setIsCourierWizardOpen(true);
+                                    } else {
+                                        setIsWizardOpen(true);
+                                    }
+                                }}
                                 className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group flex items-center gap-2 w-full sm:w-auto"
                             >
                                 <Plus className="w-5 h-5" />
-                                Generate Note
+                                {activeTab === 'courier' ? 'Generate Courier Note' : 'Generate Note'}
                             </Button>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Company delivery notes only (no courier tab for sellers) */}
-            <div className="space-y-8">
+            {sellerShippingCtx && sellerShippingCtx.productIds.length === 0 && (
+                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-100 text-amber-900 text-sm font-semibold">
+                    No products are assigned to your account. Assign products in your profile to create delivery notes.
+                </div>
+            )}
+
+            {/* Content Tabs — identical to admin */}
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'company' | 'courier')} className="space-y-8">
                 <div className="flex flex-col md:flex-row items-center justify-between gap-4">
                     <div className="flex items-center gap-4 w-full md:w-auto">
-                        <div className="px-6 py-3 rounded-[20px] border border-brand-navy/5 bg-brand-navy text-white font-black text-xs tracking-widest uppercase h-14 flex items-center">
-                            My delivery notes
-                        </div>
+                        <TabsList className="bg-white/50 p-1.5 rounded-[20px] border border-brand-navy/5 h-14 backdrop-blur-sm">
+                            <TabsTrigger
+                                value="company"
+                                className="rounded-[16px] px-8 h-full font-black text-xs tracking-widest uppercase data-[state=active]:bg-brand-navy data-[state=active]:text-white data-[state=active]:shadow-lg transition-all"
+                            >
+                                Company Notes
+                            </TabsTrigger>
+                            <TabsTrigger
+                                value="courier"
+                                className="rounded-[16px] px-8 h-full font-black text-xs tracking-widest uppercase data-[state=active]:bg-brand-navy data-[state=active]:text-white data-[state=active]:shadow-lg transition-all"
+                            >
+                                Courier Notes
+                            </TabsTrigger>
+                        </TabsList>
 
                         {/* View Switcher */}
                         <div className="flex bg-white p-1 rounded-xl shadow-sm border border-brand-navy/5 shrink-0">
@@ -1293,19 +1478,14 @@ const DeliveryNote = () => {
                     </div>
                 </div>
 
-                <div className="mt-0">
-                    {sellerShippingCtx && sellerShippingCtx.productIds.length === 0 && (
-                        <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-100 text-amber-900 text-sm font-semibold">
-                            No products are assigned to your account. Assign products in your profile to create delivery notes.
-                        </div>
-                    )}
+                <TabsContent value="company" className="mt-0">
                     {loadingCompany ? (
                         <div className="flex items-center justify-center py-12">
                             <Loader2 className="w-8 h-8 animate-spin text-brand-navy" />
                         </div>
                     ) : companyNotes?.length === 0 ? (
                         <div className="text-center py-12 text-muted-foreground">
-                            No delivery notes yet. Click &quot;Generate Note&quot; to create one for your orders.
+                            No company delivery notes yet. Click &quot;Generate Note&quot; to create one.
                         </div>
                     ) : (
                         viewMode === 'grid' ? (
@@ -1316,11 +1496,31 @@ const DeliveryNote = () => {
                             renderNoteTable(companyNotes || [], 'company')
                         )
                     )}
-                </div>
-            </div>
+                </TabsContent>
+
+                <TabsContent value="courier" className="mt-0">
+                    {loadingCourier ? (
+                        <div className="flex items-center justify-center py-12">
+                            <Loader2 className="w-8 h-8 animate-spin text-brand-navy" />
+                        </div>
+                    ) : courierNotes?.length === 0 ? (
+                        <div className="text-center py-12 text-muted-foreground">
+                            No courier delivery notes yet.
+                        </div>
+                    ) : (
+                        viewMode === 'grid' ? (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {courierNotes?.map(note => renderNoteCard(note, 'courier'))}
+                            </div>
+                        ) : (
+                            renderNoteTable(courierNotes || [], 'courier')
+                        )
+                    )}
+                </TabsContent>
+            </Tabs>
 
 
-            {/* Delivery Note Wizard */}
+            {/* Delivery Note Wizard (Company) */}
             <DeliveryNoteWizard
                 open={isWizardOpen}
                 onOpenChange={(open) => {
@@ -1330,6 +1530,17 @@ const DeliveryNote = () => {
                     }
                 }}
                 lockProviderId={wizardProviderId}
+                sellerScope={sellerScope}
+            />
+
+            {/* Delivery Note Wizard (Courier — pure internal) */}
+            <CourierDeliveryNoteWizard
+                open={isCourierWizardOpen}
+                onOpenChange={(open) => {
+                    setIsCourierWizardOpen(open);
+                    if (!open) setCourierWizardLockId(undefined);
+                }}
+                lockCourierId={courierWizardLockId}
                 sellerScope={sellerScope}
             />
 
@@ -1350,18 +1561,37 @@ const DeliveryNote = () => {
                                 <div className="p-3 bg-white rounded-2xl shadow-sm border border-brand-navy/5 flex items-center justify-center min-w-[80px]">
                                     <img src={noteDetails.provider.logo_url} alt="Provider Logo" className="h-10 w-auto object-contain" />
                                 </div>
+                            ) : noteDetails?.provider?.avatar_url ? (
+                                <div className="w-16 h-16 rounded-2xl shadow-sm border border-brand-navy/5 overflow-hidden">
+                                    <img src={noteDetails.provider.avatar_url} alt={noteDetails.provider.name || 'Courier'} className="w-full h-full object-cover" />
+                                </div>
                             ) : (
-                                <div className="w-16 h-16 bg-brand-navy rounded-2xl flex items-center justify-center text-white font-black text-xl">D</div>
+                                <div className="w-16 h-16 bg-brand-navy rounded-2xl flex items-center justify-center text-white font-black text-xl">
+                                    {noteDetails?.provider?.isCourier ? <Truck className="w-7 h-7" /> : 'D'}
+                                </div>
                             )}
                         </div>
 
                         <div className="grid grid-cols-2 gap-10">
                             <div className="space-y-4">
-                                <div className="text-[10px] font-black text-brand-navy/40 uppercase tracking-widest">Provider / Business</div>
+                                <div className="text-[10px] font-black text-brand-navy/40 uppercase tracking-widest">
+                                    {noteDetails?.provider?.isCourier ? 'Courier' : 'Provider / Business'}
+                                </div>
                                 <div className="space-y-1">
                                     <div className="font-bold text-brand-navy text-lg">{noteDetails?.provider?.business_name || noteDetails?.provider?.name || 'Loading...'}</div>
-                                    <div className="text-sm text-muted-foreground font-medium">Provider: {noteDetails?.provider?.provider_type?.toUpperCase() || 'N/A'}</div>
-                                    <div className="text-sm text-muted-foreground font-medium">Reference: {selectedNote?.reference}</div>
+                                    {noteDetails?.provider?.isCourier ? (
+                                        <>
+                                            {noteDetails?.provider?.phone && (
+                                                <div className="text-sm text-muted-foreground font-medium">Phone: {noteDetails.provider.phone}</div>
+                                            )}
+                                            <div className="text-sm text-muted-foreground font-medium">Reference: {selectedNote?.reference}</div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div className="text-sm text-muted-foreground font-medium">Provider: {noteDetails?.provider?.provider_type?.toUpperCase() || 'N/A'}</div>
+                                            <div className="text-sm text-muted-foreground font-medium">Reference: {selectedNote?.reference}</div>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                             <div className="space-y-4 text-right">
@@ -1429,7 +1659,7 @@ const DeliveryNote = () => {
                                                                 <Clock className="h-4 w-4" />
                                                             </Button>
                                                         )}
-                                                        {selectedNote?.provider_id && !selectedNote?.is_finalized && (
+                                                        {(selectedNote?.provider_id || selectedNote?.courier_id) && !selectedNote?.is_finalized && (
                                                             <Button
                                                                 type="button"
                                                                 size="icon"
@@ -1457,7 +1687,18 @@ const DeliveryNote = () => {
                         </div>
 
                         <div className="flex justify-end gap-3 pt-4">
-                            {!selectedNote?.is_finalized && selectedNote?.provider_id && (
+                            {!selectedNote?.is_finalized && (
+                                <Button
+                                    onClick={() => setIsDeleteModalOpen(true)}
+                                    variant="ghost"
+                                    className="rounded-2xl h-12 px-6 font-bold text-red-600 hover:bg-red-50 hover:text-red-700 transition-all flex items-center gap-2"
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                    Supprimer
+                                </Button>
+                            )}
+
+                            {!selectedNote?.is_finalized && (selectedNote?.provider_id || selectedNote?.courier_id) && (
                                 <Button
                                     onClick={() => handleFinalizeNote(selectedNote)}
                                     className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl h-12 px-8 font-bold shadow-lg shadow-emerald-500/10 transition-all flex items-center gap-2"
@@ -1467,7 +1708,7 @@ const DeliveryNote = () => {
                                 </Button>
                             )}
 
-                            {selectedNote?.is_finalized && selectedNote?.provider_id && (
+                            {selectedNote?.is_finalized && (selectedNote?.provider_id || selectedNote?.courier_id) && (
                                 <Button
                                     onClick={() => handleReopenNote(selectedNote)}
                                     disabled={isReopening}
@@ -1482,7 +1723,47 @@ const DeliveryNote = () => {
                                 </Button>
                             )}
 
-                            {noteDetails?.provider?.provider_type === 'ameex' ? (
+                            {noteDetails?.provider?.isCourier ? (
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-12 px-8 font-bold shadow-lg shadow-brand-navy/10 transition-all flex items-center gap-2">
+                                            <Download className="w-4 h-4" />
+                                            Imprimer Étiquettes
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent className="rounded-2xl p-2 border-none shadow-2xl bg-white min-w-[220px]">
+                                        <DropdownMenuItem
+                                            className="rounded-xl font-bold py-3 cursor-pointer"
+                                            onClick={async () => {
+                                                if (!selectedNote?.id) return;
+                                                try {
+                                                    await printCourierDeliveryNote(selectedNote.id, 'sticker');
+                                                } catch (e) {
+                                                    console.error('[courier-label] caller caught error', e);
+                                                    toast({ title: 'Erreur', description: (e as Error).message || String(e), variant: 'destructive' });
+                                                }
+                                            }}
+                                        >
+                                            Étiquette 100×100
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                            className="rounded-xl font-bold py-3 cursor-pointer text-blue-600"
+                                            onClick={async () => {
+                                                if (!selectedNote?.id) return;
+                                                try {
+                                                    await printCourierDeliveryNote(selectedNote.id, 'note');
+                                                } catch (e) {
+                                                    console.error('[courier-label] caller caught error', e);
+                                                    toast({ title: 'Erreur', description: (e as Error).message || String(e), variant: 'destructive' });
+                                                }
+                                            }}
+                                        >
+                                            Bon de Livraison
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            ) : noteDetails?.provider?.provider_type === 'ameex' ? (
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                         <Button className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-12 px-8 font-bold shadow-lg shadow-brand-navy/10 transition-all flex items-center gap-2">

@@ -49,6 +49,7 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
             setTrackingCode(null);
 
             try {
+                // 1) Try the company parcel for this order first.
                 const { data: parcel, error } = await supabase
                     .from('company_parcels')
                     .select('id, tracking_code, external_id, provider_id, provider:providers(id, name, logo_url)')
@@ -58,26 +59,52 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
                     .maybeSingle();
 
                 if (cancelled) return;
-
                 if (error) throw error;
 
-                if (!parcel?.tracking_code || !String(parcel.tracking_code).trim()) {
-                    toast({
-                        title: 'Pas de suivi',
-                        description: 'Aucun colis avec code de suivi pour cette commande.',
-                        variant: 'destructive',
-                    });
-                    onOpenChange(false);
-                    return;
-                }
+                // 2) If no usable company parcel, fall back to the courier parcel.
+                if (!parcel?.tracking_code || !String(parcel.tracking_code).trim() || !parcel.provider_id) {
+                    const { data: courierParcel, error: courierErr } = await (supabase as any)
+                        .from('courier_parcels')
+                        .select('id, tracking_code, status_label, status_color, status_id, created_at, courier_id, courier:users!courier_parcels_courier_id_fkey(id, name, phone)')
+                        .eq('order_id', orderId)
+                        .order('created_at', { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
+                    if (cancelled) return;
+                    if (courierErr) throw courierErr;
 
-                if (!parcel.provider_id) {
-                    toast({
-                        title: 'Suivi indisponible',
-                        description: 'Prestataire de livraison manquant pour ce colis.',
-                        variant: 'destructive',
+                    if (!courierParcel?.tracking_code || !String(courierParcel.tracking_code).trim()) {
+                        toast({
+                            title: 'Pas de suivi',
+                            description: 'Aucun colis avec code de suivi pour cette commande.',
+                            variant: 'destructive',
+                        });
+                        onOpenChange(false);
+                        return;
+                    }
+
+                    setTrackingCode(String(courierParcel.tracking_code).trim());
+
+                    // Synthesize a single internal-history entry from the courier parcel row.
+                    const courierName = courierParcel.courier?.name || 'Coursier';
+                    const courierPhone = courierParcel.courier?.phone || '';
+                    setTrackingHistory({
+                        statusLabel: courierParcel.status_label || 'Nouveau',
+                        statusColor: courierParcel.status_color || '#3b82f6',
+                        history: [
+                            {
+                                status: courierParcel.status_label || 'Nouveau',
+                                statusLabel: courierParcel.status_label || 'Nouveau',
+                                date: courierParcel.created_at || null,
+                                comment: 'Colis créé en interne et confié à ' + courierName,
+                                color: courierParcel.status_color || '#3b82f6',
+                                user: courierName,
+                                phone: courierPhone,
+                            },
+                        ],
                     });
-                    onOpenChange(false);
+
+                    queryClient.invalidateQueries({ queryKey: ['orders'] });
                     return;
                 }
 

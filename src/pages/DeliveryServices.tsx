@@ -22,7 +22,8 @@ import {
     ExternalLink,
     MapPin,
     Coins,
-    Check
+    Check,
+    RotateCcw
 } from 'lucide-react';
 import {
     Card,
@@ -98,7 +99,8 @@ async function saveFeeRowByMasterCity(
     entityId: string,
     masterCityId: string,
     businessId: string | null,
-    fee: number
+    fee: number,
+    feeColumn: 'fee' | 'return_fee' = 'fee'
 ) {
     if (!businessId) throw new Error('No active business');
     const match = {
@@ -116,15 +118,17 @@ async function saveFeeRowByMasterCity(
     if (existing?.id) {
         const { error } = await supabase
             .from(table as typeof COMPANY_FEES_TABLE)
-            .update({ fee, updated_at })
+            .update({ [feeColumn]: fee, updated_at } as any)
             .eq('id', existing.id);
         if (error) throw error;
     } else {
         const { error } = await supabase.from(table as typeof COMPANY_FEES_TABLE).insert({
             ...match,
-            fee,
+            // Seed the missing column so existing delivery/return fees default sensibly.
+            fee: feeColumn === 'fee' ? fee : 0,
+            return_fee: feeColumn === 'return_fee' ? fee : 0,
             updated_at,
-        });
+        } as any);
         if (error) throw error;
     }
 }
@@ -321,12 +325,15 @@ const DeliveryServices = () => {
     const [selectedProviderTemplate, setSelectedProviderTemplate] = useState<typeof KNOWN_PROVIDERS[number] | null>(null);
     const [isZonesModalOpen, setIsZonesModalOpen] = useState(false);
     const [isFeesModalOpen, setIsFeesModalOpen] = useState(false);
+    const [isCourierReturnFeesModalOpen, setIsCourierReturnFeesModalOpen] = useState(false);
     const [editingItem, setEditingItem] = useState<any>(null);
     const [selectedCourier, setSelectedCourier] = useState<any>(null);
     const [selectedCompany, setSelectedCompany] = useState<any>(null);
     const [isCompanyZonesModalOpen, setIsCompanyZonesModalOpen] = useState(false);
     const [isCompanyFeesModalOpen, setIsCompanyFeesModalOpen] = useState(false);
+    const [isCompanyReturnFeesModalOpen, setIsCompanyReturnFeesModalOpen] = useState(false);
     const [isProviderPermissionsOpen, setIsProviderPermissionsOpen] = useState(false);
+    const [isCourierPermissionsOpen, setIsCourierPermissionsOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
 
     const { toast } = useToast();
@@ -561,6 +568,7 @@ const DeliveryServices = () => {
                                 onEdit={() => handleEdit(company, 'company')}
                                 onZones={() => { setSelectedCompany(company); setIsCompanyZonesModalOpen(true); }}
                                 onFees={() => { setSelectedCompany(company); setIsCompanyFeesModalOpen(true); }}
+                                onReturnFees={() => { setSelectedCompany(company); setIsCompanyReturnFeesModalOpen(true); }}
                                 onPermissions={() => {
                                     setSelectedCourier(null);
                                     setSelectedCompany(company);
@@ -583,6 +591,12 @@ const DeliveryServices = () => {
                                 onEdit={() => handleEdit(person, 'person')}
                                 onZones={() => { setSelectedCourier(person); setIsZonesModalOpen(true); }}
                                 onFees={() => { setSelectedCourier(person); setIsFeesModalOpen(true); }}
+                                onReturnFees={() => { setSelectedCourier(person); setIsCourierReturnFeesModalOpen(true); }}
+                                onPermissions={() => {
+                                    setSelectedCompany(null);
+                                    setSelectedCourier(person);
+                                    setIsCourierPermissionsOpen(true);
+                                }}
                                 onDelete={() => {
                                     if (confirm('Delete courier account?')) deleteMutation.mutate({ id: person.id, type: 'person' });
                                 }}
@@ -629,6 +643,13 @@ const DeliveryServices = () => {
                 courier={selectedCourier}
             />
 
+            <FeesModal
+                isOpen={isCourierReturnFeesModalOpen}
+                onClose={() => setIsCourierReturnFeesModalOpen(false)}
+                courier={selectedCourier}
+                mode="return"
+            />
+
             <CompanyZonesModal
                 isOpen={isCompanyZonesModalOpen}
                 onClose={() => setIsCompanyZonesModalOpen(false)}
@@ -641,6 +662,13 @@ const DeliveryServices = () => {
                 company={selectedCompany}
             />
 
+            <CompanyFeesModal
+                isOpen={isCompanyReturnFeesModalOpen}
+                onClose={() => setIsCompanyReturnFeesModalOpen(false)}
+                company={selectedCompany}
+                mode="return"
+            />
+
             <ProviderPermissionsModal
                 isOpen={isProviderPermissionsOpen}
                 onClose={() => {
@@ -651,13 +679,22 @@ const DeliveryServices = () => {
                 company={selectedCompany}
                 courier={selectedCourier}
             />
+
+            <CourierPermissionsModal
+                isOpen={isCourierPermissionsOpen}
+                onClose={() => {
+                    setIsCourierPermissionsOpen(false);
+                    setSelectedCourier(null);
+                }}
+                courier={selectedCourier}
+            />
         </div>
     );
 };
 
 // --- Sub-components ---
 
-function CourierCard({ person, onEdit, onZones, onFees, onDelete }: any) {
+function CourierCard({ person, onEdit, onZones, onFees, onReturnFees, onPermissions, onDelete }: any) {
     return (
         <Card className="group relative overflow-hidden border-none bg-white hover:shadow-[0_40px_80px_-15px_rgba(0,0,0,0.1)] transition-all duration-500 rounded-[32px] border border-slate-100 flex flex-col h-full">
             <div className="absolute top-0 left-0 w-full h-1.5 bg-brand-navy/5 group-hover:bg-brand-navy transition-colors" />
@@ -714,6 +751,18 @@ function CourierCard({ person, onEdit, onZones, onFees, onDelete }: any) {
                         >
                             <Coins className="w-4 h-4 mr-3 shrink-0" /> Set City Fees
                         </DropdownMenuItem>
+                        <DropdownMenuItem
+                            onClick={onReturnFees}
+                            className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground focus:bg-primary focus:text-primary-foreground"
+                        >
+                            <RotateCcw className="w-4 h-4 mr-3 shrink-0" /> Set Return Fees
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                            onClick={onPermissions}
+                            className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground focus:bg-primary focus:text-primary-foreground"
+                        >
+                            <Shield className="w-4 h-4 mr-3 shrink-0" /> Permissions
+                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                             onClick={onDelete}
@@ -750,7 +799,7 @@ function CourierCard({ person, onEdit, onZones, onFees, onDelete }: any) {
     );
 };
 
-function PartnerCard({ company, onEdit, onZones, onFees, onPermissions, onDelete }: any) {
+function PartnerCard({ company, onEdit, onZones, onFees, onReturnFees, onPermissions, onDelete }: any) {
     return (
         <Card className="group relative overflow-hidden border-none bg-white hover:shadow-[0_40px_80px_-15px_rgba(0,0,0,0.1)] transition-all duration-500 rounded-[32px] border border-slate-100 flex flex-col h-full">
             <div className="absolute top-0 left-0 w-full h-1.5 bg-brand-navy/5 group-hover:bg-brand-navy transition-colors" />
@@ -810,6 +859,12 @@ function PartnerCard({ company, onEdit, onZones, onFees, onPermissions, onDelete
                             className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground focus:bg-primary focus:text-primary-foreground"
                         >
                             <Coins className="w-4 h-4 mr-3 shrink-0" /> Delivery Fees
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                            onClick={onReturnFees}
+                            className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground focus:bg-primary focus:text-primary-foreground"
+                        >
+                            <RotateCcw className="w-4 h-4 mr-3 shrink-0" /> Return Fees
                         </DropdownMenuItem>
                         <DropdownMenuItem
                             onClick={onPermissions}
@@ -1369,7 +1424,8 @@ function ZonesModal({ isOpen, onClose, courier }: any) {
     );
 };
 
-function FeesModal({ isOpen, onClose, courier }: any) {
+function FeesModal({ isOpen, onClose, courier, mode = 'delivery' }: any) {
+    const feeColumn: 'fee' | 'return_fee' = mode === 'return' ? 'return_fee' : 'fee';
     const queryClient = useQueryClient();
     const { toast } = useToast();
     const activeBusinessId = localStorage.getItem('activeBusinessId');
@@ -1387,7 +1443,7 @@ function FeesModal({ isOpen, onClose, courier }: any) {
     });
 
     const { data: savedFees } = useQuery({
-        queryKey: ['courier_fees', courier?.id, activeBusinessId],
+        queryKey: ['courier_fees', courier?.id, activeBusinessId, feeColumn],
         queryFn: async () => {
             if (!activeBusinessId) return {};
             const data = await fetchAllFeeRowsForEntity(
@@ -1399,7 +1455,7 @@ function FeesModal({ isOpen, onClose, courier }: any) {
             const feeMap: Record<string, string> = {};
             data.forEach((f: any) => {
                 const k = f.master_city_id || f.city_id;
-                if (k) feeMap[k] = f.fee.toString();
+                if (k) feeMap[k] = (f[feeColumn] ?? 0).toString();
             });
             setFees(feeMap);
             return feeMap;
@@ -1416,11 +1472,12 @@ function FeesModal({ isOpen, onClose, courier }: any) {
                 courier.id,
                 cityId,
                 activeBusinessId,
-                numericFee
+                numericFee,
+                feeColumn
             );
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['courier_fees', courier?.id, activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['courier_fees', courier?.id, activeBusinessId, feeColumn] });
         }
     });
 
@@ -1447,15 +1504,21 @@ function FeesModal({ isOpen, onClose, courier }: any) {
                     courier.id,
                     city.id,
                     activeBusinessId,
-                    numericPrice
+                    numericPrice,
+                    feeColumn
                 );
             }
-            queryClient.invalidateQueries({ queryKey: ['courier_fees', courier?.id, activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['courier_fees', courier?.id, activeBusinessId, feeColumn] });
             toast({ title: "Success", description: `Updated ${cities.length} cities to ${bulkPrice} MAD` });
         } catch {
             toast({ title: "Error", description: "Failed to update bulk fees", variant: "destructive" });
         }
     };
+
+    const title = mode === 'return' ? 'City Return Fees' : 'City Delivery Fees';
+    const subtitle = mode === 'return'
+        ? `Configure per-city return rates for ${courier?.name}`
+        : `Configure per-city rates for ${courier?.name}`;
 
     return (
         <Dialog open={isOpen} onOpenChange={(v) => !v && onClose()}>
@@ -1463,10 +1526,10 @@ function FeesModal({ isOpen, onClose, courier }: any) {
                 <DialogHeader className="p-10 pb-4 shrink-0">
                     <div className="flex items-center justify-between">
                         <div>
-                            <DialogTitle className="text-3xl font-black text-brand-navy">City Delivery Fees</DialogTitle>
+                            <DialogTitle className="text-3xl font-black text-brand-navy">{title}</DialogTitle>
                             <DialogDescription className="font-bold flex items-center gap-2 mt-1">
                                 <Coins className="w-4 h-4 text-brand-navy" />
-                                Configure per-city rates for {courier?.name}
+                                {subtitle}
                             </DialogDescription>
                         </div>
                     </div>
@@ -1626,6 +1689,151 @@ function CompanyZonesModal({ isOpen, onClose, company }: any) {
         </Dialog>
     );
 };
+
+// ── Courier Permissions Modal ──────────────────────────────────────────────
+// Stores the courier's parcel-flag defaults on `users` (courier_parcel_*).
+// Each parcel created by the wizard snapshots these flags so labels remain
+// consistent even if the courier toggles them later.
+function CourierPermissionsModal({
+    isOpen,
+    onClose,
+    courier,
+}: {
+    isOpen: boolean;
+    onClose: () => void;
+    courier: any | null;
+}) {
+    const { toast } = useToast();
+    const queryClient = useQueryClient();
+    const activeBusinessId = localStorage.getItem('activeBusinessId');
+
+    const [flags, setFlags] = useState<{ fragile: boolean; open: boolean; try_on: boolean }>({
+        fragile: false,
+        open: false,
+        try_on: false,
+    });
+
+    const { data: permRow, isLoading } = useQuery({
+        queryKey: ['courier_permissions', courier?.id],
+        queryFn: async () => {
+            if (!courier?.id) return null;
+            const { data, error } = await (supabase as any)
+                .from('users')
+                .select('courier_parcel_fragile, courier_parcel_open, courier_parcel_try_on')
+                .eq('id', courier.id)
+                .maybeSingle();
+            if (error) throw error;
+            return data as { courier_parcel_fragile?: boolean; courier_parcel_open?: boolean; courier_parcel_try_on?: boolean } | null;
+        },
+        enabled: !!courier?.id && isOpen,
+    });
+
+    useEffect(() => {
+        if (!isOpen) return;
+        setFlags({
+            fragile: !!permRow?.courier_parcel_fragile,
+            open: !!permRow?.courier_parcel_open,
+            try_on: !!permRow?.courier_parcel_try_on,
+        });
+    }, [isOpen, permRow]);
+
+    const savePermissions = useMutation({
+        mutationFn: async () => {
+            if (!courier?.id) throw new Error('Missing courier');
+            const { error } = await (supabase as any)
+                .from('users')
+                .update({
+                    courier_parcel_fragile: flags.fragile,
+                    courier_parcel_open: flags.open,
+                    courier_parcel_try_on: flags.try_on,
+                })
+                .eq('id', courier.id);
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['courier_permissions', courier?.id] });
+            queryClient.invalidateQueries({ queryKey: ['delivery-people', activeBusinessId] });
+            toast({ title: 'Saved', description: 'Courier parcel permission settings updated.' });
+            onClose();
+        },
+        onError: (err: any) => {
+            toast({ title: 'Save failed', description: err?.message || 'Unknown error', variant: 'destructive' });
+        },
+    });
+
+    const rows = [
+        { key: 'fragile' as const, label: 'Fragile', hint: 'Affiche le bandeau « FRAGILE » sur l\'étiquette du colis.' },
+        { key: 'open' as const, label: "Autorisation d'ouverture du colis par le client" },
+        { key: 'try_on' as const, label: "Autoriser l'essayage du produit par le client" },
+    ];
+
+    return (
+        <Dialog open={isOpen} onOpenChange={(v) => !v && onClose()}>
+            <DialogContent className="max-w-lg p-0 border-none bg-brand-white rounded-[32px] shadow-2xl overflow-hidden max-h-[85vh] flex flex-col">
+                <DialogHeader className="p-8 pb-4 shrink-0 border-b border-brand-navy/5">
+                    <DialogTitle className="text-2xl font-black text-brand-navy flex items-center gap-2">
+                        <Shield className="w-6 h-6 text-brand-navy/80 shrink-0" />
+                        Permissions
+                    </DialogTitle>
+                    <DialogDescription className="font-semibold text-brand-navy/70 mt-2 text-left">
+                        <span className="font-bold text-brand-navy">{courier?.name || 'Courier'}</span>
+                        <span className="block mt-1 text-brand-navy/55">Internal courier</span>
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="flex-1 overflow-y-auto px-8 py-2 min-h-[120px]">
+                    {isLoading ? (
+                        <div className="flex items-center justify-center py-16">
+                            <Loader2 className="w-10 h-10 animate-spin text-brand-navy/25" />
+                        </div>
+                    ) : (
+                        <div className="space-y-0">
+                            {rows.map((row) => (
+                                <div
+                                    key={row.key}
+                                    className="flex items-start justify-between gap-4 py-4 border-b border-brand-navy/[0.06] last:border-b-0"
+                                >
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-sm font-bold text-brand-navy leading-snug">{row.label}</p>
+                                        {row.hint ? (
+                                            <p className="text-xs font-medium text-brand-navy/45 mt-1.5 leading-relaxed">
+                                                {row.hint}
+                                            </p>
+                                        ) : null}
+                                    </div>
+                                    <Switch
+                                        className="shrink-0 mt-0.5 data-[state=checked]:bg-brand-navy"
+                                        checked={flags[row.key]}
+                                        onCheckedChange={(v) => setFlags((prev) => ({ ...prev, [row.key]: v }))}
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                <DialogFooter className="p-8 pt-2 border-t border-brand-navy/5 bg-brand-white shrink-0 flex-col gap-2 sm:flex-col">
+                    <Button
+                        type="button"
+                        disabled={savePermissions.isPending || isLoading}
+                        onClick={() => savePermissions.mutate()}
+                        className="w-full h-12 rounded-2xl font-black bg-brand-navy text-white hover:bg-brand-navy/90 hover:text-white"
+                    >
+                        {savePermissions.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Save'}
+                    </Button>
+                    <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={onClose}
+                        className="w-full h-12 rounded-2xl font-black"
+                    >
+                        Cancel
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 function ProviderPermissionsModal({
     isOpen,
@@ -1834,7 +2042,8 @@ function ProviderPermissionsModal({
     );
 }
 
-function CompanyFeesModal({ isOpen, onClose, company }: any) {
+function CompanyFeesModal({ isOpen, onClose, company, mode = 'delivery' }: any) {
+    const feeColumn: 'fee' | 'return_fee' = mode === 'return' ? 'return_fee' : 'fee';
     const queryClient = useQueryClient();
     const { toast } = useToast();
     const activeBusinessId = localStorage.getItem('activeBusinessId');
@@ -1857,7 +2066,7 @@ function CompanyFeesModal({ isOpen, onClose, company }: any) {
     });
 
     const { data: savedFees } = useQuery({
-        queryKey: ['company_fees', company?.id, activeBusinessId],
+        queryKey: ['company_fees', company?.id, activeBusinessId, feeColumn],
         queryFn: async () => {
             if (!activeBusinessId) return {};
             const data = await fetchAllFeeRowsForEntity(
@@ -1869,7 +2078,7 @@ function CompanyFeesModal({ isOpen, onClose, company }: any) {
             const feeMap: Record<string, string> = {};
             data.forEach((f: any) => {
                 const k = f.master_city_id || f.city_id;
-                if (k) feeMap[k] = f.fee.toString();
+                if (k) feeMap[k] = (f[feeColumn] ?? 0).toString();
             });
             setFees(feeMap);
             return feeMap;
@@ -1886,11 +2095,12 @@ function CompanyFeesModal({ isOpen, onClose, company }: any) {
                 company.id,
                 cityId,
                 activeBusinessId,
-                numericFee
+                numericFee,
+                feeColumn
             );
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['company_fees', company?.id, activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['company_fees', company?.id, activeBusinessId, feeColumn] });
         }
     });
 
@@ -1917,10 +2127,11 @@ function CompanyFeesModal({ isOpen, onClose, company }: any) {
                     company.id,
                     city.id,
                     activeBusinessId,
-                    numericPrice
+                    numericPrice,
+                    feeColumn
                 );
             }
-            queryClient.invalidateQueries({ queryKey: ['company_fees', company?.id, activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['company_fees', company?.id, activeBusinessId, feeColumn] });
             toast({ title: "Success", description: `Updated ${cities.length} cities to ${bulkPrice} MAD` });
         } catch {
             toast({ title: "Error", description: "Failed to update bulk fees", variant: "destructive" });
@@ -1945,10 +2156,14 @@ function CompanyFeesModal({ isOpen, onClose, company }: any) {
                 <DialogHeader className="p-10 pb-4 shrink-0">
                     <div className="flex items-center justify-between">
                         <div>
-                            <DialogTitle className="text-3xl font-black text-brand-navy">Company Delivery Fees</DialogTitle>
+                            <DialogTitle className="text-3xl font-black text-brand-navy">
+                                {mode === 'return' ? 'Company Return Fees' : 'Company Delivery Fees'}
+                            </DialogTitle>
                             <DialogDescription className="font-bold flex items-center gap-2 mt-1">
                                 <Coins className="w-4 h-4 text-brand-navy" />
-                                Configure per-city rates for {company?.name}
+                                {mode === 'return'
+                                    ? `Configure per-city return rates for ${company?.name}`
+                                    : `Configure per-city rates for ${company?.name}`}
                             </DialogDescription>
                         </div>
                     </div>

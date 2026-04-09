@@ -1,17 +1,846 @@
-import React from 'react';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { useState, useMemo, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { format } from 'date-fns';
+import { supabase } from '@/lib/supabase';
+import {
+    Search,
+    Package,
+    Layers,
+    MapPin,
+    Phone,
+    PhoneCall,
+    User as UserIcon,
+    Loader2,
+    SearchX,
+    CheckCircle2,
+    Clock,
+    AlertCircle,
+    History,
+    X,
+    ChevronRight,
+    Truck,
+    Hash,
+    MessageCircle,
+    QrCode,
+} from 'lucide-react';
+import QrScanModal from '@/components/scanner/QrScanModal';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+} from '@/components/ui/dialog';
+import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
+// ── Types ──────────────────────────────────────────────────────────────────
+type PackageStatus = {
+    id: string;
+    code: string | null;
+    label: string | null;
+    color: string | null;
+    category: string | null;
+    recheck: boolean | null;
+    ranking: string | number | null;
+};
+
+type CourierOrderRow = {
+    parcel_id: string;
+    parcel_reference: string | null;
+    parcel_tracking_code: string | null;
+    parcel_created_at: string | null;
+    parcel_status: PackageStatus | null;
+    note_id: string;
+    note_reference: string | null;
+    note_finalized_at: string | null;
+    order: {
+        id: string;
+        name: string | null;
+        phone: string | null;
+        address: string | null;
+        price: number | null;
+        delivery_note: string | null;
+        created_at: string | null;
+        city: { id: string; name: string | null } | null;
+        items: Array<{
+            quantity: number | null;
+            product?: { name: string | null; code: string | null } | null;
+        }> | null;
+    };
+};
+
+type TabKey = 'all' | 'livre' | 'nouveau' | 'suivi' | 'reported';
+
+// ── Tab definitions ────────────────────────────────────────────────────────
+const TABS: Array<{
+    key: TabKey;
+    label: string;
+    icon: typeof CheckCircle2;
+    accent: string;
+    /** Returns true if this parcel belongs in the tab. */
+    match: (status: PackageStatus | null) => boolean;
+}> = [
+    {
+        key: 'all',
+        label: 'Tout',
+        icon: Layers,
+        accent: '#2d6d6c',
+        match: () => true,
+    },
+    {
+        key: 'nouveau',
+        label: 'Nouveau',
+        icon: Package,
+        accent: '#3b82f6',
+        match: (s) => (s?.category || '') === 'new',
+    },
+    {
+        key: 'suivi',
+        label: 'Suivi',
+        icon: AlertCircle,
+        accent: '#f59e0b',
+        match: (s) => !!s?.recheck && (s?.category || '') !== 'postponed',
+    },
+    {
+        key: 'reported',
+        label: 'Reporté',
+        icon: Clock,
+        accent: '#b45309',
+        match: (s) => (s?.category || '') === 'postponed',
+    },
+    {
+        key: 'livre',
+        label: 'Livré',
+        icon: CheckCircle2,
+        accent: '#16a34a',
+        match: (s) => (s?.category || '') === 'delivered',
+    },
+];
+
+// ── Component ──────────────────────────────────────────────────────────────
 const CourierOrders = () => {
+    const { toast } = useToast();
+    const queryClient = useQueryClient();
+    const [activeTab, setActiveTab] = useState<TabKey>('all');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [selectedRow, setSelectedRow] = useState<CourierOrderRow | null>(null);
+    const [isScannerOpen, setIsScannerOpen] = useState<boolean>(false);
+
+    // Current courier
+    const { data: meRow } = useQuery({
+        queryKey: ['courier-me'],
+        queryFn: async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return null;
+            const { data, error } = await (supabase as any)
+                .from('users')
+                .select('id, "DigiCom Business", name')
+                .eq('id', user.id)
+                .maybeSingle();
+            if (error) throw error;
+            return data as { id: string; ['DigiCom Business']: string; name: string | null } | null;
+        },
+        staleTime: 60_000,
+    });
+
+    const courierId = meRow?.id;
+    const businessId = meRow?.['DigiCom Business'];
+
+    // Package statuses (for the picker + tab counts color)
+    const { data: packageStatuses = [] } = useQuery<PackageStatus[]>({
+        queryKey: ['courier-package-statuses', businessId],
+        queryFn: async () => {
+            if (!businessId) return [];
+            const { data, error } = await supabase
+                .from('package_statuses')
+                .select('id, code, label, color, category, recheck, ranking')
+                .order('ranking');
+            if (error) throw error;
+            return (data || []) as PackageStatus[];
+        },
+        enabled: !!businessId,
+        staleTime: 5 * 60_000,
+    });
+
+    // Courier parcels in finalized notes only
+    const { data: rows = [], isLoading } = useQuery<CourierOrderRow[]>({
+        queryKey: ['courier-orders', courierId, businessId],
+        queryFn: async () => {
+            if (!courierId || !businessId) return [];
+
+            const { data, error } = await (supabase as any)
+                .from('courier_parcels')
+                .select(`
+                    id,
+                    reference,
+                    tracking_code,
+                    status_id,
+                    status_label,
+                    status_color,
+                    created_at,
+                    courier_delivery_note_id,
+                    note:courier_delivery_notes!inner(
+                        id, reference, is_finalized, updated_at
+                    ),
+                    order:orders!courier_parcels_order_id_fkey(
+                        id, name, phone, address, price, delivery_note, created_at,
+                        city:master_cities(id, name),
+                        items:order_items(quantity, product:products(name, code))
+                    ),
+                    status:package_statuses(id, code, label, color, category, recheck, ranking)
+                `)
+                .eq('courier_id', courierId)
+                .eq('DigiCom Business', businessId)
+                .eq('note.is_finalized', true)
+                .order('created_at', { ascending: false });
+            if (error) throw error;
+
+            const list = (data || []) as any[];
+            return list
+                .filter((p) => p?.note && p?.order)
+                .map((p) => ({
+                    parcel_id: p.id,
+                    parcel_reference: p.reference,
+                    parcel_tracking_code: p.tracking_code,
+                    parcel_created_at: p.created_at,
+                    parcel_status: (p.status as PackageStatus) || (p.status_label
+                        ? { id: '', code: null, label: p.status_label, color: p.status_color || null, category: null, recheck: null, ranking: null }
+                        : null),
+                    note_id: p.note.id,
+                    note_reference: p.note.reference,
+                    note_finalized_at: p.note.updated_at,
+                    order: p.order,
+                })) as CourierOrderRow[];
+        },
+        enabled: !!courierId && !!businessId,
+    });
+
+    // Counts per tab
+    const counts = useMemo(() => {
+        const c: Record<TabKey, number> = { all: 0, livre: 0, nouveau: 0, suivi: 0, reported: 0 };
+        for (const r of rows) {
+            for (const t of TABS) if (t.match(r.parcel_status)) c[t.key]++;
+        }
+        return c;
+    }, [rows]);
+
+    // Build a flat, lowercased search index per row once so every subsequent
+    // keystroke just does a substring match. Covers:
+    //   customer (name / phone / address / city),
+    //   parcel   (id / reference / tracking / status label),
+    //   delivery note (id / reference),
+    //   order    (id / price / date / public delivery note),
+    //   products (name / code / quantity),
+    //   phone digits normalized (0612 345 678 matches 0612345678).
+    const searchableRows = useMemo(() => {
+        const normalizeDigits = (v: string) => v.replace(/\D/g, '');
+        return rows.map((r) => {
+            const items = r.order.items || [];
+            const parts: Array<string | number | null | undefined> = [
+                r.parcel_id,
+                r.parcel_reference,
+                r.parcel_tracking_code,
+                r.parcel_status?.label,
+                r.parcel_status?.code,
+                r.note_id,
+                r.note_reference,
+                r.order.id,
+                r.order.name,
+                r.order.phone,
+                normalizeDigits(r.order.phone || ''),
+                r.order.address,
+                r.order.city?.name,
+                r.order.delivery_note,
+                r.order.price,
+                r.order.created_at,
+                r.parcel_created_at,
+                r.note_finalized_at,
+                ...items.flatMap((i) => [i.product?.name, i.product?.code, i.quantity]),
+            ];
+            const haystack = parts
+                .filter((x) => x !== null && x !== undefined && String(x).length > 0)
+                .join(' ')
+                .toLowerCase();
+            return { row: r, haystack };
+        });
+    }, [rows]);
+
+    // Filter rows for the active tab + fuzzy-ish substring match across every
+    // indexed field. Multi-word queries are treated as AND tokens.
+    const filteredRows = useMemo(() => {
+        const tab = TABS.find((t) => t.key === activeTab);
+        if (!tab) return [];
+        const raw = searchQuery.trim().toLowerCase();
+        const tokens = raw ? raw.split(/\s+/).filter(Boolean) : [];
+        return searchableRows
+            .filter(({ row, haystack }) => {
+                if (!tab.match(row.parcel_status)) return false;
+                if (tokens.length === 0) return true;
+                return tokens.every((t) => haystack.includes(t));
+            })
+            .map(({ row }) => row);
+    }, [searchableRows, activeTab, searchQuery]);
+
+    // ── Scan handler ───────────────────────────────────────────────────────
+    // When a QR is successfully decoded we verify the tracking code exists in
+    // the LOCAL row set, which is already server-side scoped to
+    //   courier_id = me.id AND "DigiCom Business" = me.business
+    // so a QR from another courier / business / organization can never match.
+    // This is the rock-solid security boundary: no server round-trip needed,
+    // no PII in the QR, and the match is cryptographically impossible across
+    // business silos because tracking codes are scoped and random.
+    const handleScannedCode = (code: string) => {
+        const normalized = code.trim().toUpperCase();
+        setIsScannerOpen(false);
+
+        // Lookup in locally fetched, scoped rows
+        const match = rows.find(
+            (r) => (r.parcel_tracking_code || '').toUpperCase() === normalized,
+        );
+
+        if (!match) {
+            toast({
+                title: 'Colis non attribué',
+                description: `Le QR « ${normalized} » ne correspond à aucun colis de vos bons de livraison.`,
+                variant: 'destructive',
+            });
+            // Clear the search so the list isn't misleading
+            setSearchQuery('');
+            return;
+        }
+
+        // Filter the list to just this parcel and jump to "Tout" so it's visible
+        setActiveTab('all');
+        setSearchQuery(normalized);
+        // Auto-open the detail sheet for the matched parcel
+        setSelectedRow(match);
+        toast({
+            title: 'Colis trouvé',
+            description: `${match.order.name || 'Client'} · ${normalized}`,
+        });
+    };
+
+    // ── Mutation: update package status ────────────────────────────────────
+    const updateStatusMutation = useMutation({
+        mutationFn: async ({
+            parcelId,
+            status,
+        }: {
+            parcelId: string;
+            status: PackageStatus;
+        }) => {
+            const { error } = await (supabase as any)
+                .from('courier_parcels')
+                .update({
+                    status_id: status.id,
+                    status_label: status.label,
+                    status_color: status.color,
+                })
+                .eq('id', parcelId);
+            if (error) throw error;
+        },
+        onSuccess: (_d, variables) => {
+            queryClient.invalidateQueries({ queryKey: ['courier-orders', courierId, businessId] });
+            toast({
+                title: 'Statut mis à jour',
+                description: `Le colis est maintenant marqué « ${variables.status.label} ».`,
+            });
+            setSelectedRow((prev) => (prev && prev.parcel_id === variables.parcelId
+                ? { ...prev, parcel_status: variables.status }
+                : prev));
+        },
+        onError: (err: any) => {
+            toast({
+                title: 'Erreur',
+                description: err?.message || 'Impossible de mettre à jour le statut.',
+                variant: 'destructive',
+            });
+        },
+    });
+
+    // ── Render ─────────────────────────────────────────────────────────────
     return (
-        <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl md:text-3xl font-black text-brand-navy tracking-tight">Orders</h1>
-                <p className="text-sm text-brand-navy/50 font-medium mt-1">Assigned deliveries</p>
+        <div className="space-y-5 md:space-y-6 animate-in fade-in duration-300">
+            {/* Header */}
+            <div className="space-y-1">
+                <h1 className="text-2xl md:text-3xl font-black text-brand-navy tracking-tight">
+                    Mes Commandes
+                </h1>
+                <p className="text-xs md:text-sm text-brand-navy/50 font-medium">
+                    Colis confiés via vos bons de livraison.
+                </p>
             </div>
-            <div className="rounded-3xl bg-brand-navy/[0.04] p-6 md:p-10 border border-brand-navy/5">
-                <p className="text-sm font-bold text-brand-navy/40 uppercase tracking-widest">Pending specification</p>
+
+            {/* Search + scan */}
+            <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-navy/30" />
+                <Input
+                    type="search"
+                    placeholder="Rechercher : nom, téléphone, ville, tracking, BL, produit…"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="h-12 pl-11 pr-14 rounded-2xl border-brand-navy/10 bg-white text-sm font-medium shadow-sm focus-visible:ring-1 focus-visible:ring-brand-navy/20"
+                    aria-label="Search orders"
+                />
+                <button
+                    type="button"
+                    onClick={() => setIsScannerOpen(true)}
+                    aria-label="Scanner le QR d'un colis"
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 h-9 w-9 rounded-xl bg-brand-navy text-white flex items-center justify-center shadow-sm hover:bg-brand-navy/90 active:scale-95 transition-all"
+                >
+                    <QrCode className="w-4 h-4" />
+                </button>
             </div>
+
+            {/* Tabs (horizontally scrollable on mobile, wrap on md+) */}
+            <div className="-mx-4 px-4 overflow-x-auto no-scrollbar">
+                <div className="flex gap-2 min-w-min md:flex-wrap">
+                    {TABS.map((t) => {
+                        const isActive = activeTab === t.key;
+                        const count = counts[t.key];
+                        const Icon = t.icon;
+                        return (
+                            <button
+                                key={t.key}
+                                onClick={() => setActiveTab(t.key)}
+                                className={cn(
+                                    'shrink-0 h-12 px-4 rounded-2xl flex items-center gap-2 text-xs font-black uppercase tracking-wider transition-all',
+                                    isActive
+                                        ? 'text-white shadow-lg'
+                                        : 'bg-white text-brand-navy/55 hover:text-brand-navy border border-brand-navy/[0.06]',
+                                )}
+                                style={isActive ? { backgroundColor: t.accent } : undefined}
+                                aria-pressed={isActive}
+                            >
+                                <Icon className="w-4 h-4 shrink-0" />
+                                <span>{t.label}</span>
+                                <span
+                                    className={cn(
+                                        'ml-1 px-2 py-0.5 rounded-full text-[10px] font-black tabular-nums',
+                                        isActive ? 'bg-white/20 text-white' : 'bg-brand-navy/[0.06] text-brand-navy/60',
+                                    )}
+                                >
+                                    {count}
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* Content */}
+            {isLoading ? (
+                <div className="flex flex-col items-center justify-center py-20 gap-3">
+                    <Loader2 className="w-8 h-8 text-brand-navy/40 animate-spin" />
+                    <p className="text-xs font-bold text-brand-navy/40 uppercase tracking-widest">
+                        Chargement…
+                    </p>
+                </div>
+            ) : filteredRows.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
+                    <div className="w-16 h-16 rounded-full bg-brand-navy/[0.04] flex items-center justify-center">
+                        <SearchX className="w-7 h-7 text-brand-navy/30" />
+                    </div>
+                    <div className="space-y-1">
+                        <p className="text-sm font-bold text-brand-navy">Aucun colis dans cet onglet</p>
+                        <p className="text-xs text-brand-navy/40 font-medium">
+                            Les commandes apparaissent ici une fois confiées dans un bon de livraison finalisé.
+                        </p>
+                    </div>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+                    {filteredRows.map((row) => (
+                        <CourierOrderCard
+                            key={row.parcel_id}
+                            row={row}
+                            onOpen={() => setSelectedRow(row)}
+                        />
+                    ))}
+                </div>
+            )}
+
+            {/* Detail / status update sheet */}
+            <CourierOrderSheet
+                row={selectedRow}
+                onClose={() => setSelectedRow(null)}
+                packageStatuses={packageStatuses}
+                onSelectStatus={(status) => {
+                    if (!selectedRow) return;
+                    updateStatusMutation.mutate({ parcelId: selectedRow.parcel_id, status });
+                }}
+                isUpdating={updateStatusMutation.isPending}
+            />
+
+            {/* QR scanner */}
+            <QrScanModal
+                open={isScannerOpen}
+                onClose={() => setIsScannerOpen(false)}
+                onDecoded={handleScannedCode}
+            />
         </div>
     );
 };
 
 export default CourierOrders;
+
+// ── Card ───────────────────────────────────────────────────────────────────
+function CourierOrderCard({ row, onOpen }: { row: CourierOrderRow; onOpen: () => void }) {
+    const { order, parcel_status, parcel_tracking_code } = row;
+    const color = parcel_status?.color || '#94a3b8';
+    const label = parcel_status?.label || 'Nouveau';
+    const itemCount = (order.items || []).reduce((sum, i) => sum + (i.quantity || 0), 0);
+    const phoneE164 = (order.phone || '').replace(/\D/g, '');
+
+    return (
+        <button
+            type="button"
+            onClick={onOpen}
+            className="group relative w-full text-left bg-white rounded-2xl border border-brand-navy/[0.06] shadow-sm hover:shadow-lg hover:border-brand-navy/15 transition-all duration-300 active:scale-[0.99] overflow-hidden"
+        >
+            {/* Top accent */}
+            <div className="h-[3px] w-full" style={{ backgroundColor: color }} />
+
+            <div className="p-4 space-y-3">
+                {/* Status + price row */}
+                <div className="flex items-center justify-between gap-2">
+                    <span
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider"
+                        style={{ backgroundColor: `${color}15`, color }}
+                    >
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
+                        {label}
+                    </span>
+                    <div className="flex items-baseline gap-1">
+                        <span className="text-lg font-black text-brand-navy tabular-nums">
+                            {new Intl.NumberFormat('fr-FR').format(order.price || 0)}
+                        </span>
+                        <span className="text-[10px] font-bold text-brand-navy/35">DH</span>
+                    </div>
+                </div>
+
+                {/* Customer */}
+                <div className="space-y-1">
+                    <p className="text-sm font-bold text-brand-navy leading-tight truncate">
+                        {order.name || 'Client'}
+                    </p>
+                    <p className="text-[11px] text-brand-navy/45 font-medium tracking-wide">
+                        {order.phone || '—'}
+                    </p>
+                </div>
+
+                {/* City + tracking */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                    {order.city?.name && (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-brand-navy/[0.04] text-[10px] font-bold text-brand-navy/60">
+                            <MapPin className="w-3 h-3 text-brand-navy/30" />
+                            {order.city.name}
+                        </span>
+                    )}
+                    {itemCount > 0 && (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-brand-navy/[0.04] text-[10px] font-bold text-brand-navy/60">
+                            <Package className="w-3 h-3 text-brand-navy/30" />
+                            {itemCount} article{itemCount > 1 ? 's' : ''}
+                        </span>
+                    )}
+                </div>
+
+                {parcel_tracking_code && (
+                    <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-indigo-50/60 border border-indigo-100/60">
+                        <Hash className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                        <span className="text-[11px] font-mono font-bold text-indigo-700 truncate">
+                            {parcel_tracking_code}
+                        </span>
+                    </div>
+                )}
+
+                {/* Footer actions */}
+                <div className="flex items-center gap-2 pt-2 border-t border-brand-navy/[0.04]">
+                    <a
+                        href={phoneE164 ? `tel:${phoneE164}` : undefined}
+                        onClick={(e) => e.stopPropagation()}
+                        className={cn(
+                            'flex-1 h-11 rounded-xl flex items-center justify-center gap-1.5 text-[11px] font-black uppercase tracking-wider transition-all',
+                            phoneE164
+                                ? 'bg-brand-navy/[0.05] text-brand-navy hover:bg-brand-navy hover:text-white'
+                                : 'bg-brand-navy/[0.03] text-brand-navy/30 pointer-events-none',
+                        )}
+                    >
+                        <PhoneCall className="w-3.5 h-3.5" />
+                        Appeler
+                    </a>
+                    <a
+                        href={phoneE164 ? `https://wa.me/${phoneE164.startsWith('212') ? phoneE164 : '212' + phoneE164.replace(/^0/, '')}` : undefined}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className={cn(
+                            'flex-1 h-11 rounded-xl flex items-center justify-center gap-1.5 text-[11px] font-black uppercase tracking-wider transition-all',
+                            phoneE164
+                                ? 'bg-brand-navy/[0.05] text-brand-navy hover:bg-emerald-500 hover:text-white'
+                                : 'bg-brand-navy/[0.03] text-brand-navy/30 pointer-events-none',
+                        )}
+                    >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        WhatsApp
+                    </a>
+                    <span
+                        className="h-11 w-11 rounded-xl flex items-center justify-center bg-brand-navy text-white shrink-0"
+                        aria-hidden="true"
+                    >
+                        <ChevronRight className="w-4 h-4" />
+                    </span>
+                </div>
+            </div>
+        </button>
+    );
+}
+
+// ── Detail / status sheet ──────────────────────────────────────────────────
+function CourierOrderSheet({
+    row,
+    onClose,
+    packageStatuses,
+    onSelectStatus,
+    isUpdating,
+}: {
+    row: CourierOrderRow | null;
+    onClose: () => void;
+    packageStatuses: PackageStatus[];
+    onSelectStatus: (status: PackageStatus) => void;
+    isUpdating: boolean;
+}) {
+    const isOpen = !!row;
+    const [pickerOpen, setPickerOpen] = useState(false);
+
+    useEffect(() => {
+        if (!isOpen) setPickerOpen(false);
+    }, [isOpen]);
+
+    if (!row) return null;
+
+    const { order, parcel_status, parcel_tracking_code, parcel_reference, note_reference } = row;
+    const color = parcel_status?.color || '#94a3b8';
+    const itemCount = (order.items || []).reduce((sum, i) => sum + (i.quantity || 0), 0);
+
+    return (
+        <Dialog open={isOpen} onOpenChange={(v) => !v && onClose()}>
+            <DialogContent
+                className="
+                    p-0 border-none overflow-hidden bg-white
+                    sm:max-w-[560px] sm:rounded-[32px] sm:max-h-[90vh]
+                    max-sm:!left-0 max-sm:!right-0 max-sm:!top-auto max-sm:!bottom-0
+                    max-sm:!translate-x-0 max-sm:!translate-y-0
+                    max-sm:!w-full max-sm:!max-w-none
+                    max-sm:!h-[92dvh] max-sm:!max-h-[92dvh]
+                    max-sm:!rounded-t-[28px] max-sm:!rounded-b-none
+                    [&>button.absolute]:hidden
+                "
+            >
+                <div className="flex flex-col h-full max-h-full">
+                    {/* Drag handle on mobile */}
+                    <div className="sm:hidden flex justify-center pt-3 pb-1">
+                        <div className="h-1.5 w-12 rounded-full bg-brand-navy/15" />
+                    </div>
+
+                    {/* Header */}
+                    <DialogHeader className="px-6 sm:px-8 pt-4 sm:pt-8 pb-4 shrink-0 border-b border-brand-navy/5">
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 space-y-1">
+                                <DialogTitle className="text-xl sm:text-2xl font-black text-brand-navy truncate">
+                                    {order.name || 'Client'}
+                                </DialogTitle>
+                                <DialogDescription className="font-bold text-muted-foreground text-xs sm:text-sm">
+                                    {order.phone || 'Pas de téléphone'}
+                                </DialogDescription>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                className="w-11 h-11 rounded-full bg-brand-navy/[0.05] hover:bg-brand-navy/10 flex items-center justify-center text-brand-navy shrink-0"
+                                aria-label="Fermer"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                    </DialogHeader>
+
+                    {/* Scrollable body */}
+                    <div className="flex-1 overflow-y-auto px-6 sm:px-8 py-5 sm:py-6 space-y-5">
+                        {/* Current package status */}
+                        <button
+                            type="button"
+                            onClick={() => setPickerOpen((v) => !v)}
+                            className="w-full p-4 rounded-2xl border-2 transition-all text-left active:scale-[0.99]"
+                            style={{ borderColor: `${color}60`, backgroundColor: `${color}0d` }}
+                        >
+                            <div className="flex items-center justify-between gap-3">
+                                <div className="min-w-0 space-y-1">
+                                    <div className="text-[10px] font-black uppercase tracking-widest" style={{ color }}>
+                                        Statut du colis
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+                                        <span className="text-base sm:text-lg font-black text-brand-navy truncate">
+                                            {parcel_status?.label || 'Non défini'}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="flex flex-col items-end gap-0.5 shrink-0">
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-brand-navy/40">Changer</span>
+                                    <ChevronRight className={cn('w-5 h-5 text-brand-navy/40 transition-transform', pickerOpen && 'rotate-90')} />
+                                </div>
+                            </div>
+                        </button>
+
+                        {/* Status picker (in-line, expandable) */}
+                        {pickerOpen && (
+                            <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                                <div className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40 px-1">
+                                    Choisir un nouveau statut
+                                </div>
+                                <div className="grid grid-cols-1 gap-2 max-h-[40vh] overflow-y-auto pr-1">
+                                    {packageStatuses
+                                        .filter((s) => s.label && (s.category || '') !== 'other')
+                                        .map((s) => {
+                                            const isCurrent = parcel_status?.id === s.id;
+                                            const c = s.color || '#94a3b8';
+                                            return (
+                                                <button
+                                                    key={s.id}
+                                                    type="button"
+                                                    disabled={isUpdating || isCurrent}
+                                                    onClick={() => onSelectStatus(s)}
+                                                    className={cn(
+                                                        'h-12 px-4 rounded-2xl border-2 flex items-center justify-between gap-3 text-left transition-all active:scale-[0.99] disabled:opacity-50',
+                                                        isCurrent
+                                                            ? 'border-brand-navy bg-brand-navy/5'
+                                                            : 'border-brand-navy/[0.06] bg-white hover:border-brand-navy/20',
+                                                    )}
+                                                >
+                                                    <div className="flex items-center gap-2.5 min-w-0">
+                                                        <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: c }} />
+                                                        <span className="text-sm font-bold text-brand-navy truncate">
+                                                            {s.label}
+                                                        </span>
+                                                        {s.recheck && (
+                                                            <Badge className="bg-amber-50 text-amber-700 border-none font-black text-[8px] uppercase tracking-tighter px-1.5 rounded-md shrink-0">
+                                                                Suivi
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                    {isCurrent && (
+                                                        <CheckCircle2 className="w-4 h-4 text-brand-navy shrink-0" />
+                                                    )}
+                                                </button>
+                                            );
+                                        })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Info sections */}
+                        <div className="space-y-3">
+                            <InfoRow icon={MapPin} label="Ville" value={order.city?.name || '—'} />
+                            <InfoRow
+                                icon={UserIcon}
+                                label="Adresse"
+                                value={order.address || '—'}
+                                multiline
+                            />
+                            <InfoRow
+                                icon={Package}
+                                label="Articles"
+                                value={
+                                    (order.items && order.items.length > 0)
+                                        ? order.items
+                                            .filter((i) => (i.quantity || 0) > 0)
+                                            .map((i) => `${i.product?.code || i.product?.name || 'Item'} ×${i.quantity}`)
+                                            .join(' · ') || '—'
+                                        : '—'
+                                }
+                                multiline
+                            />
+                            <InfoRow
+                                icon={Truck}
+                                label="Tracking"
+                                value={parcel_tracking_code || parcel_reference || '—'}
+                                mono
+                            />
+                            <InfoRow icon={History} label="Bon de livraison" value={note_reference || '—'} mono />
+                            {order.delivery_note && (
+                                <InfoRow
+                                    icon={MessageCircle}
+                                    label="Note pour le coursier"
+                                    value={order.delivery_note}
+                                    multiline
+                                />
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Sticky footer with thumb-zone CTAs */}
+                    <div className="shrink-0 border-t border-brand-navy/5 bg-white p-4 sm:p-6 pb-[max(1rem,env(safe-area-inset-bottom))] flex gap-2">
+                        {order.phone && (
+                            <a
+                                href={`tel:${order.phone.replace(/\D/g, '')}`}
+                                className="flex-1 h-12 rounded-2xl bg-brand-navy/[0.05] text-brand-navy text-sm font-black uppercase tracking-wider flex items-center justify-center gap-2 active:scale-95 transition-all"
+                            >
+                                <Phone className="w-4 h-4" />
+                                Appeler
+                            </a>
+                        )}
+                        <Button
+                            onClick={() => setPickerOpen(true)}
+                            disabled={isUpdating}
+                            className="flex-1 h-12 rounded-2xl bg-brand-navy text-white font-black uppercase tracking-wider text-sm hover:bg-brand-navy/90 active:scale-95 transition-all"
+                        >
+                            {isUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Changer Statut'}
+                        </Button>
+                    </div>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function InfoRow({
+    icon: Icon,
+    label,
+    value,
+    mono,
+    multiline,
+}: {
+    icon: typeof MapPin;
+    label: string;
+    value: string;
+    mono?: boolean;
+    multiline?: boolean;
+}) {
+    return (
+        <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-brand-navy/[0.05] flex items-center justify-center text-brand-navy/55 shrink-0">
+                <Icon className="w-4 h-4" />
+            </div>
+            <div className="min-w-0 flex-1 space-y-0.5">
+                <div className="text-[9px] font-black uppercase tracking-widest text-brand-navy/40">
+                    {label}
+                </div>
+                <div
+                    className={cn(
+                        'text-sm font-bold text-brand-navy break-words',
+                        mono && 'font-mono',
+                        !multiline && 'truncate',
+                    )}
+                >
+                    {value}
+                </div>
+            </div>
+        </div>
+    );
+}

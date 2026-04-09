@@ -89,6 +89,7 @@ import {
     OrderContactSubmenu,
 } from '@/components/orders/OrderPhoneQuickActions';
 import { ParcelTrackingDialog } from '@/components/orders/ParcelTrackingDialog';
+import { OrderStatusHistoryDialog } from '@/components/orders/OrderStatusHistoryDialog';
 import { SyncTrackingStatus } from '@/components/orders/SyncTrackingStatus';
 import { useTrackingSyncStatus } from '@/hooks/useTrackingSyncStatus';
 import { getLatestTrackableCompanyParcel } from '@/lib/orders/getLatestTrackableCompanyParcel';
@@ -360,6 +361,27 @@ function StatusPillsRibbon({
     );
 }
 
+/**
+ * For courier (internal) orders the package status lives on the latest
+ * courier_parcels row, not on orders.package_status_id. Picks the most recent
+ * parcel that has a status_label and returns it in the same shape the badge
+ * renderer expects.
+ */
+function getCourierPackageStatus(order: any): { label: string; color: string | null } | null {
+    const courierParcels = (order?.courier_parcels || []) as Array<{
+        status_label?: string | null;
+        status_color?: string | null;
+        created_at?: string | null;
+    }>;
+    if (!courierParcels.length) return null;
+    const sorted = [...courierParcels].sort(
+        (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime(),
+    );
+    const latest = sorted.find((p) => p.status_label && String(p.status_label).trim());
+    if (!latest) return null;
+    return { label: String(latest.status_label).trim(), color: latest.status_color || null };
+}
+
 const Orders = () => {
     const [searchParams, setSearchParams] = useSearchParams();
     const prefillProductHandledRef = useRef<string | null>(null);
@@ -477,6 +499,7 @@ const Orders = () => {
     const [filterExchange, setFilterExchange] = useState<string>('all');
     const [showAllFilters, setShowAllFilters] = useState(false);
     const [parcelTrackingOpen, setParcelTrackingOpen] = useState(false);
+    const [historyDialogOrder, setHistoryDialogOrder] = useState<any>(null);
     const [parcelTrackingOrderId, setParcelTrackingOrderId] = useState<string | null>(null);
 
     // Add custom scrollbar styles to head
@@ -582,6 +605,49 @@ const Orders = () => {
                     if (parcel.tracking_code && parcel.provider_id) {
                         await handleTrackParcel(parcel);
                     }
+                    return;
+                }
+
+                // Fallback: courier parcel (internal — no edge function call).
+                const { data: courierParcel } = await (supabase as any)
+                    .from('courier_parcels')
+                    .select('*, courier:users!courier_parcels_courier_id_fkey(id, name, phone, avatar_url)')
+                    .eq('order_id', selectedOrder.id)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+
+                if (courierParcel) {
+                    setOrderParcel({
+                        ...courierParcel,
+                        provider: {
+                            id: courierParcel.courier?.id,
+                            name: courierParcel.courier?.name || 'Coursier',
+                            provider_type: 'courier',
+                            logo_url: courierParcel.courier?.avatar_url || null,
+                        },
+                        _isCourierParcel: true,
+                    });
+
+                    if (courierParcel.tracking_code) {
+                        const courierName = courierParcel.courier?.name || 'Coursier';
+                        const courierPhone = courierParcel.courier?.phone || '';
+                        setTrackingHistory({
+                            statusLabel: courierParcel.status_label || 'Nouveau',
+                            statusColor: courierParcel.status_color || '#3b82f6',
+                            history: [
+                                {
+                                    status: courierParcel.status_label || 'Nouveau',
+                                    statusLabel: courierParcel.status_label || 'Nouveau',
+                                    date: courierParcel.created_at || null,
+                                    comment: 'Colis créé en interne et confié à ' + courierName,
+                                    color: courierParcel.status_color || '#3b82f6',
+                                    user: courierName,
+                                    phone: courierPhone,
+                                },
+                            ],
+                        });
+                    }
                 }
             } catch (err) {
                 console.error('Error fetching parcel:', err);
@@ -593,10 +659,45 @@ const Orders = () => {
         fetchParcelAndTrack();
     }, [isViewModalOpen, selectedOrder?.id]);
 
-    // Track parcel via edge function
+    // Track parcel via edge function (or synthesise for internal courier parcels)
     const handleTrackParcel = async (parcel: any) => {
         setIsTrackingLoading(true);
         setTrackingHistory(null);
+
+        // Internal courier parcels: no edge function — just refresh from DB.
+        if (parcel?._isCourierParcel || (!parcel?.provider_id && parcel?.courier_id)) {
+            try {
+                const { data: fresh } = await (supabase as any)
+                    .from('courier_parcels')
+                    .select('id, tracking_code, status_label, status_color, status_id, created_at, courier:users!courier_parcels_courier_id_fkey(id, name, phone)')
+                    .eq('id', parcel.id)
+                    .maybeSingle();
+
+                const courierName = fresh?.courier?.name || parcel.courier?.name || 'Coursier';
+                const courierPhone = fresh?.courier?.phone || parcel.courier?.phone || '';
+
+                setTrackingHistory({
+                    statusLabel: fresh?.status_label || parcel.status_label || 'Nouveau',
+                    statusColor: fresh?.status_color || parcel.status_color || '#3b82f6',
+                    history: [
+                        {
+                            status: fresh?.status_label || parcel.status_label || 'Nouveau',
+                            statusLabel: fresh?.status_label || parcel.status_label || 'Nouveau',
+                            date: fresh?.created_at || parcel.created_at || null,
+                            comment: 'Colis créé en interne et confié à ' + courierName,
+                            color: fresh?.status_color || parcel.status_color || '#3b82f6',
+                            user: courierName,
+                            phone: courierPhone,
+                        },
+                    ],
+                });
+            } catch (e) {
+                console.error('[track] internal courier refresh failed', e);
+            } finally {
+                setIsTrackingLoading(false);
+            }
+            return;
+        }
 
         try {
             const { data: { session } } = await supabase.auth.getSession();
@@ -715,7 +816,7 @@ const Orders = () => {
                     items:order_items(*, product:products(name, code, image_url), accessory:accessories(name, code, image_url)),
                     history:order_status_history(*, user:users!changed_by(name, avatar_url), status:order_statuses!status_id(*)),
                     parcels:company_parcels(id, tracking_code, external_id, provider_id, status_label, status_color, created_at, provider:providers(id, name, logo_url)),
-                    courier_parcels(id, tracking_code, status_label, created_at)
+                    courier_parcels(id, tracking_code, status_label, status_color, created_at)
                 `)
                 .eq('DigiCom Business', activeBusinessId)
                 .or(`seller_id.eq.${userId},assign_id.eq.${userId}`)
@@ -743,7 +844,7 @@ const Orders = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('users')
-                .select('id, name')
+                .select('id, name, avatar_url')
                 .eq('role', 'courier')
                 .eq('active', true)
                 .eq('DigiCom Business', activeBusinessId);
@@ -758,7 +859,7 @@ const Orders = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('providers')
-                .select('id, name, provider_type')
+                .select('id, name, provider_type, logo_url')
                 .eq('active', true)
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
@@ -2550,7 +2651,8 @@ const Orders = () => {
                             const latestParcel = allParcels.sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())?.[0];
                             const trackingCode = latestParcel?.tracking_code;
                             const isDuplicateClient = duplicatePhones.has(order.phone);
-                            const canTrackParcel = !!getLatestTrackableCompanyParcel(order);
+                            const hasTrackableCourierParcel = (order.courier_parcels || []).some((p: any) => p?.tracking_code && String(p.tracking_code).trim());
+                            const canTrackParcel = !!getLatestTrackableCompanyParcel(order) || hasTrackableCourierParcel;
                             return (
                                 <div
                                     key={order.id}
@@ -2573,18 +2675,24 @@ const Orders = () => {
                                                     <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: order.status?.color }} />
                                                     {order.status?.label || 'DRAFT'}
                                                 </span>
-                                                {(order.package_status || order.package_status_label) && (
-                                                    <span
-                                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide"
-                                                        style={{
-                                                            backgroundColor: order.package_status ? `${order.package_status.color}12` : 'rgba(0,31,63,0.04)',
-                                                            color: order.package_status ? order.package_status.color : 'rgba(0,31,63,0.5)'
-                                                        }}
-                                                    >
-                                                        <Truck className="w-3 h-3" />
-                                                        {order.package_status?.label || order.package_status_label}
-                                                    </span>
-                                                )}
+                                                {(() => {
+                                                    const courierPkg = getCourierPackageStatus(order);
+                                                    const pkgLabel = order.package_status?.label || order.package_status_label || courierPkg?.label;
+                                                    const pkgColor = order.package_status?.color || courierPkg?.color || null;
+                                                    if (!pkgLabel) return null;
+                                                    return (
+                                                        <span
+                                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide"
+                                                            style={{
+                                                                backgroundColor: pkgColor ? `${pkgColor}12` : 'rgba(0,31,63,0.04)',
+                                                                color: pkgColor || 'rgba(0,31,63,0.5)',
+                                                            }}
+                                                        >
+                                                            <Truck className="w-3 h-3" />
+                                                            {pkgLabel}
+                                                        </span>
+                                                    );
+                                                })()}
                                                 {order.replace && (
                                                     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-red-50 text-red-600 text-[10px] font-bold">
                                                         <RefreshCcw className="w-2.5 h-2.5" />EXCH
@@ -2662,11 +2770,15 @@ const Orders = () => {
                                                 </span>
                                             )}
                                             {(order.company?.name || order.courier?.name) && (
-                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-brand-navy/[0.03] text-[10px] font-bold text-brand-navy/60">
+                                                <span className="inline-flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-lg bg-brand-navy/[0.03] text-[10px] font-bold text-brand-navy/60">
                                                     {order.company?.logo_url ? (
-                                                        <img src={order.company.logo_url} alt="" className="w-3 h-3 object-contain" />
+                                                        <img src={order.company.logo_url} alt="" className="w-4 h-4 rounded-full object-contain bg-white" />
+                                                    ) : order.courier?.avatar_url ? (
+                                                        <img src={order.courier.avatar_url} alt="" className="w-4 h-4 rounded-full object-cover" />
                                                     ) : (
-                                                        <Truck className="w-3 h-3 text-brand-navy/30" />
+                                                        <span className="w-4 h-4 rounded-full bg-brand-navy/10 flex items-center justify-center text-[8px] font-black text-brand-navy/60">
+                                                            {(order.company?.name || order.courier?.name || '?').slice(0, 1).toUpperCase()}
+                                                        </span>
                                                     )}
                                                     {order.company?.name || order.courier?.name}
                                                 </span>
@@ -2729,6 +2841,14 @@ const Orders = () => {
                                                     <Truck className="w-3.5 h-3.5" />
                                                     Track
                                                 </button>
+                                                <button
+                                                    type="button"
+                                                    title="Status history"
+                                                    onClick={() => setHistoryDialogOrder(order)}
+                                                    className="w-7 h-7 rounded-lg flex items-center justify-center bg-brand-navy/[0.05] hover:bg-brand-navy text-brand-navy/50 hover:text-white transition-all duration-200"
+                                                >
+                                                    <Package className="w-3.5 h-3.5" />
+                                                </button>
                                             </div>
                                         </div>
                                     </div>
@@ -2756,7 +2876,8 @@ const Orders = () => {
                                         const latestParcel = allParcels.sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())?.[0];
                                         const trackingCode = latestParcel?.tracking_code;
                                         const isDuplicateClient = duplicatePhones.has(order.phone);
-                                        const canTrackParcel = !!getLatestTrackableCompanyParcel(order);
+                                        const hasTrackableCourierParcel = (order.courier_parcels || []).some((p: any) => p?.tracking_code && String(p.tracking_code).trim());
+                            const canTrackParcel = !!getLatestTrackableCompanyParcel(order) || hasTrackableCourierParcel;
                                         return (
                                             <tr
                                                 key={order.id}
@@ -2814,18 +2935,24 @@ const Orders = () => {
                                                             <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: order.status?.color }} />
                                                             {order.status?.label || 'DRAFT'}
                                                         </span>
-                                                        {(order.package_status || order.package_status_label) && (
-                                                            <span
-                                                                className="flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide w-fit"
-                                                                style={{
-                                                                    backgroundColor: order.package_status ? `${order.package_status.color}10` : 'rgba(0,31,63,0.03)',
-                                                                    color: order.package_status ? order.package_status.color : 'rgba(0,31,63,0.45)'
-                                                                }}
-                                                            >
-                                                                <Truck className="w-3 h-3" />
-                                                                {order.package_status?.label || order.package_status_label}
-                                                            </span>
-                                                        )}
+                                                        {(() => {
+                                                            const courierPkg = getCourierPackageStatus(order);
+                                                            const pkgLabel = order.package_status?.label || order.package_status_label || courierPkg?.label;
+                                                            const pkgColor = order.package_status?.color || courierPkg?.color || null;
+                                                            if (!pkgLabel) return null;
+                                                            return (
+                                                                <span
+                                                                    className="flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide w-fit"
+                                                                    style={{
+                                                                        backgroundColor: pkgColor ? `${pkgColor}10` : 'rgba(0,31,63,0.03)',
+                                                                        color: pkgColor || 'rgba(0,31,63,0.45)',
+                                                                    }}
+                                                                >
+                                                                    <Truck className="w-3 h-3" />
+                                                                    {pkgLabel}
+                                                                </span>
+                                                            );
+                                                        })()}
                                                         {(REPORTED_STATUS_ID && (statusCats.isOrderCategory(order.order_status_id, 'postponed') || order.order_status_id === REPORTED_STATUS_ID)) && order.reported_date && (
                                                             <span className="flex items-center gap-1 text-[9px] font-bold text-amber-700">
                                                                 <Calendar className="w-2.5 h-2.5" />
@@ -2879,6 +3006,14 @@ const Orders = () => {
                                                             className="w-8 h-8 rounded-lg flex items-center justify-center text-brand-navy/30 hover:text-brand-navy hover:bg-brand-navy/5 transition-colors disabled:opacity-30 disabled:pointer-events-none"
                                                         >
                                                             <Truck className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            title="Status history"
+                                                            onClick={() => setHistoryDialogOrder(order)}
+                                                            className="w-8 h-8 rounded-lg flex items-center justify-center text-brand-navy/30 hover:text-brand-navy hover:bg-brand-navy/5 transition-colors"
+                                                        >
+                                                            <Package className="w-4 h-4" />
                                                         </button>
                                                         <DropdownMenu>
                                                             <DropdownMenuTrigger asChild>
@@ -3279,7 +3414,23 @@ const Orders = () => {
                                                                     {availableProviders.map((p: any) => (
                                                                         <SelectItem key={p.id} value={p.id} className="rounded-xl font-bold">
                                                                             <div className="flex items-center gap-2">
-                                                                                {p.type === 'courier' ? <Truck className="w-3 h-3 text-orange-500" /> : <Building2 className="w-3 h-3 text-blue-500" />}
+                                                                                {p.type === 'courier' ? (
+                                                                                    p.avatar_url ? (
+                                                                                        <img src={p.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
+                                                                                    ) : (
+                                                                                        <span className="w-5 h-5 rounded-full bg-brand-navy/10 flex items-center justify-center text-[9px] font-black text-brand-navy/60">
+                                                                                            {(p.name || '?').slice(0, 1).toUpperCase()}
+                                                                                        </span>
+                                                                                    )
+                                                                                ) : (
+                                                                                    p.logo_url ? (
+                                                                                        <img src={p.logo_url} alt="" className="w-5 h-5 rounded-full object-contain bg-white border border-brand-navy/[0.06]" />
+                                                                                    ) : (
+                                                                                        <span className="w-5 h-5 rounded-full bg-brand-navy/10 flex items-center justify-center text-[9px] font-black text-brand-navy/60">
+                                                                                            {(p.name || '?').slice(0, 1).toUpperCase()}
+                                                                                        </span>
+                                                                                    )
+                                                                                )}
                                                                                 {p.name}
                                                                             </div>
                                                                         </SelectItem>
@@ -4560,6 +4711,15 @@ const Orders = () => {
                     if (!open) setParcelTrackingOrderId(null);
                 }}
                 orderId={parcelTrackingOrderId}
+            />
+
+            <OrderStatusHistoryDialog
+                open={!!historyDialogOrder}
+                onOpenChange={(open) => {
+                    if (!open) setHistoryDialogOrder(null);
+                }}
+                order={historyDialogOrder}
+                isOrderInCategory={(statusId, cat) => statusCats.isOrderCategory(statusId || '', cat as any)}
             />
         </div>
     );

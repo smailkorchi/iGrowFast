@@ -1,9 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import {
     Plus, Search, Loader2, Package, DollarSign, Eye, FileText,
-    CheckCircle2, Clock, Building2, AlertTriangle,
+    CheckCircle2, Clock, Building2, AlertTriangle, Truck,
     ChevronDown, ChevronRight, Printer, ArrowRight, SearchX,
     RotateCcw, PackageCheck, User
 } from 'lucide-react';
@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -25,28 +26,42 @@ const RETURN_ORDER_STATUS_ID = 'dbb3ae2c-abbf-4c96-93af-ed82319c8b68';
 
 interface ReturnOrder {
     id: string; name: string; phone: string; price: number; shipping_cost: number;
-    tracking_number: string | null; company_id: string | null; current_return_note_id: string | null;
+    tracking_number: string | null; company_id: string | null; courier_id: string | null;
+    master_city_id: string | null;
+    current_return_note_id: string | null; current_courier_return_note_id: string | null;
     parcels: { tracking_code: string | null; provider: { id: string; name: string; logo_url: string | null } | null }[];
+    courier_parcels: { tracking_code: string | null }[];
     company: { id: string; name: string; logo_url: string | null } | null;
+    courier: { id: string; name: string; avatar_url: string | null } | null;
     items: { quantity: number; unit_price: number; product: { name: string } | null }[];
 }
 
-interface ProviderGroup {
-    provider_id: string; provider_name: string; logo_url: string | null;
-    orders: ReturnOrder[]; total_amount: number; total_shipping: number; net_amount: number;
+interface TargetGroup {
+    kind: 'company' | 'courier';
+    target_id: string;
+    target_name: string;
+    logo_url: string | null;
+    avatar_url: string | null;
+    orders: ReturnOrder[];
+    total_amount: number;
+    total_shipping: number;
+    net_amount: number;
 }
 
 interface ReturnNote {
+    kind: 'company' | 'courier';
     id: string; reference: string; status: string; total_amount: number;
     total_shipping_fees: number; net_amount: number; order_count: number;
     received_at: string | null; note: string | null; created_at: string;
     created_by?: string | null;
     provider: { id: string; name: string; logo_url: string | null } | null;
+    courier?: { id: string; name: string; avatar_url: string | null } | null;
     creator?: { name: string; avatar_url: string | null; role: string } | null;
     line_items: { id: string; order_id: string; tracking_code: string | null; amount: number; shipping_fee: number }[];
 }
 
 const ReturnNote = () => {
+    const [activeTab, setActiveTab] = useState<'company' | 'courier'>('company');
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [wizardStep, setWizardStep] = useState(0);
     const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
@@ -67,78 +82,190 @@ const ReturnNote = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('orders')
-                .select(`*, company:providers(id, name, logo_url), items:order_items(quantity, unit_price, product:products(name)), parcels:company_parcels(tracking_code, provider:providers(id, name, logo_url))`)
+                .select(`*,
+                    company:providers(id, name, logo_url),
+                    courier:users!orders_courier_id_fkey(id, name, avatar_url),
+                    items:order_items(quantity, unit_price, product:products(name)),
+                    parcels:company_parcels(tracking_code, provider:providers(id, name, logo_url)),
+                    courier_parcels(tracking_code)`)
                 .eq('DigiCom Business', activeBusinessId)
                 .eq('package_status_id', RETOURNE_PACKAGE_STATUS_ID)
                 .is('current_return_note_id', null)
+                .is('current_courier_return_note_id', null)
                 .order('created_at', { ascending: false });
             if (error) throw error;
             return (data || []) as ReturnOrder[];
         },
     });
 
-    // ─── Fetch existing return notes ───
+    // ─── Fetch existing return notes (company + courier) ───
     const { data: returnNotes, isLoading: isLoadingNotes } = useQuery({
         queryKey: ['return-notes', activeBusinessId],
         queryFn: async () => {
             if (!activeBusinessId) return [];
-            const { data, error } = await (supabase as any)
-                .from('company_return_notes')
-                .select(`*, provider:providers(id, name, logo_url), creator:users!company_return_notes_created_by_fkey(name, avatar_url, role), line_items:company_return_note_orders(id, order_id, tracking_code, amount, shipping_fee)`)
-                .eq('DigiCom Business', activeBusinessId)
-                .order('created_at', { ascending: false });
-            if (error) throw error;
-            return (data || []) as ReturnNote[];
+            const [companyRes, courierRes] = await Promise.all([
+                (supabase as any)
+                    .from('company_return_notes')
+                    .select(`*, provider:providers(id, name, logo_url), creator:users!company_return_notes_created_by_fkey(name, avatar_url, role), line_items:company_return_note_orders(id, order_id, tracking_code, amount, shipping_fee)`)
+                    .eq('DigiCom Business', activeBusinessId)
+                    .order('created_at', { ascending: false }),
+                (supabase as any)
+                    .from('courier_return_notes')
+                    .select(`*, courier:users!courier_return_notes_courier_id_fkey(id, name, avatar_url), creator:users!courier_return_notes_created_by_fkey(name, avatar_url, role), line_items:courier_return_note_orders(id, order_id, tracking_code, amount, shipping_fee)`)
+                    .eq('DigiCom Business', activeBusinessId)
+                    .order('created_at', { ascending: false }),
+            ]);
+            if (companyRes.error) throw companyRes.error;
+            if (courierRes.error) throw courierRes.error;
+            const companyNotes = (companyRes.data || []).map((n: any) => ({ ...n, kind: 'company' as const }));
+            const courierNotes = (courierRes.data || []).map((n: any) => ({ ...n, kind: 'courier' as const, provider: null }));
+            return [...companyNotes, ...courierNotes] as ReturnNote[];
         },
     });
 
-    // ─── Group returned orders by provider ───
-    const providerGroups = useMemo<ProviderGroup[]>(() => {
-        if (!returnOrders?.length) return [];
-        const map = new Map<string, ProviderGroup>();
-        for (const order of returnOrders) {
-            const providerId = order.company?.id || order.parcels?.[0]?.provider?.id || 'unknown';
-            const providerName = order.company?.name || order.parcels?.[0]?.provider?.name || 'Unknown';
-            const logoUrl = order.company?.logo_url || order.parcels?.[0]?.provider?.logo_url || null;
-            if (!map.has(providerId)) {
-                map.set(providerId, { provider_id: providerId, provider_name: providerName, logo_url: logoUrl, orders: [], total_amount: 0, total_shipping: 0, net_amount: 0 });
+    // ─── Fetch return fees maps (company + courier) for lookup by (entity, master_city_id) ───
+    const { data: returnFeesMap } = useQuery({
+        queryKey: ['return-fees-map', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return { company: {}, courier: {} } as { company: Record<string, number>; courier: Record<string, number> };
+            const [cf, kf] = await Promise.all([
+                (supabase as any).from('company_fees').select('company_id, master_city_id, return_fee').eq('DigiCom Business', activeBusinessId),
+                (supabase as any).from('courier_fees').select('courier_id, master_city_id, return_fee').eq('DigiCom Business', activeBusinessId),
+            ]);
+            const company: Record<string, number> = {};
+            for (const row of (cf.data || [])) {
+                if (row.company_id && row.master_city_id) company[`${row.company_id}:${row.master_city_id}`] = Number(row.return_fee || 0);
             }
-            const group = map.get(providerId)!;
-            group.orders.push(order);
-            group.total_amount += Number(order.price || 0);
-            group.total_shipping += Number(order.shipping_cost || 0);
-            group.net_amount = group.total_amount - group.total_shipping;
+            const courier: Record<string, number> = {};
+            for (const row of (kf.data || [])) {
+                if (row.courier_id && row.master_city_id) courier[`${row.courier_id}:${row.master_city_id}`] = Number(row.return_fee || 0);
+            }
+            return { company, courier };
+        },
+    });
+
+    const getReturnFeeForOrder = useCallback((order: ReturnOrder): number => {
+        const map = returnFeesMap || { company: {}, courier: {} };
+        const mcid = (order as any).master_city_id;
+        if (!mcid) return 0;
+        const isCourierOrder = !order.company_id && !!order.courier_id;
+        if (isCourierOrder) {
+            const cid = order.courier?.id || order.courier_id;
+            return cid ? (map.courier[`${cid}:${mcid}`] ?? 0) : 0;
         }
-        return Array.from(map.values());
-    }, [returnOrders]);
+        const pid = order.company?.id || order.parcels?.[0]?.provider?.id || order.company_id;
+        return pid ? (map.company[`${pid}:${mcid}`] ?? 0) : 0;
+    }, [returnFeesMap]);
 
-    const selectedGroup = providerGroups.find(g => g.provider_id === selectedProvider);
+    // ─── Group returned orders by kind (company / courier) ───
+    const { companyGroups, courierGroups } = useMemo(() => {
+        const companyMap = new Map<string, TargetGroup>();
+        const courierMap = new Map<string, TargetGroup>();
+        for (const order of returnOrders || []) {
+            // Courier ownership wins if there's no company_id but there IS a courier.
+            const isCourierOrder = !order.company_id && !!order.courier_id;
 
-    // ─── Generate return note ───
+            if (isCourierOrder) {
+                const id = order.courier?.id || 'unknown';
+                if (!courierMap.has(id)) {
+                    courierMap.set(id, {
+                        kind: 'courier',
+                        target_id: id,
+                        target_name: order.courier?.name || 'Unknown courier',
+                        logo_url: null,
+                        avatar_url: order.courier?.avatar_url || null,
+                        orders: [],
+                        total_amount: 0,
+                        total_shipping: 0,
+                        net_amount: 0,
+                    });
+                }
+                const group = courierMap.get(id)!;
+                group.orders.push(order);
+                group.total_amount += Number(order.price || 0);
+                group.total_shipping += getReturnFeeForOrder(order);
+                group.net_amount = group.total_amount - group.total_shipping;
+            } else {
+                const providerId = order.company?.id || order.parcels?.[0]?.provider?.id || 'unknown';
+                const providerName = order.company?.name || order.parcels?.[0]?.provider?.name || 'Unknown';
+                const logoUrl = order.company?.logo_url || order.parcels?.[0]?.provider?.logo_url || null;
+                if (!companyMap.has(providerId)) {
+                    companyMap.set(providerId, {
+                        kind: 'company',
+                        target_id: providerId,
+                        target_name: providerName,
+                        logo_url: logoUrl,
+                        avatar_url: null,
+                        orders: [],
+                        total_amount: 0,
+                        total_shipping: 0,
+                        net_amount: 0,
+                    });
+                }
+                const group = companyMap.get(providerId)!;
+                group.orders.push(order);
+                group.total_amount += Number(order.price || 0);
+                group.total_shipping += getReturnFeeForOrder(order);
+                group.net_amount = group.total_amount - group.total_shipping;
+            }
+        }
+        return {
+            companyGroups: Array.from(companyMap.values()),
+            courierGroups: Array.from(courierMap.values()),
+        };
+    }, [returnOrders, getReturnFeeForOrder]);
+
+    const activeGroups = activeTab === 'courier' ? courierGroups : companyGroups;
+    const selectedGroup = activeGroups.find(g => g.target_id === selectedProvider);
+
+    // ─── Generate return note (company or courier) ───
     const generateNoteMutation = useMutation({
-        mutationFn: async (group: ProviderGroup) => {
+        mutationFn: async (group: TargetGroup) => {
             const { data: { session } } = await supabase.auth.getSession();
-            const ref = `RET-${group.provider_name.substring(0, 3).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
+            const isCourier = group.kind === 'courier';
+            const ref = `RET-${isCourier ? 'CR' : group.target_name.substring(0, 3).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
+            const notesTable = isCourier ? 'courier_return_notes' : 'company_return_notes';
+            const lineItemsTable = isCourier ? 'courier_return_note_orders' : 'company_return_note_orders';
+            const orderLinkField = isCourier ? 'current_courier_return_note_id' : 'current_return_note_id';
+
+            const insertPayload: any = {
+                reference: ref,
+                status: 'pending',
+                total_amount: group.total_amount,
+                total_shipping_fees: group.total_shipping,
+                net_amount: group.net_amount,
+                order_count: group.orders.length,
+                'DigiCom Business': activeBusinessId,
+                created_by: session?.user?.id ?? null,
+            };
+            if (isCourier) {
+                insertPayload.courier_id = group.target_id;
+            } else {
+                insertPayload.provider_id = group.target_id;
+            }
+
             const { data: note, error: noteError } = await (supabase as any)
-                .from('company_return_notes')
-                .insert({
-                    provider_id: group.provider_id,
-                    reference: ref,
-                    status: 'pending',
-                    total_amount: group.total_amount,
-                    total_shipping_fees: group.total_shipping,
-                    net_amount: group.net_amount,
-                    order_count: group.orders.length,
-                    'DigiCom Business': activeBusinessId,
-                    created_by: session?.user?.id ?? null,
-                })
-                .select().single();
+                .from(notesTable)
+                .insert(insertPayload)
+                .select()
+                .single();
             if (noteError) throw noteError;
-            const lineItems = group.orders.map(o => ({ return_note_id: note.id, order_id: o.id, tracking_code: o.parcels?.[0]?.tracking_code || o.tracking_number || null, amount: Number(o.price || 0), shipping_fee: Number(o.shipping_cost || 0), 'DigiCom Business': activeBusinessId }));
-            const { error: itemsError } = await (supabase as any).from('company_return_note_orders').insert(lineItems);
+
+            const lineItems = group.orders.map((o) => ({
+                return_note_id: note.id,
+                order_id: o.id,
+                tracking_code: isCourier
+                    ? (o.courier_parcels?.[0]?.tracking_code || o.tracking_number || null)
+                    : (o.parcels?.[0]?.tracking_code || o.tracking_number || null),
+                amount: Number(o.price || 0),
+                shipping_fee: getReturnFeeForOrder(o),
+                'DigiCom Business': activeBusinessId,
+            }));
+            const { error: itemsError } = await (supabase as any).from(lineItemsTable).insert(lineItems);
             if (itemsError) throw itemsError;
-            // Link orders to this return note
-            await (supabase as any).from('orders').update({ current_return_note_id: note.id }).in('id', group.orders.map(o => o.id));
+
+            // Link orders to this return note via the appropriate pointer column.
+            await (supabase as any).from('orders').update({ [orderLinkField]: note.id }).in('id', group.orders.map((o) => o.id));
             return note;
         },
         onSuccess: () => {
@@ -153,8 +280,12 @@ const ReturnNote = () => {
     // ─── Mark as received → changes order status to RETURN (triggers stock restore) ───
     const markReceivedMutation = useMutation({
         mutationFn: async (note: ReturnNote) => {
-            // Update note status
-            const { error: noteErr } = await (supabase as any).from('company_return_notes').update({ status: 'received', received_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', note.id);
+            // Update note status on the right table
+            const notesTable = note.kind === 'courier' ? 'courier_return_notes' : 'company_return_notes';
+            const { error: noteErr } = await (supabase as any)
+                .from(notesTable)
+                .update({ status: 'received', received_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+                .eq('id', note.id);
             if (noteErr) throw noteErr;
             // Update all linked orders to RETURN status → triggers stock restoration via the DB trigger
             const orderIds = note.line_items.map(li => li.order_id);
@@ -173,25 +304,36 @@ const ReturnNote = () => {
         onError: (e: any) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
     });
 
+    const notesForActiveTab = useMemo(() => {
+        return (returnNotes || []).filter((n: ReturnNote) => n.kind === activeTab);
+    }, [returnNotes, activeTab]);
+
     const filteredNotes = useMemo(() => {
-        if (!returnNotes) return [];
-        return returnNotes.filter((n: ReturnNote) => {
+        return notesForActiveTab.filter((n: ReturnNote) => {
             if (filterStatus !== 'all' && n.status !== filterStatus) return false;
-            if (searchQuery) { const q = searchQuery.toLowerCase(); return n.reference.toLowerCase().includes(q) || n.provider?.name?.toLowerCase().includes(q); }
+            if (searchQuery) {
+                const q = searchQuery.toLowerCase();
+                return (
+                    n.reference.toLowerCase().includes(q) ||
+                    (n.provider?.name || '').toLowerCase().includes(q) ||
+                    (n.courier?.name || '').toLowerCase().includes(q)
+                );
+            }
             return true;
         });
-    }, [returnNotes, filterStatus, searchQuery]);
+    }, [notesForActiveTab, filterStatus, searchQuery]);
 
     const stats = useMemo(() => {
-        const notes = returnNotes || [];
+        const notes = notesForActiveTab;
         const pendingNotes = notes.filter((n: ReturnNote) => n.status === 'pending');
         const receivedNotes = notes.filter((n: ReturnNote) => n.status === 'received');
+        const activeReturnOrdersCount = activeTab === 'courier' ? courierGroups.reduce((s, g) => s + g.orders.length, 0) : companyGroups.reduce((s, g) => s + g.orders.length, 0);
         return {
-            totalReturnOrders: returnOrders?.length || 0,
+            totalReturnOrders: activeReturnOrdersCount,
             pendingNotes: pendingNotes.length, receivedNotes: receivedNotes.length,
             pendingAmount: pendingNotes.reduce((s: number, n: ReturnNote) => s + Number(n.total_amount), 0),
         };
-    }, [returnOrders, returnNotes]);
+    }, [notesForActiveTab, companyGroups, courierGroups, activeTab]);
 
     const toggleExpand = (id: string) => setExpandedCards(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
@@ -215,33 +357,178 @@ const ReturnNote = () => {
         );
     };
 
+    // ─── Unified target avatar (company logo OR courier user photo) ───
+    const EntityLogo = ({
+        kind,
+        logoUrl,
+        avatarUrl,
+        name,
+        size = 'md',
+    }: {
+        kind: 'company' | 'courier';
+        logoUrl?: string | null;
+        avatarUrl?: string | null;
+        name: string;
+        size?: 'sm' | 'md' | 'lg';
+    }) => {
+        const sizeClasses = { sm: 'w-10 h-10 rounded-xl', md: 'w-14 h-14 rounded-2xl', lg: 'w-20 h-20 rounded-3xl' };
+        const textSize = { sm: 'text-xs', md: 'text-sm', lg: 'text-xl' };
+        if (kind === 'company' && logoUrl) {
+            return (
+                <div className={cn(sizeClasses[size], "bg-slate-50 border border-slate-100 p-1.5 flex items-center justify-center overflow-hidden shadow-inner")}>
+                    <img src={logoUrl} alt={name} className="max-w-full max-h-full object-contain" />
+                </div>
+            );
+        }
+        if (kind === 'courier' && avatarUrl) {
+            return (
+                <div className={cn(sizeClasses[size], "overflow-hidden border border-slate-100 shadow-inner")}>
+                    <img src={avatarUrl} alt={name} className="w-full h-full object-cover" />
+                </div>
+            );
+        }
+        return (
+            <div className={cn(sizeClasses[size], kind === 'courier' ? 'bg-brand-navy/10 text-brand-navy' : 'bg-red-50 text-red-400', 'flex items-center justify-center')}>
+                <span className={cn("font-black", textSize[size])}>{name?.substring(0, 2).toUpperCase()}</span>
+            </div>
+        );
+    };
+
     // ─── Print helper ───
-    const handlePrint = (note: ReturnNote) => {
+    const handlePrint = async (note: ReturnNote) => {
         const w = window.open('', '_blank');
         if (!w) return;
-        w.document.write(`<html><head><title>${note.reference}</title><style>
-            body{font-family:Inter,system-ui,sans-serif;padding:40px;color:#3b5e5e}
-            table{width:100%;border-collapse:collapse;margin:20px 0}
-            th,td{border:1px solid #e2e8f0;padding:12px;text-align:left;font-size:13px}
-            th{background:#fef2f2;font-weight:700;text-transform:uppercase;font-size:10px;letter-spacing:1px;color:#991b1b}
-            .header{margin-bottom:40px}
-            .total{margin-top:24px;text-align:right;font-size:16px}
-            h1{color:#991b1b;font-size:24px;font-weight:900}
-            .badge{display:inline-block;padding:4px 14px;border-radius:20px;font-size:11px;font-weight:700}
-            .pending{background:#fef3c7;color:#92400e}.received{background:#d1fae5;color:#065f46}
-        </style></head><body>
-        <div class="header"><h1>${note.reference} — Return Note</h1>
-        <p style="margin:8px 0">Provider: <strong>${note.provider?.name || 'N/A'}</strong></p>
-        <p>Date: ${format(new Date(note.created_at), 'dd/MM/yyyy HH:mm')}</p>
-        <p>Status: <span class="badge ${note.status}">${note.status.toUpperCase()}</span></p></div>
-        <table><thead><tr><th>#</th><th>Tracking Code</th><th style="text-align:right">Amount (MAD)</th><th style="text-align:right">Shipping (MAD)</th><th style="text-align:right">Net (MAD)</th></tr></thead>
-        <tbody>${note.line_items.map((li, i) => `<tr><td>${i + 1}</td><td style="font-family:monospace;font-size:12px">${li.tracking_code || 'N/A'}</td><td style="text-align:right">${Number(li.amount).toFixed(2)}</td><td style="text-align:right;color:#dc2626">-${Number(li.shipping_fee).toFixed(2)}</td><td style="text-align:right;font-weight:700">${(Number(li.amount) - Number(li.shipping_fee)).toFixed(2)}</td></tr>`).join('')}</tbody></table>
-        <div class="total"><p>Total Amount: <strong>${Number(note.total_amount).toFixed(2)} MAD</strong></p>
-        <p>Total Shipping: <strong style="color:#dc2626">-${Number(note.total_shipping_fees).toFixed(2)} MAD</strong></p>
-        <hr style="margin:12px 0;border-color:#e2e8f0"/><p style="font-size:22px">Net Value: <strong style="color:#991b1b">${Number(note.net_amount).toFixed(2)} MAD</strong></p></div>
-        </body></html>`);
+        w.document.write('<!doctype html><html><head><title>' + note.reference + '</title></head><body style="font-family:system-ui;padding:40px;color:#3b5e5e">Loading…</body></html>');
         w.document.close();
-        w.print();
+
+        let businessName = 'DigiCom';
+        let businessLogo: string | null = null;
+        if (activeBusinessId) {
+            const { data } = await (supabase as any).from('businesses').select('name, logo').eq('id', activeBusinessId).single();
+            if (data) { businessName = data.name || businessName; businessLogo = data.logo || null; }
+        }
+
+        const entityName = note.kind === 'courier' ? (note.courier?.name || 'Unknown courier') : (note.provider?.name || 'Unknown provider');
+        const entityImage = note.kind === 'courier' ? (note.courier?.avatar_url || null) : (note.provider?.logo_url || null);
+        const entityLabel = note.kind === 'courier' ? 'Courier Agent' : 'Provider';
+        const createdAt = format(new Date(note.created_at), 'dd MMM yyyy • HH:mm');
+
+        const rows = note.line_items.map((li, i) => `
+            <tr>
+                <td class="num">${String(i + 1).padStart(2, '0')}</td>
+                <td class="track">${li.tracking_code || '—'}</td>
+                <td class="right">${Number(li.amount).toFixed(2)}</td>
+                <td class="right red">-${Number(li.shipping_fee).toFixed(2)}</td>
+                <td class="right bold">${(Number(li.amount) - Number(li.shipping_fee)).toFixed(2)}</td>
+            </tr>`).join('');
+
+        const html = `<!doctype html><html><head><meta charset="utf-8"/><title>${note.reference}</title>
+<style>
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  html, body { margin: 0; padding: 0; background: #fff; color: #3b5e5e; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; font-feature-settings: "ss01","cv11"; }
+  .sheet { padding: 22mm 18mm; min-height: 297mm; display: flex; flex-direction: column; }
+  .hdr { display: flex; align-items: flex-start; justify-content: space-between; padding-bottom: 28px; border-bottom: 1px solid #eef1ee; }
+  .brand { display: flex; align-items: center; gap: 16px; }
+  .brand .logo { width: 56px; height: 56px; border-radius: 16px; background: #f6f7f3; border: 1px solid #eef1ee; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .brand .logo img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .brand .logo.fallback { background: #3b5e5e; color: #daddcc; font-weight: 900; font-size: 18px; letter-spacing: 0.5px; }
+  .brand .name { font-size: 18px; font-weight: 800; color: #3b5e5e; letter-spacing: -0.3px; line-height: 1; }
+  .brand .sub { font-size: 9px; font-weight: 700; color: #9aa6a0; text-transform: uppercase; letter-spacing: 2.5px; margin-top: 6px; }
+  .meta { text-align: right; }
+  .meta .kicker { font-size: 9px; font-weight: 800; color: #c93942; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 6px; }
+  .meta h1 { margin: 0; font-size: 26px; font-weight: 900; color: #3b5e5e; font-family: "SF Mono", Menlo, monospace; letter-spacing: -0.5px; }
+  .meta .date { font-size: 11px; color: #9aa6a0; margin-top: 6px; font-weight: 500; }
+  .entity { margin-top: 32px; display: flex; align-items: center; gap: 18px; padding: 20px 22px; background: #f9faf7; border: 1px solid #eef1ee; border-radius: 20px; }
+  .entity .ava { width: 60px; height: 60px; border-radius: 18px; overflow: hidden; background: #fff; border: 1px solid #eef1ee; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+  .entity .ava img { width: 100%; height: 100%; object-fit: ${note.kind === 'courier' ? 'cover' : 'contain'}; padding: ${note.kind === 'courier' ? '0' : '6px'}; }
+  .entity .ava.fallback { background: ${note.kind === 'courier' ? '#3b5e5e' : '#fef2f2'}; color: ${note.kind === 'courier' ? '#daddcc' : '#c93942'}; font-weight: 900; font-size: 18px; }
+  .entity .info .label { font-size: 9px; font-weight: 800; color: #9aa6a0; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 4px; }
+  .entity .info .val { font-size: 20px; font-weight: 800; color: #3b5e5e; letter-spacing: -0.3px; }
+  .entity .badge { margin-left: auto; padding: 8px 16px; border-radius: 999px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; }
+  .entity .badge.pending { background: #fef3c7; color: #92400e; }
+  .entity .badge.received { background: #d1fae5; color: #065f46; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 22px; }
+  .stat { padding: 18px 20px; background: #fff; border: 1px solid #eef1ee; border-radius: 18px; }
+  .stat .k { font-size: 9px; font-weight: 800; color: #9aa6a0; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 6px; }
+  .stat .v { font-size: 18px; font-weight: 900; color: #3b5e5e; font-variant-numeric: tabular-nums; }
+  .stat .v.red { color: #c93942; }
+  table { width: 100%; border-collapse: collapse; margin-top: 28px; font-variant-numeric: tabular-nums; }
+  thead th { text-align: left; padding: 12px 14px; font-size: 9px; font-weight: 800; color: #9aa6a0; text-transform: uppercase; letter-spacing: 1.5px; border-bottom: 1px solid #eef1ee; }
+  thead th.right { text-align: right; }
+  tbody td { padding: 14px; font-size: 12px; border-bottom: 1px solid #f4f6f2; color: #3b5e5e; }
+  tbody tr:last-child td { border-bottom: none; }
+  td.num { font-family: "SF Mono", Menlo, monospace; font-size: 10px; color: #9aa6a0; font-weight: 700; width: 40px; }
+  td.track { font-family: "SF Mono", Menlo, monospace; font-size: 11px; font-weight: 700; letter-spacing: -0.3px; }
+  td.right { text-align: right; }
+  td.red { color: #c93942; font-weight: 600; }
+  td.bold { font-weight: 800; }
+  .totals { margin-top: 24px; padding: 24px; background: #3b5e5e; color: #fff; border-radius: 20px; display: flex; justify-content: space-between; align-items: center; }
+  .totals .col { }
+  .totals .col .lbl { font-size: 9px; font-weight: 800; color: rgba(255,255,255,0.55); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 6px; }
+  .totals .col .val { font-size: 18px; font-weight: 900; font-variant-numeric: tabular-nums; }
+  .totals .col.net .lbl { color: rgba(255, 217, 102, 0.7); }
+  .totals .col.net .val { font-size: 28px; color: #ffd966; }
+  .totals .divider { width: 1px; height: 48px; background: rgba(255,255,255,0.12); }
+  .foot { margin-top: auto; padding-top: 24px; border-top: 1px solid #eef1ee; display: flex; justify-content: space-between; font-size: 9px; color: #9aa6a0; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; }
+</style></head><body>
+<div class="sheet">
+  <div class="hdr">
+    <div class="brand">
+      ${businessLogo ? `<div class="logo"><img src="${businessLogo}" alt=""/></div>` : `<div class="logo fallback">${businessName.substring(0,2).toUpperCase()}</div>`}
+      <div>
+        <div class="name">${businessName}</div>
+        <div class="sub">Return Note</div>
+      </div>
+    </div>
+    <div class="meta">
+      <div class="kicker">Document</div>
+      <h1>${note.reference}</h1>
+      <div class="date">${createdAt}</div>
+    </div>
+  </div>
+
+  <div class="entity">
+    ${entityImage
+            ? `<div class="ava"><img src="${entityImage}" alt=""/></div>`
+            : `<div class="ava fallback">${entityName.substring(0,2).toUpperCase()}</div>`}
+    <div class="info">
+      <div class="label">${entityLabel}</div>
+      <div class="val">${entityName}</div>
+    </div>
+    <span class="badge ${note.status}">${note.status}</span>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="k">Orders</div><div class="v">${note.order_count}</div></div>
+    <div class="stat"><div class="k">Gross Amount</div><div class="v">${Number(note.total_amount).toFixed(2)} MAD</div></div>
+    <div class="stat"><div class="k">Return Fees</div><div class="v red">-${Number(note.total_shipping_fees).toFixed(2)} MAD</div></div>
+  </div>
+
+  <table>
+    <thead><tr><th>#</th><th>Tracking</th><th class="right">Amount</th><th class="right">Fee</th><th class="right">Net</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+
+  <div class="totals">
+    <div class="col"><div class="lbl">Gross</div><div class="val">${Number(note.total_amount).toFixed(2)} MAD</div></div>
+    <div class="divider"></div>
+    <div class="col"><div class="lbl">Return Fees</div><div class="val">-${Number(note.total_shipping_fees).toFixed(2)} MAD</div></div>
+    <div class="divider"></div>
+    <div class="col net"><div class="lbl">Net Value</div><div class="val">${Number(note.net_amount).toFixed(2)} MAD</div></div>
+  </div>
+
+  <div class="foot">
+    <span>${businessName} • Return Note</span>
+    <span>${note.reference}</span>
+  </div>
+</div>
+<script>window.onload=function(){setTimeout(function(){window.print();},120);};</script>
+</body></html>`;
+
+        w.document.open();
+        w.document.write(html);
+        w.document.close();
     };
 
     return (
@@ -257,14 +544,32 @@ const ReturnNote = () => {
                         </div>
                         <div className="flex items-center gap-3">
                             <Button onClick={() => { setIsWizardOpen(true); setWizardStep(0); setSelectedProvider(null); }}
-                                disabled={!providerGroups.length}
+                                disabled={!activeGroups.length}
                                 className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group flex items-center gap-2">
-                                <Plus className="w-5 h-5 mr-3 group-hover:rotate-90 transition-transform duration-500" /> Generate Return Note
+                                <Plus className="w-5 h-5 mr-3 group-hover:rotate-90 transition-transform duration-500" />
+                                {activeTab === 'courier' ? 'Generate Courier Return Note' : 'Generate Return Note'}
                             </Button>
                         </div>
                     </div>
                 </div>
             </div>
+
+            {/* Tabs (Company / Courier) */}
+            <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as 'company' | 'courier'); setSelectedProvider(null); }} className="space-y-8">
+                <TabsList className="bg-white/50 p-1.5 rounded-[20px] border border-brand-navy/5 h-14 backdrop-blur-sm">
+                    <TabsTrigger
+                        value="company"
+                        className="rounded-[16px] px-8 h-full font-black text-xs tracking-widest uppercase data-[state=active]:bg-brand-navy data-[state=active]:text-white data-[state=active]:shadow-lg transition-all gap-2"
+                    >
+                        <Building2 className="w-4 h-4" /> Company Notes
+                    </TabsTrigger>
+                    <TabsTrigger
+                        value="courier"
+                        className="rounded-[16px] px-8 h-full font-black text-xs tracking-widest uppercase data-[state=active]:bg-brand-navy data-[state=active]:text-white data-[state=active]:shadow-lg transition-all gap-2"
+                    >
+                        <Truck className="w-4 h-4" /> Courier Notes
+                    </TabsTrigger>
+                </TabsList>
 
             {/* Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -337,7 +642,13 @@ const ReturnNote = () => {
                                 <CardContent className="p-0">
                                     <div className="p-6 md:p-8 flex flex-col md:flex-row md:items-center justify-between gap-5">
                                         <div className="flex items-center gap-5 flex-1 min-w-0">
-                                            <ProviderLogo logoUrl={note.provider?.logo_url || null} name={note.provider?.name || '??'} size="md" />
+                                            <EntityLogo
+                                                kind={note.kind}
+                                                logoUrl={note.provider?.logo_url || null}
+                                                avatarUrl={note.courier?.avatar_url || null}
+                                                name={note.kind === 'courier' ? (note.courier?.name || '??') : (note.provider?.name || '??')}
+                                                size="md"
+                                            />
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-3">
                                                     <h3 className="text-xl font-black text-brand-navy tracking-tight truncate">{note.reference}</h3>
@@ -347,7 +658,10 @@ const ReturnNote = () => {
                                                     </Badge>
                                                 </div>
                                                 <div className="flex items-center gap-4 text-muted-foreground mt-1.5">
-                                                    <span className="flex items-center gap-1.5 text-xs font-semibold"><Building2 className="w-3.5 h-3.5" />{note.provider?.name}</span>
+                                                    <span className="flex items-center gap-1.5 text-xs font-semibold">
+                                                        {note.kind === 'courier' ? <Truck className="w-3.5 h-3.5" /> : <Building2 className="w-3.5 h-3.5" />}
+                                                        {note.kind === 'courier' ? (note.courier?.name || '—') : (note.provider?.name || '—')}
+                                                    </span>
                                                     <span className="flex items-center gap-1.5 text-xs font-semibold"><Package className="w-3.5 h-3.5" />{note.order_count} orders</span>
                                                     <span className="flex items-center gap-1.5 text-xs font-semibold"><Clock className="w-3.5 h-3.5" />{format(new Date(note.created_at), 'dd MMM yyyy')}</span>
                                                     <span className="flex items-center gap-1.5 text-xs font-semibold min-w-0">
@@ -424,6 +738,8 @@ const ReturnNote = () => {
                 </div>
             )}
 
+            </Tabs>
+
             {/* ─── WIZARD MODAL ─── */}
             <Dialog open={isWizardOpen} onOpenChange={v => { if (!v) { setIsWizardOpen(false); setWizardStep(0); setSelectedProvider(null); } }}>
                 <DialogContent className="max-w-3xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
@@ -452,7 +768,7 @@ const ReturnNote = () => {
                     <div className="p-10 pt-6">
                         {wizardStep === 0 && (
                             <div className="space-y-4">
-                                {providerGroups.length === 0 ? (
+                                {activeGroups.length === 0 ? (
                                     <div className="text-center py-12">
                                         <div className="w-16 h-16 rounded-3xl bg-amber-50 flex items-center justify-center mx-auto mb-4">
                                             <AlertTriangle className="w-7 h-7 text-amber-400" />
@@ -460,16 +776,16 @@ const ReturnNote = () => {
                                         <p className="text-lg font-black text-brand-navy/40">No returned orders available</p>
                                         <p className="text-sm text-muted-foreground mt-1">All returned orders have been accounted for.</p>
                                     </div>
-                                ) : providerGroups.map(g => (
-                                    <div key={g.provider_id} onClick={() => setSelectedProvider(g.provider_id)}
+                                ) : activeGroups.map(g => (
+                                    <div key={g.target_id} onClick={() => setSelectedProvider(g.target_id)}
                                         className={cn("p-5 rounded-[24px] flex items-center justify-between cursor-pointer transition-all duration-300",
-                                            selectedProvider === g.provider_id
+                                            selectedProvider === g.target_id
                                                 ? "bg-red-50 ring-2 ring-red-500 shadow-lg"
                                                 : "bg-white hover:bg-slate-50 border border-slate-100 hover:border-red-200")}>
                                         <div className="flex items-center gap-4">
-                                            <ProviderLogo logoUrl={g.logo_url} name={g.provider_name} size="md" />
+                                            <EntityLogo kind={g.kind} logoUrl={g.logo_url} avatarUrl={g.avatar_url} name={g.target_name} size="md" />
                                             <div>
-                                                <h4 className="text-lg font-black text-brand-navy">{g.provider_name}</h4>
+                                                <h4 className="text-lg font-black text-brand-navy">{g.target_name}</h4>
                                                 <p className="text-xs font-semibold text-muted-foreground">{g.orders.length} returned orders · {g.total_amount.toFixed(2)} MAD total</p>
                                             </div>
                                         </div>
@@ -493,9 +809,9 @@ const ReturnNote = () => {
                         {wizardStep === 1 && selectedGroup && (
                             <div className="space-y-6">
                                 <div className="flex items-center gap-4 p-5 bg-red-50 rounded-[24px]">
-                                    <ProviderLogo logoUrl={selectedGroup.logo_url} name={selectedGroup.provider_name} size="md" />
+                                    <EntityLogo kind={selectedGroup.kind} logoUrl={selectedGroup.logo_url} avatarUrl={selectedGroup.avatar_url} name={selectedGroup.target_name} size="md" />
                                     <div>
-                                        <p className="text-lg font-black text-brand-navy">{selectedGroup.provider_name}</p>
+                                        <p className="text-lg font-black text-brand-navy">{selectedGroup.target_name}</p>
                                         <p className="text-xs font-semibold text-muted-foreground">{selectedGroup.orders.length} returned orders to include</p>
                                     </div>
                                 </div>
@@ -511,10 +827,10 @@ const ReturnNote = () => {
                                             <tr key={o.id} className="border-t border-brand-navy/[0.03] hover:bg-slate-50/30 transition-colors">
                                                 <td className="p-4 text-brand-navy/30 font-bold">{i + 1}</td>
                                                 <td className="p-4 font-bold text-brand-navy">{o.name}</td>
-                                                <td className="p-4 font-mono text-xs font-semibold">{o.parcels?.[0]?.tracking_code || o.tracking_number || 'N/A'}</td>
+                                                <td className="p-4 font-mono text-xs font-semibold">{o.courier_parcels?.[0]?.tracking_code || o.parcels?.[0]?.tracking_code || o.tracking_number || 'N/A'}</td>
                                                 <td className="p-4 text-right font-semibold">{Number(o.price || 0).toFixed(2)}</td>
-                                                <td className="p-4 text-right text-red-500 font-semibold">-{Number(o.shipping_cost || 0).toFixed(2)}</td>
-                                                <td className="p-4 text-right font-black text-brand-navy">{(Number(o.price || 0) - Number(o.shipping_cost || 0)).toFixed(2)}</td>
+                                                <td className="p-4 text-right text-red-500 font-semibold">-{getReturnFeeForOrder(o).toFixed(2)}</td>
+                                                <td className="p-4 text-right font-black text-brand-navy">{(Number(o.price || 0) - getReturnFeeForOrder(o)).toFixed(2)}</td>
                                             </tr>
                                         ))}</tbody>
                                     </table>
@@ -554,7 +870,13 @@ const ReturnNote = () => {
                         <>
                             <DialogHeader className="p-10 pb-6">
                                 <div className="flex items-center gap-4">
-                                    <ProviderLogo logoUrl={selectedNote.provider?.logo_url || null} name={selectedNote.provider?.name || '??'} size="lg" />
+                                    <EntityLogo
+                                        kind={selectedNote.kind}
+                                        logoUrl={selectedNote.provider?.logo_url || null}
+                                        avatarUrl={selectedNote.courier?.avatar_url || null}
+                                        name={selectedNote.kind === 'courier' ? (selectedNote.courier?.name || '??') : (selectedNote.provider?.name || '??')}
+                                        size="lg"
+                                    />
                                     <div>
                                         <DialogTitle className="text-2xl font-black text-brand-navy">{selectedNote.reference}</DialogTitle>
                                         <div className="flex items-center gap-2 mt-1">
@@ -562,7 +884,9 @@ const ReturnNote = () => {
                                                 selectedNote.status === 'received' ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700")}>
                                                 {selectedNote.status.toUpperCase()}
                                             </Badge>
-                                            <span className="text-xs font-semibold text-muted-foreground">{selectedNote.provider?.name}</span>
+                                            <span className="text-xs font-semibold text-muted-foreground">
+                                                {selectedNote.kind === 'courier' ? (selectedNote.courier?.name || '—') : (selectedNote.provider?.name || '—')}
+                                            </span>
                                         </div>
                                     </div>
                                 </div>
