@@ -1,0 +1,37 @@
+{
+  "name": "DigiCom",
+  "short_name": "DigiCom",
+  "description": "DigiCom Management System",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#daddcc",
+  "theme_color": "#3b5e5e",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/Logo/DigiCom Icon Transparent.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/Logo/DigiCom Icon Transparent.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/Logo/DigiCom Icon Transparent.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/Logo/DigiCom Icon Transparent.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

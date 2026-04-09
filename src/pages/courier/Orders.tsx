@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase';
@@ -126,6 +127,7 @@ const TABS: Array<{
 const CourierOrders = () => {
     const { toast } = useToast();
     const queryClient = useQueryClient();
+    const [searchParams, setSearchParams] = useSearchParams();
     const [activeTab, setActiveTab] = useState<TabKey>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedRow, setSelectedRow] = useState<CourierOrderRow | null>(null);
@@ -219,6 +221,38 @@ const CourierOrders = () => {
         },
         enabled: !!courierId && !!businessId,
     });
+
+    // Deep-link: when we arrive with ?tracking=CR-XXX (from the dashboard scan
+    // or any other entry point), auto-filter to that parcel and open its sheet.
+    // We wait until rows are actually loaded so the match can succeed, then
+    // strip the param from the URL so hitting refresh doesn't re-trigger.
+    useEffect(() => {
+        const tracking = searchParams.get('tracking');
+        if (!tracking) return;
+        if (rows.length === 0) return;
+
+        const normalized = tracking.trim().toUpperCase();
+        const match = rows.find(
+            (r) => (r.parcel_tracking_code || '').toUpperCase() === normalized,
+        );
+
+        if (match) {
+            setActiveTab('all');
+            setSearchQuery(normalized);
+            setSelectedRow(match);
+        } else {
+            toast({
+                title: 'Colis non trouvé',
+                description: `« ${normalized} » n'est pas dans vos colis actuels.`,
+                variant: 'destructive',
+            });
+        }
+
+        // Strip the param so refresh / back navigation doesn't re-fire the effect
+        const next = new URLSearchParams(searchParams);
+        next.delete('tracking');
+        setSearchParams(next, { replace: true });
+    }, [rows, searchParams, setSearchParams, toast]);
 
     // Counts per tab
     const counts = useMemo(() => {
