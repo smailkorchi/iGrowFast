@@ -106,10 +106,20 @@ const Accessories = () => {
 
     const accessoryList = accessories ?? [];
 
-    const filteredAccessories = accessoryList.filter(a =>
-        a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        a.code.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredAccessories = useMemo(() => {
+        const q = searchQuery.toLowerCase();
+        const list = accessoryList.filter(a =>
+            a.name.toLowerCase().includes(q) ||
+            a.code.toLowerCase().includes(q)
+        );
+        return list
+            .map((a, i) => ({ a, i, oos: Number(a.stock ?? 0) === 0 }))
+            .sort((x, y) => {
+                if (x.oos !== y.oos) return x.oos ? 1 : -1;
+                return x.i - y.i;
+            })
+            .map((x) => x.a);
+    }, [accessoryList, searchQuery]);
 
     const lowStockAccessories = accessoryList.filter(a => (a.stock || 0) <= 10);
     const lowStockAccessoriesTotalUnits = lowStockAccessories.reduce((sum, a) => sum + Number(a.stock ?? 0), 0);

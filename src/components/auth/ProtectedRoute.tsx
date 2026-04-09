@@ -55,6 +55,8 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
                         navigate('/owner/dashboard');
                     } else if (userProfile.role === 'courier') {
                         navigate('/courier/dashboard');
+                    } else if (userProfile.role === 'mediabuyer') {
+                        navigate('/mediabuyer/dashboard');
                     } else {
                         navigate('/');
                     }

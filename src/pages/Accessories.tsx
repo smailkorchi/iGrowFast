@@ -386,10 +386,20 @@ const Accessories = () => {
         upsertAccessoryMutation.mutate(values);
     };
 
-    const filteredAccessories = accessories?.filter(a =>
-        a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        a.code.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredAccessories = useMemo(() => {
+        const q = searchQuery.toLowerCase();
+        const list = (accessories ?? []).filter(a =>
+            a.name.toLowerCase().includes(q) ||
+            a.code.toLowerCase().includes(q)
+        );
+        return list
+            .map((a, i) => ({ a, i, oos: Number(a.stock ?? 0) === 0 }))
+            .sort((x, y) => {
+                if (x.oos !== y.oos) return x.oos ? 1 : -1;
+                return x.i - y.i;
+            })
+            .map((x) => x.a);
+    }, [accessories, searchQuery]);
 
     const catalogTotals = useMemo(() => {
         const list = accessories ?? [];

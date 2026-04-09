@@ -45,6 +45,11 @@ import {
     PackageCheck,
     Smartphone,
     Bot,
+    Plug,
+    LineChart,
+    UserCheck,
+    Bike,
+    Radar,
     type LucideIcon,
 } from 'lucide-react';
 import { FaWhatsapp } from 'react-icons/fa';
@@ -106,24 +111,37 @@ const navigation: NavSection[] = [
         ]
     },
     {
+        label: 'Ads',
+        icon: Megaphone,
         items: [
-            { icon: Target, label: 'Ads History', path: '/ads-history' },
+            { icon: Target, label: 'Global Ads', path: '/campaigns' },
+            { icon: LineChart, label: 'Product Ads', path: '/ads-history' },
         ]
     },
     {
         items: [
-            { icon: Megaphone, label: 'Sales Channels', path: '/sales-channels' },
+            { icon: Plug, label: 'Sales Channels', path: '/sales-channels' },
             { icon: Users, label: 'Customers', path: '/customers' },
             { icon: UserPlus, label: 'Users', path: '/users' },
         ]
     },
     {
-        label: 'Sellers',
+        label: 'Collaborators',
         icon: Store,
         items: [
-            { icon: Users, label: 'Sellers', path: '/sellers' },
-            { icon: MessageSquare, label: 'Demands', path: '/demands' },
+            { icon: UserCheck, label: 'Sellers', path: '/collaborators/sellers' },
+            { icon: Bike, label: 'Couriers', path: '/collaborators/couriers' },
+            { icon: Radar, label: 'Media Buyers', path: '/collaborators/mediabuyers' },
+        ]
+    },
+    {
+        items: [
             { icon: DollarSign, label: 'Salaries', path: '/salaries' },
+        ]
+    },
+    {
+        items: [
+            { icon: MessageSquare, label: 'Demands', path: '/demands' },
         ]
     },
     {
@@ -185,7 +203,7 @@ const Sidebar = () => {
     const [expandedSection, setExpandedSection] = React.useState<string | null>(() => {
         let activeSection = null;
         navigation.forEach(section => {
-            if (section.label && section.items.some(item => location.pathname === item.path)) {
+            if (section.label && section.items.some(item => location.pathname === item.path || location.pathname.startsWith(item.path + '/'))) {
                 activeSection = section.label;
             }
         });
@@ -200,7 +218,7 @@ const Sidebar = () => {
     // in closure (which would make the effect re-run after manual toggles and snap the UI back).
     React.useEffect(() => {
         navigation.forEach(section => {
-            if (section.label && section.items.some(item => location.pathname === item.path)) {
+            if (section.label && section.items.some(item => location.pathname === item.path || location.pathname.startsWith(item.path + '/'))) {
                 const label = section.label;
                 setExpandedSection(prev => (prev !== label ? label : prev));
             }

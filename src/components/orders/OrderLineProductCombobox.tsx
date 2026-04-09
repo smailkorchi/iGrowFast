@@ -106,9 +106,29 @@ export const OrderLineProductCombobox = React.forwardRef<HTMLButtonElement, Orde
         ref
     ) {
         const [open, setOpen] = React.useState(false);
+        const [search, setSearch] = React.useState('');
         const list = products ?? [];
         const selected = value && value !== 'none' ? list.find((p) => p.id === value) : undefined;
         const selStock = selected ? toProductStockNumber(selected.stock) : null;
+
+        const displayList = React.useMemo(() => {
+            const q = search.trim().toLowerCase();
+            const filtered = q
+                ? list.filter((p) => {
+                      const name = (p.name || '').toLowerCase();
+                      const code = (p.code || '').toLowerCase();
+                      return name.includes(q) || code.includes(q);
+                  })
+                : list.slice();
+            // Push zero-stock items to the bottom (stable sort).
+            return filtered
+                .map((p, i) => ({ p, i, oos: toProductStockNumber(p.stock) === 0 }))
+                .sort((a, b) => {
+                    if (a.oos !== b.oos) return a.oos ? 1 : -1;
+                    return a.i - b.i;
+                })
+                .map((x) => x.p);
+        }, [list, search]);
 
         return (
             <Popover open={open} onOpenChange={setOpen}>
@@ -173,10 +193,12 @@ export const OrderLineProductCombobox = React.forwardRef<HTMLButtonElement, Orde
                     align="start"
                     onWheel={(e) => e.stopPropagation()}
                 >
-                    <Command>
+                    <Command shouldFilter={false}>
                         <CommandInput
                             placeholder="Search by name or SKU…"
                             className="h-12 text-sm font-medium"
+                            value={search}
+                            onValueChange={setSearch}
                         />
                         <CommandList className="max-h-[min(60vh,360px)]">
                             <CommandEmpty className="py-8 text-center text-xs font-bold text-brand-navy/45">
@@ -195,7 +217,7 @@ export const OrderLineProductCombobox = React.forwardRef<HTMLButtonElement, Orde
                                         {noneLabel}
                                     </CommandItem>
                                 )}
-                                {list.map((p) => {
+                                {displayList.map((p) => {
                                     const sn = toProductStockNumber(p.stock);
                                     const isOos = sn === 0;
                                     const disabled = blockZeroStock && isOos;

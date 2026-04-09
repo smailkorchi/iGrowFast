@@ -213,7 +213,7 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
                         <StatCard title="Returns" value={metrics.returnedCount} icon={RotateCcw} iconBg="bg-red-50" iconColor="text-red-500" subtitle={`${metrics.returnRate.toFixed(1)}%`} />
                         <StatCard title="Avg. Delivery" value={metrics.avgDeliveryDays.toFixed(1)} suffix=" days" icon={Clock} iconBg="bg-blue-50" iconColor="text-blue-600" />
                         <StatCard title="Shipping Cost" value={metrics.totalShippingCost.toLocaleString('fr-MA')} suffix=" MAD" icon={DollarSign} iconBg="bg-amber-50" iconColor="text-amber-600" />
-                        <StatCard title="Pending Payments" value={metrics.pendingPayments.toLocaleString('fr-MA')} suffix=" MAD" icon={DollarSign} iconBg="bg-orange-50" iconColor="text-orange-600" />
+                        <StatCard title="Pending Payments" value={metrics.pendingPayments.toLocaleString('fr-MA')} suffix=" MAD" subtitle="Lifetime — ignores date filter" icon={DollarSign} iconBg="bg-orange-50" iconColor="text-orange-600" />
                         <StatCard title="Providers" value={metrics.providerData.length} icon={Building2} iconBg="bg-purple-50" iconColor="text-purple-600" />
                     </div>
 

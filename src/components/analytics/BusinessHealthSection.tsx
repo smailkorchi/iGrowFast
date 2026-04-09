@@ -78,7 +78,18 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
             }, 0) / withConfDate.length
             : 0;
 
-        const operationalEfficiency = (confirmRate * 0.3 + deliveryRate * 0.5 + Math.min(100, (1 / Math.max(1, avgConfirmTime / 24)) * 100) * 0.2);
+        // Operational efficiency score = weighted avg of three sub-scores (each 0..100).
+        // When we don't have confirmation timestamps (withConfDate.length === 0) we drop the speed
+        // component and rebalance the weights across the remaining two — otherwise the "no data"
+        // case would default the speed sub-score to 100 and inflate the overall score.
+        const hasConfirmTimeData = withConfDate.length > 0;
+        const speedScore = hasConfirmTimeData
+            ? Math.min(100, (1 / Math.max(1, avgConfirmTime / 24)) * 100)
+            : null;
+        const operationalEfficiency = hasConfirmTimeData
+            ? confirmRate * 0.3 + deliveryRate * 0.5 + (speedScore as number) * 0.2
+            : // Rebalanced weights when speed component is unavailable (37.5% + 62.5% = 100%)
+              confirmRate * 0.375 + deliveryRate * 0.625;
 
         const rangeStart = dateFilter.from || subMonths(new Date(), 6);
         const rangeEnd = dateFilter.to || new Date();
@@ -112,7 +123,7 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
 
         return {
             orderVelocity, totalRevenue, confirmRate, deliveryRate,
-            avgConfirmTime, operationalEfficiency, revenueGrowth, trendData,
+            avgConfirmTime, operationalEfficiency, hasConfirmTimeData, revenueGrowth, trendData,
             totalOrders: filtered.length,
         };
     }, [orders, dateFilter, confirmedIds, cancelledIds, deliveredPkgIds, isOrderCategory]);
@@ -135,8 +146,8 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
                         <StatCard title="Revenue Growth" value={metrics.revenueGrowth.toFixed(1)} suffix="%" icon={BarChart3} iconBg="bg-blue-50" iconColor="text-blue-600" trend={metrics.revenueGrowth} />
                         <StatCard title="Confirm Rate" value={metrics.confirmRate.toFixed(1)} suffix="%" icon={Target} iconBg="bg-teal-50" iconColor="text-teal-600" />
                         <StatCard title="Delivery Rate" value={metrics.deliveryRate.toFixed(1)} suffix="%" icon={Target} iconBg="bg-green-50" iconColor="text-green-600" />
-                        <StatCard title="Avg Confirm Time" value={metrics.avgConfirmTime.toFixed(1)} suffix="h" icon={Timer} iconBg="bg-purple-50" iconColor="text-purple-600" />
-                        <StatCard title="Efficiency Score" value={metrics.operationalEfficiency.toFixed(0)} suffix="/100" icon={Gauge} iconBg="bg-indigo-50" iconColor="text-indigo-600" />
+                        <StatCard title="Avg Confirm Time" value={metrics.hasConfirmTimeData ? metrics.avgConfirmTime.toFixed(1) : '—'} suffix={metrics.hasConfirmTimeData ? 'h' : ''} subtitle={metrics.hasConfirmTimeData ? undefined : 'No timestamps available'} icon={Timer} iconBg="bg-purple-50" iconColor="text-purple-600" />
+                        <StatCard title="Efficiency Score" value={metrics.operationalEfficiency.toFixed(0)} suffix="/100" subtitle={metrics.hasConfirmTimeData ? undefined : 'Speed component unavailable'} icon={Gauge} iconBg="bg-indigo-50" iconColor="text-indigo-600" />
                         <StatCard title="Total Orders" value={metrics.totalOrders} icon={Building2} iconBg="bg-rose-50" iconColor="text-rose-600" />
                     </div>
 

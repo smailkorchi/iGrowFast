@@ -83,9 +83,9 @@ const Products = () => {
 
     const productList = products ?? [];
 
-    const filteredProducts = productList.filter(p => {
+    const filteredProducts = useMemo(() => {
         const q = searchQuery.toLowerCase();
-        return (
+        const list = productList.filter(p =>
             p.name.toLowerCase().includes(q) ||
             p.code.toLowerCase().includes(q) ||
             p.label?.toLowerCase().includes(q) ||
@@ -93,7 +93,14 @@ const Products = () => {
             String(p.selling_price ?? '').includes(q) ||
             String(p.stock ?? '').includes(q)
         );
-    });
+        return list
+            .map((p, i) => ({ p, i, oos: Number(p.stock ?? 0) === 0 }))
+            .sort((a, b) => {
+                if (a.oos !== b.oos) return a.oos ? 1 : -1;
+                return a.i - b.i;
+            })
+            .map((x) => x.p);
+    }, [productList, searchQuery]);
 
     const lowStockProducts = productList.filter(p => (p.stock || 0) <= 10);
     const lowStockProductsTotalUnits = lowStockProducts.reduce((sum, p) => sum + Number(p.stock ?? 0), 0);

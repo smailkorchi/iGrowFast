@@ -75,11 +75,47 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
         enabled: !!businessId,
     });
 
+    // ── Media buyer payouts (new role — salary or commission) ─────
+    const { data: mediabuyerPayments } = useQuery({
+        queryKey: ['analytics-mediabuyer-payments', businessId],
+        queryFn: async () => {
+            const { data } = await (supabase as any)
+                .from('mediabuyer_payments')
+                .select('id, mediabuyer_id, total_amount, salary_earned, commission_earned, payment_type, payout_month, status, created_at')
+                .eq('DigiCom Business', businessId);
+            return (data || []) as Array<{
+                id: string;
+                mediabuyer_id: string;
+                total_amount: number | string;
+                salary_earned: number | string;
+                commission_earned: number | string;
+                payment_type: 'commission' | 'salary';
+                payout_month: string; // 'YYYY-MM'
+                status: 'pending' | 'paid';
+                created_at: string;
+            }>;
+        },
+        enabled: !!businessId,
+    });
+
     const { data: adsHistory } = useQuery({
         queryKey: ['analytics-ads-history', businessId],
         queryFn: async () => {
             const { data } = await supabase.from('ads_history').select('id, amount, start_date, end_date').eq('DigiCom Business', businessId);
             return data || [];
+        },
+        enabled: !!businessId,
+    });
+
+    // ── Global ads (media-buyer campaigns) ─────────────────────────
+    const { data: campaignEntries } = useQuery({
+        queryKey: ['analytics-campaign-entries-profit', businessId],
+        queryFn: async () => {
+            const { data } = await (supabase as any)
+                .from('campaign_daily_entries')
+                .select('id, campaign_id, entry_date, spend, platform')
+                .eq('DigiCom Business', businessId);
+            return (data || []) as Array<{ id: string; campaign_id: string | null; entry_date: string; spend: number | string; platform: string }>;
         },
         enabled: !!businessId,
     });
@@ -132,11 +168,31 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
         const filteredExpenses = (expenses || []).filter(e => isInRange(e.date));
         const totalExpenses = filteredExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
 
-        const filteredSellerPayments = (sellerPayments || []).filter(sp => isInRange(sp.created_at));
-        const totalSalaries = filteredSellerPayments.reduce((sum, sp) => sum + Number(sp.total_amount || 0), 0);
+        // ── Salaries (accrual basis: use payout_month, not created_at) ──
+        // Seller payments store payout_month as 'YYYY-MM-01' (date-like); MB payouts as 'YYYY-MM'.
+        // Normalize both to a first-day-of-month Date and range-check it.
+        const payoutMonthToDate = (pm: string | null): string | null => {
+            if (!pm) return null;
+            // Handles 'YYYY-MM-01', 'YYYY-MM-DD', or 'YYYY-MM'
+            if (/^\d{4}-\d{2}$/.test(pm)) return `${pm}-01`;
+            return pm;
+        };
+        const filteredSellerPayments = (sellerPayments || []).filter(sp => isInRange(payoutMonthToDate(sp.payout_month) || sp.created_at));
+        const totalSellerSalaries = filteredSellerPayments.reduce((sum, sp) => sum + Number(sp.total_amount || 0), 0);
 
+        const filteredMBPayments = (mediabuyerPayments || []).filter(mp => isInRange(payoutMonthToDate(mp.payout_month) || mp.created_at));
+        const totalMediabuyerSalaries = filteredMBPayments.reduce((sum, mp) => sum + Number(mp.total_amount || 0), 0);
+
+        const totalSalaries = totalSellerSalaries + totalMediabuyerSalaries;
+
+        // ── Ad spend (product ads + global ads) ──
         const filteredAds = (adsHistory || []).filter(a => isInRange(a.start_date));
-        const totalAdSpend = filteredAds.reduce((sum, a) => sum + Number(a.amount || 0), 0);
+        const spendProductAds = filteredAds.reduce((sum, a) => sum + Number(a.amount || 0), 0);
+
+        const filteredCampaignEntries = (campaignEntries || []).filter(e => isInRange(e.entry_date));
+        const spendGlobalAds = filteredCampaignEntries.reduce((sum, e) => sum + Number(e.spend || 0), 0);
+
+        const totalAdSpend = spendProductAds + spendGlobalAds;
 
         const allExpenses = totalCOGS + totalShippingCost + totalExpenses + totalSalaries + totalAdSpend;
         const netProfit = totalRevenue - allExpenses;
@@ -146,9 +202,11 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
         const expenseBreakdown = [
             { name: 'COGS', value: totalCOGS },
             { name: 'Shipping', value: totalShippingCost },
-            { name: 'Ad Spend', value: totalAdSpend },
-            { name: 'Salaries', value: totalSalaries },
-            { name: 'Expenses', value: totalExpenses },
+            { name: 'Product Ads', value: spendProductAds },
+            { name: 'Global Ads', value: spendGlobalAds },
+            { name: 'Seller Salaries', value: totalSellerSalaries },
+            { name: 'Media Buyer Salaries', value: totalMediabuyerSalaries },
+            { name: 'Other Expenses', value: totalExpenses },
         ].filter(e => e.value > 0);
 
         const rangeStart = dateFilter.from || (filteredOrders.length > 0
@@ -161,16 +219,35 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
             const monthStart = startOfMonth(month);
             const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
             const monthLabel = format(month, 'MMM yy');
+            const monthYM = format(monthStart, 'yyyy-MM'); // for payout_month comparison
+            const inMonth = (d: Date) => isWithinInterval(d, { start: monthStart, end: monthEnd });
 
             const monthRevenue = revenueOrders
-                .filter(o => o.date && isWithinInterval(new Date(o.date), { start: monthStart, end: monthEnd }))
+                .filter(o => o.date && inMonth(new Date(o.date)))
                 .reduce((sum, o) => sum + Number(o.price || 0), 0);
 
-            const monthExpenses =
-                filteredExpenses.filter(e => isWithinInterval(new Date(e.date), { start: monthStart, end: monthEnd }))
-                    .reduce((sum, e) => sum + Number(e.amount || 0), 0) +
-                filteredAds.filter(a => isWithinInterval(new Date(a.start_date), { start: monthStart, end: monthEnd }))
-                    .reduce((sum, a) => sum + Number(a.amount || 0), 0);
+            // Per-month expense = Other Expenses + Product Ads + Global Ads + Seller Salaries + MB Salaries
+            const monthOther = filteredExpenses
+                .filter(e => inMonth(new Date(e.date)))
+                .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+
+            const monthProductAds = filteredAds
+                .filter(a => inMonth(new Date(a.start_date)))
+                .reduce((sum, a) => sum + Number(a.amount || 0), 0);
+
+            const monthGlobalAds = filteredCampaignEntries
+                .filter(e => inMonth(new Date(e.entry_date)))
+                .reduce((sum, e) => sum + Number(e.spend || 0), 0);
+
+            const monthSellerSalaries = filteredSellerPayments
+                .filter(sp => (payoutMonthToDate(sp.payout_month) || '').slice(0, 7) === monthYM)
+                .reduce((sum, sp) => sum + Number(sp.total_amount || 0), 0);
+
+            const monthMBSalaries = filteredMBPayments
+                .filter(mp => (payoutMonthToDate(mp.payout_month) || '').slice(0, 7) === monthYM)
+                .reduce((sum, mp) => sum + Number(mp.total_amount || 0), 0);
+
+            const monthExpenses = monthOther + monthProductAds + monthGlobalAds + monthSellerSalaries + monthMBSalaries;
 
             return { month: monthLabel, revenue: monthRevenue, expenses: monthExpenses, profit: monthRevenue - monthExpenses, provisional: 0 };
         });
@@ -216,11 +293,13 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
         return {
             totalRevenue, allExpenses, netProfit, profitMargin, roi,
             totalCOGS, totalShippingCost, totalAdSpend, totalSalaries, totalExpenses,
+            spendProductAds, spendGlobalAds,
+            totalSellerSalaries, totalMediabuyerSalaries,
             expenseBreakdown, trendData, revenueOrderCount: revenueOrders.length,
             totalOrderCount: filteredOrders.length,
             provisionalProfit, provisionalRevenue, provisionOrderCount: provisionOrders.length,
         };
-    }, [orders, products, accessories, expenses, sellerPayments, adsHistory, dateFilter, deliveredPkgIds, isOrderCategory]);
+    }, [orders, products, accessories, expenses, sellerPayments, mediabuyerPayments, adsHistory, campaignEntries, dateFilter, deliveredPkgIds, isOrderCategory]);
 
     const insights = useMemo(() => {
         if (!metrics) return [];

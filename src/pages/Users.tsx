@@ -108,10 +108,13 @@ const userSchema = z.object({
     username: z.string().min(3, "Username must be at least 3 characters"),
     email: z.string().email("Invalid email address"),
     password: z.string().min(6, "Password must be at least 6 characters").optional().or(z.literal('')),
-    role: z.enum(['super admin', 'admin', 'commercial', 'courier']),
+    role: z.enum(['super admin', 'admin', 'commercial', 'courier', 'mediabuyer']),
     assignment: z.number().default(0),
     commission_price: z.number().default(0),
     commission_basis: z.enum(['per_order', 'per_unit']).default('per_order'),
+    payment_type: z.enum(['commission', 'salary']).default('commission'),
+    salary_amount: z.number().default(0),
+    phone: z.string().optional().or(z.literal('')),
     products: z.array(z.string()).default([]),
     active: z.boolean().default(true),
     permissions: z.record(z.any()).default({}),
@@ -155,12 +158,15 @@ const pages = [
     { label: 'Sales Channels', path: '/sales-channels', icon: Megaphone },
     { label: 'Customers', path: '/customers', icon: UsersGroupIcon },
     { label: 'Users', path: '/users', icon: UserPlus },
-    { label: 'Sellers', path: '/sellers', icon: Store },
+    { label: 'Collaborators — Sellers', path: '/collaborators/sellers', icon: Store },
+    { label: 'Collaborators — Couriers', path: '/collaborators/couriers', icon: Store },
+    { label: 'Collaborators — Media Buyers', path: '/collaborators/mediabuyers', icon: Store },
     { label: 'Business — Overview', path: '/business', icon: LayoutDashboard },
     { label: 'Business — Payments', path: '/business/payments', icon: Wallet },
     { label: 'Demands', path: '/demands', icon: MessageSquare },
     { label: 'Salaries', path: '/salaries', icon: DollarSign },
-    { label: 'Ads History', path: '/ads-history', icon: Target },
+    { label: 'Product Ads', path: '/ads-history', icon: Target },
+    { label: 'Global Ads', path: '/campaigns', icon: Megaphone },
     { label: 'Expenses Details', path: '/expenses-details', icon: List },
     { label: 'Expenses Types', path: '/expenses-types', icon: Tag },
     { label: 'Businesses', path: '/businesses', icon: Building2 },
@@ -357,14 +363,15 @@ const Users = () => {
                     </div>
                 ) : (
                     <div className="space-y-10 mt-6">
-                        {['super admin', 'admin', 'commercial', 'courier', 'others'].map(roleGroup => {
+                        {['super admin', 'admin', 'commercial', 'courier', 'mediabuyer', 'others'].map(roleGroup => {
                             const groupUsers = filteredUsers?.filter(u => {
                                 const r = (u.role || '').toLowerCase();
                                 if (roleGroup === 'super admin') return r === 'super admin';
                                 if (roleGroup === 'admin') return r === 'admin';
                                 if (roleGroup === 'commercial') return r === 'commercial';
                                 if (roleGroup === 'courier') return r === 'courier';
-                                if (roleGroup === 'others') return r !== 'super admin' && r !== 'admin' && r !== 'commercial' && r !== 'courier';
+                                if (roleGroup === 'mediabuyer') return r === 'mediabuyer';
+                                if (roleGroup === 'others') return r !== 'super admin' && r !== 'admin' && r !== 'commercial' && r !== 'courier' && r !== 'mediabuyer';
                                 return false;
                             });
 
@@ -373,7 +380,8 @@ const Users = () => {
                             const title = roleGroup === 'super admin' ? 'Super Admins' :
                                 roleGroup === 'admin' ? 'Admins' :
                                     roleGroup === 'commercial' ? 'Commercials' :
-                                        roleGroup === 'courier' ? 'Couriers' : 'Others';
+                                        roleGroup === 'courier' ? 'Couriers' :
+                                            roleGroup === 'mediabuyer' ? 'Media Buyers' : 'Others';
 
                             return (
                                 <div key={roleGroup} className="space-y-4">
@@ -553,6 +561,7 @@ const UserModal = ({
     title,
     activeBusinessId,
 }: UserModalProps) => {
+    const { toast } = useToast();
     const [avatar, setAvatar] = useState<File | null>(null);
     const [avatarPreview, setAvatarPreview] = useState<string | null>(
         initialData?.avatar_url ?? null,
@@ -569,6 +578,9 @@ const UserModal = ({
             assignment: 0,
             commission_price: 0,
             commission_basis: 'per_order',
+            payment_type: 'commission',
+            salary_amount: 0,
+            phone: '',
             products: [],
             active: true,
             permissions: {},
@@ -637,15 +649,24 @@ const UserModal = ({
         p.code.toLowerCase().includes(productSearch.toLowerCase())
     );
 
-    const [activeTab, setActiveTab] = useState<'identity' | 'permissions' | 'performance' | 'whatsapp'>('identity');
+    const [activeTab, setActiveTab] = useState<'identity' | 'permissions' | 'performance' | 'whatsapp' | 'payment'>('identity');
     useEffect(() => { if (isOpen) setActiveTab('identity'); }, [isOpen]);
 
     useEffect(() => {
         if (isOpen) {
             if (initialData) {
+                // Normalize nullable DB fields back to schema-valid defaults before reset.
+                // zod rejects `null` for optional string fields, which would silently fail
+                // form.handleSubmit validation and leave the Update button doing nothing.
+                const raw = initialData as any;
                 form.reset({
                     ...initialData,
                     password: '',
+                    phone: raw.phone ?? '',
+                    payment_type: raw.payment_type ?? 'commission',
+                    salary_amount: Number(raw.salary_amount ?? 0),
+                    commission_price: Number(raw.commission_price ?? 0),
+                    assignment: Number(raw.assignment ?? 0),
                     commission_basis: normalizeCommissionBasis(initialData.commission_basis),
                     products: Array.isArray(initialData.products) ? initialData.products : [],
                     permissions: initialData.permissions || {},
@@ -662,6 +683,9 @@ const UserModal = ({
                     assignment: 0,
                     commission_price: 0,
                     commission_basis: 'per_order',
+                    payment_type: 'commission',
+                    salary_amount: 0,
+                    phone: '',
                     products: [],
                     active: true,
                     permissions: {},
@@ -711,7 +735,17 @@ const UserModal = ({
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
             <DialogContent className="max-w-3xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(handleFormSubmit)} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                    <form
+                        onSubmit={form.handleSubmit(handleFormSubmit, (errors) => {
+                            const first = Object.values(errors)[0] as any;
+                            toast({
+                                title: 'Form validation failed',
+                                description: first?.message || 'Check the form fields and try again.',
+                                variant: 'destructive',
+                            });
+                        })}
+                        className="flex flex-col flex-1 min-h-0 overflow-hidden"
+                    >
                         {/* ── Compact Header ───────────────────────────────────────── */}
                         <DialogHeader className="px-8 pt-8 pb-5 border-b border-brand-navy/5">
                             <div className="flex items-start gap-5">
@@ -740,6 +774,7 @@ const UserModal = ({
                                     <DialogDescription className="text-muted-foreground mt-1 text-sm">
                                         {form.watch('role') === 'super admin' ? 'Highest privilege account.'
                                             : form.watch('role') === 'admin' ? 'Configure modules this admin can access.'
+                                            : form.watch('role') === 'mediabuyer' ? 'Configure media buyer payment structure.'
                                             : 'Configure parameters, products, and inbox access.'}
                                     </DialogDescription>
                                 </div>
@@ -764,6 +799,15 @@ const UserModal = ({
                                         >
                                             <Shield className="w-3.5 h-3.5 mr-1.5" />
                                             Page Access
+                                        </TabsTrigger>
+                                    )}
+                                    {form.watch('role') === 'mediabuyer' && (
+                                        <TabsTrigger
+                                            value="payment"
+                                            className="rounded-xl px-4 py-2 text-[11px] font-bold uppercase tracking-wider data-[state=active]:bg-brand-white data-[state=active]:text-brand-navy data-[state=active]:shadow-sm text-brand-navy/50 transition-all"
+                                        >
+                                            <DollarSign className="w-3.5 h-3.5 mr-1.5" />
+                                            Payment
                                         </TabsTrigger>
                                     )}
                                     {form.watch('role') === 'commercial' && (
@@ -818,9 +862,9 @@ const UserModal = ({
                                                             </SelectTrigger>
                                                         </FormControl>
                                                         <SelectContent className="rounded-2xl border-none shadow-2xl p-2 bg-brand-white/95 backdrop-blur-xl">
-                                                            {['super admin', 'admin', 'commercial', 'courier'].map((role) => (
+                                                            {['super admin', 'admin', 'commercial', 'courier', 'mediabuyer'].map((role) => (
                                                                 <SelectItem key={role} value={role} className="rounded-xl p-3 capitalize font-bold text-brand-navy focus:bg-brand-navy focus:text-brand-white transition-colors cursor-pointer">
-                                                                    {role}
+                                                                    {role === 'mediabuyer' ? 'Media Buyer' : role}
                                                                 </SelectItem>
                                                             ))}
                                                         </SelectContent>
@@ -904,6 +948,29 @@ const UserModal = ({
                                             )}
                                         />
                                     </div>
+
+                                    {form.watch('role') === 'courier' && (
+                                        <FormField
+                                            control={form.control}
+                                            name="phone"
+                                            render={({ field }) => (
+                                                <FormItem className="space-y-2">
+                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Phone number</FormLabel>
+                                                    <FormControl>
+                                                        <Input
+                                                            type="tel"
+                                                            placeholder="+212 6 00 00 00 00"
+                                                            {...field}
+                                                            value={field.value || ''}
+                                                            className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner"
+                                                        />
+                                                    </FormControl>
+                                                    <FormDescription className="text-[10px] uppercase font-bold text-brand-navy/30 px-2">Reachable number for delivery coordination</FormDescription>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    )}
                                 </TabsContent>
 
                                 {/* ── TAB: Page Access (admin) ───────────────────── */}
@@ -1220,6 +1287,72 @@ const UserModal = ({
                                             );
                                         }}
                                     />
+                                </TabsContent>
+
+                                {/* ── TAB: Payment (mediabuyer) ──────────────────── */}
+                                <TabsContent value="payment" className="m-0 space-y-5 outline-none">
+                                    <FormField
+                                        control={form.control}
+                                        name="payment_type"
+                                        render={({ field }) => (
+                                            <FormItem className="space-y-3">
+                                                <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Payment Structure</FormLabel>
+                                                <FormControl>
+                                                    <RadioGroup onValueChange={field.onChange} value={field.value} className="grid grid-cols-2 gap-3">
+                                                        <label className="flex items-start gap-3 cursor-pointer rounded-2xl border-2 border-brand-navy/5 bg-brand-navy/[0.02] p-4 hover:border-brand-navy/20 transition-all has-[:checked]:border-brand-navy has-[:checked]:bg-brand-navy/[0.05]">
+                                                            <RadioGroupItem value="commission" id="mb-pay-commission" className="mt-0.5" />
+                                                            <div className="space-y-0.5">
+                                                                <span className="text-xs font-bold text-brand-navy block">Commission per delivered</span>
+                                                                <p className="text-[10px] text-muted-foreground leading-snug">Fixed amount × each delivered order</p>
+                                                            </div>
+                                                        </label>
+                                                        <label className="flex items-start gap-3 cursor-pointer rounded-2xl border-2 border-brand-navy/5 bg-brand-navy/[0.02] p-4 hover:border-brand-navy/20 transition-all has-[:checked]:border-brand-navy has-[:checked]:bg-brand-navy/[0.05]">
+                                                            <RadioGroupItem value="salary" id="mb-pay-salary" className="mt-0.5" />
+                                                            <div className="space-y-0.5">
+                                                                <span className="text-xs font-bold text-brand-navy block">Fixed salary</span>
+                                                                <p className="text-[10px] text-muted-foreground leading-snug">Monthly fixed amount</p>
+                                                            </div>
+                                                        </label>
+                                                    </RadioGroup>
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    {form.watch('payment_type') === 'commission' ? (
+                                        <FormField
+                                            control={form.control}
+                                            name="commission_price"
+                                            render={({ field }) => (
+                                                <FormItem className="space-y-2">
+                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Commission / delivered order</FormLabel>
+                                                    <FormControl>
+                                                        <div className="relative">
+                                                            <Input type="number" placeholder="0" {...field} onChange={e => field.onChange(Number(e.target.value))} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
+                                                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-brand-navy/30 text-xs font-bold">DH</span>
+                                                        </div>
+                                                    </FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
+                                    ) : (
+                                        <FormField
+                                            control={form.control}
+                                            name="salary_amount"
+                                            render={({ field }) => (
+                                                <FormItem className="space-y-2">
+                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Monthly salary</FormLabel>
+                                                    <FormControl>
+                                                        <div className="relative">
+                                                            <Input type="number" placeholder="0" {...field} onChange={e => field.onChange(Number(e.target.value))} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
+                                                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-brand-navy/30 text-xs font-bold">DH</span>
+                                                        </div>
+                                                    </FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
+                                    )}
                                 </TabsContent>
                             </div>
                         </Tabs>

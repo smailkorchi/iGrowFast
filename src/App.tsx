@@ -41,6 +41,15 @@ import CourierLayout from "./components/layout/CourierLayout";
 import CourierDashboard from "./pages/courier/Dashboard";
 import CourierOrders from "./pages/courier/Orders";
 import CourierPayments from "./pages/courier/Payments";
+import MediaBuyerLayout from "./components/layout/MediaBuyerLayout";
+import MediaBuyerDashboard from "./pages/mediabuyer/Dashboard";
+import MediaBuyerStatistics from "./pages/mediabuyer/Statistics";
+import MediaBuyerCampaigns from "./pages/mediabuyer/Campaigns";
+import MediaBuyerCampaignForm from "./pages/mediabuyer/CampaignForm";
+import MediaBuyerCampaignPreview from "./pages/mediabuyer/CampaignPreview";
+import MediaBuyerCampaignManage from "./pages/mediabuyer/CampaignManage";
+import MediaBuyerPayments from "./pages/mediabuyer/Payments";
+import MediaBuyerDemands from "./pages/mediabuyer/Demands";
 import Calculator from "./pages/Calculator";
 import Devis from "./pages/tools/Devis";
 import Facture from "./pages/tools/Facture";
@@ -48,7 +57,9 @@ import BonDeCommande from "./pages/tools/BonDeCommande";
 import BonDeLivraison from "./pages/tools/BonDeLivraison";
 import AdminDemands from "./pages/Demands";
 import AdminSalaries from "./pages/Salaries";
-import AdminSellers from "./pages/Sellers";
+import AdminSellers from "./pages/collaborators/Sellers";
+import AdminCouriers from "./pages/collaborators/Couriers";
+import AdminMediaBuyers from "./pages/collaborators/MediaBuyers";
 import AdminBusinessOverview from "./pages/business/Overview";
 import AdminBusinessPayments from "./pages/business/Payments";
 import SellerDashboard from "./pages/seller/Dashboard";
@@ -183,6 +194,26 @@ const App = () => (
             </ProtectedRoute>
           } />
 
+          {/* Media Buyer Routes */}
+          <Route path="/mediabuyer/*" element={
+            <ProtectedRoute allowedRoles={['mediabuyer']}>
+              <MediaBuyerLayout>
+                <Routes>
+                  <Route path="dashboard" element={<MediaBuyerDashboard />} />
+                  <Route path="statistics" element={<MediaBuyerStatistics />} />
+                  <Route path="campaigns" element={<MediaBuyerCampaigns />} />
+                  <Route path="campaigns/new" element={<MediaBuyerCampaignForm />} />
+                  <Route path="campaigns/:id" element={<MediaBuyerCampaignPreview />} />
+                  <Route path="campaigns/:id/edit" element={<MediaBuyerCampaignForm />} />
+                  <Route path="campaigns/:id/manage" element={<MediaBuyerCampaignManage />} />
+                  <Route path="payments" element={<MediaBuyerPayments />} />
+                  <Route path="demands" element={<MediaBuyerDemands />} />
+                  <Route path="" element={<Navigate to="dashboard" replace />} />
+                </Routes>
+              </MediaBuyerLayout>
+            </ProtectedRoute>
+          } />
+
           {/* Courier Routes */}
           <Route path="/courier/*" element={
             <ProtectedRoute allowedRoles={['courier']}>
@@ -222,7 +253,7 @@ const App = () => (
 
           {/* Admin Routes (owner can access via new tab) */}
           <Route path="*" element={
-            <ProtectedRoute allowedRoles={['super admin', 'admin', 'mediabuyer', 'owner']}>
+            <ProtectedRoute allowedRoles={['super admin', 'admin', 'owner']}>
               <BusinessGuard>
                 <AppLayout>
                   <Routes>
@@ -246,6 +277,11 @@ const App = () => (
                     <Route path="/customers" element={<Customers />} />
                     <Route path="/users" element={<Users />} />
                     <Route path="/ads-history" element={<AdsHistory />} />
+                    <Route path="/campaigns" element={<MediaBuyerCampaigns />} />
+                    <Route path="/campaigns/new" element={<MediaBuyerCampaignForm />} />
+                    <Route path="/campaigns/:id" element={<MediaBuyerCampaignPreview />} />
+                    <Route path="/campaigns/:id/edit" element={<MediaBuyerCampaignForm />} />
+                    <Route path="/campaigns/:id/manage" element={<MediaBuyerCampaignManage />} />
                     <Route path="/expenses-details" element={<ExpensesDetails />} />
                     <Route path="/expenses-types" element={<ExpensesTypes />} />
                     <Route path="/calculator" element={<Calculator />} />
@@ -255,6 +291,10 @@ const App = () => (
                     <Route path="/bon-de-livraison" element={<BonDeLivraison />} />
                     <Route path="/demands" element={<AdminDemands />} />
                     <Route path="/salaries" element={<AdminSalaries />} />
+                    <Route path="/collaborators/sellers" element={<AdminSellers />} />
+                    <Route path="/collaborators/couriers" element={<AdminCouriers />} />
+                    <Route path="/collaborators/mediabuyers" element={<AdminMediaBuyers />} />
+                    {/* Back-compat: old /sellers route still resolves to the new location. */}
                     <Route path="/sellers" element={<AdminSellers />} />
                     <Route path="/business" element={<AdminBusinessOverview />} />
                     <Route path="/business/payments" element={<AdminBusinessPayments />} />

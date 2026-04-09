@@ -192,8 +192,8 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
                 <div className="space-y-6">
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
                         <StatCard title="Total Sellers" value={metrics.totalSellers} icon={Users} iconBg="bg-orange-50" iconColor="text-orange-600" subtitle={`${metrics.activeSellers} active`} />
-                        <StatCard title="Total Paid" value={metrics.totalPaidToSellers.toLocaleString('fr-MA')} suffix=" MAD" icon={DollarSign} iconBg="bg-emerald-50" iconColor="text-emerald-600" />
-                        <StatCard title="Pending Payment" value={metrics.totalPendingToSellers.toLocaleString('fr-MA')} suffix=" MAD" icon={DollarSign} iconBg="bg-orange-50" iconColor="text-orange-600" />
+                        <StatCard title="Total Paid" value={metrics.totalPaidToSellers.toLocaleString('fr-MA')} suffix=" MAD" subtitle="Lifetime — ignores date filter" icon={DollarSign} iconBg="bg-emerald-50" iconColor="text-emerald-600" />
+                        <StatCard title="Pending Payment" value={metrics.totalPendingToSellers.toLocaleString('fr-MA')} suffix=" MAD" subtitle="Lifetime — ignores date filter" icon={DollarSign} iconBg="bg-orange-50" iconColor="text-orange-600" />
                         <StatCard title="Live Commission" value={metrics.totalLiveCommission.toLocaleString('fr-MA')} suffix=" MAD" icon={DollarSign} iconBg="bg-amber-50" iconColor="text-amber-600" subtitle="Unpaid accrual (lifetime vs paid payouts)" />
                         <StatCard title="Top Performer" value={metrics.topPerformer?.name || 'N/A'} icon={Trophy} iconBg="bg-amber-50" iconColor="text-amber-600" subtitle={`${metrics.topPerformer?.delivered || 0} delivered`} />
                         <StatCard title="Attendance" value={metrics.attendanceRate.toFixed(0)} suffix="%" icon={CalendarCheck} iconBg="bg-purple-50" iconColor="text-purple-600" />

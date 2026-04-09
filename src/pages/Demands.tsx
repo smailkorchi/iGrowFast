@@ -60,9 +60,12 @@ interface DemandMedia {
   url?: string;
 }
 
-interface SellerDemandWithSeller {
+type DemandRole = 'seller' | 'mediabuyer';
+
+interface DemandWithCollaborator {
   id: string;
-  seller_id: string;
+  seller_id?: string;
+  mediabuyer_id?: string;
   category: string;
   priority: string;
   subject: string;
@@ -74,12 +77,22 @@ interface SellerDemandWithSeller {
   created_at: string;
   updated_at: string;
   media: DemandMedia[] | null;
-  seller: {
+  collaborator: {
     name: string;
     email: string;
     avatar_url: string | null;
   };
 }
+
+const TABLE_FOR: Record<DemandRole, string> = {
+  seller: 'seller_demands',
+  mediabuyer: 'mediabuyer_demands',
+};
+
+const FK_COL_FOR: Record<DemandRole, string> = {
+  seller: 'seller_id',
+  mediabuyer: 'mediabuyer_id',
+};
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 const ACCEPTED_TYPES = 'image/*,video/*,application/pdf';
@@ -92,9 +105,10 @@ const formatFileSize = (bytes: number) => {
 
 const Demands = () => {
   const { toast } = useToast();
-  const [demands, setDemands] = useState<SellerDemandWithSeller[]>([]);
+  const [role, setRole] = useState<DemandRole>('seller');
+  const [demands, setDemands] = useState<DemandWithCollaborator[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDemand, setSelectedDemand] = useState<SellerDemandWithSeller | null>(null);
+  const [selectedDemand, setSelectedDemand] = useState<DemandWithCollaborator | null>(null);
   const [isResponseModalOpen, setIsResponseModalOpen] = useState(false);
   const [resolvedMedia, setResolvedMedia] = useState<DemandMedia[]>([]);
   const [resolvedResponseMedia, setResolvedResponseMedia] = useState<DemandMedia[]>([]);
@@ -116,14 +130,14 @@ const Demands = () => {
   useEffect(() => {
     fetchDemands();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeBusinessId]);
+  }, [activeBusinessId, role]);
 
   const fetchDemands = async () => {
     setLoading(true);
     try {
-      let query = supabase
-        .from('seller_demands')
-        .select('*, seller:users(name, email, avatar_url)')
+      let query = (supabase as any)
+        .from(TABLE_FOR[role])
+        .select('*, collaborator:users(name, email, avatar_url)')
         .order('created_at', { ascending: false });
 
       if (activeBusinessId) {
@@ -133,12 +147,12 @@ const Demands = () => {
       const { data, error } = await query;
 
       if (error) throw error;
-      setDemands((data as unknown as SellerDemandWithSeller[]) || []);
+      setDemands((data as unknown as DemandWithCollaborator[]) || []);
     } catch (error) {
       console.error('Error fetching demands:', error);
       toast({
         title: "Error",
-        description: "Failed to load seller requests.",
+        description: `Failed to load ${role === 'seller' ? 'seller' : 'media buyer'} requests.`,
         variant: "destructive"
       });
     } finally {
@@ -260,8 +274,8 @@ const Demands = () => {
         if (!updates.responded_at) updates.responded_at = new Date().toISOString();
       }
 
-      const { error } = await supabase
-        .from('seller_demands')
+      const { error } = await (supabase as any)
+        .from(TABLE_FOR[role])
         .update(updates)
         .eq('id', selectedDemand.id);
 
@@ -317,7 +331,7 @@ const Demands = () => {
   const filteredDemands = demands.filter(d => {
     const matchesStatus = statusFilter === 'all' || d.status === statusFilter;
     const matchesSearch = d.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      d.seller?.name?.toLowerCase().includes(searchQuery.toLowerCase());
+      d.collaborator?.name?.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesStatus && matchesSearch;
   });
 
@@ -329,10 +343,24 @@ const Demands = () => {
         <div className="relative p-8">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 text-left">
             <div>
-              <h1 className="text-4xl font-extralight text-gray-900 mb-2">Seller Demands</h1>
-              <p className="text-gray-500 font-light">Direct administrative oversight of seller specialized requests.</p>
+              <h1 className="text-4xl font-extralight text-gray-900 mb-2">Demands</h1>
+              <p className="text-gray-500 font-light">Direct administrative oversight of {role === 'seller' ? 'seller' : 'media buyer'} specialized requests.</p>
             </div>
             <div className="flex items-center gap-4">
+              <div className="flex bg-white/80 backdrop-blur-sm border border-white p-1 rounded-2xl shadow-sm">
+                <button
+                  onClick={() => setRole('seller')}
+                  className={`px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all ${role === 'seller' ? 'bg-brand-navy text-white shadow-lg' : 'text-gray-400 hover:text-brand-navy'}`}
+                >
+                  Sellers
+                </button>
+                <button
+                  onClick={() => setRole('mediabuyer')}
+                  className={`px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all ${role === 'mediabuyer' ? 'bg-brand-navy text-white shadow-lg' : 'text-gray-400 hover:text-brand-navy'}`}
+                >
+                  Media Buyers
+                </button>
+              </div>
               <div className="bg-white/50 backdrop-blur-sm border border-white p-2 rounded-2xl flex items-center gap-4 px-6 shadow-sm">
                 <div>
                   <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400">Response Rate</p>
@@ -358,7 +386,7 @@ const Demands = () => {
         <div className="relative flex-1 min-w-[300px] group">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
           <Input
-            placeholder="Search by subject or seller name..."
+            placeholder={`Search by subject or ${role === 'seller' ? 'seller' : 'media buyer'} name...`}
             className="pl-11 h-12 rounded-2xl border-gray-100 bg-white"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -397,13 +425,13 @@ const Demands = () => {
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center gap-3">
                         <Avatar className="w-12 h-12 rounded-2xl border-2 border-white shadow-sm ring-1 ring-gray-100">
-                          <AvatarImage src={d.seller?.avatar_url || ''} />
+                          <AvatarImage src={d.collaborator?.avatar_url || ''} />
                           <AvatarFallback className="bg-primary/5 text-primary">
-                            {d.seller?.name?.charAt(0)?.toUpperCase() || '?'}
+                            {d.collaborator?.name?.charAt(0)?.toUpperCase() || '?'}
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <p className="text-sm font-medium text-gray-900 line-clamp-1">{d.seller?.name || 'Unknown'}</p>
+                          <p className="text-sm font-medium text-gray-900 line-clamp-1">{d.collaborator?.name || 'Unknown'}</p>
                           <p className="text-[10px] text-gray-400 font-mono tracking-tighter">#{d.id.slice(0, 8).toUpperCase()}</p>
                         </div>
                       </div>
@@ -473,9 +501,9 @@ const Demands = () => {
                 <div className="relative z-10 flex flex-col md:flex-row md:items-start justify-between gap-6">
                   <div className="flex items-start gap-6">
                     <Avatar className="w-16 h-16 rounded-[1.5rem] border-2 border-white shadow-lg ring-1 ring-gray-100">
-                      <AvatarImage src={selectedDemand.seller?.avatar_url || ''} />
+                      <AvatarImage src={selectedDemand.collaborator?.avatar_url || ''} />
                       <AvatarFallback className="bg-primary/5 text-primary text-xl">
-                        {selectedDemand.seller?.name?.charAt(0)?.toUpperCase() || '?'}
+                        {selectedDemand.collaborator?.name?.charAt(0)?.toUpperCase() || '?'}
                       </AvatarFallback>
                     </Avatar>
                     <div>
@@ -486,7 +514,7 @@ const Demands = () => {
                         <p className="text-[10px] text-gray-400 font-mono">ID: {selectedDemand.id.toUpperCase()}</p>
                       </div>
                       <h2 className="text-2xl font-light text-gray-900 leading-tight">{selectedDemand.subject}</h2>
-                      <p className="text-gray-500 font-medium text-xs mt-1">{selectedDemand.seller?.name} • {selectedDemand.seller?.email}</p>
+                      <p className="text-gray-500 font-medium text-xs mt-1">{selectedDemand.collaborator?.name} • {selectedDemand.collaborator?.email}</p>
                     </div>
                   </div>
                 </div>

@@ -3232,7 +3232,19 @@ const Orders = () => {
                                                     <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Contact Number</FormLabel>
                                                     <div className="relative">
                                                         <FormControl>
-                                                            <Input placeholder="+212..." {...field} className={cn("h-10 rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner", inputPr)} />
+                                                            <Input
+                                                                placeholder="+212..."
+                                                                {...field}
+                                                                onChange={(e) => field.onChange(e.target.value.replace(/^\s+/, ''))}
+                                                                onPaste={(e) => {
+                                                                    const text = e.clipboardData.getData('text');
+                                                                    if (/^\s/.test(text)) {
+                                                                        e.preventDefault();
+                                                                        field.onChange(text.replace(/^\s+/, ''));
+                                                                    }
+                                                                }}
+                                                                className={cn("h-10 rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner", inputPr)}
+                                                            />
                                                         </FormControl>
                                                         {hasPhoneQuick && (
                                                             <div className={cn('absolute top-1/2 -translate-y-1/2 z-10', hasInsights ? 'right-12' : 'right-2')}>

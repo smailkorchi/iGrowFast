@@ -77,6 +77,8 @@ const Auth = () => {
                 navigate('/owner/dashboard');
             } else if (profile?.role === 'courier') {
                 navigate('/courier/dashboard');
+            } else if (profile?.role === 'mediabuyer') {
+                navigate('/mediabuyer/dashboard');
             } else {
                 navigate('/');
             }
