@@ -154,9 +154,14 @@ const log = (...args: unknown[]) => console.log('[wa-notif]', ...args);
 
 export function WhatsAppNotificationsProvider({ children }: { children: React.ReactNode }) {
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const syncJobsChannelRef = useRef<RealtimeChannel | null>(null);
   const setupEpochRef = useRef(0);                        // monotonic counter to discard stale async setups
   const allowedInstanceIdsRef = useRef<Set<string> | 'all' | null>(null);
   const seenIdsRef = useRef<Set<string>>(new Set());      // persistent — never cleared
+  // Instances currently syncing — notifications are suppressed for these.
+  // Populated from whatsapp_sync_jobs (status in pending/running/paused) on mount
+  // and kept in sync via a realtime subscription to the sync_jobs table.
+  const syncingInstancesRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     let unmounted = false;
@@ -167,6 +172,11 @@ export function WhatsAppNotificationsProvider({ children }: { children: React.Re
         try { supabase.removeChannel(channelRef.current); } catch (e) { log('teardown error', e); }
         channelRef.current = null;
       }
+      if (syncJobsChannelRef.current) {
+        try { supabase.removeChannel(syncJobsChannelRef.current); } catch (e) { log('teardown sync-jobs error', e); }
+        syncJobsChannelRef.current = null;
+      }
+      syncingInstancesRef.current = new Set();
     };
 
     // Resolve viewer scope and (re)subscribe. Idempotent — calling twice in a
@@ -234,6 +244,62 @@ export function WhatsAppNotificationsProvider({ children }: { children: React.Re
         allowedInstanceIdsRef.current = 'all';
       }
 
+      // ── Load active sync jobs (seed the suppression set) ─────────────
+      // Historical messages inserted during Phase 7 would otherwise flood the
+      // user with notifications. Instances with an in-progress sync job are
+      // excluded until the job reaches a terminal state.
+      try {
+        const { data: activeJobs } = await db
+          .from('whatsapp_sync_jobs')
+          .select('instance_id, status')
+          .eq('business_id', businessId)
+          .in('status', ['pending', 'running', 'paused']);
+        if (unmounted || epoch !== setupEpochRef.current) { log('stale 4', epoch); return; }
+        const set = new Set<string>();
+        for (const j of (activeJobs || []) as Array<{ instance_id: string }>) {
+          if (j.instance_id) set.add(j.instance_id);
+        }
+        syncingInstancesRef.current = set;
+        log('syncing instances seeded', Array.from(set));
+      } catch (e) {
+        log('failed to seed syncing instances', e);
+      }
+
+      // ── Subscribe to sync job updates ─────────────────────────────────
+      // Add/remove instances from the suppression set as jobs start/finish.
+      try {
+        const syncJobsChannelName = `wa-notif-sync-${userId}-${businessId}`;
+        const syncJobsChannel = supabase
+          .channel(syncJobsChannelName)
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'whatsapp_sync_jobs',
+              filter: `business_id=eq.${businessId}`,
+            },
+            (payload: { new?: { instance_id?: string; status?: string }; old?: { instance_id?: string } }) => {
+              const row = payload.new || payload.old || {};
+              const instId = row.instance_id;
+              if (!instId) return;
+              const status = payload.new?.status;
+              if (status === 'running' || status === 'pending' || status === 'paused') {
+                syncingInstancesRef.current.add(instId);
+                log('syncing instance added', instId, status);
+              } else {
+                // completed / failed / cancelled / DELETE
+                syncingInstancesRef.current.delete(instId);
+                log('syncing instance removed', instId, status || 'delete');
+              }
+            },
+          )
+          .subscribe();
+        syncJobsChannelRef.current = syncJobsChannel;
+      } catch (e) {
+        log('failed to subscribe sync jobs', e);
+      }
+
       // Use a stable channel name per (user, business) so we don't pile up
       // ghost channels on the server when this runs multiple times.
       const channelName = `wa-notif-${userId}-${businessId}`;
@@ -266,6 +332,23 @@ export function WhatsAppNotificationsProvider({ children }: { children: React.Re
             const allowed = allowedInstanceIdsRef.current;
             if (allowed && allowed !== 'all' && !allowed.has(row.instance_id)) {
               log('skip not-allowed instance', row.instance_id);
+              return;
+            }
+
+            // Suppress notifications for instances that are currently syncing.
+            // Phase 7 bulk-inserts historical messages which would otherwise
+            // flood the UI with toasts for messages from days ago.
+            if (syncingInstancesRef.current.has(row.instance_id)) {
+              log('skip syncing instance', row.instance_id);
+              return;
+            }
+
+            // Safety net: skip messages older than 60 seconds. Real incoming
+            // messages arrive within seconds of creation; anything older is
+            // almost certainly a backfill/sync artifact.
+            const createdAtMs = row.created_at ? new Date(row.created_at).getTime() : 0;
+            if (createdAtMs && Date.now() - createdAtMs > 60_000) {
+              log('skip old message', row.message_id, 'age_s', Math.round((Date.now() - createdAtMs) / 1000));
               return;
             }
 

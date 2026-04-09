@@ -6,6 +6,7 @@ import {
     Megaphone,
     CreditCard,
     MessageSquare,
+    ShoppingCart,
     LogOut,
     PanelLeftClose,
     User as UserIcon,
@@ -28,6 +29,7 @@ const navigation: NavItem[] = [
     { icon: Home, label: 'Dashboard', path: '/mediabuyer/dashboard' },
     { icon: BarChart2, label: 'Statistics', path: '/mediabuyer/statistics' },
     { icon: Megaphone, label: 'Campaigns', path: '/mediabuyer/campaigns' },
+    { icon: ShoppingCart, label: 'Orders', path: '/mediabuyer/orders' },
     { icon: CreditCard, label: 'Payments', path: '/mediabuyer/payments' },
     { icon: MessageSquare, label: 'Demands', path: '/mediabuyer/demands' },
 ];

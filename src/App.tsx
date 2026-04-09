@@ -50,6 +50,7 @@ import MediaBuyerCampaignPreview from "./pages/mediabuyer/CampaignPreview";
 import MediaBuyerCampaignManage from "./pages/mediabuyer/CampaignManage";
 import MediaBuyerPayments from "./pages/mediabuyer/Payments";
 import MediaBuyerDemands from "./pages/mediabuyer/Demands";
+import MediaBuyerOrders from "./pages/mediabuyer/Orders";
 import Calculator from "./pages/Calculator";
 import Devis from "./pages/tools/Devis";
 import Facture from "./pages/tools/Facture";
@@ -206,6 +207,7 @@ const App = () => (
                   <Route path="campaigns/:id" element={<MediaBuyerCampaignPreview />} />
                   <Route path="campaigns/:id/edit" element={<MediaBuyerCampaignForm />} />
                   <Route path="campaigns/:id/manage" element={<MediaBuyerCampaignManage />} />
+                  <Route path="orders" element={<MediaBuyerOrders />} />
                   <Route path="payments" element={<MediaBuyerPayments />} />
                   <Route path="demands" element={<MediaBuyerDemands />} />
                   <Route path="" element={<Navigate to="dashboard" replace />} />
