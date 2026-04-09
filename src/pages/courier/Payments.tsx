@@ -3,13 +3,15 @@ import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase';
+import { downloadCourierPayoutPdf } from '@/lib/courierPayoutPdf';
+import { useToast } from '@/hooks/use-toast';
 import {
     Wallet,
     TrendingUp,
     Package,
     CheckCircle2,
     Eye,
-    Printer,
+    Download,
     Search,
     SearchX,
     Loader2,
@@ -127,153 +129,69 @@ const CourierPayments = () => {
         );
     }, [notes, searchQuery]);
 
-    // ─── Premium print template (courier-oriented) ───
+    // ─── Download premium PDF payout (same page, no popup, no print dialog) ───
+    // Uses @react-pdf/renderer to build a real PDF blob client-side and
+    // triggers a direct download. Works identically on iOS Safari, Chrome
+    // Android, and desktop — the user stays on this page and the file
+    // lands in their Downloads / Files app.
+    const { toast } = useToast();
+    const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
     const handlePrint = async (note: PaymentNote) => {
-        const w = window.open('', '_blank');
-        if (!w) return;
-        w.document.write(
-            '<!doctype html><html><head><title>' +
-                note.reference +
-                '</title></head><body style="font-family:system-ui;padding:40px;color:#3b5e5e">Loading…</body></html>'
-        );
-        w.document.close();
-
-        let businessName = 'DigiCom';
-        let businessLogo: string | null = null;
-        if (businessId) {
-            const { data } = await (supabase as any).from('businesses').select('name, logo').eq('id', businessId).single();
-            if (data) {
-                businessName = data.name || businessName;
-                businessLogo = data.logo || null;
+        if (downloadingId) return;
+        setDownloadingId(note.id);
+        try {
+            // Resolve business name + logo if not already fetched
+            let businessName = 'DigiCom';
+            let businessLogo: string | null = null;
+            if (businessId) {
+                const { data } = await (supabase as any)
+                    .from('businesses')
+                    .select('name, logo')
+                    .eq('id', businessId)
+                    .single();
+                if (data) {
+                    businessName = data.name || businessName;
+                    businessLogo = data.logo || null;
+                }
             }
+
+            await downloadCourierPayoutPdf({
+                reference: note.reference,
+                status: note.status,
+                total_amount: Number(note.total_amount || 0),
+                total_shipping_fees: Number(note.total_shipping_fees || 0),
+                net_amount: Number(note.net_amount || 0),
+                order_count: note.order_count,
+                paid_at: note.paid_at,
+                created_at: note.created_at,
+                line_items: note.line_items.map((li) => ({
+                    id: li.id,
+                    tracking_code: li.tracking_code,
+                    amount: Number(li.amount || 0),
+                    shipping_fee: Number(li.shipping_fee || 0),
+                })),
+                business: { name: businessName, logo: businessLogo },
+                courier: {
+                    name: me?.name || 'Courier',
+                    avatar_url: me?.avatar_url || null,
+                },
+            });
+
+            toast({
+                title: 'PDF téléchargé',
+                description: `${note.reference}.pdf est dans vos téléchargements.`,
+            });
+        } catch (e: any) {
+            console.error('[courier-payments] PDF download failed', e);
+            toast({
+                title: 'Téléchargement impossible',
+                description: e?.message || 'Le PDF n\'a pas pu être généré.',
+                variant: 'destructive',
+            });
+        } finally {
+            setDownloadingId(null);
         }
-
-        const courierName = me?.name || 'Courier';
-        const courierAvatar = me?.avatar_url || null;
-        const createdAt = format(new Date(note.created_at), 'dd MMM yyyy • HH:mm');
-        const paidAt = note.paid_at ? format(new Date(note.paid_at), 'dd MMM yyyy • HH:mm') : '—';
-
-        const rows = note.line_items
-            .map(
-                (li, i) => `
-            <tr>
-                <td class="num">${String(i + 1).padStart(2, '0')}</td>
-                <td class="track">${li.tracking_code || '—'}</td>
-                <td class="right">${Number(li.amount).toFixed(2)}</td>
-                <td class="right green bold">+${Number(li.shipping_fee).toFixed(2)}</td>
-                <td class="right">${(Number(li.amount) - Number(li.shipping_fee)).toFixed(2)}</td>
-            </tr>`
-            )
-            .join('');
-
-        const html = `<!doctype html><html><head><meta charset="utf-8"/><title>${note.reference}</title>
-<style>
-  @page { size: A4; margin: 0; }
-  * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-  html, body { margin: 0; padding: 0; background: #fff; color: #3b5e5e; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; font-feature-settings: "ss01","cv11"; }
-  .sheet { padding: 22mm 18mm; min-height: 297mm; display: flex; flex-direction: column; }
-  .hdr { display: flex; align-items: flex-start; justify-content: space-between; padding-bottom: 28px; border-bottom: 1px solid #eef1ee; }
-  .brand { display: flex; align-items: center; gap: 16px; }
-  .brand .logo { width: 56px; height: 56px; border-radius: 16px; background: #f6f7f3; border: 1px solid #eef1ee; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-  .brand .logo img { max-width: 100%; max-height: 100%; object-fit: contain; }
-  .brand .logo.fallback { background: #3b5e5e; color: #daddcc; font-weight: 900; font-size: 18px; letter-spacing: 0.5px; }
-  .brand .name { font-size: 18px; font-weight: 800; color: #3b5e5e; letter-spacing: -0.3px; line-height: 1; }
-  .brand .sub { font-size: 9px; font-weight: 700; color: #9aa6a0; text-transform: uppercase; letter-spacing: 2.5px; margin-top: 6px; }
-  .meta { text-align: right; }
-  .meta .kicker { font-size: 9px; font-weight: 800; color: #059669; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 6px; }
-  .meta h1 { margin: 0; font-size: 26px; font-weight: 900; color: #3b5e5e; font-family: "SF Mono", Menlo, monospace; letter-spacing: -0.5px; }
-  .meta .date { font-size: 11px; color: #9aa6a0; margin-top: 6px; font-weight: 500; }
-  .courier { margin-top: 32px; display: flex; align-items: center; gap: 18px; padding: 20px 22px; background: #f9faf7; border: 1px solid #eef1ee; border-radius: 20px; }
-  .courier .ava { width: 60px; height: 60px; border-radius: 18px; overflow: hidden; background: #fff; border: 1px solid #eef1ee; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
-  .courier .ava img { width: 100%; height: 100%; object-fit: cover; }
-  .courier .ava.fallback { background: #3b5e5e; color: #daddcc; font-weight: 900; font-size: 18px; }
-  .courier .info .label { font-size: 9px; font-weight: 800; color: #9aa6a0; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 4px; }
-  .courier .info .val { font-size: 20px; font-weight: 800; color: #3b5e5e; letter-spacing: -0.3px; }
-  .courier .badge { margin-left: auto; padding: 8px 16px; border-radius: 999px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; background: #d1fae5; color: #065f46; }
-  .hero { margin-top: 22px; padding: 32px 28px; background: linear-gradient(135deg, #3b5e5e 0%, #2d4747 100%); color: #fff; border-radius: 24px; position: relative; overflow: hidden; }
-  .hero::before { content: ''; position: absolute; top: 0; right: 0; width: 240px; height: 240px; background: radial-gradient(circle, rgba(167,243,208,0.18) 0%, transparent 70%); }
-  .hero .lbl { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 3px; color: rgba(167,243,208,0.8); margin-bottom: 10px; position: relative; }
-  .hero .val { font-size: 48px; font-weight: 900; color: #a7f3d0; letter-spacing: -1.5px; font-variant-numeric: tabular-nums; line-height: 1; position: relative; }
-  .hero .val span { font-size: 20px; font-weight: 700; color: rgba(167,243,208,0.6); margin-left: 8px; }
-  .hero .sub { margin-top: 12px; font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.55); position: relative; }
-  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 18px; }
-  .stat { padding: 18px 20px; background: #fff; border: 1px solid #eef1ee; border-radius: 18px; }
-  .stat .k { font-size: 9px; font-weight: 800; color: #9aa6a0; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 6px; }
-  .stat .v { font-size: 18px; font-weight: 900; color: #3b5e5e; font-variant-numeric: tabular-nums; }
-  .stat .v.ghost { color: #9aa6a0; }
-  table { width: 100%; border-collapse: collapse; margin-top: 28px; font-variant-numeric: tabular-nums; }
-  thead th { text-align: left; padding: 12px 14px; font-size: 9px; font-weight: 800; color: #9aa6a0; text-transform: uppercase; letter-spacing: 1.5px; border-bottom: 1px solid #eef1ee; }
-  thead th.right { text-align: right; }
-  tbody td { padding: 14px; font-size: 12px; border-bottom: 1px solid #f4f6f2; color: #3b5e5e; }
-  tbody tr:last-child td { border-bottom: none; }
-  td.num { font-family: "SF Mono", Menlo, monospace; font-size: 10px; color: #9aa6a0; font-weight: 700; width: 40px; }
-  td.track { font-family: "SF Mono", Menlo, monospace; font-size: 11px; font-weight: 700; letter-spacing: -0.3px; }
-  td.right { text-align: right; }
-  td.green { color: #059669; }
-  td.bold { font-weight: 800; }
-  .foot { margin-top: auto; padding-top: 24px; border-top: 1px solid #eef1ee; display: flex; justify-content: space-between; font-size: 9px; color: #9aa6a0; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; }
-</style></head><body>
-<div class="sheet">
-  <div class="hdr">
-    <div class="brand">
-      ${
-          businessLogo
-              ? `<div class="logo"><img src="${businessLogo}" alt=""/></div>`
-              : `<div class="logo fallback">${businessName.substring(0, 2).toUpperCase()}</div>`
-      }
-      <div>
-        <div class="name">${businessName}</div>
-        <div class="sub">Courier Payout</div>
-      </div>
-    </div>
-    <div class="meta">
-      <div class="kicker">Settled</div>
-      <h1>${note.reference}</h1>
-      <div class="date">${paidAt}</div>
-    </div>
-  </div>
-
-  <div class="courier">
-    ${
-        courierAvatar
-            ? `<div class="ava"><img src="${courierAvatar}" alt=""/></div>`
-            : `<div class="ava fallback">${courierName.substring(0, 2).toUpperCase()}</div>`
-    }
-    <div class="info">
-      <div class="label">Beneficiary</div>
-      <div class="val">${courierName}</div>
-    </div>
-    <span class="badge">Paid</span>
-  </div>
-
-  <div class="hero">
-    <div class="lbl">Your Earnings</div>
-    <div class="val">${fmtMAD(note.total_shipping_fees)}<span>MAD</span></div>
-    <div class="sub">Delivery fees for ${note.order_count} successfully delivered parcel${note.order_count !== 1 ? 's' : ''}</div>
-  </div>
-
-  <div class="stats">
-    <div class="stat"><div class="k">Delivered</div><div class="v">${note.order_count}</div></div>
-    <div class="stat"><div class="k">Gross Collected</div><div class="v ghost">${fmtMAD(note.total_amount)} MAD</div></div>
-    <div class="stat"><div class="k">Settled to Business</div><div class="v ghost">${fmtMAD(note.net_amount)} MAD</div></div>
-  </div>
-
-  <table>
-    <thead><tr><th>#</th><th>Tracking</th><th class="right">Order</th><th class="right">Your Fee</th><th class="right">To Business</th></tr></thead>
-    <tbody>${rows}</tbody>
-  </table>
-
-  <div class="foot">
-    <span>${businessName} • Payout Statement</span>
-    <span>Generated ${createdAt}</span>
-  </div>
-</div>
-<script>window.onload=function(){setTimeout(function(){window.print();},120);};</script>
-</body></html>`;
-
-        w.document.open();
-        w.document.write(html);
-        w.document.close();
     };
 
     return (
@@ -405,6 +323,7 @@ const CourierPayments = () => {
                             note={note}
                             onOpen={() => setSelectedNote(note)}
                             onPrint={() => handlePrint(note)}
+                            isDownloading={downloadingId === note.id}
                         />
                     ))}
                 </div>
@@ -415,6 +334,7 @@ const CourierPayments = () => {
                 note={selectedNote}
                 onClose={() => setSelectedNote(null)}
                 onPrint={() => selectedNote && handlePrint(selectedNote)}
+                isDownloading={!!selectedNote && downloadingId === selectedNote.id}
             />
         </div>
     );
@@ -429,10 +349,12 @@ function PayoutCard({
     note,
     onOpen,
     onPrint,
+    isDownloading,
 }: {
     note: PaymentNote;
     onOpen: () => void;
     onPrint: () => void;
+    isDownloading: boolean;
 }) {
     const dateStr = note.paid_at
         ? format(new Date(note.paid_at), 'dd MMM yyyy')
@@ -502,14 +424,24 @@ function PayoutCard({
                 </Button>
                 <Button
                     size="sm"
+                    disabled={isDownloading}
                     onClick={(e) => {
                         e.stopPropagation();
                         onPrint();
                     }}
-                    className="h-11 rounded-xl font-bold text-xs bg-brand-navy hover:bg-brand-navy/90 text-white"
+                    className="h-11 rounded-xl font-bold text-xs bg-brand-navy hover:bg-brand-navy/90 text-white disabled:opacity-60"
                 >
-                    <Printer className="w-3.5 h-3.5 mr-1.5" />
-                    Print
+                    {isDownloading ? (
+                        <>
+                            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                            Génération…
+                        </>
+                    ) : (
+                        <>
+                            <Download className="w-3.5 h-3.5 mr-1.5" />
+                            PDF
+                        </>
+                    )}
                 </Button>
             </div>
         </div>
@@ -523,10 +455,12 @@ function PayoutDetailSheet({
     note,
     onClose,
     onPrint,
+    isDownloading,
 }: {
     note: PaymentNote | null;
     onClose: () => void;
     onPrint: () => void;
+    isDownloading: boolean;
 }) {
     return (
         <Dialog open={!!note} onOpenChange={(v) => !v && onClose()}>
@@ -717,10 +651,20 @@ function PayoutDetailSheet({
                             </Button>
                             <Button
                                 onClick={onPrint}
-                                className="flex-1 h-12 rounded-2xl font-bold bg-brand-navy hover:bg-brand-navy/90 text-white shadow-xl shadow-brand-navy/20"
+                                disabled={isDownloading}
+                                className="flex-1 h-12 rounded-2xl font-bold bg-brand-navy hover:bg-brand-navy/90 text-white shadow-xl shadow-brand-navy/20 disabled:opacity-60"
                             >
-                                <Printer className="w-4 h-4 mr-2" />
-                                Print Payout
+                                {isDownloading ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                        Génération du PDF…
+                                    </>
+                                ) : (
+                                    <>
+                                        <Download className="w-4 h-4 mr-2" />
+                                        Télécharger le PDF
+                                    </>
+                                )}
                             </Button>
                         </div>
                     </div>

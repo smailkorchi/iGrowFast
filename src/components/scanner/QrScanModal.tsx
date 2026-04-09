@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     BrowserQRCodeReader,
     type IScannerControls,
@@ -37,7 +37,17 @@ type QrScanModalProps = {
 };
 
 export default function QrScanModal({ open, onClose, onDecoded }: QrScanModalProps) {
-    const videoRef = useRef<HTMLVideoElement | null>(null);
+    // Callback ref — runs the moment the <video> element mounts / unmounts
+    // inside Radix's portal. We use a state-backed ref so the start effect
+    // can wait for BOTH `open === true` AND the video element to actually
+    // exist in the DOM before asking getUserMedia; without this, zxing
+    // creates a detached video element and the preview stays black even
+    // though frames are decoding.
+    const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
+    const setVideoRef = useCallback((el: HTMLVideoElement | null) => {
+        setVideoEl(el);
+    }, []);
+
     const controlsRef = useRef<IScannerControls | null>(null);
     const readerRef = useRef<BrowserQRCodeReader | null>(null);
     const hasDecodedRef = useRef<boolean>(false);
@@ -48,20 +58,27 @@ export default function QrScanModal({ open, onClose, onDecoded }: QrScanModalPro
     const [torchOn, setTorchOn] = useState<boolean>(false);
     const [lastRejected, setLastRejected] = useState<string>('');
 
-    // ── Start the camera whenever the modal opens ───────────────────────────
+    // Reset state on open changes
     useEffect(() => {
-        if (!open) return;
+        if (open) {
+            hasDecodedRef.current = false;
+            setStatus('starting');
+            setErrorMsg('');
+            setLastRejected('');
+            setTorchSupported(false);
+            setTorchOn(false);
+        } else {
+            setStatus('idle');
+        }
+    }, [open]);
 
-        // Reset state on open
-        hasDecodedRef.current = false;
-        setStatus('starting');
-        setErrorMsg('');
-        setLastRejected('');
-        setTorchSupported(false);
-        setTorchOn(false);
+    // ── Start the camera when both the modal is open AND the <video> is mounted ──
+    useEffect(() => {
+        if (!open || !videoEl) return;
 
         const reader = new BrowserQRCodeReader();
         readerRef.current = reader;
+        let cancelled = false;
 
         (async () => {
             try {
@@ -77,7 +94,7 @@ export default function QrScanModal({ open, onClose, onDecoded }: QrScanModalPro
 
                 const controls = await reader.decodeFromConstraints(
                     constraints,
-                    videoRef.current || undefined,
+                    videoEl,
                     (result, err) => {
                         if (hasDecodedRef.current) return;
 
@@ -101,20 +118,41 @@ export default function QrScanModal({ open, onClose, onDecoded }: QrScanModalPro
                             onDecoded(code);
                         }
 
-                        // `err` fires on every frame that fails to decode — that's normal.
-                        // Only surface real exceptions (not the expected NotFoundException stream).
-                        if (err && err.name && err.name !== 'NotFoundException' && err.name !== 'ChecksumException' && err.name !== 'FormatException') {
+                        // Silent-suppress the expected "no QR in this frame" stream.
+                        // These fire continuously at ~30fps while scanning and are
+                        // NOT errors — just the decoder signalling "nothing in this
+                        // frame, show me the next one". In dev mode Vite mangles
+                        // class names so we match by prefix (e.g. NotFoundException2).
+                        const expectedNames = /^(NotFoundException|ChecksumException|FormatException)\d*$/;
+                        if (err && err.name && !expectedNames.test(err.name)) {
                             console.warn('[qr-scan] decode error', err);
                         }
                     },
                 );
+
+                // The modal was closed or the effect re-ran before the stream
+                // came back — kill it immediately so we don't leak the camera.
+                if (cancelled) {
+                    try { controls.stop(); } catch { /* ignore */ }
+                    return;
+                }
+
                 controlsRef.current = controls;
+
+                // Some browsers need an explicit play() after srcObject is set
+                // inside a portal, otherwise the stream is attached but the
+                // element never starts rendering frames.
+                try {
+                    await videoEl.play();
+                } catch (e) {
+                    console.warn('[qr-scan] video.play() failed (usually harmless)', e);
+                }
+
                 setStatus('scanning');
 
-                // Try to detect torch capability on the active track.
+                // Detect torch capability on the active track.
                 try {
-                    const videoEl = videoRef.current;
-                    const stream = (videoEl?.srcObject as MediaStream | null) || null;
+                    const stream = (videoEl.srcObject as MediaStream | null) || null;
                     const track = stream?.getVideoTracks()?.[0] || null;
                     const caps = (track?.getCapabilities?.() || {}) as any;
                     if (caps.torch) setTorchSupported(true);
@@ -139,8 +177,9 @@ export default function QrScanModal({ open, onClose, onDecoded }: QrScanModalPro
             }
         })();
 
-        // Cleanup on close / unmount
+        // Cleanup on close / unmount / dep change
         return () => {
+            cancelled = true;
             try {
                 controlsRef.current?.stop();
             } catch {
@@ -149,21 +188,19 @@ export default function QrScanModal({ open, onClose, onDecoded }: QrScanModalPro
             controlsRef.current = null;
             readerRef.current = null;
             hasDecodedRef.current = false;
-            const videoEl = videoRef.current;
-            const stream = videoEl?.srcObject as MediaStream | null;
+            const stream = (videoEl?.srcObject as MediaStream | null) || null;
             if (stream) {
                 try {
                     stream.getTracks().forEach((t) => t.stop());
                 } catch {
                     // ignore
                 }
-                videoEl.srcObject = null;
+                if (videoEl) videoEl.srcObject = null;
             }
         };
-    }, [open, onDecoded]);
+    }, [open, videoEl, onDecoded]);
 
     const toggleTorch = async () => {
-        const videoEl = videoRef.current;
         const stream = (videoEl?.srcObject as MediaStream | null) || null;
         const track = stream?.getVideoTracks()?.[0] || null;
         if (!track) return;
@@ -199,7 +236,7 @@ export default function QrScanModal({ open, onClose, onDecoded }: QrScanModalPro
                 {/* Video stage */}
                 <div className="relative flex-1 bg-black">
                     <video
-                        ref={videoRef}
+                        ref={setVideoRef}
                         className="absolute inset-0 w-full h-full object-cover"
                         playsInline
                         muted
