@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { Loader2, Truck, SearchX, Hash, Phone, MapPin, CalendarClock, Info } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     Dialog,
     DialogContent,
@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
 import { trackParcelWithFallback } from '@/lib/orders/syncOrderTracking';
+import { DynamicIcon } from '@/lib/renderReactIcon';
 
 type ParcelTrackingDialogProps = {
     open: boolean;
@@ -26,12 +27,34 @@ type DataListItem = {
     open_url?: string;
 };
 
+type PkgStatus = {
+    id: string;
+    code: string;
+    label: string;
+    color: string | null;
+    icon: string | null;
+    delivery_service_statuses: string[] | null;
+};
+
 export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrackingDialogProps) {
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const [trackingCode, setTrackingCode] = useState<string | null>(null);
     const [trackingHistory, setTrackingHistory] = useState<unknown>(null);
     const [isLoading, setIsLoading] = useState(false);
+
+    // Load all package_statuses for icon/color matching
+    const { data: pkgStatuses } = useQuery({
+        queryKey: ['package-statuses-icons'],
+        queryFn: async () => {
+            const { data } = await supabase
+                .from('package_statuses')
+                .select('id, code, label, color, icon, delivery_service_statuses')
+                .eq('active', true);
+            return (data || []) as unknown as PkgStatus[];
+        },
+        staleTime: 5 * 60 * 1000,
+    });
 
     useEffect(() => {
         if (!open || !orderId) {
@@ -49,7 +72,6 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
             setTrackingCode(null);
 
             try {
-                // 1) Try the company parcel for this order first.
                 const { data: parcel, error } = await supabase
                     .from('company_parcels')
                     .select('id, tracking_code, external_id, provider_id, provider:providers(id, name, logo_url)')
@@ -61,7 +83,6 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
                 if (cancelled) return;
                 if (error) throw error;
 
-                // 2) If no usable company parcel, fall back to the courier parcel.
                 if (!parcel?.tracking_code || !String(parcel.tracking_code).trim() || !parcel.provider_id) {
                     const { data: courierParcel, error: courierErr } = await (supabase as any)
                         .from('courier_parcels')
@@ -74,36 +95,27 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
                     if (courierErr) throw courierErr;
 
                     if (!courierParcel?.tracking_code || !String(courierParcel.tracking_code).trim()) {
-                        toast({
-                            title: 'Pas de suivi',
-                            description: 'Aucun colis avec code de suivi pour cette commande.',
-                            variant: 'destructive',
-                        });
+                        toast({ title: 'Pas de suivi', description: 'Aucun colis avec code de suivi pour cette commande.', variant: 'destructive' });
                         onOpenChange(false);
                         return;
                     }
 
                     setTrackingCode(String(courierParcel.tracking_code).trim());
-
-                    // Synthesize a single internal-history entry from the courier parcel row.
                     const courierName = courierParcel.courier?.name || 'Coursier';
                     const courierPhone = courierParcel.courier?.phone || '';
                     setTrackingHistory({
                         statusLabel: courierParcel.status_label || 'Nouveau',
                         statusColor: courierParcel.status_color || '#3b82f6',
-                        history: [
-                            {
-                                status: courierParcel.status_label || 'Nouveau',
-                                statusLabel: courierParcel.status_label || 'Nouveau',
-                                date: courierParcel.created_at || null,
-                                comment: 'Colis créé en interne et confié à ' + courierName,
-                                color: courierParcel.status_color || '#3b82f6',
-                                user: courierName,
-                                phone: courierPhone,
-                            },
-                        ],
+                        history: [{
+                            status: courierParcel.status_label || 'Nouveau',
+                            statusLabel: courierParcel.status_label || 'Nouveau',
+                            date: courierParcel.created_at || null,
+                            comment: 'Colis créé en interne et confié à ' + courierName,
+                            color: courierParcel.status_color || '#3b82f6',
+                            user: courierName,
+                            phone: courierPhone,
+                        }],
                     });
-
                     queryClient.invalidateQueries({ queryKey: ['orders'] });
                     return;
                 }
@@ -118,7 +130,6 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
                 });
 
                 if (cancelled) return;
-
                 setTrackingHistory(data);
 
                 const providerStatus = (data.statusLabel || data.status || data.current_status) as string | undefined;
@@ -140,15 +151,10 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
                         })
                         .eq('id', parcel.id);
                 }
-
                 queryClient.invalidateQueries({ queryKey: ['orders'] });
             } catch (e: unknown) {
                 if (!cancelled) {
-                    toast({
-                        title: 'Tracking Error',
-                        description: e instanceof Error ? e.message : 'Échec du suivi',
-                        variant: 'destructive',
-                    });
+                    toast({ title: 'Tracking Error', description: e instanceof Error ? e.message : 'Échec du suivi', variant: 'destructive' });
                     onOpenChange(false);
                 }
             } finally {
@@ -157,38 +163,42 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
         };
 
         run();
-        return () => {
-            cancelled = true;
-        };
-    }, [open, orderId]); // eslint-disable-line react-hooks/exhaustive-deps -- toast/queryClient/onOpenChange
+        return () => { cancelled = true; };
+    }, [open, orderId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const statusMap: Record<string, string> = {
-        NEW_PARCEL: 'Nouveau',
-        WAITING_PICKUP: 'En attente de ramassage',
-        DISTRIBUTION: 'En cours de distribution',
-        DELIVERED: 'Livré',
-        REFUSED: 'Refusé',
-        REFUSE: 'Refusé',
-        ANNULE: 'Annulé',
-        CANCELLED: 'Annulé',
-        RETURNED: 'Retourné',
-        RETOUR: 'Retourné',
-        POSTPONED: 'Reporté',
-        WAITING_PREPARATION: 'En préparation',
-        PICKED_UP: 'Ramassé',
-        READY_FOR_PICKUP: 'Prêt pour ramassage',
-        SENT: 'Expédié',
-        RECEIVED: 'Reçu',
-        SCHEDULED: 'Programmé',
-        PROGRAMMER: 'Programmé',
-        NO_ANSWER: 'Pas de réponse',
-        RELAUNCH: 'Relancer',
+        NEW_PARCEL: 'Nouveau', WAITING_PICKUP: 'En attente de ramassage', DISTRIBUTION: 'En cours de distribution',
+        DELIVERED: 'Livré', REFUSED: 'Refusé', REFUSE: 'Refusé', ANNULE: 'Annulé', CANCELLED: 'Annulé',
+        RETURNED: 'Retourné', RETOUR: 'Retourné', POSTPONED: 'Reporté', WAITING_PREPARATION: 'En préparation',
+        PICKED_UP: 'Ramassé', READY_FOR_PICKUP: 'Prêt pour ramassage', SENT: 'Expédié', RECEIVED: 'Reçu',
+        SCHEDULED: 'Programmé', PROGRAMMER: 'Programmé', NO_ANSWER: 'Pas de réponse', RELAUNCH: 'Relancer',
     };
 
     const situationMap: Record<string, { label: string; className: string }> = {
         PAID: { label: 'Payé', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
         NOT_PAID: { label: 'Non payé', className: 'bg-amber-50 text-amber-700 border-amber-200' },
         INVOICED: { label: 'Facturé', className: 'bg-blue-50 text-blue-700 border-blue-200' },
+    };
+
+    /** Match an event's raw status string to a package_statuses row for icon/color */
+    const matchPkgStatus = (rawStatus: string, statusLabel?: string): PkgStatus | null => {
+        if (!pkgStatuses?.length) return null;
+        const candidates = [statusLabel, rawStatus].filter(Boolean) as string[];
+        for (const candidate of candidates) {
+            const lower = candidate.toLowerCase();
+            // Match by delivery_service_statuses array
+            const byDss = pkgStatuses.find(ps =>
+                ps.delivery_service_statuses?.some(dss => dss.toLowerCase() === lower)
+            );
+            if (byDss) return byDss;
+            // Match by label
+            const byLabel = pkgStatuses.find(ps => ps.label.toLowerCase() === lower);
+            if (byLabel) return byLabel;
+            // Match by code
+            const byCode = pkgStatuses.find(ps => ps.code.toLowerCase() === lower);
+            if (byCode) return byCode;
+        }
+        return null;
     };
 
     return (
@@ -202,8 +212,7 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
                         Suivi du colis
                     </DialogTitle>
                     <DialogDescription className="font-bold text-muted-foreground">
-                        Code:{' '}
-                        <span className="text-brand-navy">{trackingCode || '—'}</span>
+                        Code: <span className="text-brand-navy">{trackingCode || '—'}</span>
                     </DialogDescription>
                 </DialogHeader>
 
@@ -214,182 +223,181 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
                             <p className="font-bold text-muted-foreground animate-pulse">Récupération des données...</p>
                         </div>
                     ) : trackingHistory ? (
-                        <div className="space-y-6 relative before:absolute before:left-[17px] before:top-2 before:bottom-2 before:w-0.5 before:bg-brand-navy/5">
+                        <div className="relative">
                             {(() => {
                                 const th = trackingHistory as Record<string, unknown> | unknown[] | null;
-                                const events: unknown[] = Array.isArray(th)
+                                let events: unknown[] = Array.isArray(th)
                                     ? th
                                     : Array.isArray((th as Record<string, unknown>)?.history)
                                       ? ((th as Record<string, unknown>).history as unknown[])
                                       : [];
                                 if (events.length === 0 && th && !Array.isArray(th)) {
                                     const o = th as Record<string, unknown>;
-                                    return [
-                                        {
-                                            status: o.statusLabel || o.status || 'Nouveau',
-                                            date: null,
-                                            comment: 'Aucun historique détaillé disponible',
-                                            statusLabel: o.statusLabel,
-                                        },
-                                    ];
+                                    events = [{
+                                        status: o.statusLabel || o.status || 'Nouveau',
+                                        date: null,
+                                        comment: '',
+                                        statusLabel: o.statusLabel,
+                                        color: o.statusColor || o.color,
+                                    }];
                                 }
-                                return events;
-                            })().map((raw: unknown, idx: number) => {
-                                const event = raw as Record<string, unknown>;
-                                const rawStatus = (event.status as string) || 'Nouveau';
-                                const statusLabel = event.statusLabel as string | undefined;
-                                const status = statusLabel || statusMap[rawStatus] || rawStatus;
-                                const date = event.date as string | undefined;
-                                const comment = (event.comment as string) || '';
-                                const u = event.user;
-                                const user =
-                                    (typeof u === 'object' && u !== null && 'name' in u
-                                        ? (u as { name?: string }).name
-                                        : (u as string | undefined)) || '';
-                                const phone = (event.phone as string) || '';
-                                const hub = (event.hub as string) || '';
-                                const city = (event.city as string) || '';
-                                const zone = (event.zone as string) || '';
-                                const situation = (event.situation as string) || '';
-                                const scheduledDate = event.scheduledDate as string | undefined;
-                                const statusColor = (event.color as string) || '';
-                                const dataList = (event.data_list as DataListItem[]) || [];
-                                const eventType = (event.type as string) || '';
-                                const eventFor = (event.eventFor as string) || '';
 
-                                // Determine location string
-                                const locationParts = [hub, city].filter(Boolean);
-                                const location = locationParts.length > 0 ? locationParts.join(' — ') : '';
-
-                                // Filter data_list: remove items already shown elsewhere
-                                const meaningfulDataList = dataList.filter(item => {
-                                    if (!item || !item.title) return false;
-                                    // Skip if it's a distribution count
-                                    if (item.title === 'Nombre de distributions') return false;
-                                    return true;
-                                });
-
-                                // Check if this is a phone-only event (livreur call action)
-                                const isPhoneAction = eventFor === 'NEW_APP_PHONE_ACTIONS_CALL_RECEIVER_LIVREUR';
-
-                                const sitInfo = situation ? situationMap[situation] : null;
+                                // Reverse: oldest first (top) → newest last (bottom)
+                                const sorted = [...events].reverse();
 
                                 return (
-                                    <div key={idx} className="relative pl-12 group">
-                                        {/* Timeline dot */}
-                                        <div
-                                            className={`absolute left-0 top-1 w-9 h-9 rounded-full border-4 border-white shadow-sm flex items-center justify-center transition-all group-hover:scale-110 z-10 ${
-                                                idx === 0
-                                                    ? 'text-white shadow-brand-navy/20'
-                                                    : 'bg-slate-50 text-brand-navy/40'
-                                            }`}
-                                            style={idx === 0 && statusColor
-                                                ? { backgroundColor: statusColor }
-                                                : idx === 0
-                                                    ? { backgroundColor: 'var(--brand-navy, #1e293b)' }
-                                                    : undefined
-                                            }
-                                        >
-                                            <div className="w-2 h-2 rounded-full bg-current" />
-                                        </div>
+                                    <div className="relative pl-10">
+                                        {/* Vertical line */}
+                                        <div className="absolute left-[15px] top-4 bottom-4 w-0.5 bg-gradient-to-b from-slate-200 via-slate-200 to-brand-navy/30" />
 
-                                        <div className="space-y-1.5">
-                                            {/* Status + date row */}
-                                            <div className="flex items-center justify-between gap-2">
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    <span
-                                                        className={`text-sm font-black tracking-tight ${
-                                                            idx === 0 ? 'text-brand-navy' : 'text-muted-foreground'
-                                                        }`}
-                                                    >
-                                                        {status}
-                                                    </span>
-                                                    {sitInfo && (
-                                                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border ${sitInfo.className}`}>
-                                                            {sitInfo.label}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <span className="text-[10px] font-bold text-muted-foreground opacity-60 shrink-0">
-                                                    {date ? format(new Date(date), 'dd/MM/yyyy HH:mm') : ''}
-                                                </span>
-                                            </div>
+                                        <div className="space-y-0">
+                                            {sorted.map((raw: unknown, idx: number) => {
+                                                const event = raw as Record<string, unknown>;
+                                                const rawStatus = (event.status as string) || 'Nouveau';
+                                                const statusLabel = event.statusLabel as string | undefined;
+                                                const status = statusLabel || statusMap[rawStatus] || rawStatus;
+                                                const date = event.date as string | undefined;
+                                                const comment = (event.comment as string) || '';
+                                                const u = event.user;
+                                                const user = (typeof u === 'object' && u !== null && 'name' in u ? (u as { name?: string }).name : (u as string | undefined)) || '';
+                                                const phone = (event.phone as string) || '';
+                                                const hub = (event.hub as string) || '';
+                                                const city = (event.city as string) || '';
+                                                const situation = (event.situation as string) || '';
+                                                const scheduledDate = event.scheduledDate as string | undefined;
+                                                const eventColor = (event.color as string) || '';
+                                                const dataList = (event.data_list as DataListItem[]) || [];
 
-                                            {/* Location (hub / city) */}
-                                            {location && (
-                                                <div className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground/70">
-                                                    <MapPin className="w-3 h-3 shrink-0" />
-                                                    <span>{location}</span>
-                                                </div>
-                                            )}
+                                                const location = [hub, city].filter(Boolean).join(' — ');
+                                                const meaningfulDataList = dataList.filter(item => item?.title && item.title !== 'Nombre de distributions');
+                                                const sitInfo = situation ? situationMap[situation] : null;
 
-                                            {/* Comment */}
-                                            {comment && (
-                                                <p className="text-[11px] font-medium text-muted-foreground leading-relaxed italic">
-                                                    &quot;{comment}&quot;
-                                                </p>
-                                            )}
+                                                // Match to DB status for icon + color
+                                                const matched = matchPkgStatus(rawStatus, statusLabel);
+                                                const color = matched?.color || eventColor || '#94a3b8';
+                                                const iconName = matched?.icon;
+                                                const isLast = idx === sorted.length - 1;
 
-                                            {/* Courier info (name + phone) */}
-                                            {(user || phone) && (
-                                                <div className="flex items-center gap-3 flex-wrap">
-                                                    {user && (
-                                                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground">
-                                                            <div className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center">
-                                                                <Hash className="w-2 h-2" />
-                                                            </div>
-                                                            Par {user}
-                                                        </div>
-                                                    )}
-                                                    {phone && (
-                                                        <a
-                                                            href={`tel:${phone}`}
-                                                            className="flex items-center gap-1 text-[10px] font-bold text-brand-navy/70 hover:text-brand-navy transition-colors"
+                                                return (
+                                                    <div key={idx} className="relative pb-6 last:pb-0 group">
+                                                        {/* Timeline circle with icon */}
+                                                        <div
+                                                            className={`absolute -left-10 top-0 w-8 h-8 rounded-full border-[3px] border-white shadow-sm flex items-center justify-center z-10 transition-all group-hover:scale-110 ${
+                                                                isLast ? 'ring-2 ring-offset-2' : ''
+                                                            }`}
+                                                            style={{
+                                                                backgroundColor: isLast ? color : '#f8fafc',
+                                                                color: isLast ? '#ffffff' : color,
+                                                                ['--tw-ring-color' as any]: isLast ? `${color}40` : undefined,
+                                                            }}
                                                         >
-                                                            <Phone className="w-3 h-3" />
-                                                            {phone}
-                                                        </a>
-                                                    )}
-                                                </div>
-                                            )}
+                                                            {iconName ? (
+                                                                <DynamicIcon name={iconName} className="w-3.5 h-3.5" />
+                                                            ) : (
+                                                                <div
+                                                                    className="w-2 h-2 rounded-full"
+                                                                    style={{ backgroundColor: isLast ? '#ffffff' : color }}
+                                                                />
+                                                            )}
+                                                        </div>
 
-                                            {/* Scheduled date */}
-                                            {scheduledDate && (
-                                                <div className="flex items-center gap-1.5 text-[10px] font-semibold text-blue-600/70">
-                                                    <CalendarClock className="w-3 h-3 shrink-0" />
-                                                    <span>Programmé: {format(new Date(scheduledDate), 'dd/MM/yyyy')}</span>
-                                                </div>
-                                            )}
-
-                                            {/* Data list items (BL refs, CRBT, courier phones, dates) */}
-                                            {meaningfulDataList.length > 0 && (
-                                                <div className="mt-1 space-y-0.5">
-                                                    {meaningfulDataList.map((item, i) => {
-                                                        const isPhone = /^0[5-8]\d{8}$/.test(String(item.value));
-                                                        const isDate = /^\d{4}-\d{2}-\d{2}$/.test(String(item.value));
-
-                                                        return (
-                                                            <div key={i} className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground/80">
-                                                                <Info className="w-2.5 h-2.5 shrink-0 opacity-50" />
-                                                                <span className="font-semibold">{item.title}:</span>
-                                                                {isPhone ? (
-                                                                    <a href={`tel:${item.value}`} className="text-brand-navy/70 hover:text-brand-navy font-bold transition-colors">
-                                                                        {item.value}
-                                                                    </a>
-                                                                ) : isDate ? (
-                                                                    <span className="text-blue-600/70 font-semibold">{item.value}</span>
-                                                                ) : (
-                                                                    <span className="font-semibold">{item.value}</span>
+                                                        {/* Content */}
+                                                        <div className="space-y-1.5">
+                                                            {/* Status pill */}
+                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                                <span
+                                                                    className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg"
+                                                                    style={{ color, backgroundColor: `${color}15` }}
+                                                                >
+                                                                    {status}
+                                                                </span>
+                                                                {sitInfo && (
+                                                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border ${sitInfo.className}`}>
+                                                                        {sitInfo.label}
+                                                                    </span>
                                                                 )}
                                                             </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            )}
+
+                                                            {/* Date */}
+                                                            {date && (
+                                                                <p className="text-[10px] font-bold text-muted-foreground/50">
+                                                                    {format(new Date(date), 'dd/MM/yyyy HH:mm')}
+                                                                </p>
+                                                            )}
+
+                                                            {/* Comment */}
+                                                            {comment && (
+                                                                <p className="text-[11px] font-medium text-muted-foreground leading-relaxed italic">
+                                                                    &quot;{comment}&quot;
+                                                                </p>
+                                                            )}
+
+                                                            {/* Location */}
+                                                            {location && (
+                                                                <div className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground/70">
+                                                                    <MapPin className="w-3 h-3 shrink-0" />
+                                                                    <span>{location}</span>
+                                                                </div>
+                                                            )}
+
+                                                            {/* Courier info */}
+                                                            {(user || phone) && (
+                                                                <div className="flex items-center gap-3 flex-wrap">
+                                                                    {user && (
+                                                                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground">
+                                                                            <div className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center">
+                                                                                <Hash className="w-2 h-2" />
+                                                                            </div>
+                                                                            Par {user}
+                                                                        </div>
+                                                                    )}
+                                                                    {phone && (
+                                                                        <a href={`tel:${phone}`} className="flex items-center gap-1 text-[10px] font-bold text-brand-navy/70 hover:text-brand-navy transition-colors">
+                                                                            <Phone className="w-3 h-3" />
+                                                                            {phone}
+                                                                        </a>
+                                                                    )}
+                                                                </div>
+                                                            )}
+
+                                                            {/* Scheduled date */}
+                                                            {scheduledDate && (
+                                                                <div className="flex items-center gap-1.5 text-[10px] font-semibold text-blue-600/70">
+                                                                    <CalendarClock className="w-3 h-3 shrink-0" />
+                                                                    <span>Programmé: {format(new Date(scheduledDate), 'dd/MM/yyyy')}</span>
+                                                                </div>
+                                                            )}
+
+                                                            {/* Data list items */}
+                                                            {meaningfulDataList.length > 0 && (
+                                                                <div className="mt-1 space-y-0.5">
+                                                                    {meaningfulDataList.map((item, i) => {
+                                                                        const isPhone = /^0[5-8]\d{8}$/.test(String(item.value));
+                                                                        const isDate = /^\d{4}-\d{2}-\d{2}$/.test(String(item.value));
+                                                                        return (
+                                                                            <div key={i} className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground/80">
+                                                                                <Info className="w-2.5 h-2.5 shrink-0 opacity-50" />
+                                                                                <span className="font-semibold">{item.title}:</span>
+                                                                                {isPhone ? (
+                                                                                    <a href={`tel:${item.value}`} className="text-brand-navy/70 hover:text-brand-navy font-bold transition-colors">{item.value}</a>
+                                                                                ) : isDate ? (
+                                                                                    <span className="text-blue-600/70 font-semibold">{item.value}</span>
+                                                                                ) : (
+                                                                                    <span className="font-semibold">{item.value}</span>
+                                                                                )}
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 );
-                            })}
+                            })()}
                         </div>
                     ) : (
                         <div className="flex flex-col items-center justify-center py-12 text-center space-y-3">
@@ -405,7 +413,7 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
                     <Button
                         variant="ghost"
                         onClick={() => onOpenChange(false)}
-                        className="w-full h-14 rounded-2xl font-black text-sm tracking-widest uppercase hover:bg-slate-50"
+                        className="w-full h-14 rounded-2xl font-black text-sm tracking-widest uppercase text-brand-navy hover:bg-slate-100 hover:text-brand-navy"
                     >
                         Fermer
                     </Button>

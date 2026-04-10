@@ -296,7 +296,7 @@ const Webhooks = () => {
                                                 <Button
                                                     onClick={() => { console.log(log.payload); toast({ title: "Payload Logged", description: "The full JSON payload is visible in the browser console." }); }}
                                                     variant="ghost"
-                                                    className="rounded-xl h-10 px-4 font-bold text-brand-navy hover:bg-slate-100"
+                                                    className="rounded-xl h-10 px-4 font-bold text-brand-navy hover:bg-slate-200 hover:text-brand-navy"
                                                 >
                                                     Debug JSON
                                                 </Button>

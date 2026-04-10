@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import {
@@ -25,6 +25,7 @@ import {
     Share2,
     ChevronLeft,
     ChevronRight,
+    User as UserIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -71,14 +72,23 @@ import { format } from 'date-fns';
 // ── Ad-mock card (Facebook/Instagram-style preview) ──────────────────────
 type CampaignAction = 'preview' | 'manage' | 'toggle' | 'edit' | 'delete';
 
+type CreatorInfo = {
+    id: string;
+    name: string | null;
+    avatar_url: string | null;
+    role: string | null;
+} | null;
+
 const AdMockCard: React.FC<{
     campaign: Campaign;
     businessName: string;
     businessLogo: string | null;
     canEdit: boolean;
+    creator: CreatorInfo;
+    showCreator: boolean;
     onClick: () => void;
     onActions: (action: CampaignAction) => void;
-}> = ({ campaign, businessName, businessLogo, canEdit, onClick, onActions }) => {
+}> = ({ campaign, businessName, businessLogo, canEdit, creator, showCreator, onClick, onActions }) => {
     const [mediaIdx, setMediaIdx] = useState(0);
     const media = (campaign.media || []) as CampaignMedia[];
     const current = media[mediaIdx];
@@ -167,6 +177,30 @@ const AdMockCard: React.FC<{
                     </DropdownMenu>
                 </div>
             </div>
+
+            {/* ── Created by strip (admin view only) ── */}
+            {showCreator && (
+                <div className="px-4 pb-2 flex items-center gap-2">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-brand-navy/30">Created by</span>
+                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-brand-navy/[0.04]">
+                        <div className="w-4 h-4 rounded-full bg-brand-navy/10 flex items-center justify-center overflow-hidden">
+                            {creator?.avatar_url ? (
+                                <img src={creator.avatar_url} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                                <UserIcon className="w-2.5 h-2.5 text-brand-navy/50" />
+                            )}
+                        </div>
+                        <span className="text-[10px] font-bold text-brand-navy/70 truncate max-w-[140px]">
+                            {creator?.name || (campaign.created_by ? 'Unknown' : 'Admin (legacy)')}
+                        </span>
+                        {creator?.role && (
+                            <span className="text-[8px] font-black uppercase tracking-widest text-brand-navy/40">
+                                {creator.role.replace(/_/g, ' ')}
+                            </span>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* ── Primary text ── */}
             {campaign.primary_text && (
@@ -311,9 +345,11 @@ const AdMockCard: React.FC<{
 const CampaignRow: React.FC<{
     campaign: Campaign;
     canEdit: boolean;
+    creator: CreatorInfo;
+    showCreator: boolean;
     onClick: () => void;
     onActions: (action: CampaignAction) => void;
-}> = ({ campaign, canEdit, onClick, onActions }) => {
+}> = ({ campaign, canEdit, creator, showCreator, onClick, onActions }) => {
     const media = (campaign.media || []) as CampaignMedia[];
     const thumb = media[0];
     const isActive = campaign.status === 'active';
@@ -376,6 +412,20 @@ const CampaignRow: React.FC<{
                         {campaign.start_date && (
                             <span>{format(new Date(campaign.start_date), 'dd MMM yyyy')}{campaign.end_date ? ` → ${format(new Date(campaign.end_date), 'dd MMM yyyy')}` : ''}</span>
                         )}
+                        {showCreator && (
+                            <span className="flex items-center gap-1 pl-2 border-l border-brand-navy/10">
+                                <div className="w-3.5 h-3.5 rounded-full bg-brand-navy/10 flex items-center justify-center overflow-hidden">
+                                    {creator?.avatar_url ? (
+                                        <img src={creator.avatar_url} alt="" className="w-full h-full object-cover" />
+                                    ) : (
+                                        <UserIcon className="w-2 h-2 text-brand-navy/50" />
+                                    )}
+                                </div>
+                                <span className="text-[10px] font-bold text-brand-navy/60">
+                                    {creator?.name || (campaign.created_by ? 'Unknown' : 'Admin (legacy)')}
+                                </span>
+                            </span>
+                        )}
                     </div>
                 </div>
 
@@ -412,11 +462,14 @@ const CampaignRow: React.FC<{
 
 const Campaigns = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const queryClient = useQueryClient();
     const { toast } = useToast();
     const activeBusinessId = localStorage.getItem('activeBusinessId');
     const currentUserId = useCurrentUserId();
     const basePath = useCampaignBasePath();
+    // Creator badge only shows in admin view — redundant noise under /mediabuyer.
+    const isAdminView = !location.pathname.startsWith('/mediabuyer');
 
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [searchQuery, setSearchQuery] = useState('');
@@ -452,6 +505,28 @@ const Campaigns = () => {
         },
         enabled: !!activeBusinessId,
     });
+
+    // Creators lookup — only loaded when the page is rendered in admin view,
+    // since media buyers only see their own rows and don't need the badge.
+    const { data: creators = [] } = useQuery({
+        queryKey: ['campaigns-creators', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return [];
+            const { data, error } = await (supabase as any)
+                .from('users')
+                .select('id, name, avatar_url, role')
+                .eq('DigiCom Business', activeBusinessId);
+            if (error) throw error;
+            return (data || []) as Array<CreatorInfo & { id: string }>;
+        },
+        enabled: !!activeBusinessId && isAdminView,
+    });
+
+    const creatorById = useMemo(() => {
+        const map = new Map<string, CreatorInfo>();
+        for (const u of creators) if (u) map.set(u.id, u);
+        return map;
+    }, [creators]);
 
     const toggleMutation = useMutation({
         mutationFn: async (campaign: Campaign) => {
@@ -687,6 +762,8 @@ const Campaigns = () => {
                             businessName={business?.name || ''}
                             businessLogo={business?.logo || null}
                             canEdit={!!currentUserId && c.created_by === currentUserId}
+                            creator={c.created_by ? creatorById.get(c.created_by) || null : null}
+                            showCreator={isAdminView}
                             onClick={() => handleAction(c, 'preview')}
                             onActions={(a) => handleAction(c, a)}
                         />
@@ -699,6 +776,8 @@ const Campaigns = () => {
                             key={c.id}
                             campaign={c}
                             canEdit={!!currentUserId && c.created_by === currentUserId}
+                            creator={c.created_by ? creatorById.get(c.created_by) || null : null}
+                            showCreator={isAdminView}
                             onClick={() => handleAction(c, 'preview')}
                             onActions={(a) => handleAction(c, a)}
                         />

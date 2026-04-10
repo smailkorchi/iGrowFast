@@ -99,10 +99,10 @@ import {
     OrderContactSubmenu,
 } from '@/components/orders/OrderPhoneQuickActions';
 import { ParcelTrackingDialog } from '@/components/orders/ParcelTrackingDialog';
-import { SyncTrackingStatus } from '@/components/orders/SyncTrackingStatus';
-import { useTrackingSyncStatus } from '@/hooks/useTrackingSyncStatus';
+import { WebhookHealthIndicator } from '@/components/orders/WebhookHealthIndicator';
 import { getLatestTrackableCompanyParcel } from '@/lib/orders/getLatestTrackableCompanyParcel';
 import { OrderStatusHistoryDialog } from '@/components/orders/OrderStatusHistoryDialog';
+import { DynamicIcon } from '@/lib/renderReactIcon';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -685,7 +685,42 @@ const Orders = () => {
         },
     });
 
-    const trackingSyncState = useTrackingSyncStatus(['orders', activeBusinessId]);
+
+    // Package statuses for timeline color/icon matching
+    const { data: pkgStatusesForTimeline } = useQuery({
+        queryKey: ['package-statuses-timeline'],
+        queryFn: async () => {
+            const { data } = await supabase.from('package_statuses').select('id, code, label, color, icon, delivery_service_statuses').eq('active', true);
+            return data || [];
+        },
+        staleTime: 5 * 60 * 1000,
+    });
+    // Order statuses for icon lookup in status history
+    const { data: ordStatusesForTimeline } = useQuery({
+        queryKey: ['order-statuses-timeline'],
+        queryFn: async () => {
+            const { data } = await supabase.from('order_statuses').select('id, icon').eq('active', true);
+            return data || [];
+        },
+        staleTime: 5 * 60 * 1000,
+    });
+    const getOrdIcon = (statusId: string | null): string | null => {
+        if (!statusId || !ordStatusesForTimeline?.length) return null;
+        return (ordStatusesForTimeline as any[]).find((s: any) => s.id === statusId)?.icon || null;
+    };
+    const matchPkgColor = (rawStatus: string, statusLabel?: string): { color: string; icon: string | null } => {
+        const fallback = { color: '#94a3b8', icon: null };
+        if (!pkgStatusesForTimeline?.length) return fallback;
+        const candidates = [statusLabel, rawStatus].filter(Boolean) as string[];
+        for (const c of candidates) {
+            const lower = c.toLowerCase();
+            const m = pkgStatusesForTimeline.find((ps: any) => ps.delivery_service_statuses?.some((d: string) => d.toLowerCase() === lower)) ||
+                      pkgStatusesForTimeline.find((ps: any) => ps.label?.toLowerCase() === lower) ||
+                      pkgStatusesForTimeline.find((ps: any) => ps.code?.toLowerCase() === lower);
+            if (m) return { color: m.color || '#94a3b8', icon: m.icon || null };
+        }
+        return fallback;
+    };
 
     const { data: cities } = useQuery({
         queryKey: ['cities-dropdown', activeBusinessId],
@@ -1836,14 +1871,7 @@ const Orders = () => {
                         <div>
                             <h1 className="text-4xl font-extralight text-gray-900 mb-2">Order Pipeline</h1>
                             <p className="text-gray-500 font-light">Streamline your sales flow and delivery tracking.</p>
-                            <SyncTrackingStatus
-                                latestRun={trackingSyncState.latestRun}
-                                isSyncing={trackingSyncState.isSyncing}
-                                nextSyncAt={trackingSyncState.nextSyncAt}
-                                triggering={trackingSyncState.triggering}
-                                onRunNow={trackingSyncState.runNow}
-                                className="mt-3"
-                            />
+                            <WebhookHealthIndicator activeBusinessId={activeBusinessId} className="mt-3" />
                         </div>
                         <div className="flex flex-col sm:flex-row gap-3 items-center">
                             <div className="relative group sm:w-80">
@@ -4393,236 +4421,54 @@ const Orders = () => {
                                     </div>
                                 </div>
 
-                                {/* Parcel Tracking History */}
-                                <div className="space-y-6 pb-6">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <Truck className="w-6 h-6 text-brand-navy/20" />
-                                            <h4 className="text-xl font-black text-brand-navy uppercase tracking-[0.15em]">Suivi du Colis</h4>
-                                        </div>
-                                        {orderParcel?.tracking_code && (
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => orderParcel && handleTrackParcel(orderParcel)}
-                                                disabled={isTrackingLoading}
-                                                className="text-xs font-bold text-brand-navy hover:bg-brand-navy/5 gap-2 rounded-xl h-9 px-4"
-                                            >
-                                                {isTrackingLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCcw className="w-3 h-3" />}
-                                                Rafraîchir
-                                            </Button>
-                                        )}
+                                {/* Parcel Info (no API call — use Track Order button for full timeline) */}
+                                <div className="space-y-4 pb-6">
+                                    <div className="flex items-center gap-3">
+                                        <Truck className="w-6 h-6 text-brand-navy/20" />
+                                        <h4 className="text-xl font-black text-brand-navy uppercase tracking-[0.15em]">Suivi du Colis</h4>
                                     </div>
 
                                     {isParcelLoading ? (
-                                        <div className="flex flex-col items-center justify-center py-12 gap-4">
-                                            <Loader2 className="w-10 h-10 text-brand-navy animate-spin" />
-                                            <p className="font-bold text-muted-foreground animate-pulse">Chargement du colis...</p>
+                                        <div className="flex items-center justify-center py-6">
+                                            <Loader2 className="w-6 h-6 text-brand-navy animate-spin" />
                                         </div>
                                     ) : !orderParcel ? (
-                                        <div className="text-center p-8 bg-brand-navy/[0.02] rounded-3xl border border-brand-navy/[0.05]">
+                                        <div className="text-center p-6 bg-brand-navy/[0.02] rounded-2xl border border-brand-navy/[0.05]">
                                             <p className="text-sm font-bold text-muted-foreground">Aucun colis créé pour cette commande.</p>
                                         </div>
-                                    ) : !orderParcel.tracking_code ? (
-                                        <div className="text-center p-8 bg-amber-50/50 rounded-3xl border border-amber-100">
-                                            <p className="text-sm font-bold text-amber-600">Colis créé mais pas encore de code de suivi.</p>
-                                        </div>
-                                    ) : isTrackingLoading ? (
-                                        <div className="flex flex-col items-center justify-center py-12 gap-4">
-                                            <Loader2 className="w-10 h-10 text-brand-navy animate-spin" />
-                                            <p className="font-bold text-muted-foreground animate-pulse">Récupération des données...</p>
-                                        </div>
-                                    ) : trackingHistory ? (
-                                        <div className="space-y-8 relative before:absolute before:left-[17px] before:top-2 before:bottom-2 before:w-0.5 before:bg-brand-navy/5">
-                                            {(() => {
-                                                const events = Array.isArray(trackingHistory)
-                                                    ? trackingHistory
-                                                    : (trackingHistory?.history || []);
-                                                return events;
-                                            })().map((event: any, idx: number) => {
-                                                const statusMap: Record<string, string> = {
-                                                    NEW_PARCEL: 'Nouveau',
-                                                    WAITING_PICKUP: 'En attente de ramassage',
-                                                    DISTRIBUTION: 'En cours de distribution',
-                                                    DELIVERED: 'Livré',
-                                                    REFUSED: 'Refusé',
-                                                    REFUSE: 'Refusé',
-                                                    ANNULE: 'Annulé',
-                                                    CANCELLED: 'Annulé',
-                                                    RETURNED: 'Retourné',
-                                                    RETOUR: 'Retourné',
-                                                    POSTPONED: 'Reporté',
-                                                    WAITING_PREPARATION: 'En préparation',
-                                                    PICKED_UP: 'Ramassé',
-                                                    READY_FOR_PICKUP: 'Prêt pour ramassage',
-                                                    SENT: 'Expédié',
-                                                    RECEIVED: 'Reçu',
-                                                    SCHEDULED: 'Programmé',
-                                                    PROGRAMMER: 'Programmé',
-                                                    NO_ANSWER: 'Pas de réponse',
-                                                    RELAUNCH: 'Relancer',
-                                                };
-                                                
-                                                const situationMap: Record<string, { label: string; className: string }> = {
-                                                    PAID: { label: 'Payé', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-                                                    NOT_PAID: { label: 'Non payé', className: 'bg-amber-50 text-amber-700 border-amber-200' },
-                                                    INVOICED: { label: 'Facturé', className: 'bg-blue-50 text-blue-700 border-blue-200' },
-                                                };
-
-                                                const rawStatus = (event.status as string) || "Nouveau";
-                                                const statusLabel = event.statusLabel as string | undefined;
-                                                const status = statusLabel || statusMap[rawStatus] || rawStatus;
-                                                const date = event.date as string | undefined;
-                                                const comment = (event.comment as string) || "";
-                                                const u = event.user;
-                                                const user = (typeof u === 'object' && u !== null && 'name' in u
-                                                                 ? (u as { name?: string }).name
-                                                                 : (u as string | undefined)) || '';
-                                                const phone = (event.phone as string) || '';
-                                                const hub = (event.hub as string) || '';
-                                                const city = (event.city as string) || '';
-                                                const situation = (event.situation as string) || '';
-                                                const scheduledDate = event.scheduledDate as string | undefined;
-                                                const statusColor = (event.color as string) || '';
-                                                const dataList = (event.data_list as any[]) || [];
-                                                
-                                                // Determine location string
-                                                const locationParts = [hub, city].filter(Boolean);
-                                                const location = locationParts.length > 0 ? locationParts.join(' — ') : '';
-                                                
-                                                // Filter data_list
-                                                const meaningfulDataList = dataList.filter(item => {
-                                                    if (!item || !item.title) return false;
-                                                    if (item.title === 'Nombre de distributions') return false;
-                                                    return true;
-                                                });
-
-                                                const sitInfo = situation ? situationMap[situation] : null;
-
-                                                return (
-                                                    <div key={idx} className="relative pl-12 group">
-                                                        {/* Timeline dot */}
-                                                        <div
-                                                            className={`absolute left-0 top-1 w-9 h-9 rounded-full border-4 border-white shadow-sm flex items-center justify-center transition-all group-hover:scale-110 z-10 ${
-                                                                idx === 0
-                                                                    ? 'text-white shadow-brand-navy/20'
-                                                                    : 'bg-slate-50 text-brand-navy/40'
-                                                            }`}
-                                                            style={idx === 0 && statusColor
-                                                                ? { backgroundColor: statusColor }
-                                                                : idx === 0
-                                                                    ? { backgroundColor: 'var(--brand-navy, #1e293b)' }
-                                                                    : undefined
-                                                            }
-                                                        >
-                                                            <div className="w-2 h-2 rounded-full bg-current" />
-                                                        </div>
-                                                        
-                                                        <div className="space-y-1.5">
-                                                            {/* Status + date row */}
-                                                            <div className="flex items-center justify-between gap-2">
-                                                                <div className="flex items-center gap-2 flex-wrap">
-                                                                    <span
-                                                                        className={`text-sm font-black tracking-tight ${
-                                                                            idx === 0 ? 'text-brand-navy' : 'text-muted-foreground'
-                                                                        }`}
-                                                                    >
-                                                                        {status}
-                                                                    </span>
-                                                                    {sitInfo && (
-                                                                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border ${sitInfo.className}`}>
-                                                                            {sitInfo.label}
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                                <span className="text-[10px] font-bold text-muted-foreground opacity-60 shrink-0">
-                                                                    {date ? format(new Date(date), 'dd/MM/yyyy HH:mm') : ''}
-                                                                </span>
-                                                            </div>
-                                                            
-                                                            {/* Location (hub / city) */}
-                                                            {location && (
-                                                                <div className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground/70">
-                                                                    <MapPin className="w-3 h-3 shrink-0" />
-                                                                    <span>{location}</span>
-                                                                </div>
-                                                            )}
-
-                                                            {/* Comment */}
-                                                            {comment && (
-                                                                <p className="text-[11px] font-medium text-muted-foreground leading-relaxed italic">
-                                                                    "{comment}"
-                                                                </p>
-                                                            )}
-                                                            
-                                                            {/* Courier info (name + phone) */}
-                                                            {(user || phone) && (
-                                                                <div className="flex items-center gap-3 flex-wrap">
-                                                                    {user && (
-                                                                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground">
-                                                                            <div className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center">
-                                                                                <Hash className="w-2 h-2" />
-                                                                            </div>
-                                                                            Par {user}
-                                                                        </div>
-                                                                    )}
-                                                                    {phone && (
-                                                                        <a
-                                                                            href={`tel:${phone}`}
-                                                                            className="flex items-center gap-1 text-[10px] font-bold text-brand-navy/70 hover:text-brand-navy transition-colors"
-                                                                        >
-                                                                            <Phone className="w-3 h-3" />
-                                                                            {phone}
-                                                                        </a>
-                                                                    )}
-                                                                </div>
-                                                            )}
-                                                            
-                                                            {/* Scheduled date */}
-                                                            {scheduledDate && (
-                                                                <div className="flex items-center gap-1.5 text-[10px] font-semibold text-blue-600/70">
-                                                                    <CalendarClock className="w-3 h-3 shrink-0" />
-                                                                    <span>Programmé: {format(new Date(scheduledDate), 'dd/MM/yyyy')}</span>
-                                                                </div>
-                                                            )}
-
-                                                            {/* Data list items */}
-                                                            {meaningfulDataList.length > 0 && (
-                                                                <div className="mt-1 space-y-0.5">
-                                                                    {meaningfulDataList.map((item, i) => {
-                                                                        const isPhone = /^0[5-8]\d{8}$/.test(String(item.value));
-                                                                        const isDate = /^\d{4}-\d{2}-\d{2}$/.test(String(item.value));
-                                                                        return (
-                                                                            <div key={i} className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground/80">
-                                                                                <Info className="w-2.5 h-2.5 shrink-0 opacity-50" />
-                                                                                <span className="font-semibold">{item.title}:</span>
-                                                                                {isPhone ? (
-                                                                                    <a href={`tel:${item.value}`} className="text-brand-navy/70 hover:text-brand-navy font-bold transition-colors">
-                                                                                        {item.value}
-                                                                                    </a>
-                                                                                ) : isDate ? (
-                                                                                    <span className="text-blue-600/70 font-semibold">{item.value}</span>
-                                                                                ) : (
-                                                                                    <span className="font-semibold">{item.value}</span>
-                                                                                )}
-                                                                            </div>
-                                                                        );
-                                                                    })}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    ) : (
-                                        <div className="flex flex-col items-center justify-center py-12 text-center space-y-3">
-                                            <div className="p-4 bg-slate-50 rounded-full">
-                                                <SearchX className="w-8 h-8 text-muted-foreground/40" />
+                                    ) : (() => {
+                                        const pkgMatch = matchPkgColor(orderParcel.status_label || '', orderParcel.status_label || '');
+                                        const pColor = pkgMatch.color;
+                                        const pIcon = pkgMatch.icon;
+                                        return (
+                                        <div className="flex items-center justify-between p-4 bg-brand-navy/[0.02] rounded-2xl border border-brand-navy/[0.05]">
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-white" style={{ backgroundColor: pColor }}>
+                                                    {pIcon ? <DynamicIcon name={pIcon} className="w-4 h-4" /> : <div className="w-2.5 h-2.5 rounded-full bg-white" />}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md" style={{ color: pColor, backgroundColor: `${pColor}15` }}>
+                                                        {orderParcel.status_label || 'En attente'}
+                                                    </span>
+                                                    {orderParcel.tracking_code && (
+                                                        <p className="text-[10px] font-mono font-bold text-muted-foreground/50 truncate mt-1">{orderParcel.tracking_code}</p>
+                                                    )}
+                                                </div>
                                             </div>
-                                            <p className="font-bold text-muted-foreground">Aucun historique disponible pour ce colis.</p>
+                                            {orderParcel.tracking_code && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => { setParcelTrackingOrderId(selectedOrder.id); setParcelTrackingOpen(true); }}
+                                                    className="text-xs font-bold text-brand-navy hover:bg-brand-navy/5 hover:text-brand-navy gap-2 rounded-xl h-9 px-4 shrink-0"
+                                                >
+                                                    <Truck className="w-3.5 h-3.5" />
+                                                    Suivre
+                                                </Button>
+                                            )}
                                         </div>
-                                    )}
+                                        );
+                                    })()}
                                 </div>
 
                                 <Separator className="bg-brand-navy/[0.05]" />
@@ -4638,59 +4484,53 @@ const Orders = () => {
 
                                     <div className="px-4">
                                         {selectedOrder.history && selectedOrder.history.length > 0 ? (
-                                            <div className="space-y-6 relative before:absolute before:inset-0 before:ml-2.5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-brand-navy/10 before:to-transparent">
-                                                {selectedOrder.history.map((record: any, index: number) => (
-                                                    <div key={record.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-                                                        <div className="flex items-center justify-center w-6 h-6 rounded-full border-4 border-white bg-brand-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10" style={{ borderColor: record.status?.color || '#eee' }}>
-                                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: record.status?.color || '#ccc' }} />
-                                                        </div>
-                                                        <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-5 rounded-2xl bg-brand-navy/[0.02] border border-brand-navy/[0.05] shadow-sm flex flex-col gap-2">
-                                                            <div className="flex items-center justify-between gap-4">
+                                            <div className="relative pl-10">
+                                                <div className="absolute left-[15px] top-4 bottom-4 w-0.5 bg-gradient-to-b from-slate-200 via-slate-200 to-brand-navy/30" />
+                                                <div className="space-y-0">
+                                                {[...selectedOrder.history].sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).map((record: any, idx: number, arr: any[]) => {
+                                                    const color = record.status?.color || '#94a3b8';
+                                                    const isLast = idx === arr.length - 1;
+                                                    const ordIcon = getOrdIcon(record.status_id);
+                                                    const postponed = isOrderCategory(record.status_id, 'postponed');
+                                                    const reportedMatch = postponed && record.comment?.match(/\[Reporté pour: (.*?)\]/);
+                                                    const reportedText = reportedMatch?.[1] || (postponed && selectedOrder.reported_date ? format(new Date(selectedOrder.reported_date), 'dd/MM/yyyy HH:mm') : null);
+                                                    const cleanedComment = postponed ? (record.comment || '').replace(/\[Reporté pour:.*?\]/, '').trim() : record.comment || '';
+                                                    return (
+                                                        <div key={record.id} className="relative pb-6 last:pb-0 group">
+                                                            <div className={`absolute -left-10 top-0 w-8 h-8 rounded-full border-[3px] border-white shadow-sm flex items-center justify-center z-10 transition-all group-hover:scale-110 ${isLast ? 'ring-2 ring-offset-2' : ''}`} style={{ backgroundColor: isLast ? color : '#f8fafc', color: isLast ? '#ffffff' : color, ['--tw-ring-color' as any]: isLast ? `${color}40` : undefined }}>
+                                                                {ordIcon ? <DynamicIcon name={ordIcon} className="w-3.5 h-3.5" /> : <div className="w-2 h-2 rounded-full" style={{ backgroundColor: isLast ? '#ffffff' : color }} />}
+                                                            </div>
+                                                            <div className="space-y-1.5">
+                                                                <div className="flex items-center gap-2 flex-wrap">
+                                                                    <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg" style={{ color, backgroundColor: `${color}15` }}>{record.status?.label || 'Inconnu'}</span>
+                                                                </div>
+                                                                {record.created_at && <p className="text-[10px] font-bold text-muted-foreground/50">{format(new Date(record.created_at), 'dd/MM/yyyy HH:mm')}</p>}
                                                                 <div className="flex items-center gap-2">
-                                                                    <Avatar className="w-6 h-6 border bg-white">
-                                                                        <AvatarImage src={record.user?.avatar_url} />
-                                                                        <AvatarFallback className="text-[10px] font-bold bg-brand-navy/5 text-brand-navy">
-                                                                            {record.user?.name?.[0] || '?'}
-                                                                        </AvatarFallback>
-                                                                    </Avatar>
-                                                                    <span className="text-xs font-bold text-brand-navy truncate max-w-[120px]">{record.user?.name || 'Unknown'}</span>
-                                                                </div>
-                                                                <span className="text-[10px] font-black text-brand-navy/40 uppercase tracking-widest bg-brand-navy/5 px-2 py-1 rounded-lg">
-                                                                    {format(new Date(record.created_at), 'MMM d, HH:mm')}
-                                                                </span>
-                                                            </div>
-                                                            <div className="flex items-center gap-2 mt-1">
-                                                                <span className="text-xs font-black uppercase tracking-widest px-2 py-0.5 rounded-md" style={{ color: record.status?.color, backgroundColor: `${record.status?.color}15` }}>
-                                                                    {record.status?.label || 'Unknown Status'}
-                                                                </span>
-                                                            </div>
-                                                            {record.comment && (
-                                                                <div className="space-y-2">
-                                                                    {isOrderCategory(record.status_id, 'postponed') ? (
-                                                                        <div className="flex flex-col gap-1 p-3 bg-amber-50 rounded-xl border border-amber-100">
-                                                                            <div className="flex items-center gap-2">
-                                                                                <Calendar className="w-3 h-3 text-amber-600" />
-                                                                                <span className="text-[10px] font-black uppercase text-amber-700">Rappel Programmé</span>
-                                                                            </div>
-                                                                            <p className="text-xs font-bold text-amber-900">
-                                                                                {record.comment.includes('[Reporté pour:')
-                                                                                    ? record.comment.match(/\[Reporté pour: (.*?)\]/)?.[1]
-                                                                                    : selectedOrder.reported_date ? format(new Date(selectedOrder.reported_date), 'dd/MM/yyyy HH:mm') : 'Date non spécifiée'}
-                                                                            </p>
-                                                                            <p className="text-sm font-medium text-amber-800 italic mt-1 border-t border-amber-500/10 pt-1">
-                                                                                "{record.comment.replace(/\[Reporté pour:.*?\]/, '').trim()}"
-                                                                            </p>
-                                                                        </div>
+                                                                    {record.user ? (
+                                                                        <Avatar className="w-5 h-5 border bg-white">
+                                                                            <AvatarImage src={record.user.avatar_url} />
+                                                                            <AvatarFallback className="text-[9px] font-bold bg-brand-navy/5 text-brand-navy">{record.user.name?.[0] || '?'}</AvatarFallback>
+                                                                        </Avatar>
                                                                     ) : (
-                                                                        <p className="text-sm font-medium text-brand-navy/80 mt-2 p-3 bg-white rounded-xl border border-brand-navy/[0.03] italic">
-                                                                            "{record.comment}"
-                                                                        </p>
+                                                                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-brand-navy/10 to-brand-navy/20 flex items-center justify-center">
+                                                                            <DynamicIcon name="TbRobot" className="w-3 h-3 text-brand-navy/60" />
+                                                                        </div>
                                                                     )}
+                                                                    <span className="text-[11px] font-bold text-brand-navy/70 truncate max-w-[200px]">{record.user?.name || 'Système'}</span>
                                                                 </div>
-                                                            )}
+                                                                {postponed && reportedText && (
+                                                                    <div className="flex flex-col gap-1 p-3 bg-amber-50 rounded-xl border border-amber-100">
+                                                                        <div className="flex items-center gap-2"><Calendar className="w-3 h-3 text-amber-600" /><span className="text-[10px] font-black uppercase text-amber-700">Rappel programmé</span></div>
+                                                                        <p className="text-xs font-bold text-amber-900">{reportedText}</p>
+                                                                        {cleanedComment && <p className="text-[11px] font-medium text-amber-800 italic mt-1 border-t border-amber-500/10 pt-1">"{cleanedComment}"</p>}
+                                                                    </div>
+                                                                )}
+                                                                {!postponed && record.comment && <p className="text-[11px] font-medium text-muted-foreground leading-relaxed italic">"{record.comment}"</p>}
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
+                                                </div>
                                             </div>
                                         ) : (
                                             <div className="text-center p-8 bg-brand-navy/[0.02] rounded-3xl border border-brand-navy/[0.05]">

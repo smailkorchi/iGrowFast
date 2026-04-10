@@ -27,6 +27,8 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { IconPicker } from '@/components/ui/IconPicker';
+import { DynamicIcon } from '@/lib/renderReactIcon';
 import {
     Dialog,
     DialogContent,
@@ -78,6 +80,7 @@ const statusSchema = z.object({
     label: z.string().min(2, "Label must be at least 2 characters"),
     ranking: z.coerce.number().default(0),
     color: z.string().default("#6366f1"),
+    icon: z.string().optional().default(''),
     recheck: z.boolean().default(false),
     active: z.boolean().default(true),
     /** order_statuses only: shown in add/edit order modals */
@@ -96,6 +99,7 @@ type StatusRow = {
     label: string;
     ranking: number | null;
     color: string | null;
+    icon: string | null;
     recheck: boolean | null;
     active: boolean | null;
     category: string | null;
@@ -206,6 +210,7 @@ const Status = () => {
                 label: values.label,
                 ranking: values.ranking,
                 color: values.color,
+                icon: values.icon || null,
                 recheck: values.recheck,
                 active: values.active,
                 delivery_service_statuses: deliveryStatuses,
@@ -280,6 +285,7 @@ const Status = () => {
                 label: status.label,
                 ranking: status.ranking,
                 color: status.color || '#6366f1',
+                icon: status.icon || '',
                 recheck: status.recheck ?? false,
                 active: status.active ?? true,
                 show_in_order: status.show_in_order ?? true,
@@ -292,6 +298,7 @@ const Status = () => {
                 label: '',
                 ranking: (statuses?.length || 0) + 1,
                 color: '#6366f1',
+                icon: '',
                 recheck: false,
                 active: true,
                 show_in_order: true,
@@ -471,71 +478,109 @@ const Status = () => {
 
             {/* Upsert Modal */}
             <Dialog open={isUpsertOpen} onOpenChange={setIsUpsertOpen}>
-                <DialogContent className="max-w-md p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden">
+                <DialogContent className="max-w-lg p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden">
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit(handleUpsert)} className="flex flex-col">
-                            <DialogHeader className="p-8 pb-4">
-                                <DialogTitle className="text-3xl font-bold text-brand-navy uppercase tracking-tight">
-                                    {editingStatus ? 'Edit Status' : 'New Status'}
-                                </DialogTitle>
-                                <DialogDescription className="text-muted-foreground text-lg">
-                                    {activeTab === 'packages' ? 'Configure master status and attached delivery codes.' : 'Configure the details for this order status step.'}
-                                </DialogDescription>
-                            </DialogHeader>
+                            {/* Live preview header */}
+                            <div className="p-6 pb-4 border-b border-brand-navy/[0.05]">
+                                <div className="flex items-center gap-4">
+                                    <div
+                                        className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-lg shrink-0 transition-all"
+                                        style={{ backgroundColor: form.watch('color') || '#6366f1' }}
+                                    >
+                                        {form.watch('icon') ? <DynamicIcon name={form.watch('icon')} className="w-7 h-7" /> : (form.watch('label') || 'S').charAt(0).toUpperCase()}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        <DialogTitle className="text-2xl font-bold text-brand-navy truncate">
+                                            {editingStatus ? 'Edit Status' : 'New Status'}
+                                        </DialogTitle>
+                                        <DialogDescription className="text-sm text-muted-foreground">
+                                            {form.watch('label') || 'Untitled'} <span className="text-[10px] font-mono uppercase opacity-50">({form.watch('code') || '...'})</span>
+                                        </DialogDescription>
+                                    </div>
+                                    {/* Live pill preview */}
+                                    <span
+                                        className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg shrink-0"
+                                        style={{ color: form.watch('color') || '#6366f1', backgroundColor: `${form.watch('color') || '#6366f1'}15` }}
+                                    >
+                                        {form.watch('label') || 'Preview'}
+                                    </span>
+                                </div>
+                            </div>
 
-                            <div className="overflow-y-auto p-8 pt-4 space-y-6 max-h-[60vh]">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <FormField
-                                        control={form.control}
-                                        name="label"
-                                        render={({ field }) => (
-                                            <FormItem className="space-y-2">
-                                                <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Display Label</FormLabel>
-                                                <FormControl>
-                                                    <Input placeholder="Confirmed" {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="code"
-                                        render={({ field }) => (
-                                            <FormItem className="space-y-2">
-                                                <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Internal Code</FormLabel>
-                                                <FormControl>
-                                                    <Input placeholder="CONFIRMED" {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner uppercase" />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
+                            <div className="overflow-y-auto p-6 space-y-5 max-h-[60vh]">
+                                {/* Section: Identity */}
+                                <div className="space-y-3">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/30">Identity</p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <FormField
+                                            control={form.control}
+                                            name="label"
+                                            render={({ field }) => (
+                                                <FormItem className="space-y-1.5">
+                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">Label</FormLabel>
+                                                    <FormControl>
+                                                        <Input placeholder="Confirmed" {...field} className="h-11 rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 shadow-inner" />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control}
+                                            name="code"
+                                            render={({ field }) => (
+                                                <FormItem className="space-y-1.5">
+                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">Code</FormLabel>
+                                                    <FormControl>
+                                                        <Input placeholder="CONFIRMED" {...field} className="h-11 rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 shadow-inner uppercase font-mono" />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-4">
-                                    <FormField
-                                        control={form.control}
-                                        name="ranking"
-                                        render={({ field }) => (
-                                            <FormItem className="space-y-2">
-                                                <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Sort Ranking</FormLabel>
-                                                <FormControl>
-                                                    <Input type="number" {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner" />
-                                                </FormControl>
-                                            </FormItem>
-                                        )}
-                                    />
+                                {/* Section: Appearance */}
+                                <div className="space-y-3">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/30">Appearance</p>
+                                    <div className="grid grid-cols-[1fr_auto] gap-3">
+                                        <FormField
+                                            control={form.control}
+                                            name="icon"
+                                            render={({ field }) => (
+                                                <FormItem className="space-y-1.5">
+                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">Icon</FormLabel>
+                                                    <FormControl>
+                                                        <IconPicker value={field.value || ''} onChange={field.onChange} />
+                                                    </FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control}
+                                            name="ranking"
+                                            render={({ field }) => (
+                                                <FormItem className="space-y-1.5 w-20">
+                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">Rank</FormLabel>
+                                                    <FormControl>
+                                                        <Input type="number" {...field} className="h-12 rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy shadow-inner text-center" />
+                                                    </FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
                                     <FormField
                                         control={form.control}
                                         name="color"
                                         render={({ field }) => (
-                                            <FormItem className="space-y-2">
-                                                <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Theme Color</FormLabel>
+                                            <FormItem className="space-y-1.5">
+                                                <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">Color</FormLabel>
                                                 <FormControl>
                                                     <div className="flex gap-2 items-center">
-                                                        <Input type="color" {...field} className="h-12 w-12 p-1 rounded-xl border-none bg-brand-navy/[0.04] shadow-inner cursor-pointer" />
-                                                        <Input {...field} className="h-12 flex-1 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-mono font-bold text-brand-navy shadow-inner" />
+                                                        <Input type="color" {...field} className="h-11 w-11 p-1 rounded-xl border-none bg-brand-navy/[0.04] shadow-inner cursor-pointer shrink-0" />
+                                                        <Input {...field} className="h-11 flex-1 rounded-xl border-none bg-brand-navy/[0.04] text-sm font-mono font-bold text-brand-navy shadow-inner" />
                                                     </div>
                                                 </FormControl>
                                             </FormItem>
@@ -543,16 +588,16 @@ const Status = () => {
                                     />
                                 </div>
 
-                                <div className="space-y-4">
-                                    <div className="grid grid-cols-2 gap-4">
+                                {/* Section: Behavior */}
+                                <div className="space-y-3">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/30">Behavior</p>
+                                    <div className="grid grid-cols-2 gap-3">
                                         <FormField
                                             control={form.control}
-                                            name="recheck"
+                                            name="active"
                                             render={({ field }) => (
-                                                <FormItem className="flex items-center justify-between p-4 rounded-2xl bg-brand-navy/[0.02] border border-brand-navy/[0.03]">
-                                                    <div className="space-y-0.5">
-                                                        <FormLabel className="text-sm font-bold text-brand-navy">Recheck</FormLabel>
-                                                    </div>
+                                                <FormItem className="flex items-center justify-between p-3 rounded-xl bg-brand-navy/[0.02] border border-brand-navy/[0.03]">
+                                                    <FormLabel className="text-sm font-bold text-brand-navy">Active</FormLabel>
                                                     <FormControl>
                                                         <Switch checked={field.value} onCheckedChange={field.onChange} />
                                                     </FormControl>
@@ -561,12 +606,10 @@ const Status = () => {
                                         />
                                         <FormField
                                             control={form.control}
-                                            name="active"
+                                            name="recheck"
                                             render={({ field }) => (
-                                                <FormItem className="flex items-center justify-between p-4 rounded-2xl bg-brand-navy/[0.02] border border-brand-navy/[0.03]">
-                                                    <div className="space-y-0.5">
-                                                        <FormLabel className="text-sm font-bold text-brand-navy">Active</FormLabel>
-                                                    </div>
+                                                <FormItem className="flex items-center justify-between p-3 rounded-xl bg-brand-navy/[0.02] border border-brand-navy/[0.03]">
+                                                    <FormLabel className="text-sm font-bold text-brand-navy">Recheck</FormLabel>
                                                     <FormControl>
                                                         <Switch checked={field.value} onCheckedChange={field.onChange} />
                                                     </FormControl>
@@ -579,19 +622,15 @@ const Status = () => {
                                             control={form.control}
                                             name="show_in_order"
                                             render={({ field }) => (
-                                                <FormItem className="flex flex-row items-start gap-4 p-4 rounded-2xl bg-brand-navy/[0.02] border border-brand-navy/[0.03] w-full">
-                                                    <div className="flex-1 min-w-0 space-y-1.5">
-                                                        <FormLabel className="text-sm font-bold text-brand-navy">Order</FormLabel>
-                                                        <FormDescription className="text-sm text-muted-foreground leading-snug font-medium">
-                                                            Turn this off to hide this status from the add and edit order modals (admin and seller). It stays available for existing orders, filters, and automation.
+                                                <FormItem className="flex items-center justify-between p-3 rounded-xl bg-brand-navy/[0.02] border border-brand-navy/[0.03]">
+                                                    <div className="min-w-0 space-y-0.5">
+                                                        <FormLabel className="text-sm font-bold text-brand-navy">Show in Order Modals</FormLabel>
+                                                        <FormDescription className="text-[11px] text-muted-foreground leading-snug">
+                                                            When off, hidden from add/edit order modals but still works for filters and automation.
                                                         </FormDescription>
                                                     </div>
                                                     <FormControl>
-                                                        <Switch
-                                                            checked={field.value}
-                                                            onCheckedChange={field.onChange}
-                                                            className="shrink-0 mt-1"
-                                                        />
+                                                        <Switch checked={field.value} onCheckedChange={field.onChange} className="shrink-0" />
                                                     </FormControl>
                                                 </FormItem>
                                             )}
@@ -682,7 +721,11 @@ const Status = () => {
                             <div className="h-32 relative" style={{ backgroundColor: viewingStatus.color }}>
                                 <div className="absolute -bottom-8 left-8 p-1.5 bg-brand-white rounded-[24px] shadow-xl">
                                     <div className="w-16 h-16 rounded-[20px] flex items-center justify-center text-white font-black text-2xl" style={{ backgroundColor: viewingStatus.color }}>
-                                        {viewingStatus.label.charAt(0).toUpperCase()}
+                                        {viewingStatus.icon ? (
+                                            <DynamicIcon name={viewingStatus.icon} className="w-7 h-7" />
+                                        ) : (
+                                            viewingStatus.label.charAt(0).toUpperCase()
+                                        )}
                                     </div>
                                 </div>
                                 <Button
@@ -850,7 +893,7 @@ const StatusListRow = ({ status, activeTab, isOwner, onEdit, onView, onDelete }:
                 className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-sm shadow-md shrink-0"
                 style={{ backgroundColor: status.color || '#6366f1' }}
             >
-                {status.label.charAt(0).toUpperCase()}
+                {status.icon ? <DynamicIcon name={status.icon} className="w-5 h-5" /> : status.label.charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -932,7 +975,7 @@ const StatusCard = ({ status, activeTab, isOwner, onEdit, onView, onDelete }: St
                             className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-black text-lg shadow-lg rotate-3 group-hover:rotate-0 transition-transform duration-500"
                             style={{ backgroundColor: status.color || '#6366f1' }}
                         >
-                            {status.label.charAt(0).toUpperCase()}
+                            {status.icon ? <DynamicIcon name={status.icon} className="w-6 h-6" /> : status.label.charAt(0).toUpperCase()}
                         </div>
                         <div className="min-w-0 space-y-2">
                             <div className="flex flex-wrap items-center gap-2">

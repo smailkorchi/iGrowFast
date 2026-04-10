@@ -1864,14 +1864,15 @@ const DeliveryNote = () => {
                                 <p className="font-bold text-muted-foreground animate-pulse">Récupération des données...</p>
                             </div>
                         ) : trackingHistory ? (
-                            <div className="space-y-8 relative before:absolute before:left-[17px] before:top-2 before:bottom-2 before:w-0.5 before:bg-brand-navy/5">
+                            <div className="relative pl-10">
+                                <div className="absolute left-[15px] top-4 bottom-4 w-0.5 bg-gradient-to-b from-slate-200 via-slate-200 to-brand-navy/30" />
+                                <div className="space-y-0">
                                 {(() => {
-                                    // Handle both old (array) and new (object with .history) formats
                                     const events = Array.isArray(trackingHistory)
                                         ? trackingHistory
                                         : (trackingHistory?.history || []);
-                                    return events;
-                                })().map((event: any, idx: number) => {
+                                    return [...events].reverse(); // oldest first
+                                })().map((event: any, idx: number, arr: any[]) => {
                                     // Status mapping for Coliaty/Ameex labels
                                     const statusMap: any = {
                                         'NEW_PARCEL': 'Nouveau',
@@ -1928,47 +1929,24 @@ const DeliveryNote = () => {
                                     });
 
                                     const sitInfo = situation ? situationMap[situation] : null;
+                                    const isLast = idx === arr.length - 1;
 
                                     return (
-                                        <div key={idx} className="relative pl-12 group">
-                                            {/* Timeline dot */}
+                                        <div key={idx} className="relative pb-6 last:pb-0 group">
                                             <div
-                                                className={`absolute left-0 top-1 w-9 h-9 rounded-full border-4 border-white shadow-sm flex items-center justify-center transition-all group-hover:scale-110 z-10 ${
-                                                    idx === 0
-                                                        ? 'text-white shadow-brand-navy/20'
-                                                        : 'bg-slate-50 text-brand-navy/40'
-                                                }`}
-                                                style={idx === 0 && statusColor
-                                                    ? { backgroundColor: statusColor }
-                                                    : idx === 0
-                                                        ? { backgroundColor: 'var(--brand-navy, #1e293b)' }
-                                                        : undefined
-                                                }
+                                                className={`absolute -left-10 top-0 w-8 h-8 rounded-full border-[3px] border-white shadow-sm flex items-center justify-center z-10 transition-all group-hover:scale-110 ${isLast ? 'ring-2 ring-offset-2' : ''}`}
+                                                style={{ backgroundColor: isLast ? (statusColor || '#94a3b8') : '#f8fafc', color: isLast ? '#ffffff' : (statusColor || '#94a3b8'), ['--tw-ring-color' as any]: isLast ? `${statusColor || '#94a3b8'}40` : undefined }}
                                             >
-                                                <div className="w-2 h-2 rounded-full bg-current" />
+                                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: isLast ? '#ffffff' : (statusColor || '#94a3b8') }} />
                                             </div>
-
                                             <div className="space-y-1.5">
-                                                {/* Status + date row */}
-                                                <div className="flex items-center justify-between gap-2">
-                                                    <div className="flex items-center gap-2 flex-wrap">
-                                                        <span
-                                                            className={`text-sm font-black tracking-tight ${
-                                                                idx === 0 ? 'text-brand-navy' : 'text-muted-foreground'
-                                                            }`}
-                                                        >
-                                                            {status}
-                                                        </span>
-                                                        {sitInfo && (
-                                                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border ${sitInfo.className}`}>
-                                                                {sitInfo.label}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <span className="text-[10px] font-bold text-muted-foreground opacity-60 shrink-0">
-                                                        {date ? format(new Date(date), 'dd/MM/yyyy HH:mm') : ''}
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg" style={{ color: statusColor || '#94a3b8', backgroundColor: `${statusColor || '#94a3b8'}15` }}>
+                                                        {status}
                                                     </span>
+                                                    {sitInfo && <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border ${sitInfo.className}`}>{sitInfo.label}</span>}
                                                 </div>
+                                                {date && <p className="text-[10px] font-bold text-muted-foreground/50">{format(new Date(date), 'dd/MM/yyyy HH:mm')}</p>}
 
                                                 {/* Location (hub / city) */}
                                                 {location && (
@@ -2045,6 +2023,7 @@ const DeliveryNote = () => {
                                         </div>
                                     );
                                 })}
+                                </div>
                             </div>
                         ) : (
                             <div className="flex flex-col items-center justify-center py-12 text-center space-y-3">

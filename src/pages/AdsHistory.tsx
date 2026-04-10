@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { useCurrentUserId } from '@/hooks/useCurrentUserId';
 import {
     Plus,
     Search,
@@ -22,7 +24,9 @@ import {
     AlertTriangle,
     DollarSign,
     ShieldCheck,
-    Zap
+    Zap,
+    Lock,
+    User as UserIcon,
 } from 'lucide-react';
 import {
     Card,
@@ -188,6 +192,13 @@ interface CampaignMetrics {
 
 const AdsHistory = () => {
     const { confirmedIds, cancelledIds, deliveredPkgIds, getOrderCategory } = useStatusCategories();
+    const location = useLocation();
+    const currentUserId = useCurrentUserId();
+
+    // The same page mounts under two roots:
+    //   - /ads-history           → admin: sees everything, gates edit by ownership
+    //   - /mediabuyer/product-ads → media buyer: sees only his own rows
+    const isMediaBuyerView = location.pathname.startsWith('/mediabuyer');
 
     const [isUpsertOpen, setIsUpsertOpen] = useState(false);
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
@@ -202,18 +213,54 @@ const AdsHistory = () => {
     const activeBusinessId = localStorage.getItem('activeBusinessId');
 
     const { data: adsHistory, isLoading } = useQuery({
-        queryKey: ['ads_history', activeBusinessId],
+        queryKey: ['ads_history', activeBusinessId, isMediaBuyerView, currentUserId],
         queryFn: async () => {
             if (!activeBusinessId) return [];
-            const { data, error } = await (supabase
-                .from('ads_history' as any)
+            let query = (supabase as any)
+                .from('ads_history')
                 .select('*, products(id, name, code, image_url)')
                 .eq('DigiCom Business', activeBusinessId)
-                .order('start_date', { ascending: false }) as any);
+                .order('start_date', { ascending: false });
+            // Media buyer only sees rows they created. Admin sees everything.
+            if (isMediaBuyerView && currentUserId) {
+                query = query.eq('created_by', currentUserId);
+            }
+            const { data, error } = await query;
             if (error) throw error;
             return data;
         },
+        enabled: !!activeBusinessId && (!isMediaBuyerView || !!currentUserId),
     });
+
+    // Creators lookup (for the "Created by" badge in admin view).
+    const { data: creators = [] } = useQuery({
+        queryKey: ['ads_history-creators', activeBusinessId],
+        queryFn: async () => {
+            if (!activeBusinessId) return [];
+            const { data, error } = await (supabase as any)
+                .from('users')
+                .select('id, name, avatar_url, role')
+                .eq('DigiCom Business', activeBusinessId);
+            if (error) throw error;
+            return (data || []) as Array<{ id: string; name: string | null; avatar_url: string | null; role: string | null }>;
+        },
+        enabled: !!activeBusinessId && !isMediaBuyerView,
+    });
+
+    const creatorById = useMemo(() => {
+        const map = new Map<string, { id: string; name: string | null; avatar_url: string | null; role: string | null }>();
+        for (const u of creators) map.set(u.id, u);
+        return map;
+    }, [creators]);
+
+    // Ownership rule:
+    //  - Legacy rows (created_by IS NULL) are treated as admin-owned and remain editable by admins.
+    //  - Rows created after the migration are only editable by their author.
+    const canEditRow = (row: any): boolean => {
+        if (!currentUserId) return false;
+        if (row.created_by == null) return !isMediaBuyerView; // legacy → admin only
+        return row.created_by === currentUserId;
+    };
 
     const { data: products } = useQuery({
         queryKey: ['products', activeBusinessId],
@@ -352,7 +399,12 @@ const AdsHistory = () => {
 
     const upsertMutation = useMutation({
         mutationFn: async (values: AdsHistoryValues) => {
-            const payload = {
+            // Gate edit at the mutation layer too — the UI hides the button, but we double check.
+            if (editingHistory && !canEditRow(editingHistory)) {
+                throw new Error('You can only edit campaigns you created');
+            }
+
+            const basePayload = {
                 product_id: values.product_id,
                 method: values.method,
                 amount: values.amount,
@@ -363,18 +415,20 @@ const AdsHistory = () => {
             };
 
             if (editingHistory) {
-                const { data, error } = await (supabase
-                    .from('ads_history' as any)
-                    .update(payload)
-                    .eq('id', editingHistory.id) as any)
+                // Never overwrite `created_by` on update — it's set at insert time.
+                const { data, error } = await (supabase as any)
+                    .from('ads_history')
+                    .update(basePayload)
+                    .eq('id', editingHistory.id)
                     .select()
                     .single();
                 if (error) throw error;
                 return data;
             } else {
-                const { data, error } = await (supabase
-                    .from('ads_history' as any)
-                    .insert(payload) as any)
+                const payload = { ...basePayload, created_by: currentUserId };
+                const { data, error } = await (supabase as any)
+                    .from('ads_history')
+                    .insert(payload)
                     .select()
                     .single();
                 if (error) throw error;
@@ -396,11 +450,14 @@ const AdsHistory = () => {
     });
 
     const deleteMutation = useMutation({
-        mutationFn: async (id: string) => {
-            const { error } = await (supabase
-                .from('ads_history' as any)
+        mutationFn: async (row: any) => {
+            if (!canEditRow(row)) {
+                throw new Error('You can only delete campaigns you created');
+            }
+            const { error } = await (supabase as any)
+                .from('ads_history')
                 .delete()
-                .eq('id', id) as any);
+                .eq('id', row.id);
             if (error) throw error;
         },
         onSuccess: () => {
@@ -522,6 +579,8 @@ const AdsHistory = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     {filteredHistory?.map((h: any) => {
                         const m = getCampaignMetrics(h);
+                        const canEdit = canEditRow(h);
+                        const creator = h.created_by ? creatorById.get(h.created_by) : null;
                         return (
                             <Card
                                 key={h.id}
@@ -546,25 +605,57 @@ const AdsHistory = () => {
                                                 <h3 className="text-lg leading-tight font-bold text-brand-navy line-clamp-1 max-w-[180px]">{h.products?.name}</h3>
                                             </div>
                                         </div>
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                                                <Button variant="ghost" size="icon" className="rounded-xl hover:bg-brand-navy/5">
-                                                    <MoreVertical className="w-5 h-5" />
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[160px]">
-                                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openUpsert(h); }} className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3">
-                                                    <Edit2 className="w-4 h-4" />
-                                                    <span className="font-bold">Edit</span>
-                                                </DropdownMenuItem>
-                                                <DropdownMenuSeparator />
-                                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setHistoryToDelete(h); }} className="rounded-xl p-3 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-3">
-                                                    <Trash2 className="w-4 h-4" />
-                                                    <span className="font-bold">Delete</span>
-                                                </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
+                                        {canEdit ? (
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                                    <Button variant="ghost" size="icon" className="rounded-xl hover:bg-brand-navy/5">
+                                                        <MoreVertical className="w-5 h-5" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[160px]">
+                                                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openUpsert(h); }} className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3">
+                                                        <Edit2 className="w-4 h-4" />
+                                                        <span className="font-bold">Edit</span>
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuSeparator />
+                                                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setHistoryToDelete(h); }} className="rounded-xl p-3 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-3">
+                                                        <Trash2 className="w-4 h-4" />
+                                                        <span className="font-bold">Delete</span>
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        ) : (
+                                            <div
+                                                className="flex items-center gap-1.5 px-2.5 h-8 rounded-xl bg-brand-navy/[0.04] text-brand-navy/50 shrink-0"
+                                                title="Created by a media buyer — read only"
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
+                                                <Lock className="w-3 h-3" />
+                                                <span className="text-[9px] font-black uppercase tracking-wider">Read only</span>
+                                            </div>
+                                        )}
                                     </div>
+
+                                    {/* Created by (admin view only — media buyer sees only their own) */}
+                                    {!isMediaBuyerView && (
+                                        <div className="flex items-center gap-2 -mt-1">
+                                            <div className="w-5 h-5 rounded-full bg-brand-navy/5 border border-brand-navy/10 flex items-center justify-center overflow-hidden shrink-0">
+                                                {creator?.avatar_url ? (
+                                                    <img src={creator.avatar_url} alt="" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <UserIcon className="w-3 h-3 text-brand-navy/40" />
+                                                )}
+                                            </div>
+                                            <span className="text-[10px] font-bold text-brand-navy/50 truncate">
+                                                {creator?.name || (h.created_by ? 'Unknown user' : 'Admin (legacy)')}
+                                            </span>
+                                            {creator?.role && (
+                                                <span className="text-[8px] font-black uppercase tracking-widest text-brand-navy/30 bg-brand-navy/[0.04] px-1.5 py-0.5 rounded-md">
+                                                    {creator.role.replace(/_/g, ' ')}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
 
                                     <div className="grid grid-cols-4 gap-3">
                                         <div className="space-y-0.5">
@@ -991,7 +1082,7 @@ const AdsHistory = () => {
                                 Cancel
                             </AlertDialogCancel>
                             <AlertDialogAction
-                                onClick={() => deleteMutation.mutate(historyToDelete.id)}
+                                onClick={() => deleteMutation.mutate(historyToDelete)}
                                 className="w-full rounded-2xl h-14 font-bold bg-red-500 hover:bg-red-600 text-brand-white shadow-xl shadow-red-500/20 m-0"
                             >
                                 {deleteMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}

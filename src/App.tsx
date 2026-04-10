@@ -207,6 +207,7 @@ const App = () => (
                   <Route path="campaigns/:id" element={<MediaBuyerCampaignPreview />} />
                   <Route path="campaigns/:id/edit" element={<MediaBuyerCampaignForm />} />
                   <Route path="campaigns/:id/manage" element={<MediaBuyerCampaignManage />} />
+                  <Route path="product-ads" element={<AdsHistory />} />
                   <Route path="orders" element={<MediaBuyerOrders />} />
                   <Route path="payments" element={<MediaBuyerPayments />} />
                   <Route path="demands" element={<MediaBuyerDemands />} />

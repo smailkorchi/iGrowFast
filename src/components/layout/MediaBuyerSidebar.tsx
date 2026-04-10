@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
     Home,
     BarChart2,
@@ -7,6 +7,9 @@ import {
     CreditCard,
     MessageSquare,
     ShoppingCart,
+    Target,
+    LineChart,
+    ChevronRight,
     LogOut,
     PanelLeftClose,
     User as UserIcon,
@@ -25,21 +28,67 @@ type NavItem = {
     path: string;
 };
 
-const navigation: NavItem[] = [
-    { icon: Home, label: 'Dashboard', path: '/mediabuyer/dashboard' },
-    { icon: BarChart2, label: 'Statistics', path: '/mediabuyer/statistics' },
-    { icon: Megaphone, label: 'Campaigns', path: '/mediabuyer/campaigns' },
-    { icon: ShoppingCart, label: 'Orders', path: '/mediabuyer/orders' },
-    { icon: CreditCard, label: 'Payments', path: '/mediabuyer/payments' },
-    { icon: MessageSquare, label: 'Demands', path: '/mediabuyer/demands' },
+type NavSection = {
+    label?: string;
+    icon?: SidebarIcon;
+    items: NavItem[];
+};
+
+const navigation: NavSection[] = [
+    {
+        items: [
+            { icon: Home, label: 'Dashboard', path: '/mediabuyer/dashboard' },
+            { icon: BarChart2, label: 'Statistics', path: '/mediabuyer/statistics' },
+        ],
+    },
+    {
+        label: 'Ads',
+        icon: Megaphone,
+        items: [
+            { icon: Target, label: 'Global Ads', path: '/mediabuyer/campaigns' },
+            { icon: LineChart, label: 'Product Ads', path: '/mediabuyer/product-ads' },
+        ],
+    },
+    {
+        items: [
+            { icon: ShoppingCart, label: 'Orders', path: '/mediabuyer/orders' },
+            { icon: CreditCard, label: 'Payments', path: '/mediabuyer/payments' },
+            { icon: MessageSquare, label: 'Demands', path: '/mediabuyer/demands' },
+        ],
+    },
 ];
 
 const MediaBuyerSidebar = () => {
     const navigate = useNavigate();
+    const location = useLocation();
 
     const [isPinned, setIsPinned] = React.useState(() => {
         return localStorage.getItem('sidebarPinned') === 'true';
     });
+
+    // Accordion: expand the section containing the current path.
+    const [expandedSection, setExpandedSection] = React.useState<string | null>(() => {
+        let active: string | null = null;
+        navigation.forEach((section) => {
+            if (section.label && section.items.some((item) => location.pathname === item.path || location.pathname.startsWith(item.path + '/'))) {
+                active = section.label;
+            }
+        });
+        return active;
+    });
+
+    const toggleSection = (label: string) => {
+        setExpandedSection((prev) => (prev === label ? null : label));
+    };
+
+    React.useEffect(() => {
+        navigation.forEach((section) => {
+            if (section.label && section.items.some((item) => location.pathname === item.path || location.pathname.startsWith(item.path + '/'))) {
+                const label = section.label;
+                setExpandedSection((prev) => (prev !== label ? label : prev));
+            }
+        });
+    }, [location.pathname]);
 
     const togglePin = () => {
         setIsPinned(prev => {
@@ -105,25 +154,87 @@ const MediaBuyerSidebar = () => {
                         </div>
                     </div>
 
-                    {/* Navigation Items */}
+                    {/* Navigation Sections */}
                     <div className="flex-1 px-3 space-y-1 overflow-y-auto no-scrollbar pb-6 scroll-smooth">
-                        {navigation.map((item, idx) => (
-                            <NavLink
-                                key={item.path}
-                                to={item.path}
-                                className={({ isActive }) => cn(
-                                    "flex items-center h-11 rounded-2xl transition-all duration-300 group/item relative overflow-hidden",
-                                    "hover:bg-white/[0.04]",
-                                    isActive ? "bg-white/[0.08] text-brand-white shadow-sm" : "text-brand-white/40 hover:text-brand-white"
+                        {navigation.map((section, idx) => (
+                            <div key={idx} className="space-y-1">
+                                {section.label ? (
+                                    <>
+                                        <button
+                                            onClick={() => toggleSection(section.label!)}
+                                            className={cn(
+                                                "flex items-center w-full h-11 rounded-2xl transition-all duration-300 group/item relative overflow-hidden",
+                                                "hover:bg-white/[0.04]",
+                                                (expandedSection === section.label || section.items.some((item) => location.pathname === item.path))
+                                                    ? "text-brand-white"
+                                                    : "text-brand-white/40 hover:text-brand-white"
+                                            )}
+                                        >
+                                            <div className="w-[52px] h-11 flex items-center justify-center shrink-0 relative z-10 transition-transform duration-300 group-hover/item:scale-110">
+                                                {section.icon && <section.icon className="w-5 h-5" />}
+                                            </div>
+                                            <div className="flex-1 flex items-center justify-between pr-4 opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100 transition-all duration-500 delay-75">
+                                                <span className="font-bold text-[13px] whitespace-nowrap">
+                                                    {section.label}
+                                                </span>
+                                                <ChevronRight className={cn(
+                                                    "w-4 h-4 transition-transform duration-300",
+                                                    expandedSection === section.label && "rotate-90"
+                                                )} />
+                                            </div>
+                                        </button>
+
+                                        <div className={cn(
+                                            "space-y-0.5 overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]",
+                                            expandedSection === section.label ? "max-h-[400px] opacity-100 mt-1" : "max-h-0 opacity-0"
+                                        )}>
+                                            {section.items.map((item) => (
+                                                <NavLink
+                                                    key={item.path}
+                                                    to={item.path}
+                                                    className={({ isActive }) => cn(
+                                                        "flex items-center h-10 rounded-xl transition-all duration-300 group/subitem relative overflow-hidden ml-1",
+                                                        "hover:bg-white/[0.04]",
+                                                        isActive ? "bg-white/[0.08] text-brand-white shadow-sm" : "text-brand-white/50 hover:text-brand-white"
+                                                    )}
+                                                >
+                                                    {({ isActive }) => (
+                                                        <>
+                                                            <div className="w-[48px] h-10 flex items-center justify-center shrink-0 relative z-10 transition-transform duration-300 group-hover/subitem:scale-110">
+                                                                <item.icon className={cn("w-4 h-4", isActive ? "text-brand-white" : "text-brand-white/40 group-hover/subitem:text-brand-white")} />
+                                                            </div>
+                                                            <span className="font-bold text-[12px] opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100 transition-all duration-500 delay-75 whitespace-nowrap relative z-10">
+                                                                {item.label}
+                                                            </span>
+                                                        </>
+                                                    )}
+                                                </NavLink>
+                                            ))}
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="space-y-0.5">
+                                        {section.items.map((item) => (
+                                            <NavLink
+                                                key={item.path}
+                                                to={item.path}
+                                                className={({ isActive }) => cn(
+                                                    "flex items-center h-11 rounded-2xl transition-all duration-300 group/item relative overflow-hidden",
+                                                    "hover:bg-white/[0.04]",
+                                                    isActive ? "bg-white/[0.08] text-brand-white shadow-sm" : "text-brand-white/40 hover:text-brand-white"
+                                                )}
+                                            >
+                                                <div className="w-[52px] h-11 flex items-center justify-center shrink-0 relative z-10 transition-transform duration-300 group-hover/item:scale-110">
+                                                    <item.icon className="w-5 h-5" />
+                                                </div>
+                                                <span className="font-bold text-[13px] opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100 transition-all duration-500 delay-75 whitespace-nowrap relative z-10">
+                                                    {item.label}
+                                                </span>
+                                            </NavLink>
+                                        ))}
+                                    </div>
                                 )}
-                            >
-                                <div className="w-[52px] h-11 flex items-center justify-center shrink-0 relative z-10 transition-transform duration-300 group-hover/item:scale-110">
-                                    <item.icon className={cn("w-5 h-5", idx === 0 && "transition-all duration-1000")} />
-                                </div>
-                                <span className="font-bold text-[13px] opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100 transition-all duration-500 delay-75 whitespace-nowrap relative z-10">
-                                    {item.label}
-                                </span>
-                            </NavLink>
+                            </div>
                         ))}
                     </div>
 

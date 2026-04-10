@@ -1873,37 +1873,24 @@ const DeliveryNote = () => {
                                 <p className="font-bold text-muted-foreground animate-pulse">Récupération des données...</p>
                             </div>
                         ) : trackingHistory ? (
-                            <div className="space-y-8 relative before:absolute before:left-[17px] before:top-2 before:bottom-2 before:w-0.5 before:bg-brand-navy/5">
+                            <div className="relative pl-10">
+                                <div className="absolute left-[15px] top-4 bottom-4 w-0.5 bg-gradient-to-b from-slate-200 via-slate-200 to-brand-navy/30" />
+                                <div className="space-y-0">
                                 {(() => {
-                                    // Handle both old (array) and new (object with .history) formats
                                     const events = Array.isArray(trackingHistory)
                                         ? trackingHistory
                                         : (trackingHistory?.history || []);
                                     if (events.length === 0) {
                                         return [{ status: trackingHistory?.statusLabel || trackingHistory?.status || 'Nouveau', date: null, comment: 'Aucun historique détaillé disponible', statusLabel: trackingHistory?.statusLabel }];
                                     }
-                                    return events;
-                                })().map((event: any, idx: number) => {
-                                    // Status mapping for Coliaty/Ameex labels
+                                    return [...events].reverse(); // oldest first
+                                })().map((event: any, idx: number, arr: any[]) => {
                                     const statusMap: any = {
-                                        'NEW_PARCEL': 'Nouveau',
-                                        'WAITING_PICKUP': 'En attente de ramassage',
-                                        'DISTRIBUTION': 'En cours de distribution',
-                                        'DELIVERED': 'Livré',
-                                        'REFUSED': 'Refusé',
-                                        'REFUSE': 'Refusé',
-                                        'ANNULE': 'Annulé',
-                                        'CANCELLED': 'Annulé',
-                                        'RETURNED': 'Retourné',
-                                        'RETOUR': 'Retourné',
-                                        'POSTPONED': 'Reporté',
-                                        'WAITING_PREPARATION': 'En préparation',
-                                        'PICKED_UP': 'Ramassé',
-                                        'READY_FOR_PICKUP': 'Prêt pour ramassage'
+                                        'NEW_PARCEL': 'Nouveau', 'WAITING_PICKUP': 'En attente de ramassage', 'DISTRIBUTION': 'En cours de distribution',
+                                        'DELIVERED': 'Livré', 'REFUSED': 'Refusé', 'REFUSE': 'Refusé', 'ANNULE': 'Annulé', 'CANCELLED': 'Annulé',
+                                        'RETURNED': 'Retourné', 'RETOUR': 'Retourné', 'POSTPONED': 'Reporté', 'WAITING_PREPARATION': 'En préparation',
+                                        'PICKED_UP': 'Ramassé', 'READY_FOR_PICKUP': 'Prêt pour ramassage'
                                     };
-
-                                    // Our Edge Function now returns normalized fields: status, date, comment, user
-                                    // AMEEX also provides statusLabel (friendly name from API)
                                     const situationMap: Record<string, { label: string; className: string }> = {
                                         PAID: { label: 'Payé', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
                                         NOT_PAID: { label: 'Non payé', className: 'bg-amber-50 text-amber-700 border-amber-200' },
@@ -1911,143 +1898,68 @@ const DeliveryNote = () => {
                                     };
 
                                     const rawStatus = event.status || "Nouveau";
-                                    const statusLabel = event.statusLabel; // AMEEX provides this
+                                    const statusLabel = event.statusLabel;
                                     const status = statusLabel || statusMap[rawStatus] || rawStatus;
                                     const date = event.date;
                                     const comment = event.comment || "";
                                     const u = event.user;
                                     const user = (typeof u === 'object' && u !== null && 'name' in u ? (u as { name?: string }).name : (u as string | undefined)) || "";
-
                                     const phone = (event.phone as string) || '';
                                     const hub = (event.hub as string) || '';
                                     const city = (event.city as string) || '';
                                     const situation = (event.situation as string) || '';
                                     const scheduledDate = event.scheduledDate as string | undefined;
-                                    const statusColor = (event.color as string) || '';
+                                    const statusColor = (event.color as string) || '#94a3b8';
                                     const dataList = (event.data_list as any[]) || [];
-                                    const eventFor = (event.eventFor as string) || '';
-
-                                    // Determine location string
-                                    const locationParts = [hub, city].filter(Boolean);
-                                    const location = locationParts.length > 0 ? locationParts.join(' — ') : '';
-
-                                    // Filter data_list: remove items already shown elsewhere
-                                    const meaningfulDataList = dataList.filter(item => {
-                                        if (!item || !item.title) return false;
-                                        // Skip if it's a distribution count
-                                        if (item.title === 'Nombre de distributions') return false;
-                                        return true;
-                                    });
-
+                                    const location = [hub, city].filter(Boolean).join(' — ');
+                                    const meaningfulDataList = dataList.filter((item: any) => item?.title && item.title !== 'Nombre de distributions');
                                     const sitInfo = situation ? situationMap[situation] : null;
+                                    const isLast = idx === arr.length - 1;
 
                                     return (
-                                        <div key={idx} className="relative pl-12 group">
-                                            {/* Timeline dot */}
+                                        <div key={idx} className="relative pb-6 last:pb-0 group">
                                             <div
-                                                className={`absolute left-0 top-1 w-9 h-9 rounded-full border-4 border-white shadow-sm flex items-center justify-center transition-all group-hover:scale-110 z-10 ${
-                                                    idx === 0
-                                                        ? 'text-white shadow-brand-navy/20'
-                                                        : 'bg-slate-50 text-brand-navy/40'
-                                                }`}
-                                                style={idx === 0 && statusColor
-                                                    ? { backgroundColor: statusColor }
-                                                    : idx === 0
-                                                        ? { backgroundColor: 'var(--brand-navy, #1e293b)' }
-                                                        : undefined
-                                                }
+                                                className={`absolute -left-10 top-0 w-8 h-8 rounded-full border-[3px] border-white shadow-sm flex items-center justify-center z-10 transition-all group-hover:scale-110 ${isLast ? 'ring-2 ring-offset-2' : ''}`}
+                                                style={{ backgroundColor: isLast ? statusColor : '#f8fafc', color: isLast ? '#ffffff' : statusColor, ['--tw-ring-color' as any]: isLast ? `${statusColor}40` : undefined }}
                                             >
-                                                <div className="w-2 h-2 rounded-full bg-current" />
+                                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: isLast ? '#ffffff' : statusColor }} />
                                             </div>
-
                                             <div className="space-y-1.5">
-                                                {/* Status + date row */}
-                                                <div className="flex items-center justify-between gap-2">
-                                                    <div className="flex items-center gap-2 flex-wrap">
-                                                        <span
-                                                            className={`text-sm font-black tracking-tight ${
-                                                                idx === 0 ? 'text-brand-navy' : 'text-muted-foreground'
-                                                            }`}
-                                                        >
-                                                            {status}
-                                                        </span>
-                                                        {sitInfo && (
-                                                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border ${sitInfo.className}`}>
-                                                                {sitInfo.label}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <span className="text-[10px] font-bold text-muted-foreground opacity-60 shrink-0">
-                                                        {date ? format(new Date(date), 'dd/MM/yyyy HH:mm') : ''}
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg" style={{ color: statusColor, backgroundColor: `${statusColor}15` }}>
+                                                        {status}
                                                     </span>
+                                                    {sitInfo && <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border ${sitInfo.className}`}>{sitInfo.label}</span>}
                                                 </div>
-
-                                                {/* Location (hub / city) */}
+                                                {date && <p className="text-[10px] font-bold text-muted-foreground/50">{format(new Date(date), 'dd/MM/yyyy HH:mm')}</p>}
+                                                {comment && <p className="text-[11px] font-medium text-muted-foreground leading-relaxed italic">&quot;{comment}&quot;</p>}
                                                 {location && (
                                                     <div className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground/70">
-                                                        <MapPin className="w-3 h-3 shrink-0" />
-                                                        <span>{location}</span>
+                                                        <MapPin className="w-3 h-3 shrink-0" /><span>{location}</span>
                                                     </div>
                                                 )}
-
-                                                {/* Comment */}
-                                                {comment && (
-                                                    <p className="text-[11px] font-medium text-muted-foreground leading-relaxed italic">
-                                                        "{comment}"
-                                                    </p>
-                                                )}
-
-                                                {/* Courier info (name + phone) */}
                                                 {(user || phone) && (
                                                     <div className="flex items-center gap-3 flex-wrap">
-                                                        {user && (
-                                                            <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground">
-                                                                <div className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center">
-                                                                    <Hash className="w-2 h-2" />
-                                                                </div>
-                                                                Par {user}
-                                                            </div>
-                                                        )}
-                                                        {phone && (
-                                                            <a
-                                                                href={`tel:${phone}`}
-                                                                className="flex items-center gap-1 text-[10px] font-bold text-brand-navy/70 hover:text-brand-navy transition-colors"
-                                                            >
-                                                                <Phone className="w-3 h-3" />
-                                                                {phone}
-                                                            </a>
-                                                        )}
+                                                        {user && <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground"><div className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center"><Hash className="w-2 h-2" /></div>Par {user}</div>}
+                                                        {phone && <a href={`tel:${phone}`} className="flex items-center gap-1 text-[10px] font-bold text-brand-navy/70 hover:text-brand-navy transition-colors"><Phone className="w-3 h-3" />{phone}</a>}
                                                     </div>
                                                 )}
-
-                                                {/* Scheduled date */}
                                                 {scheduledDate && (
                                                     <div className="flex items-center gap-1.5 text-[10px] font-semibold text-blue-600/70">
-                                                        <CalendarClock className="w-3 h-3 shrink-0" />
-                                                        <span>Programmé: {format(new Date(scheduledDate), 'dd/MM/yyyy')}</span>
+                                                        <CalendarClock className="w-3 h-3 shrink-0" /><span>Programmé: {format(new Date(scheduledDate), 'dd/MM/yyyy')}</span>
                                                     </div>
                                                 )}
-
-                                                {/* Data list items */}
                                                 {meaningfulDataList.length > 0 && (
                                                     <div className="mt-1 space-y-0.5">
-                                                        {meaningfulDataList.map((item, i) => {
+                                                        {meaningfulDataList.map((item: any, i: number) => {
                                                             const isItemPhone = /^0[5-8]\d{8}$/.test(String(item.value));
-                                                            const isDate = /^\d{4}-\d{2}-\d{2}$/.test(String(item.value));
-
+                                                            const isDateVal = /^\d{4}-\d{2}-\d{2}$/.test(String(item.value));
                                                             return (
                                                                 <div key={i} className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground/80">
-                                                                    <Info className="w-2.5 h-2.5 shrink-0 opacity-50" />
-                                                                    <span className="font-semibold">{item.title}:</span>
-                                                                    {isItemPhone ? (
-                                                                        <a href={`tel:${item.value}`} className="text-brand-navy/70 hover:text-brand-navy font-bold transition-colors">
-                                                                            {item.value}
-                                                                        </a>
-                                                                    ) : isDate ? (
-                                                                        <span className="text-blue-600/70 font-semibold">{item.value}</span>
-                                                                    ) : (
-                                                                        <span className="font-semibold">{item.value}</span>
-                                                                    )}
+                                                                    <Info className="w-2.5 h-2.5 shrink-0 opacity-50" /><span className="font-semibold">{item.title}:</span>
+                                                                    {isItemPhone ? <a href={`tel:${item.value}`} className="text-brand-navy/70 hover:text-brand-navy font-bold transition-colors">{item.value}</a>
+                                                                    : isDateVal ? <span className="text-blue-600/70 font-semibold">{item.value}</span>
+                                                                    : <span className="font-semibold">{item.value}</span>}
                                                                 </div>
                                                             );
                                                         })}
@@ -2057,6 +1969,7 @@ const DeliveryNote = () => {
                                         </div>
                                     );
                                 })}
+                                </div>
                             </div>
                         ) : (
                             <div className="flex flex-col items-center justify-center py-12 text-center space-y-3">

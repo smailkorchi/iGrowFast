@@ -1,5 +1,6 @@
 import { format } from 'date-fns';
 import { Package, Calendar, SearchX } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import {
     Dialog,
     DialogContent,
@@ -9,6 +10,8 @@ import {
 } from '@/components/ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/lib/supabase';
+import { DynamicIcon } from '@/lib/renderReactIcon';
 
 type HistoryRecord = {
     id: string;
@@ -30,12 +33,10 @@ type OrderStatusHistoryDialogProps = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     order: OrderShape | null;
-    /**
-     * Optional category resolver for tagging postponed records the same way the
-     * preview modal does. Defaults to checking the embedded status.category.
-     */
     isOrderInCategory?: (statusId: string | null | undefined, category: string) => boolean;
 };
+
+type OrdStatus = { id: string; icon: string | null };
 
 export function OrderStatusHistoryDialog({
     open,
@@ -43,11 +44,30 @@ export function OrderStatusHistoryDialog({
     order,
     isOrderInCategory,
 }: OrderStatusHistoryDialogProps) {
+    // Oldest first (top) → newest last (bottom)
     const records = (order?.history || []).slice().sort((a, b) => {
         const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
         const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
-        return tb - ta;
+        return ta - tb;
     });
+
+    // Load order_statuses for icon lookup
+    const { data: ordStatuses } = useQuery({
+        queryKey: ['order-statuses-icons'],
+        queryFn: async () => {
+            const { data } = await supabase
+                .from('order_statuses')
+                .select('id, icon')
+                .eq('active', true);
+            return (data || []) as unknown as OrdStatus[];
+        },
+        staleTime: 5 * 60 * 1000,
+    });
+
+    const getIcon = (statusId: string | null): string | null => {
+        if (!statusId || !ordStatuses?.length) return null;
+        return ordStatuses.find(s => s.id === statusId)?.icon || null;
+    };
 
     const isPostponed = (record: HistoryRecord): boolean => {
         if (isOrderInCategory) return isOrderInCategory(record.status_id, 'postponed');
@@ -78,81 +98,108 @@ export function OrderStatusHistoryDialog({
                             <p className="font-bold text-muted-foreground">Aucun historique disponible pour cette commande.</p>
                         </div>
                     ) : (
-                        <div className="space-y-6 relative before:absolute before:left-[17px] before:top-2 before:bottom-2 before:w-0.5 before:bg-brand-navy/5">
-                            {records.map((record, idx) => {
-                                const color = record.status?.color || '#94a3b8';
-                                const label = record.status?.label || 'Inconnu';
-                                const postponed = isPostponed(record);
-                                const reportedMatch = postponed && record.comment?.match(/\[Reporté pour: (.*?)\]/);
-                                const reportedText = reportedMatch?.[1] || (postponed ? format(new Date(order?.reported_date || record.created_at || Date.now()), 'dd/MM/yyyy HH:mm') : null);
-                                const cleanedComment = postponed
-                                    ? (record.comment || '').replace(/\[Reporté pour:.*?\]/, '').trim()
-                                    : record.comment || '';
+                        <div className="relative pl-10">
+                            {/* Vertical line */}
+                            <div className="absolute left-[15px] top-4 bottom-4 w-0.5 bg-gradient-to-b from-slate-200 via-slate-200 to-brand-navy/30" />
 
-                                return (
-                                    <div key={record.id} className="relative pl-12 group">
-                                        {/* Timeline dot */}
-                                        <div
-                                            className="absolute left-0 top-1 w-9 h-9 rounded-full border-4 border-white shadow-sm flex items-center justify-center transition-all group-hover:scale-110 z-10"
-                                            style={{ backgroundColor: idx === 0 ? color : '#f1f5f9' }}
-                                        >
+                            <div className="space-y-0">
+                                {records.map((record, idx) => {
+                                    const color = record.status?.color || '#94a3b8';
+                                    const label = record.status?.label || 'Inconnu';
+                                    const postponed = isPostponed(record);
+                                    const reportedMatch = postponed && record.comment?.match(/\[Reporté pour: (.*?)\]/);
+                                    const reportedText = reportedMatch?.[1] || (postponed ? format(new Date(order?.reported_date || record.created_at || Date.now()), 'dd/MM/yyyy HH:mm') : null);
+                                    const cleanedComment = postponed
+                                        ? (record.comment || '').replace(/\[Reporté pour:.*?\]/, '').trim()
+                                        : record.comment || '';
+                                    const iconName = getIcon(record.status_id);
+                                    const isLast = idx === records.length - 1;
+
+                                    return (
+                                        <div key={record.id} className="relative pb-6 last:pb-0 group">
+                                            {/* Timeline circle with icon */}
                                             <div
-                                                className="w-2 h-2 rounded-full"
-                                                style={{ backgroundColor: idx === 0 ? '#ffffff' : color }}
-                                            />
-                                        </div>
-
-                                        <div className="space-y-2">
-                                            {/* Status + date row */}
-                                            <div className="flex items-center justify-between gap-2 flex-wrap">
-                                                <span
-                                                    className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md"
-                                                    style={{ color, backgroundColor: `${color}15` }}
-                                                >
-                                                    {label}
-                                                </span>
-                                                <span className="text-[10px] font-bold text-muted-foreground opacity-60 shrink-0">
-                                                    {record.created_at ? format(new Date(record.created_at), 'dd/MM/yyyy HH:mm') : ''}
-                                                </span>
+                                                className={`absolute -left-10 top-0 w-8 h-8 rounded-full border-[3px] border-white shadow-sm flex items-center justify-center z-10 transition-all group-hover:scale-110 ${
+                                                    isLast ? 'ring-2 ring-offset-2' : ''
+                                                }`}
+                                                style={{
+                                                    backgroundColor: isLast ? color : '#f8fafc',
+                                                    color: isLast ? '#ffffff' : color,
+                                                    ['--tw-ring-color' as any]: isLast ? `${color}40` : undefined,
+                                                }}
+                                            >
+                                                {iconName ? (
+                                                    <DynamicIcon name={iconName} className="w-3.5 h-3.5" />
+                                                ) : (
+                                                    <div
+                                                        className="w-2 h-2 rounded-full"
+                                                        style={{ backgroundColor: isLast ? '#ffffff' : color }}
+                                                    />
+                                                )}
                                             </div>
 
-                                            {/* Author */}
-                                            <div className="flex items-center gap-2">
-                                                <Avatar className="w-5 h-5 border bg-white">
-                                                    <AvatarImage src={record.user?.avatar_url || undefined} />
-                                                    <AvatarFallback className="text-[9px] font-bold bg-brand-navy/5 text-brand-navy">
-                                                        {record.user?.name?.[0] || '?'}
-                                                    </AvatarFallback>
-                                                </Avatar>
-                                                <span className="text-[11px] font-bold text-brand-navy/70 truncate max-w-[200px]">
-                                                    {record.user?.name || 'Système'}
-                                                </span>
-                                            </div>
-
-                                            {/* Comment / postponed schedule */}
-                                            {postponed && reportedText && (
-                                                <div className="flex flex-col gap-1 p-3 bg-amber-50 rounded-xl border border-amber-100">
-                                                    <div className="flex items-center gap-2">
-                                                        <Calendar className="w-3 h-3 text-amber-600" />
-                                                        <span className="text-[10px] font-black uppercase text-amber-700">Rappel programmé</span>
-                                                    </div>
-                                                    <p className="text-xs font-bold text-amber-900">{reportedText}</p>
-                                                    {cleanedComment && (
-                                                        <p className="text-[11px] font-medium text-amber-800 italic mt-1 border-t border-amber-500/10 pt-1">
-                                                            "{cleanedComment}"
-                                                        </p>
-                                                    )}
+                                            <div className="space-y-1.5">
+                                                {/* Status pill */}
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span
+                                                        className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg"
+                                                        style={{ color, backgroundColor: `${color}15` }}
+                                                    >
+                                                        {label}
+                                                    </span>
                                                 </div>
-                                            )}
-                                            {!postponed && record.comment && (
-                                                <p className="text-[11px] font-medium text-muted-foreground leading-relaxed italic">
-                                                    "{record.comment}"
-                                                </p>
-                                            )}
+
+                                                {/* Date */}
+                                                {record.created_at && (
+                                                    <p className="text-[10px] font-bold text-muted-foreground/50">
+                                                        {format(new Date(record.created_at), 'dd/MM/yyyy HH:mm')}
+                                                    </p>
+                                                )}
+
+                                                {/* Author */}
+                                                <div className="flex items-center gap-2">
+                                                    {record.user ? (
+                                                        <Avatar className="w-5 h-5 border bg-white">
+                                                            <AvatarImage src={record.user.avatar_url || undefined} />
+                                                            <AvatarFallback className="text-[9px] font-bold bg-brand-navy/5 text-brand-navy">
+                                                                {record.user.name?.[0] || '?'}
+                                                            </AvatarFallback>
+                                                        </Avatar>
+                                                    ) : (
+                                                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-brand-navy/10 to-brand-navy/20 flex items-center justify-center">
+                                                            <DynamicIcon name="TbRobot" className="w-3 h-3 text-brand-navy/60" />
+                                                        </div>
+                                                    )}
+                                                    <span className="text-[11px] font-bold text-brand-navy/70 truncate max-w-[200px]">
+                                                        {record.user?.name || 'Système'}
+                                                    </span>
+                                                </div>
+
+                                                {/* Postponed schedule */}
+                                                {postponed && reportedText && (
+                                                    <div className="flex flex-col gap-1 p-3 bg-amber-50 rounded-xl border border-amber-100">
+                                                        <div className="flex items-center gap-2">
+                                                            <Calendar className="w-3 h-3 text-amber-600" />
+                                                            <span className="text-[10px] font-black uppercase text-amber-700">Rappel programmé</span>
+                                                        </div>
+                                                        <p className="text-xs font-bold text-amber-900">{reportedText}</p>
+                                                        {cleanedComment && (
+                                                            <p className="text-[11px] font-medium text-amber-800 italic mt-1 border-t border-amber-500/10 pt-1">
+                                                                "{cleanedComment}"
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                )}
+                                                {!postponed && record.comment && (
+                                                    <p className="text-[11px] font-medium text-muted-foreground leading-relaxed italic">
+                                                        "{record.comment}"
+                                                    </p>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                );
-                            })}
+                                    );
+                                })}
+                            </div>
                         </div>
                     )}
                 </div>
@@ -161,7 +208,7 @@ export function OrderStatusHistoryDialog({
                     <Button
                         variant="ghost"
                         onClick={() => onOpenChange(false)}
-                        className="w-full h-14 rounded-2xl font-black text-sm tracking-widest uppercase hover:bg-slate-50"
+                        className="w-full h-14 rounded-2xl font-black text-sm tracking-widest uppercase text-brand-navy hover:bg-slate-100 hover:text-brand-navy"
                     >
                         Fermer
                     </Button>
