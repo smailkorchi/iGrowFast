@@ -1698,13 +1698,8 @@ const Orders = () => {
                 updatePayload.reported_date = reportedDate || new Date().toISOString();
             }
 
-            const { error } = await (supabase as any)
-                .from('orders')
-                .update(updatePayload)
-                .eq('id', orderId)
-                .eq('DigiCom Business', activeBusinessId);
-            if (error) throw error;
-
+            // Insert history BEFORE the update so the DB trigger's 5-second
+            // dedup check finds it and skips its own "Changement automatique" row.
             await (supabase as any).from('order_status_history').insert({
                 order_id: orderId,
                 status_id: statusId,
@@ -1712,6 +1707,13 @@ const Orders = () => {
                 changed_by: userId,
                 'DigiCom Business': activeBusinessId,
             });
+
+            const { error } = await (supabase as any)
+                .from('orders')
+                .update(updatePayload)
+                .eq('id', orderId)
+                .eq('DigiCom Business', activeBusinessId);
+            if (error) throw error;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });

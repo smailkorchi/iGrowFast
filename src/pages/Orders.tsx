@@ -1591,14 +1591,8 @@ const Orders = () => {
                 updatePayload.reported_date = reportedDate || new Date().toISOString();
             }
 
-            const { error } = await (supabase as any)
-                .from('orders')
-                .update(updatePayload)
-                .in('id', orderIds)
-                .eq('DigiCom Business', activeBusinessId);
-            if (error) throw error;
-
-            // Track history for bulk
+            // Insert history BEFORE the update so the DB trigger's 5-second
+            // dedup check finds it and skips its own "Changement automatique" row.
             try {
                 let finalCommentTemplate = commentOverride || bulkStatusComment || 'Bulk status update';
 
@@ -1618,6 +1612,13 @@ const Orders = () => {
             } catch (err) {
                 console.error("Bulk history error", err);
             }
+
+            const { error } = await (supabase as any)
+                .from('orders')
+                .update(updatePayload)
+                .in('id', orderIds)
+                .eq('DigiCom Business', activeBusinessId);
+            if (error) throw error;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
