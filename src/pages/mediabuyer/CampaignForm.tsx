@@ -300,9 +300,6 @@ const CampaignForm: React.FC = () => {
         mutationFn: async (values: CampaignFormValues) => {
             if (!activeBusinessId) throw new Error('No business selected');
 
-            if (media.length === 0) {
-                throw new Error('Upload at least one media file for this campaign');
-            }
 
             const { data: { user } } = await supabase.auth.getUser();
 

@@ -267,7 +267,7 @@ const CampaignManage: React.FC = () => {
                                 { label: 'Leads', value: fmtNum(totals.leads), sub: 'injected' },
                                 { label: 'Confirmed', value: fmtNum(totals.confirmed), sub: fmtPct(totals.confirmRate) },
                                 { label: 'Delivered', value: fmtNum(totals.delivered), sub: fmtPct(totals.deliveryRate) },
-                                { label: 'Revenue', value: fmtCur(totals.revenue, currency), sub: fmtCur(totals.profit, currency) + ' profit' },
+                                { label: 'Revenue', value: fmtCur(totals.revenue, currency), sub: '—' },
                             ].map((s) => (
                                 <div key={s.label} className="rounded-3xl border border-gray-100/80 bg-white/90 p-5 shadow-sm backdrop-blur-sm">
                                     <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{s.label}</p>
@@ -399,7 +399,6 @@ const CampaignManage: React.FC = () => {
                                         <th className="text-right px-3 py-3">Conf %</th>
                                         <th className="text-right px-3 py-3">Liv %</th>
                                         <th className="text-right px-3 py-3">Revenue</th>
-                                        <th className="text-right px-3 py-3">Profit</th>
                                         <th className="text-right px-3 py-3 pr-6">Actions</th>
                                     </tr>
                                 </thead>
@@ -451,9 +450,6 @@ const CampaignManage: React.FC = () => {
                                                 <td className="text-right px-3 py-3 text-brand-navy/50 text-xs">{fmtPct(d.confirmRate)}</td>
                                                 <td className="text-right px-3 py-3 text-brand-navy/50 text-xs">{fmtPct(d.deliveryRate)}</td>
                                                 <td className="text-right px-3 py-3 font-bold text-brand-navy">{fmtCurFull(d.revenue, currency)}</td>
-                                                <td className={cn('text-right px-3 py-3 font-bold', d.profit >= 0 ? 'text-emerald-600' : 'text-red-500')}>
-                                                    {fmtCurFull(d.profit, currency)}
-                                                </td>
                                                 <td className="text-right px-3 py-3 pr-6">
                                                     {isEditing ? (
                                                         <div className="flex items-center justify-end gap-1">
@@ -514,9 +510,6 @@ const CampaignManage: React.FC = () => {
                                             <td className="text-right px-3 py-4 text-xs text-white/70">{fmtPct(totals.confirmRate)}</td>
                                             <td className="text-right px-3 py-4 text-xs text-white/70">{fmtPct(totals.deliveryRate)}</td>
                                             <td className="text-right px-3 py-4">{fmtCurFull(totals.revenue, currency)}</td>
-                                            <td className={cn('text-right px-3 py-4', totals.profit >= 0 ? 'text-emerald-300' : 'text-red-300')}>
-                                                {fmtCurFull(totals.profit, currency)}
-                                            </td>
                                             <td className="pr-6" />
                                         </tr>
                                     </tfoot>

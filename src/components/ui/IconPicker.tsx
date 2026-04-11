@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { Search, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { DynamicIcon, getAllIconNames } from '@/lib/renderReactIcon';
+import { DynamicIcon, getAllIconNamesAsync } from '@/lib/renderReactIcon';
 import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 80;
@@ -40,12 +40,7 @@ const FEATURED_ICONS = [
     'TbArrowBack', 'TbArrowForward', 'TbArrowsExchange',
 ];
 
-// Cache icon names so we don't rebuild on every render
-let cachedNames: string[] | null = null;
-function getNames() {
-    if (!cachedNames) cachedNames = getAllIconNames();
-    return cachedNames;
-}
+// No sync getNames — we use async loading in the component
 
 export function IconPicker({
     value,
@@ -75,12 +70,14 @@ export function IconPicker({
         return () => document.removeEventListener('mousedown', handler);
     }, [isOpen]);
 
-    // Lazy-load all icon names only when picker opens (avoids blocking initial render)
+    // Lazy-load all icon names only when picker opens
     useEffect(() => {
         if (!isOpen || allNames.length > 0) return;
-        // Use requestIdleCallback or setTimeout to avoid blocking
-        const t = setTimeout(() => setAllNames(getNames()), 50);
-        return () => clearTimeout(t);
+        let cancelled = false;
+        getAllIconNamesAsync().then(names => {
+            if (!cancelled) setAllNames(names);
+        });
+        return () => { cancelled = true; };
     }, [isOpen, allNames.length]);
 
     const filtered = useMemo(() => {

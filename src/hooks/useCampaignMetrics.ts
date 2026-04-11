@@ -61,7 +61,7 @@ type OrderRow = {
  * cells with no data don't show fake #DIV/0 values).
  */
 export function useCampaignMetrics(campaign: Campaign | null | undefined) {
-    const { confirmedIds, deliveredPkgIds } = useStatusCategories();
+    const { confirmedIds, deliveredPkgIds, returnedPkgIds } = useStatusCategories();
     const activeBusinessId = localStorage.getItem('activeBusinessId');
 
     // Daily entries (manual spend + leads)
@@ -107,7 +107,10 @@ export function useCampaignMetrics(campaign: Campaign | null | undefined) {
         return { from: null, to: null };
     }, [entries, campaign]);
 
-    // Orders scoped to business + source + date range
+    // Orders scoped to business + source + date range.
+    // orders.date is a timestamptz column — a bare YYYY-MM-DD string compares as midnight,
+    // so .lte('date', '2026-03-31') would exclude every order after 00:00 on that day.
+    // We append T23:59:59.999Z to the upper bound to capture the full day.
     const source = campaign ? getPlatformSource(campaign.platform) : '';
     const { data: orders = [], isLoading: loadingOrders } = useQuery<OrderRow[]>({
         queryKey: ['campaign-orders', campaign?.id, activeBusinessId, source, dateRange.from, dateRange.to],
@@ -120,7 +123,7 @@ export function useCampaignMetrics(campaign: Campaign | null | undefined) {
                 .eq('DigiCom Business', activeBusinessId)
                 .ilike('source_name', source)
                 .gte('date', dateRange.from)
-                .lte('date', dateRange.to);
+                .lte('date', `${dateRange.to}T23:59:59.999Z`);
             if (error) throw error;
             return (data || []) as OrderRow[];
         },
@@ -132,14 +135,23 @@ export function useCampaignMetrics(campaign: Campaign | null | undefined) {
         const commissionPrice =
             mediabuyer?.payment_type === 'commission' ? Number(mediabuyer.commission_price || 0) : 0;
 
-        // Index orders by YYYY-MM-DD
+        // Index orders by YYYY-MM-DD.
+        // "Confirmed" in the funnel sense: an order that progressed past initial confirmation,
+        // regardless of whether it was later returned. This matches the tracking sheet where a
+        // returned order still counts as "confirmed" (the return happened post-delivery).
+        // Concretely: current status in confirmedIds, OR package was delivered, OR package was returned.
         const ordersByDate = new Map<string, { confirmed: number; delivered: number }>();
         for (const o of orders) {
             if (!o.date) continue;
             const d = o.date.slice(0, 10); // YYYY-MM-DD
             const bucket = ordersByDate.get(d) || { confirmed: 0, delivered: 0 };
-            if (o.order_status_id && confirmedIds.has(o.order_status_id)) bucket.confirmed += 1;
-            if (o.package_status_id && deliveredPkgIds.has(o.package_status_id)) bucket.delivered += 1;
+            const isDelivered = !!(o.package_status_id && deliveredPkgIds.has(o.package_status_id));
+            const isReturned = !!(o.package_status_id && returnedPkgIds.has(o.package_status_id));
+            const isConfirmed = !!(o.order_status_id && confirmedIds.has(o.order_status_id))
+                || isDelivered
+                || isReturned;
+            if (isConfirmed) bucket.confirmed += 1;
+            if (isDelivered) bucket.delivered += 1;
             ordersByDate.set(d, bucket);
         }
 
@@ -201,7 +213,7 @@ export function useCampaignMetrics(campaign: Campaign | null | undefined) {
         t.days = dailyRows.length;
 
         return { daily: dailyRows, totals: t };
-    }, [entries, orders, confirmedIds, deliveredPkgIds, mediabuyer]);
+    }, [entries, orders, confirmedIds, deliveredPkgIds, returnedPkgIds, mediabuyer]);
 
     return {
         entries,

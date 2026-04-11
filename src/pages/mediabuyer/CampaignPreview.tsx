@@ -244,7 +244,6 @@ const CampaignPreview: React.FC = () => {
                 Confirmed: d.confirmed,
                 Delivered: d.delivered,
                 Revenue: Number(d.revenue.toFixed(2)),
-                Profit: Number(d.profit.toFixed(2)),
                 CPL: d.costPerLead == null ? null : Number(d.costPerLead.toFixed(2)),
                 CPC: d.costPerConfirmed == null ? null : Number(d.costPerConfirmed.toFixed(2)),
                 CPD: d.costPerDelivered == null ? null : Number(d.costPerDelivered.toFixed(2)),
@@ -356,13 +355,13 @@ const CampaignPreview: React.FC = () => {
 
             {/* KPIs */}
             {loadingMetrics ? (
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                     {Array.from({ length: 7 }).map((_, i) => (
                         <Skeleton key={i} className="h-24 rounded-3xl bg-white/60" />
                     ))}
                 </div>
             ) : (
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                     <Kpi
                         label="Total Spend"
                         value={fmtCur(totals.spend, currency)}
@@ -389,14 +388,6 @@ const CampaignPreview: React.FC = () => {
                         sub={mediabuyer?.payment_type === 'commission' ? `× ${fmtCur(Number(mediabuyer.commission_price || 0), currency)}/order` : 'commission'}
                         icon={Wallet}
                         tone="bg-primary/10 text-primary"
-                    />
-                    <Kpi
-                        label="Profit (MB)"
-                        value={fmtCur(totals.profit, currency)}
-                        valueTitle={fmtCurFull(totals.profit, currency)}
-                        sub={totals.roas == null ? 'ROAS —' : `ROAS ${totals.roas.toFixed(2)}x`}
-                        icon={TrendingUp}
-                        tone={totals.profit >= 0 ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-500'}
                     />
                 </div>
             )}

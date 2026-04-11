@@ -166,12 +166,12 @@ const Dashboard: React.FC = () => {
         return { thisMonth, lastMonth, today, yesterday, thisWeek, prevWeek };
     }, [daily, thisMonthStart, todayKey, lastMonthStart, lastMonthEnd, weekStart, prevWeekStart, prevWeekEnd, now]);
 
-    const profitThisMonth = metrics.thisMonth.revenue - metrics.thisMonth.spend;
-    const profitLastMonth = metrics.lastMonth.revenue - metrics.lastMonth.spend;
-    const profitDelta = computeDelta(profitThisMonth, profitLastMonth);
+    const revThisMonth = metrics.thisMonth.revenue;
+    const revLastMonth = metrics.lastMonth.revenue;
+    const revDelta = computeDelta(revThisMonth, revLastMonth);
     const spendDelta = computeDelta(metrics.thisMonth.spend, metrics.lastMonth.spend);
     const deliveredDelta = computeDelta(metrics.thisMonth.delivered, metrics.lastMonth.delivered);
-    const weekProfitDelta = computeDelta(metrics.thisWeek.revenue - metrics.thisWeek.spend, metrics.prevWeek.revenue - metrics.prevWeek.spend);
+    const weekRevDelta = computeDelta(metrics.thisWeek.revenue, metrics.prevWeek.revenue);
 
     const sparklineData = useMemo(() => {
         return daily
@@ -201,7 +201,7 @@ const Dashboard: React.FC = () => {
 
     const bestDay = useMemo(() => {
         if (daily.length === 0) return null;
-        return [...daily].sort((a, b) => b.profit - a.profit)[0];
+        return [...daily].sort((a, b) => b.revenue - a.revenue)[0];
     }, [daily]);
 
     const greet = greetForHour(now.getHours());
@@ -235,21 +235,21 @@ const Dashboard: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Headline metric: this month profit */}
+                        {/* Headline metric: this month revenue */}
                         <div className="rounded-3xl bg-white/[0.06] backdrop-blur-xl border border-white/10 p-5 min-w-[260px]">
                             <div className="flex items-center justify-between gap-3 mb-1">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-white/50">This month · profit</p>
-                                <DeltaBadge delta={profitDelta} dark />
+                                <p className="text-[10px] font-black uppercase tracking-widest text-white/50">This month · revenue</p>
+                                <DeltaBadge delta={revDelta} dark />
                             </div>
                             {loadingStats ? (
                                 <Skeleton className="h-10 w-40 bg-white/10" />
                             ) : (
-                                <p className="text-3xl font-black text-white tabular-nums leading-tight break-words" title={fmtCurFull(profitThisMonth, currency)}>
-                                    {fmtCur(profitThisMonth, currency)}
+                                <p className="text-3xl font-black text-white tabular-nums leading-tight break-words" title={fmtCurFull(revThisMonth, currency)}>
+                                    {fmtCur(revThisMonth, currency)}
                                 </p>
                             )}
                             <p className="text-[11px] text-white/40 font-medium mt-1">
-                                {fmtCur(metrics.thisMonth.revenue, currency)} rev · {fmtCur(metrics.thisMonth.spend, currency)} spend
+                                {fmtNum(metrics.thisMonth.delivered)} delivered · {fmtCur(metrics.thisMonth.spend, currency)} spend
                             </p>
                         </div>
                     </div>
@@ -274,11 +274,11 @@ const Dashboard: React.FC = () => {
                         tone="bg-red-500/10 text-red-500"
                     />
                     <KpiCard
-                        label="This week · profit"
-                        value={fmtCur(metrics.thisWeek.revenue - metrics.thisWeek.spend, currency)}
-                        valueTitle={fmtCurFull(metrics.thisWeek.revenue - metrics.thisWeek.spend, currency)}
+                        label="This week · revenue"
+                        value={fmtCur(metrics.thisWeek.revenue, currency)}
+                        valueTitle={fmtCurFull(metrics.thisWeek.revenue, currency)}
                         sub="vs last 7 days"
-                        delta={weekProfitDelta}
+                        delta={weekRevDelta}
                         icon={TrendingUp}
                         tone={metrics.thisWeek.revenue - metrics.thisWeek.spend >= 0 ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-500'}
                     />
@@ -371,7 +371,7 @@ const Dashboard: React.FC = () => {
                             <div className="flex items-center justify-between mb-5">
                                 <div>
                                     <h2 className="text-xs font-black uppercase tracking-widest text-brand-navy/50">Top campaigns</h2>
-                                    <p className="text-[11px] text-muted-foreground font-medium mt-0.5">Sorted by profit · last 60 days</p>
+                                    <p className="text-[11px] text-muted-foreground font-medium mt-0.5">Sorted by revenue · last 60 days</p>
                                 </div>
                                 <Button
                                     variant="ghost"
@@ -409,10 +409,10 @@ const Dashboard: React.FC = () => {
                                             </div>
                                             <div className="text-right shrink-0">
                                                 <p
-                                                    className={cn('text-xs font-black tabular-nums', c.profit >= 0 ? 'text-emerald-600' : 'text-red-500')}
-                                                    title={fmtCurFull(c.profit, currency)}
+                                                    className="text-xs font-black tabular-nums text-brand-navy"
+                                                    title={fmtCurFull(c.revenue, currency)}
                                                 >
-                                                    {fmtCur(c.profit, currency)}
+                                                    {fmtCur(c.revenue, currency)}
                                                 </p>
                                                 <p className="text-[10px] text-muted-foreground" title={fmtCurFull(c.spend, currency)}>
                                                     {fmtCur(c.spend, currency)} spend
@@ -540,8 +540,8 @@ const Dashboard: React.FC = () => {
                 </div>
             </div>
 
-            {/* ─────── Best day badge — only if we have data and profit is positive ─────── */}
-            {bestDay && bestDay.profit > 0 && (
+            {/* ─────── Best day badge — only if we have data and revenue is positive ─────── */}
+            {bestDay && bestDay.revenue > 0 && (
                 <div className="rounded-[28px] bg-gradient-to-r from-emerald-500/10 via-emerald-50/50 to-white border border-emerald-200/40 p-5 flex items-center gap-4">
                     <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 text-emerald-600 flex items-center justify-center shrink-0">
                         <Trophy className="w-6 h-6" />
@@ -550,7 +550,7 @@ const Dashboard: React.FC = () => {
                         <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700/70">Best day · last 60 days</p>
                         <p className="text-base font-black text-emerald-800">{format(parseISO(bestDay.date), 'EEEE, MMMM d')}</p>
                         <p className="text-[11px] text-emerald-800/70 font-medium tabular-nums">
-                            {fmtCurFull(bestDay.profit, currency)} profit · {fmtNum(bestDay.delivered)} delivered · {fmtPct(bestDay.deliveryRate)} delivery rate
+                            {fmtCurFull(bestDay.revenue, currency)} revenue · {fmtNum(bestDay.delivered)} delivered · {fmtPct(bestDay.deliveryRate)} delivery rate
                         </p>
                     </div>
                     <Sparkles className="w-5 h-5 text-emerald-500/50 shrink-0 hidden md:block" />

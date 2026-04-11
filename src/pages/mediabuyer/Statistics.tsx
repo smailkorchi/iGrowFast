@@ -168,7 +168,6 @@ const Statistics: React.FC = () => {
                 date: format(parseISO(d.date), 'dd MMM'),
                 Spend: Number(d.spend.toFixed(2)),
                 Revenue: Number(d.revenue.toFixed(2)),
-                Profit: Number(d.profit.toFixed(2)),
                 Leads: d.leads,
                 Confirmed: d.confirmed,
                 Delivered: d.delivered,
@@ -188,11 +187,11 @@ const Statistics: React.FC = () => {
 
     const bestDay = useMemo(() => {
         if (daily.length === 0) return null;
-        return [...daily].sort((a, b) => b.profit - a.profit)[0];
+        return [...daily].sort((a, b) => b.revenue - a.revenue)[0];
     }, [daily]);
     const worstDay = useMemo(() => {
         if (daily.length === 0) return null;
-        return [...daily].sort((a, b) => a.profit - b.profit)[0];
+        return [...daily].sort((a, b) => a.revenue - b.revenue)[0];
     }, [daily]);
 
     const activeCampaigns = campaigns.filter((c) => c.status === 'active').length;
@@ -279,13 +278,13 @@ const Statistics: React.FC = () => {
 
             {/* Hero KPIs */}
             {isLoading ? (
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                    {Array.from({ length: 5 }).map((_, i) => (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {Array.from({ length: 4 }).map((_, i) => (
                         <Skeleton key={i} className="h-28 rounded-3xl bg-white/60" />
                     ))}
                 </div>
             ) : (
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <Kpi
                         label="Total Spend"
                         value={fmtCur(totals.spend, currency)}
@@ -306,15 +305,6 @@ const Statistics: React.FC = () => {
                         }
                         icon={Wallet}
                         tone="bg-primary/10 text-primary"
-                        large
-                    />
-                    <Kpi
-                        label="Profit"
-                        value={fmtCur(totals.profit, currency)}
-                        valueTitle={fmtCurFull(totals.profit, currency)}
-                        sub={totals.roas == null ? 'ROAS —' : `ROAS ${totals.roas.toFixed(2)}x`}
-                        icon={TrendingUp}
-                        tone={totals.profit >= 0 ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-500'}
                         large
                     />
                     <Kpi
@@ -546,13 +536,9 @@ const Statistics: React.FC = () => {
                                                             </p>
                                                         </div>
                                                         <Badge
-                                                            className={cn(
-                                                                'rounded-full text-[9px] font-black uppercase tabular-nums border-none',
-                                                                p.profit >= 0 ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-500'
-                                                            )}
+                                                            className="rounded-full text-[9px] font-black uppercase tabular-nums border-none bg-primary/10 text-primary"
                                                         >
-                                                            {p.profit >= 0 ? '+' : ''}
-                                                            {fmtCur(p.profit, currency)}
+                                                            {fmtCur(p.revenue, currency)}
                                                         </Badge>
                                                     </div>
                                                 );
@@ -576,7 +562,7 @@ const Statistics: React.FC = () => {
                                         <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700/70">Best day</p>
                                         <p className="text-xl font-black text-emerald-800 mt-0.5">{format(parseISO(bestDay.date), 'EEE dd MMM yyyy')}</p>
                                         <p className="text-xs text-emerald-800/70 font-medium mt-1 tabular-nums">
-                                            {fmtCurFull(bestDay.profit, currency)} profit · {fmtNum(bestDay.delivered)} delivered · {fmtCurFull(bestDay.spend, currency)} spent
+                                            {fmtCurFull(bestDay.revenue, currency)} revenue · {fmtNum(bestDay.delivered)} delivered · {fmtCurFull(bestDay.spend, currency)} spent
                                         </p>
                                     </div>
                                 </div>
@@ -590,7 +576,7 @@ const Statistics: React.FC = () => {
                                         <p className="text-[10px] font-black uppercase tracking-widest text-red-700/70">Worst day</p>
                                         <p className="text-xl font-black text-red-800 mt-0.5">{format(parseISO(worstDay.date), 'EEE dd MMM yyyy')}</p>
                                         <p className="text-xs text-red-800/70 font-medium mt-1 tabular-nums">
-                                            {fmtCurFull(worstDay.profit, currency)} profit · {fmtNum(worstDay.delivered)} delivered · {fmtCurFull(worstDay.spend, currency)} spent
+                                            {fmtCurFull(worstDay.revenue, currency)} revenue · {fmtNum(worstDay.delivered)} delivered · {fmtCurFull(worstDay.spend, currency)} spent
                                         </p>
                                     </div>
                                 </div>
@@ -614,8 +600,7 @@ const Statistics: React.FC = () => {
                                                 <th className="text-right px-3 py-3">Spend</th>
                                                 <th className="text-right px-3 py-3">Del</th>
                                                 <th className="text-right px-3 py-3">CPD</th>
-                                                <th className="text-right px-3 py-3">Revenue</th>
-                                                <th className="text-right px-3 py-3 pr-6">Profit</th>
+                                                <th className="text-right px-3 py-3 pr-6">Revenue</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -637,10 +622,7 @@ const Statistics: React.FC = () => {
                                                     <td className="text-right px-3 py-3 text-brand-navy/50 text-xs">
                                                         {p.costPerDelivered == null ? '—' : fmtCurFull(p.costPerDelivered, currency)}
                                                     </td>
-                                                    <td className="text-right px-3 py-3 font-bold text-brand-navy">{fmtCurFull(p.revenue, currency)}</td>
-                                                    <td className={cn('text-right px-3 py-3 pr-6 font-black', p.profit >= 0 ? 'text-emerald-600' : 'text-red-500')}>
-                                                        {fmtCurFull(p.profit, currency)}
-                                                    </td>
+                                                    <td className="text-right px-3 py-3 pr-6 font-bold text-brand-navy">{fmtCurFull(p.revenue, currency)}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -665,8 +647,7 @@ const Statistics: React.FC = () => {
                                                 <th className="text-left px-6 py-3">Campaign</th>
                                                 <th className="text-right px-3 py-3">Spend</th>
                                                 <th className="text-right px-3 py-3">Del</th>
-                                                <th className="text-right px-3 py-3">Rev</th>
-                                                <th className="text-right px-3 py-3 pr-6">Profit</th>
+                                                <th className="text-right px-3 py-3 pr-6">Rev</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -694,10 +675,7 @@ const Statistics: React.FC = () => {
                                                     </td>
                                                     <td className="text-right px-3 py-3 font-bold">{fmtCurFull(c.spend, currency)}</td>
                                                     <td className="text-right px-3 py-3 text-emerald-600 font-bold">{fmtNum(c.delivered)}</td>
-                                                    <td className="text-right px-3 py-3 font-bold">{fmtCurFull(c.revenue, currency)}</td>
-                                                    <td className={cn('text-right px-3 py-3 pr-6 font-black', c.profit >= 0 ? 'text-emerald-600' : 'text-red-500')}>
-                                                        {fmtCurFull(c.profit, currency)}
-                                                    </td>
+                                                    <td className="text-right px-3 py-3 pr-6 font-bold">{fmtCurFull(c.revenue, currency)}</td>
                                                 </tr>
                                             ))}
                                             {perCampaign.length === 0 && (
@@ -734,8 +712,7 @@ const Statistics: React.FC = () => {
                                             <th className="text-right px-3 py-3">CPD</th>
                                             <th className="text-right px-3 py-3">%C</th>
                                             <th className="text-right px-3 py-3">%L</th>
-                                            <th className="text-right px-3 py-3">Revenue</th>
-                                            <th className="text-right px-3 py-3 pr-6">Profit</th>
+                                            <th className="text-right px-3 py-3 pr-6">Revenue</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -753,10 +730,7 @@ const Statistics: React.FC = () => {
                                                 <td className="text-right px-3 py-2.5 text-xs text-brand-navy/50">{d.costPerDelivered == null ? '—' : fmtCurFull(d.costPerDelivered, currency)}</td>
                                                 <td className="text-right px-3 py-2.5 text-xs text-brand-navy/50">{fmtPct(d.confirmRate)}</td>
                                                 <td className="text-right px-3 py-2.5 text-xs text-brand-navy/50">{fmtPct(d.deliveryRate)}</td>
-                                                <td className="text-right px-3 py-2.5 font-bold">{fmtCurFull(d.revenue, currency)}</td>
-                                                <td className={cn('text-right px-3 py-2.5 pr-6 font-black', d.profit >= 0 ? 'text-emerald-600' : 'text-red-500')}>
-                                                    {fmtCurFull(d.profit, currency)}
-                                                </td>
+                                                <td className="text-right px-3 py-2.5 pr-6 font-bold">{fmtCurFull(d.revenue, currency)}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -772,10 +746,7 @@ const Statistics: React.FC = () => {
                                             <td className="text-right px-3 py-3 text-xs text-white/70">{totals.costPerDelivered == null ? '—' : fmtCurFull(totals.costPerDelivered, currency)}</td>
                                             <td className="text-right px-3 py-3 text-xs text-white/70">{fmtPct(totals.confirmRate)}</td>
                                             <td className="text-right px-3 py-3 text-xs text-white/70">{fmtPct(totals.deliveryRate)}</td>
-                                            <td className="text-right px-3 py-3">{fmtCurFull(totals.revenue, currency)}</td>
-                                            <td className={cn('text-right px-3 py-3 pr-6', totals.profit >= 0 ? 'text-emerald-300' : 'text-red-300')}>
-                                                {fmtCurFull(totals.profit, currency)}
-                                            </td>
+                                            <td className="text-right px-3 py-3 pr-6">{fmtCurFull(totals.revenue, currency)}</td>
                                         </tr>
                                     </tfoot>
                                 </table>
