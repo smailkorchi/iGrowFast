@@ -11,7 +11,6 @@ const packLoaders: Record<string, () => Promise<Record<string, IconComp>>> = {
     Tb: () => import('react-icons/tb') as any,
     Lu: () => import('react-icons/lu') as any,
     Bs: () => import('react-icons/bs') as any,
-    Bi: () => import('react-icons/bi') as any,
 };
 
 const prefixes = Object.keys(packLoaders).sort((a, b) => b.length - a.length);
