@@ -26,7 +26,8 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
             const { data } = await supabase
                 .from('orders')
                 .select('id, date, price, package_status_id, package_status_label, master_city_id, company_id, master_cities(name), order_status_id, order_statuses(code)')
-                .eq('DigiCom Business', businessId);
+                .eq('DigiCom Business', businessId)
+                .is('date_deleted', null);
             return data || [];
         },
         enabled: !!businessId,

@@ -84,7 +84,8 @@ const Couriers = () => {
                 .from('orders')
                 .select('id, courier_id, package_status_id, shipping_cost')
                 .eq('DigiCom Business', activeBusinessId)
-                .in('courier_id', courierIds);
+                .in('courier_id', courierIds)
+                .is('date_deleted', null);
             if (error) throw error;
             return (data || []) as OrderRow[];
         },

@@ -154,7 +154,8 @@ export default function FacturePage() {
       const { data: orders, error } = await supabase
         .from('orders')
         .select('name, phone, address, city:master_cities(name)')
-        .eq('DigiCom Business', activeBusinessId!);
+        .eq('DigiCom Business', activeBusinessId!)
+        .is('date_deleted', null);
       if (error) throw error;
       const map = new Map<string, OrderDerivedClient>();
       (orders || []).forEach((o: Record<string, unknown>) => {

@@ -130,7 +130,8 @@ const SellerProfile = () => {
                 const { data: ordersData, error: ordersError } = await supabase
                     .from('orders')
                     .select('order_status_id, package_status_id, package_status_label, order_statuses(code), package_statuses(label)')
-                    .eq('seller_id', session.user.id);
+                    .eq('seller_id', session.user.id)
+                    .is('date_deleted', null);
 
                 if (!ordersError && ordersData) {
                     const ordersList = ordersData;

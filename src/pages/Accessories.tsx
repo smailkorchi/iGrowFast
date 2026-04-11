@@ -79,6 +79,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { ImageHoverPreview } from '@/components/catalog/ImageHoverPreview';
 import {
     AccessoryPreviewDialog,
     formatAccessoryInventoryValueDh,
@@ -808,6 +809,7 @@ const Accessories = () => {
                                 key={accessory.id}
                                 className="group relative overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-2xl transition-all duration-300 rounded-[32px]"
                             >
+                                <ImageHoverPreview imageUrl={accessory.image_url} name={accessory.name} code={accessory.code}>
                                 <div className="relative h-48 w-full overflow-hidden bg-brand-navy/[0.02]">
                                     {accessory.image_url ? (
                                         <img
@@ -877,6 +879,7 @@ const Accessories = () => {
                                         </div>
                                     )}
                                 </div>
+                                </ImageHoverPreview>
 
                                 <CardContent className="p-5 space-y-4">
                                     <div className="space-y-2">
@@ -914,6 +917,7 @@ const Accessories = () => {
                             </Card>
                         ) : (
                             <Card key={accessory.id} className="group overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-xl transition-all duration-300 rounded-[24px] flex flex-col sm:flex-row items-center p-4 gap-6 sm:pr-6">
+                                <ImageHoverPreview imageUrl={accessory.image_url} name={accessory.name} code={accessory.code}>
                                 <div className="relative h-32 w-full sm:w-32 shrink-0 rounded-[20px] overflow-hidden bg-brand-navy/[0.02] shadow-inner">
                                     {accessory.image_url ? (
                                         <img src={accessory.image_url} alt={accessory.name} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
@@ -928,6 +932,7 @@ const Accessories = () => {
                                         </div>
                                     )}
                                 </div>
+                                </ImageHoverPreview>
 
                                 <div className="flex-1 min-w-0 space-y-2 w-full">
                                     <TruncatedText as="h3" text={accessory.name} className="text-lg sm:text-xl font-bold text-brand-navy leading-snug line-clamp-2 break-words" />

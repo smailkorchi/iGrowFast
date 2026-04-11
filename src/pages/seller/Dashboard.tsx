@@ -176,6 +176,7 @@ const SellerDashboard = () => {
                 .from('orders')
                 .select('id, price, created_at, updated_at, date_livraison, name, order_status_id, package_status_id, package_status_label, order_statuses(code), package_statuses(label), order_items(product_id, quantity, products(name, image_url))')
                 .eq('seller_id', userId)
+                .is('date_deleted', null)
                 .order('created_at', { ascending: false });
 
             const orders = (ordersData || []).map(o => ({

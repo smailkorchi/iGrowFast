@@ -155,7 +155,8 @@ const SellerStatistics = () => {
             const { data: ordersData, error: ordersError } = await supabase
                 .from('orders')
                 .select('city_id, order_status_id, package_status_id, package_status_label, master_cities(name, lat, lng), order_statuses(code), package_statuses(label), order_items(product_id, unit_price, quantity, products(name, image_url))')
-                .eq('seller_id', user.id);
+                .eq('seller_id', user.id)
+                .is('date_deleted', null);
 
             const orders = (ordersData || []).map(o => ({
                 ...o,

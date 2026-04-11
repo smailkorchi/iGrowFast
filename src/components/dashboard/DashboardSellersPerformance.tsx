@@ -166,7 +166,8 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                 .select(
                     'id, date, price, raw_price, shipping_cost, include_delivery_in_total, order_status_id, package_status_id, package_status_label, seller_id, company_id, source_name, order_items(product_id, quantity, unit_price, total_price), order_statuses(code, label)'
                 )
-                .eq('DigiCom Business', businessId);
+                .eq('DigiCom Business', businessId)
+                .is('date_deleted', null);
             return data || [];
         },
         enabled: !!businessId,

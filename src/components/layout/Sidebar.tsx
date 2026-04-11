@@ -50,6 +50,7 @@ import {
     UserCheck,
     Bike,
     Radar,
+    Trash2,
     type LucideIcon,
 } from 'lucide-react';
 import { FaWhatsapp } from 'react-icons/fa';
@@ -370,6 +371,25 @@ const Sidebar = () => {
                                 )}
                             </div>
                         ))}
+
+                        {/* Trash */}
+                        <div className="mt-1">
+                            <NavLink
+                                to="/trash"
+                                className={({ isActive }) => cn(
+                                    "flex items-center h-11 rounded-2xl transition-all duration-300 group/item relative overflow-hidden",
+                                    "hover:bg-white/[0.04]",
+                                    isActive ? "bg-white/[0.08] text-brand-white shadow-sm" : "text-brand-white/40 hover:text-brand-white"
+                                )}
+                            >
+                                <div className="w-[52px] h-11 flex items-center justify-center shrink-0 relative z-10 transition-transform duration-300 group-hover/item:scale-110">
+                                    <Trash2 className="w-5 h-5" />
+                                </div>
+                                <span className="font-bold text-[13px] opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100 transition-all duration-500 delay-75 whitespace-nowrap relative z-10">
+                                    Trash
+                                </span>
+                            </NavLink>
+                        </div>
                     </div>
 
                     {/* Profile Section */}

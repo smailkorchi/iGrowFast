@@ -828,6 +828,7 @@ const Orders = () => {
                 `)
                 .eq('DigiCom Business', activeBusinessId)
                 .or(`seller_id.eq.${userId},assign_id.eq.${userId}`)
+                .is('date_deleted', null)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
@@ -1728,14 +1729,14 @@ const Orders = () => {
         mutationFn: async (id: string) => {
             const { error } = await (supabase as any)
                 .from('orders')
-                .delete()
+                .update({ date_deleted: new Date().toISOString() })
                 .eq('id', id)
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
-            toast({ title: "Order Deleted", description: "Order removed from history." });
+            toast({ title: "Order Moved to Trash", description: "Order moved to trash. You can restore it within 14 days." });
         },
         onError: (error: any) => {
             toast({ title: "Error", description: error.message, variant: "destructive" });

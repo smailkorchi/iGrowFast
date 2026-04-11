@@ -123,7 +123,8 @@ export function useCampaignMetrics(campaign: Campaign | null | undefined) {
                 .eq('DigiCom Business', activeBusinessId)
                 .ilike('source_name', source)
                 .gte('date', dateRange.from)
-                .lte('date', `${dateRange.to}T23:59:59.999Z`);
+                .lte('date', `${dateRange.to}T23:59:59.999Z`)
+                .is('date_deleted', null);
             if (error) throw error;
             return (data || []) as OrderRow[];
         },

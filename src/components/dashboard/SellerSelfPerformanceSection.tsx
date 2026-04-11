@@ -133,6 +133,7 @@ export function SellerSelfPerformanceSection({
             } else {
                 q = q.eq('seller_id', sellerId);
             }
+            q = q.is('date_deleted', null);
             const { data, error } = await q;
             if (error) throw error;
             return data || [];

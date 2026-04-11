@@ -212,7 +212,8 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                 `)
                 .eq('order_status_id', confirmedStatusId)
                 .eq('DigiCom Business', activeBusinessId)
-                .not('company_id', 'is', null);
+                .not('company_id', 'is', null)
+                .is('date_deleted', null);
 
             if (sellerScope) {
                 ordersQuery = ordersQuery.or(`seller_id.eq.${sellerScope.userId},assign_id.eq.${sellerScope.userId}`);
@@ -280,7 +281,8 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                 `)
                 .eq('order_status_id', confirmedStatusId)
                 .eq('DigiCom Business', activeBusinessId)
-                .not('company_id', 'is', null);
+                .not('company_id', 'is', null)
+                .is('date_deleted', null);
 
             if (sellerScope) {
                 q = q.or(`seller_id.eq.${sellerScope.userId},assign_id.eq.${sellerScope.userId}`);

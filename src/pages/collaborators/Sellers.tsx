@@ -122,7 +122,8 @@ const Sellers = () => {
       const { data: ordersData } = await supabase
         .from('orders')
         .select('id, seller_id, order_status_id, package_status_id, price, created_at, date_livraison, master_city_id, package_status_label, status:order_statuses(code, label), city:master_cities(name), package_statuses(label), order_items(product_id, quantity)')
-        .in('seller_id', sellerIds);
+        .in('seller_id', sellerIds)
+        .is('date_deleted', null);
 
       const orders = (ordersData || []) as any[];
 

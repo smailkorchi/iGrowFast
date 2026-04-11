@@ -113,6 +113,7 @@ const ReturnNote = () => {
                 .is('current_return_note_id', null)
                 .is('current_courier_return_note_id', null)
                 .or(`seller_id.eq.${uid},assign_id.eq.${uid}`)
+                .is('date_deleted', null)
                 .order('created_at', { ascending: false });
             if (error) throw error;
             const productSet = new Set(sellerShippingCtx.productIds);

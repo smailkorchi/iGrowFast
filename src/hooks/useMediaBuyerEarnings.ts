@@ -180,7 +180,8 @@ export function useMediaBuyerEarnings(month: string) {
                 .select('id, date, source_name, package_status_id')
                 .eq('DigiCom Business', activeBusinessId)
                 .gte('date', from)
-                .lte('date', to);
+                .lte('date', to)
+                .is('date_deleted', null);
             if (error) throw error;
             const srcLower = new Set(sourceList.map((s) => s.toLowerCase()));
             return ((data || []) as OrderRow[]).filter((o) =>

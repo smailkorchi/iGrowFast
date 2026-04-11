@@ -284,7 +284,8 @@ const AdsHistory = () => {
             const { data, error } = await (supabase as any)
                 .from('orders')
                 .select('id, date, source_name, price, shipping_cost, package_status_id, order_status_id, package_status_label, order_statuses(code), package_statuses(label), order_items(product_id, unit_price, quantity)')
-                .eq('DigiCom Business', activeBusinessId);
+                .eq('DigiCom Business', activeBusinessId)
+                .is('date_deleted', null);
             if (error) throw error;
             return data;
         }

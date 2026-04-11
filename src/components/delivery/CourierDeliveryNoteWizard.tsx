@@ -171,7 +171,8 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
                 .eq('order_status_id', confirmedStatusId)
                 .eq('DigiCom Business', activeBusinessId)
                 .not('courier_id', 'is', null)
-                .is('company_id', null);
+                .is('company_id', null)
+                .is('date_deleted', null);
 
             if (sellerScope) {
                 ordersQuery = ordersQuery.or(
@@ -251,7 +252,8 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
                 .eq('order_status_id', confirmedStatusId)
                 .eq('DigiCom Business', activeBusinessId)
                 .not('courier_id', 'is', null)
-                .is('company_id', null);
+                .is('company_id', null)
+                .is('date_deleted', null);
 
             if (sellerScope) {
                 q = q.or(`seller_id.eq.${sellerScope.userId},assign_id.eq.${sellerScope.userId}`);

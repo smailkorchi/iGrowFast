@@ -154,7 +154,8 @@ export default function BonLivraisonPage() {
       const { data: orders, error } = await supabase
         .from('orders')
         .select('name, phone, address, city:master_cities(name)')
-        .eq('DigiCom Business', activeBusinessId!);
+        .eq('DigiCom Business', activeBusinessId!)
+        .is('date_deleted', null);
       if (error) throw error;
       const map = new Map<string, OrderDerivedClient>();
       (orders || []).forEach((o: Record<string, unknown>) => {
@@ -185,6 +186,7 @@ export default function BonLivraisonPage() {
         .from('orders')
         .select('id, name, phone, created_at')
         .eq('DigiCom Business', activeBusinessId!)
+        .is('date_deleted', null)
         .order('created_at', { ascending: false })
         .limit(400);
       if (error) throw error;

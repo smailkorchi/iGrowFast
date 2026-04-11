@@ -69,7 +69,8 @@ export const DashboardProductsPerformance = ({ businessId, dateFilter }: Dashboa
             const { data } = await supabase
                 .from('orders')
                 .select('id, date, price, shipping_cost, order_status_id, package_status_id, package_status_label, seller_id, company_id, source_name, order_statuses(code, label)')
-                .eq('DigiCom Business', businessId);
+                .eq('DigiCom Business', businessId)
+                .is('date_deleted', null);
             return data || [];
         },
         enabled: !!businessId,

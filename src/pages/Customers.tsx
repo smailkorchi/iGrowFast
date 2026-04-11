@@ -200,6 +200,7 @@ const Customers = () => {
                     package_statuses(label)
                 `)
                 .eq('DigiCom Business', activeBusinessId)
+                .is('date_deleted', null)
                 .order('date', { ascending: false });
 
             if (error) throw error;

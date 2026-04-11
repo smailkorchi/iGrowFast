@@ -80,6 +80,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { ImageHoverPreview } from '@/components/catalog/ImageHoverPreview';
 import {
     ProductPreviewDialog,
     formatProductDhAggregate,
@@ -696,6 +697,7 @@ const Products = () => {
                                 className="group relative overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-2xl transition-all duration-300 rounded-[32px]"
                             >
                                 {/* Product Image */}
+                                <ImageHoverPreview imageUrl={product.image_url} name={product.name} code={product.code}>
                                 <div className="relative h-48 w-full overflow-hidden bg-brand-navy/[0.02]">
                                     {product.image_url ? (
                                         <img
@@ -776,6 +778,7 @@ const Products = () => {
                                         </Button>
                                     </div>
                                 </div>
+                                </ImageHoverPreview>
 
                                 <CardContent className="p-5 space-y-4">
                                     <div className="space-y-2">
@@ -834,6 +837,7 @@ const Products = () => {
                             </Card>
                         ) : (
                             <Card key={product.id} className="group overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-xl transition-all duration-300 rounded-[24px] flex flex-col sm:flex-row items-center p-4 gap-6 sm:pr-6">
+                                <ImageHoverPreview imageUrl={product.image_url} name={product.name} code={product.code}>
                                 <div className="relative h-32 w-full sm:w-32 shrink-0 rounded-[20px] overflow-hidden bg-brand-navy/[0.02] shadow-inner">
                                     {product.image_url ? (
                                         <img src={product.image_url} alt={product.name} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
@@ -848,6 +852,7 @@ const Products = () => {
                                         </div>
                                     )}
                                 </div>
+                                </ImageHoverPreview>
 
                                 <div className="flex-1 min-w-0 space-y-2 w-full">
                                     <div className="flex items-start gap-3">

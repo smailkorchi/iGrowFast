@@ -33,7 +33,8 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
             const { data } = await supabase
                 .from('orders')
                 .select('id, price, shipping_cost, raw_price, date, order_status_id, package_status_id, package_status_label, order_statuses(code), package_statuses(label), order_items(quantity, unit_price, product_id, accessory_id, accessory_quantity, accessory_unit_price)')
-                .eq('DigiCom Business', businessId);
+                .eq('DigiCom Business', businessId)
+                .is('date_deleted', null);
             return data || [];
         },
         enabled: !!businessId,

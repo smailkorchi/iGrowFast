@@ -71,7 +71,8 @@ export const SalesChannelsSection = ({ businessId, dateFilter }: SalesChannelsSe
             const { data } = await supabase
                 .from('orders')
                 .select('id, source_name, source_id, price, date, order_status_id, package_status_id, package_status_label, package_statuses(label)')
-                .eq('DigiCom Business', businessId);
+                .eq('DigiCom Business', businessId)
+                .is('date_deleted', null);
             return data || [];
         },
         enabled: !!businessId,

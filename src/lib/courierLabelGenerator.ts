@@ -196,7 +196,8 @@ async function loadNoteBundle(noteId: string) {
                 city:master_cities(id, name, zone_id),
                 items:order_items(id, quantity, product:products(id, name, code))
             `)
-            .in('id', orderIds);
+            .in('id', orderIds)
+            .is('date_deleted', null);
         console.log('[courier-label] orders query result', { data, error });
         if (error) throw error;
         orders = (data || []) as OrderRow[];

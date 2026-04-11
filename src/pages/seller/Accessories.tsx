@@ -8,6 +8,9 @@ import {
     List,
     AlertTriangle,
     Eye,
+    Hash,
+    Layers,
+    Coins,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { ImageHoverPreview } from '@/components/catalog/ImageHoverPreview';
 import {
     AccessoryPreviewDialog,
     type AccessoryPreviewRow,
@@ -124,6 +128,22 @@ const Accessories = () => {
     const lowStockAccessories = accessoryList.filter(a => (a.stock || 0) <= 10);
     const lowStockAccessoriesTotalUnits = lowStockAccessories.reduce((sum, a) => sum + Number(a.stock ?? 0), 0);
 
+    const catalogTotals = useMemo(() => {
+        const list = accessories ?? [];
+        let totalQuantity = 0;
+        let totalCost = 0;
+        for (const a of list) {
+            const q = Number(a.stock ?? 0);
+            const c = Number(a.cost_price ?? 0);
+            totalQuantity += q;
+            totalCost += q * c;
+        }
+        return { totalQuantity, totalCost };
+    }, [accessories]);
+
+    const formatDhAggregate = (value: number): string =>
+        `${new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(value)} DH`;
+
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
             <div className="relative">
@@ -170,6 +190,65 @@ const Accessories = () => {
                             </div>
                         </div>
                     </div>
+
+                    {isLoading ? (
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 pt-2">
+                            {Array.from({ length: 3 }).map((_, i) => (
+                                <Skeleton key={i} className="h-28 rounded-3xl bg-white/60" />
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 pt-2">
+                            <div className="rounded-3xl border border-gray-100/80 bg-white/90 p-5 shadow-sm backdrop-blur-sm">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                            Total accessories
+                                        </p>
+                                        <p className="text-2xl font-black tabular-nums text-gray-900 tracking-tight">
+                                            {accessories?.length ?? 0}
+                                        </p>
+                                        <p className="text-xs text-gray-500 font-medium">SKUs in the catalog</p>
+                                    </div>
+                                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-navy/10 text-brand-navy">
+                                        <Hash className="h-5 w-5" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="rounded-3xl border border-gray-100/80 bg-white/90 p-5 shadow-sm backdrop-blur-sm">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                            Total quantity
+                                        </p>
+                                        <p className="text-2xl font-black tabular-nums text-gray-900 tracking-tight">
+                                            {new Intl.NumberFormat('fr-FR').format(catalogTotals.totalQuantity)}
+                                        </p>
+                                        <p className="text-xs text-gray-500 font-medium">Units in stock (all SKUs)</p>
+                                    </div>
+                                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                                        <Layers className="h-5 w-5" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="rounded-3xl border border-gray-100/80 bg-white/90 p-5 shadow-sm backdrop-blur-sm">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="space-y-1 min-w-0">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                            Total cost
+                                        </p>
+                                        <p className="text-2xl font-black tabular-nums text-gray-900 tracking-tight truncate">
+                                            {formatDhAggregate(catalogTotals.totalCost)}
+                                        </p>
+                                        <p className="text-xs text-gray-500 font-medium">On-hand quantity × unit cost</p>
+                                    </div>
+                                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-700">
+                                        <Coins className="h-5 w-5" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -280,6 +359,7 @@ const Accessories = () => {
                                 key={accessory.id}
                                 className="group relative overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-2xl transition-all duration-300 rounded-[32px]"
                             >
+                                <ImageHoverPreview imageUrl={accessory.image_url} name={accessory.name} code={accessory.code}>
                                 <div className="relative h-48 w-full overflow-hidden bg-brand-navy/[0.02]">
                                     {accessory.image_url ? (
                                         <img
@@ -310,6 +390,7 @@ const Accessories = () => {
                                         </div>
                                     )}
                                 </div>
+                                </ImageHoverPreview>
 
                                 <CardContent className="p-5 space-y-4">
                                     <div className="space-y-2">
@@ -338,6 +419,7 @@ const Accessories = () => {
                             </Card>
                         ) : (
                             <Card key={accessory.id} className="group overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-xl transition-all duration-300 rounded-[24px] flex flex-col sm:flex-row items-center p-4 gap-6">
+                                <ImageHoverPreview imageUrl={accessory.image_url} name={accessory.name} code={accessory.code}>
                                 <div className="relative h-32 w-full sm:w-32 shrink-0 rounded-[20px] overflow-hidden bg-brand-navy/[0.02] shadow-inner">
                                     {accessory.image_url ? (
                                         <img src={accessory.image_url} alt={accessory.name} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
@@ -352,6 +434,7 @@ const Accessories = () => {
                                         </div>
                                     )}
                                 </div>
+                                </ImageHoverPreview>
 
                                 <div className="flex-1 min-w-0 space-y-2 w-full">
                                     <div className="flex items-start gap-3 flex-wrap">

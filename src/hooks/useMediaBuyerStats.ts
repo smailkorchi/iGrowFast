@@ -148,7 +148,8 @@ export function useMediaBuyerStats(range: StatsDateRange) {
                 .select('id, date, source_name, order_status_id, package_status_id')
                 .eq('DigiCom Business', activeBusinessId)
                 .gte('date', range.from)
-                .lte('date', `${range.to}T23:59:59.999Z`);
+                .lte('date', `${range.to}T23:59:59.999Z`)
+                .is('date_deleted', null);
             if (error) throw error;
             const srcLower = new Set(sourceList.map((s) => s.toLowerCase()));
             return ((data || []) as OrderRow[]).filter((o) =>

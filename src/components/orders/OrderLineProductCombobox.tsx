@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import * as React from 'react';
 import { ChevronsUpDown, ImageOff, Package, Check } from 'lucide-react';
+import { ImageHoverPreview } from '@/components/catalog/ImageHoverPreview';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
@@ -147,7 +148,9 @@ export const OrderLineProductCombobox = React.forwardRef<HTMLButtonElement, Orde
                         <span className="flex min-w-0 flex-1 items-center gap-3">
                             {selected ? (
                                 <>
+                                    <ImageHoverPreview imageUrl={selected.image_url} name={selected.name} code={selected.code ?? ''}>
                                     <ProductThumb src={selected.image_url} alt={selected.name} />
+                                    </ImageHoverPreview>
                                     <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                                         <span className="line-clamp-2 text-[13px] font-bold leading-snug text-brand-navy break-words">
                                             {formatLabel(selected)}
@@ -239,7 +242,9 @@ export const OrderLineProductCombobox = React.forwardRef<HTMLButtonElement, Orde
                                             )}
                                         >
                                             <div className="flex min-w-0 flex-1 items-center gap-3">
+                                                <ImageHoverPreview imageUrl={p.image_url} name={p.name} code={p.code ?? ''}>
                                                 <ProductThumb src={p.image_url} alt={p.name} />
+                                                </ImageHoverPreview>
                                                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                                                     <div className="flex items-start justify-between gap-2">
                                                         <span className="line-clamp-2 min-w-0 text-[13px] font-bold leading-snug text-brand-navy break-words">

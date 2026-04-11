@@ -684,6 +684,7 @@ const Orders = () => {
                     courier_parcels(id, tracking_code, status_label, status_color, created_at)
                 `)
                 .eq('DigiCom Business', activeBusinessId)
+                .is('date_deleted', null)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
@@ -1550,7 +1551,7 @@ const Orders = () => {
         mutationFn: async (id: string) => {
             const { error } = await (supabase as any)
                 .from('orders')
-                .delete()
+                .update({ date_deleted: new Date().toISOString() })
                 .eq('id', id)
                 .eq('DigiCom Business', activeBusinessId);
             if (error) throw error;
@@ -1558,7 +1559,7 @@ const Orders = () => {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
             setOrderPendingDelete(null);
-            toast({ title: "Order Deleted", description: "Order removed from history." });
+            toast({ title: "Order Moved to Trash", description: "Order moved to trash. You can restore it within 14 days." });
         },
         onError: (error: any) => {
             toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -4618,11 +4619,11 @@ const Orders = () => {
                 <AlertDialogContent className="rounded-[32px] border-none shadow-2xl max-w-md p-8">
                     <AlertDialogHeader className="space-y-3">
                         <AlertDialogTitle className="text-2xl font-black text-brand-navy tracking-tight">
-                            Delete this order?
+                            Move to trash?
                         </AlertDialogTitle>
                         <AlertDialogDescription className="text-base text-brand-navy/60 font-medium leading-relaxed">
                             {orderPendingDelete
-                                ? `This will remove the order for “${orderPendingDelete.name}” from your history. You can’t undo this.`
+                                ? `This will move the order for "${orderPendingDelete.name}" to trash. You can restore it within 14 days.`
                                 : null}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
@@ -4640,7 +4641,7 @@ const Orders = () => {
                             }}
                         >
                             {deleteOrderMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                            Delete order
+                            Move to trash
                         </Button>
                     </AlertDialogFooter>
                 </AlertDialogContent>

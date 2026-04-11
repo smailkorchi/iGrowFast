@@ -35,7 +35,8 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
             const { data } = await supabase
                 .from('orders')
                 .select('id, date, shipping_cost, delivery_type, company_id, courier_id, package_status_id, package_status_label, date_livraison, master_city_id, master_cities(name, lat, lng), package_statuses(label)')
-                .eq('DigiCom Business', businessId);
+                .eq('DigiCom Business', businessId)
+                .is('date_deleted', null);
             return data || [];
         },
         enabled: !!businessId,

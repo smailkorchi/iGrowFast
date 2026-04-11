@@ -128,6 +128,7 @@ Deno.serve(async (req: Request) => {
                 .select('id')
                 .eq('tracking_number', trackingCode)
                 .eq('DigiCom Business', businessId)
+                .is('date_deleted', null)
                 .maybeSingle();
             if (order) orderId = order.id;
         }
@@ -210,6 +211,7 @@ Deno.serve(async (req: Request) => {
             .from('orders')
             .select('package_status_id')
             .eq('id', orderId)
+            .is('date_deleted', null)
             .single();
 
         if (currentOrder?.package_status_id) {

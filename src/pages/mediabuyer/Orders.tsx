@@ -156,6 +156,7 @@ const MediaBuyerOrders = () => {
                 .eq('DigiCom Business', activeBusinessId)
                 .gte('date', minDate)
                 .lte('date', `${maxDate}T23:59:59.999Z`)
+                .is('date_deleted', null)
                 .order('date', { ascending: false });
             if (error) throw error;
             return ((data || []) as OrderRow[]).filter((o) => {

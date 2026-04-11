@@ -94,6 +94,7 @@ export async function hydrateBonLivraisonFromOrder(
     )
     .eq('id', orderId)
     .eq('DigiCom Business', businessId)
+    .is('date_deleted', null)
     .maybeSingle();
 
   if (error || !order) return null;
@@ -185,7 +186,8 @@ export async function hydrateBonLivraisonFromCompanyNote(
       `,
       )
       .in('id', orderIds)
-      .eq('DigiCom Business', businessId);
+      .eq('DigiCom Business', businessId)
+      .is('date_deleted', null);
     if (!oErr && ordersData) {
       for (const ord of ordersData) {
         ordersMap.set(String((ord as Record<string, unknown>).id), ord as Record<string, unknown>);
@@ -285,7 +287,8 @@ export async function hydrateBonLivraisonFromCourierNote(
       `,
       )
       .in('id', orderIds)
-      .eq('DigiCom Business', businessId);
+      .eq('DigiCom Business', businessId)
+      .is('date_deleted', null);
     if (!oErr && ordersData) {
       for (const ord of ordersData) {
         ordersMap.set(String((ord as Record<string, unknown>).id), ord as Record<string, unknown>);

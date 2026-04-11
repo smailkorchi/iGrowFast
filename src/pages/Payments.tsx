@@ -93,6 +93,7 @@ const Payments = () => {
                 .eq('package_status_id', deliveredPkgId)
                 .is('payment_delivery_id', null)
                 .is('current_courier_payment_note_id', null)
+                .is('date_deleted', null)
                 .order('created_at', { ascending: false });
             if (error) throw error;
             return (data || []) as UnpaidOrder[];

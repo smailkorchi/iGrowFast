@@ -31,7 +31,8 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
             const { data } = await supabase
                 .from('orders')
                 .select('id, price, date, order_status_id, package_status_id, confirmation_date')
-                .eq('DigiCom Business', businessId);
+                .eq('DigiCom Business', businessId)
+                .is('date_deleted', null);
             return data || [];
         },
         enabled: !!businessId,

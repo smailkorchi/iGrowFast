@@ -27,6 +27,7 @@ import ExpensesTypes from "./pages/ExpensesTypes";
 import Profile from "./pages/Profile";
 import Webhooks from "./pages/Webhooks";
 import AiKeys from "./pages/AiKeys";
+import Trash from "./pages/Trash";
 import OwnerBusinesses from "./pages/owner/Businesses";
 import OwnerSelectBusiness from "./pages/owner/SelectBusiness";
 import OwnerUsers from "./pages/owner/Users";
@@ -272,6 +273,7 @@ const App = () => (
                     <Route path="/payments" element={<Payments />} />
                     <Route path="/webhooks" element={<Webhooks />} />
                     <Route path="/ai-keys" element={<AiKeys />} />
+                    <Route path="/trash" element={<Trash />} />
                     <Route path="/transactions" element={<Transactions />} />
                     <Route path="/products" element={<Products />} />
                     <Route path="/accessories" element={<Accessories />} />
