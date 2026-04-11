@@ -15,6 +15,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import type { Json } from '@/lib/database.types';
 import { embedRemoteImagesForPdfDoc } from '@/lib/documentPdf/embedRemoteImages';
+import { registerPdfFonts } from '@/lib/documentPdf/registerFonts';
 import type { OrderDerivedClient } from '@/lib/devis/types';
 import type { FactureSnapshot } from '@/lib/facture/types';
 import { Button } from '@/components/ui/button';
@@ -327,6 +328,7 @@ export default function FacturePage() {
 
         const snapWithImages = await embedRemoteImagesForPdfDoc(snapForPdf);
 
+        await registerPdfFonts();
         const blob = await pdf(
           <FacturePdfDocument
             snapshot={snapWithImages}
@@ -355,14 +357,17 @@ export default function FacturePage() {
           .eq('id', rowId);
         if (pathErr) throw pathErr;
 
-        setInlinePdfUrl((prev) => {
-          if (prev) URL.revokeObjectURL(prev);
-          return URL.createObjectURL(blob);
-        });
+        const blobUrl = URL.createObjectURL(blob);
+        setInlinePdfUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return blobUrl; });
 
         setWizardOpen(false);
         setEditingFactureId(null);
         setInitialSnapshot(null);
+
+        setPreviewUrl(blobUrl);
+        setPreviewRow(null);
+        setPreviewLoading(false);
+        setPreviewOpen(true);
         await queryClient.invalidateQueries({ queryKey: ['facture-list', activeBusinessId] });
 
         toast({ title: wasEdit ? 'Facture mise à jour' : 'Facture enregistrée', description: factureNumber });
@@ -472,22 +477,7 @@ export default function FacturePage() {
         </div>
       </div>
 
-      {inlinePdfUrl ? (
-        <Card className="border-0 shadow-sm rounded-3xl overflow-hidden">
-          <CardContent className="p-0">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <p className="text-sm font-medium text-gray-700">Dernier PDF généré</p>
-              <Button variant="outline" size="sm" className="rounded-xl" asChild>
-                <a href={inlinePdfUrl} download="facture.pdf">
-                  <Download className="w-4 h-4 mr-2" />
-                  Télécharger
-                </a>
-              </Button>
-            </div>
-            <iframe title="Facture PDF" src={inlinePdfUrl} className="w-full min-h-[70vh] bg-gray-100" />
-          </CardContent>
-        </Card>
-      ) : null}
+      {/* Inline PDF removed — preview modal opens directly after generation */}
 
       {listLoading ? (
         <Card className="border-0 shadow-sm rounded-3xl">
@@ -579,7 +569,7 @@ export default function FacturePage() {
         <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0 gap-0 rounded-3xl">
           <DialogHeader className="p-4 border-b shrink-0">
             <DialogTitle className="font-light text-lg">
-              {previewRow?.facture_number}
+              {previewRow?.facture_number || 'Aperçu de la facture'}
               {previewRow ? (
                 <span className="text-sm font-normal text-gray-400 ml-2">{clientLabel(previewRow)}</span>
               ) : null}
@@ -609,6 +599,13 @@ export default function FacturePage() {
                     Modifier
                   </Button>
                 </>
+              ) : inlinePdfUrl ? (
+                <Button size="sm" variant="outline" className="rounded-xl" asChild>
+                  <a href={inlinePdfUrl} download="facture.pdf">
+                    <Download className="w-4 h-4 mr-2" />
+                    Télécharger
+                  </a>
+                </Button>
               ) : null}
             </div>
           </DialogHeader>
@@ -618,7 +615,7 @@ export default function FacturePage() {
                 <Loader2 className="w-8 h-8 animate-spin text-primary/40" />
               </div>
             ) : previewUrl ? (
-              <iframe title="Aperçu facture" src={previewUrl} className="w-full h-full border-0" />
+              <iframe title="Aperçu facture" src={`${previewUrl}#toolbar=0&navpanes=0`} className="w-full h-full border-0" />
             ) : (
               <p className="p-8 text-sm text-gray-500">Aucun PDF.</p>
             )}

@@ -15,6 +15,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import type { Json } from '@/lib/database.types';
 import { embedRemoteImagesForPdf } from '@/lib/devis/embedImagesForPdf';
+import { registerPdfFonts } from '@/lib/documentPdf/registerFonts';
 import type { DevisSnapshot, OrderDerivedClient } from '@/lib/devis/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -320,6 +321,7 @@ export default function DevisPage() {
 
         const snapWithImages = await embedRemoteImagesForPdf(snapForPdf);
 
+        await registerPdfFonts();
         const blob = await pdf(
           <DevisPdfDocument snapshot={snapWithImages} devisNumber={devisNumber} issuedAtIso={issuedAtIso} />,
         ).toBlob();
@@ -344,14 +346,18 @@ export default function DevisPage() {
           .eq('id', rowId);
         if (pathErr) throw pathErr;
 
-        setInlinePdfUrl((prev) => {
-          if (prev) URL.revokeObjectURL(prev);
-          return URL.createObjectURL(blob);
-        });
+        const blobUrl = URL.createObjectURL(blob);
+        setInlinePdfUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return blobUrl; });
 
         setWizardOpen(false);
         setEditingDevisId(null);
         setInitialSnapshot(null);
+
+        // Open preview modal with the freshly generated PDF
+        setPreviewUrl(blobUrl);
+        setPreviewRow(null);
+        setPreviewLoading(false);
+        setPreviewOpen(true);
         await queryClient.invalidateQueries({ queryKey: ['devis-list', activeBusinessId] });
 
         toast({ title: wasEdit ? 'Devis mis à jour' : 'Devis enregistré', description: devisNumber });
@@ -461,22 +467,7 @@ export default function DevisPage() {
         </div>
       </div>
 
-      {inlinePdfUrl ? (
-        <Card className="border-0 shadow-sm rounded-3xl overflow-hidden">
-          <CardContent className="p-0">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <p className="text-sm font-medium text-gray-700">Dernier PDF généré</p>
-              <Button variant="outline" size="sm" className="rounded-xl" asChild>
-                <a href={inlinePdfUrl} download="devis.pdf">
-                  <Download className="w-4 h-4 mr-2" />
-                  Télécharger
-                </a>
-              </Button>
-            </div>
-            <iframe title="Devis PDF" src={inlinePdfUrl} className="w-full min-h-[70vh] bg-gray-100" />
-          </CardContent>
-        </Card>
-      ) : null}
+      {/* Inline PDF removed — preview modal opens directly after generation */}
 
       {listLoading ? (
         <Card className="border-0 shadow-sm rounded-3xl">
@@ -568,7 +559,7 @@ export default function DevisPage() {
         <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0 gap-0 rounded-3xl">
           <DialogHeader className="p-4 border-b shrink-0">
             <DialogTitle className="font-light text-lg">
-              {previewRow?.devis_number}
+              {previewRow?.devis_number || 'Aperçu du devis'}
               {previewRow ? (
                 <span className="text-sm font-normal text-gray-400 ml-2">{clientLabel(previewRow)}</span>
               ) : null}
@@ -598,6 +589,13 @@ export default function DevisPage() {
                     Modifier
                   </Button>
                 </>
+              ) : inlinePdfUrl ? (
+                <Button size="sm" variant="outline" className="rounded-xl" asChild>
+                  <a href={inlinePdfUrl} download="devis.pdf">
+                    <Download className="w-4 h-4 mr-2" />
+                    Télécharger
+                  </a>
+                </Button>
               ) : null}
             </div>
           </DialogHeader>
@@ -607,7 +605,7 @@ export default function DevisPage() {
                 <Loader2 className="w-8 h-8 animate-spin text-primary/40" />
               </div>
             ) : previewUrl ? (
-              <iframe title="Aperçu devis" src={previewUrl} className="w-full h-full border-0" />
+              <iframe title="Aperçu devis" src={`${previewUrl}#toolbar=0&navpanes=0`} className="w-full h-full border-0" />
             ) : (
               <p className="p-8 text-sm text-gray-500">Aucun PDF.</p>
             )}

@@ -32,6 +32,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import ProductSearchSelect from '@/components/tools/ProductSearchSelect';
+import ClientSearchSelect from '@/components/tools/ClientSearchSelect';
 import { computeTotals } from '@/lib/devis/totals';
 import type { BonCommandeDirection, BonCommandeSnapshot, BonCommandeSupplierBlock } from '@/lib/bonCommande/types';
 import type { DevisLine, DevisSnapshot, OrderDerivedClient } from '@/lib/devis/types';
@@ -613,18 +615,12 @@ export function BonCommandeWizard({
                     <div className="flex flex-wrap gap-2 items-end">
                       <div className="flex-1 min-w-[180px]">
                         <Label>Produit</Label>
-                        <Select value={pickProductId} onValueChange={setPickProductId}>
-                          <SelectTrigger className="rounded-xl mt-1">
-                            <SelectValue placeholder="Choisir…" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {products.map((p) => (
-                              <SelectItem key={p.id} value={p.id}>
-                                {p.name} — {unitPriceForProduct(p).toFixed(2)} MAD
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <ProductSearchSelect
+                          products={products}
+                          value={pickProductId}
+                          onValueChange={setPickProductId}
+                          renderPrice={(p) => `${unitPriceForProduct(p as any).toFixed(2)} MAD`}
+                        />
                       </div>
                       <div className="w-24">
                         <Label>Qté</Label>
@@ -805,18 +801,11 @@ export function BonCommandeWizard({
                   {clientSource === 'orders' ? (
                     <div>
                       <Label>Client</Label>
-                      <Select value={clientPhone} onValueChange={setClientPhone}>
-                        <SelectTrigger className="rounded-xl mt-1">
-                          <SelectValue placeholder="Sélectionner un client…" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {orderClients.map((c) => (
-                            <SelectItem key={c.phone} value={c.phone}>
-                              {c.name} — {c.phone}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <ClientSearchSelect
+                        clients={orderClients}
+                        value={clientPhone}
+                        onValueChange={setClientPhone}
+                      />
                     </div>
                   ) : (
                     <div className="grid gap-3">

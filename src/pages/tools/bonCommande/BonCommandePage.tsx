@@ -15,6 +15,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import type { Json } from '@/lib/database.types';
 import { embedRemoteImagesForPdf } from '@/lib/bonCommande/embedImagesForPdf';
+import { registerPdfFonts } from '@/lib/documentPdf/registerFonts';
 import type { BonCommandeSnapshot } from '@/lib/bonCommande/types';
 import type { OrderDerivedClient } from '@/lib/devis/types';
 import { Button } from '@/components/ui/button';
@@ -324,6 +325,7 @@ export default function BonCommandePage() {
 
         const snapWithImages = await embedRemoteImagesForPdf(snapForPdf);
 
+        await registerPdfFonts();
         const blob = await pdf(
           <BonCommandePdfDocument snapshot={snapWithImages} bcNumber={bcNumber} issuedAtIso={issuedAtIso} />,
         ).toBlob();
@@ -348,14 +350,18 @@ export default function BonCommandePage() {
           .eq('id', rowId);
         if (pathErr) throw pathErr;
 
-        setInlinePdfUrl((prev) => {
-          if (prev) URL.revokeObjectURL(prev);
-          return URL.createObjectURL(blob);
-        });
+        const blobUrl = URL.createObjectURL(blob);
+        setInlinePdfUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return blobUrl; });
 
         setWizardOpen(false);
         setEditingId(null);
         setInitialSnapshot(null);
+
+        setPreviewUrl(blobUrl);
+        setPreviewRow(null);
+        setPreviewLoading(false);
+        setPreviewOpen(true);
+
         await queryClient.invalidateQueries({ queryKey: ['bc-list', activeBusinessId] });
 
         toast({ title: wasEdit ? 'Document mis à jour' : 'Document enregistré', description: bcNumber });
@@ -467,22 +473,7 @@ export default function BonCommandePage() {
         </div>
       </div>
 
-      {inlinePdfUrl ? (
-        <Card className="border-0 shadow-sm rounded-3xl overflow-hidden">
-          <CardContent className="p-0">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <p className="text-sm font-medium text-gray-700">Dernier PDF généré</p>
-              <Button variant="outline" size="sm" className="rounded-xl" asChild>
-                <a href={inlinePdfUrl} download="bon-de-commande.pdf">
-                  <Download className="w-4 h-4 mr-2" />
-                  Télécharger
-                </a>
-              </Button>
-            </div>
-            <iframe title="BC PDF" src={inlinePdfUrl} className="w-full min-h-[70vh] bg-gray-100" />
-          </CardContent>
-        </Card>
-      ) : null}
+      {/* Inline PDF removed — preview modal opens directly after generation */}
 
       {listLoading ? (
         <Card className="border-0 shadow-sm rounded-3xl">
@@ -580,7 +571,7 @@ export default function BonCommandePage() {
         <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0 gap-0 rounded-3xl">
           <DialogHeader className="p-4 border-b shrink-0">
             <DialogTitle className="font-light text-lg">
-              {previewRow?.bc_number}
+              {previewRow?.bc_number || 'Aperçu du bon de commande'}
               {previewRow ? (
                 <span className="text-sm font-normal text-gray-400 ml-2">{counterpartLabel(previewRow)}</span>
               ) : null}
@@ -610,6 +601,13 @@ export default function BonCommandePage() {
                     Modifier
                   </Button>
                 </>
+              ) : inlinePdfUrl ? (
+                <Button size="sm" variant="outline" className="rounded-xl" asChild>
+                  <a href={inlinePdfUrl} download="bon-de-commande.pdf">
+                    <Download className="w-4 h-4 mr-2" />
+                    Télécharger
+                  </a>
+                </Button>
               ) : null}
             </div>
           </DialogHeader>
@@ -619,7 +617,7 @@ export default function BonCommandePage() {
                 <Loader2 className="w-8 h-8 animate-spin text-primary/40" />
               </div>
             ) : previewUrl ? (
-              <iframe title="Aperçu BC" src={previewUrl} className="w-full h-full border-0" />
+              <iframe title="Aperçu BC" src={`${previewUrl}#toolbar=0&navpanes=0`} className="w-full h-full border-0" />
             ) : (
               <p className="p-8 text-sm text-gray-500">Aucun PDF.</p>
             )}

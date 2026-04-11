@@ -3,21 +3,28 @@ import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import type { DevisSnapshot } from '@/lib/devis/types';
 
+
+const FONT = 'NotoSansArabic';
+const FONT_BOLD = 'NotoSansArabic';
+
 const styles = StyleSheet.create({
   page: {
-    padding: 40,
+    paddingTop: 40,
+    paddingHorizontal: 40,
+    paddingBottom: 60,
     fontSize: 9,
-    fontFamily: 'Helvetica',
+    fontFamily: FONT,
     color: '#111',
   },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 24 },
-  title: { fontSize: 18, fontFamily: 'Helvetica-Bold', marginBottom: 4 },
-  meta: { fontSize: 9, color: '#444' },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 },
   logo: { width: 72, height: 72, objectFit: 'contain' },
+  headerRight: { alignItems: 'flex-end' },
+  title: { fontSize: 18, fontFamily: FONT_BOLD, fontWeight: 'bold' as const, marginBottom: 4 },
+  meta: { fontSize: 9, color: '#444', textAlign: 'right' },
   twoCol: { flexDirection: 'row', gap: 24, marginBottom: 20 },
   col: { flex: 1 },
   blockTitle: { fontSize: 8, textTransform: 'uppercase', letterSpacing: 1, color: '#888', marginBottom: 6 },
-  blockName: { fontSize: 11, fontFamily: 'Helvetica-Bold', marginBottom: 4 },
+  blockName: { fontSize: 11, fontFamily: FONT_BOLD, fontWeight: 'bold' as const, marginBottom: 4 },
   line: { fontSize: 9, color: '#333', marginBottom: 2 },
   table: { marginTop: 8, marginBottom: 16 },
   th: {
@@ -26,7 +33,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#ccc',
     paddingBottom: 6,
     marginBottom: 4,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: FONT_BOLD, fontWeight: 'bold' as const,
     fontSize: 8,
     textTransform: 'uppercase',
     color: '#666',
@@ -38,30 +45,43 @@ const styles = StyleSheet.create({
   c4: { width: '18%', textAlign: 'right' },
   totals: { alignSelf: 'flex-end', width: 220, marginTop: 8 },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
-  totalStrong: { fontFamily: 'Helvetica-Bold', fontSize: 11 },
+  totalStrong: { fontFamily: FONT_BOLD, fontWeight: 'bold' as const, fontSize: 11 },
   notes: { marginTop: 16, padding: 10, backgroundColor: '#f7f7f7', fontSize: 8, color: '#444' },
   stampRow: { flexDirection: 'row', gap: 24, marginTop: 28, justifyContent: 'flex-end' },
   stampImg: { width: 120, height: 60, objectFit: 'contain' },
+  footer: {
+    position: 'absolute',
+    bottom: 20,
+    left: 40,
+    right: 40,
+    borderTopWidth: 0.5,
+    borderTopColor: '#ddd',
+    paddingTop: 6,
+  },
+  footerText: { fontSize: 6.5, color: '#999', textAlign: 'center', lineHeight: 1.4 },
 });
 
 function fmtDate(iso?: string | null) {
   if (!iso) return '—';
-  try {
-    return format(parseISO(iso), 'd MMMM yyyy', { locale: fr });
-  } catch {
-    return iso;
-  }
+  try { return format(parseISO(iso), 'd MMMM yyyy', { locale: fr }); } catch { return iso; }
 }
 
-function fmtMoney(n: number) {
-  return `${n.toFixed(2)} MAD`;
+function fmtMoney(n: number) { return `${n.toFixed(2)} MAD`; }
+
+function buildFooterParts(b: DevisSnapshot['business']) {
+  const parts: string[] = [];
+  if (b.legal_address) parts.push(b.legal_address);
+  if (b.legal_city) parts.push(b.legal_city);
+  if (b.capital_social) parts.push(`Capital : ${b.capital_social}`);
+  if (b.ice) parts.push(`ICE : ${b.ice}`);
+  if (b.rc) parts.push(`RC : ${b.rc}`);
+  if (b.identifiant_fiscal) parts.push(`IF : ${b.identifiant_fiscal}`);
+  if (b.business_phone) parts.push(`Tél. ${b.business_phone}`);
+  if (b.business_email) parts.push(b.business_email);
+  return parts.join(' · ');
 }
 
-type Props = {
-  snapshot: DevisSnapshot;
-  devisNumber: string;
-  issuedAtIso: string;
-};
+type Props = { snapshot: DevisSnapshot; devisNumber: string; issuedAtIso: string };
 
 export function DevisPdfDocument({ snapshot, devisNumber, issuedAtIso }: Props) {
   const { business, client, lines, stamps } = snapshot;
@@ -70,35 +90,30 @@ export function DevisPdfDocument({ snapshot, devisNumber, issuedAtIso }: Props) 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
+        {/* Header: logo left, doc info right */}
         <View style={styles.headerRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.title}>Devis</Text>
-            <Text style={styles.meta}>N° {devisNumber}</Text>
-            <Text style={styles.meta}>Émis le {fmtDate(issuedAtIso)}</Text>
-            {snapshot.valid_until ? (
-              <Text style={styles.meta}>Valable jusqu'au {fmtDate(snapshot.valid_until)}</Text>
-            ) : null}
-          </View>
           {business.logo_url ? (
             <Image src={business.logo_url} style={styles.logo} />
           ) : (
             <View style={{ width: 72 }} />
           )}
+          <View style={styles.headerRight}>
+            <Text style={styles.title}>Devis</Text>
+            <Text style={[styles.meta, { fontSize: 12, fontFamily: FONT_BOLD, fontWeight: 'bold' as const }]}>N° {devisNumber}</Text>
+            <Text style={styles.meta}>Émis le {fmtDate(issuedAtIso)}</Text>
+            {snapshot.valid_until ? (
+              <Text style={styles.meta}>Valable jusqu'au {fmtDate(snapshot.valid_until)}</Text>
+            ) : null}
+          </View>
         </View>
 
+        {/* Emetteur (name, phone, email only) + Client */}
         <View style={styles.twoCol}>
           <View style={styles.col}>
             <Text style={styles.blockTitle}>Émetteur</Text>
             <Text style={styles.blockName}>{business.name || '—'}</Text>
-            {business.legal_address ? <Text style={styles.line}>{business.legal_address}</Text> : null}
-            {business.legal_city ? <Text style={styles.line}>{business.legal_city}</Text> : null}
             {business.business_phone ? <Text style={styles.line}>Tél. {business.business_phone}</Text> : null}
             {business.business_email ? <Text style={styles.line}>{business.business_email}</Text> : null}
-            {business.ice ? <Text style={styles.line}>ICE : {business.ice}</Text> : null}
-            {business.rc ? <Text style={styles.line}>RC : {business.rc}</Text> : null}
-            {business.identifiant_fiscal ? (
-              <Text style={styles.line}>IF : {business.identifiant_fiscal}</Text>
-            ) : null}
           </View>
           <View style={styles.col}>
             <Text style={styles.blockTitle}>Client</Text>
@@ -109,6 +124,7 @@ export function DevisPdfDocument({ snapshot, devisNumber, issuedAtIso }: Props) 
           </View>
         </View>
 
+        {/* Items table */}
         <View style={styles.table}>
           <View style={styles.th}>
             <Text style={styles.c1}>Désignation</Text>
@@ -116,29 +132,21 @@ export function DevisPdfDocument({ snapshot, devisNumber, issuedAtIso }: Props) 
             <Text style={styles.c3}>P.U. HT</Text>
             <Text style={styles.c4}>Total HT</Text>
           </View>
-          {lines.items.map((line, i) => {
-            const lineHt = line.quantity * line.unit_price;
-            return (
-              <View key={i} style={styles.tr} wrap={false}>
-                <Text style={styles.c1}>{line.label}</Text>
-                <Text style={styles.c2}>{String(line.quantity)}</Text>
-                <Text style={styles.c3}>{fmtMoney(line.unit_price)}</Text>
-                <Text style={styles.c4}>{fmtMoney(lineHt)}</Text>
-              </View>
-            );
-          })}
+          {lines.items.map((line, i) => (
+            <View key={i} style={styles.tr} wrap={false}>
+              <Text style={styles.c1}>{line.label}</Text>
+              <Text style={styles.c2}>{String(line.quantity)}</Text>
+              <Text style={styles.c3}>{fmtMoney(line.unit_price)}</Text>
+              <Text style={styles.c4}>{fmtMoney(line.quantity * line.unit_price)}</Text>
+            </View>
+          ))}
         </View>
 
+        {/* Totals */}
         <View style={styles.totals}>
-          <View style={styles.totalRow}>
-            <Text>Sous-total HT</Text>
-            <Text>{fmtMoney(snapshot.subtotal_ht)}</Text>
-          </View>
+          <View style={styles.totalRow}><Text>Sous-total HT</Text><Text>{fmtMoney(snapshot.subtotal_ht)}</Text></View>
           {snapshot.tva_included && snapshot.tva_rate > 0 ? (
-            <View style={styles.totalRow}>
-              <Text>TVA ({snapshot.tva_rate}%)</Text>
-              <Text>{fmtMoney(snapshot.tva_amount)}</Text>
-            </View>
+            <View style={styles.totalRow}><Text>TVA ({snapshot.tva_rate}%)</Text><Text>{fmtMoney(snapshot.tva_amount)}</Text></View>
           ) : null}
           <View style={styles.totalRow}>
             <Text style={styles.totalStrong}>Total TTC</Text>
@@ -148,7 +156,7 @@ export function DevisPdfDocument({ snapshot, devisNumber, issuedAtIso }: Props) 
 
         {snapshot.notes ? (
           <View style={styles.notes}>
-            <Text style={{ fontFamily: 'Helvetica-Bold', marginBottom: 4 }}>Notes</Text>
+            <Text style={{ fontFamily: FONT_BOLD, fontWeight: 'bold' as const, marginBottom: 4 }}>Notes</Text>
             <Text>{snapshot.notes}</Text>
           </View>
         ) : null}
@@ -159,6 +167,11 @@ export function DevisPdfDocument({ snapshot, devisNumber, issuedAtIso }: Props) 
             {stamps.signature_url ? <Image src={stamps.signature_url} style={styles.stampImg} /> : null}
           </View>
         ) : null}
+
+        {/* Footer */}
+        <View style={styles.footer} fixed>
+          <Text style={styles.footerText}>{buildFooterParts(business)}</Text>
+        </View>
       </Page>
     </Document>
   );

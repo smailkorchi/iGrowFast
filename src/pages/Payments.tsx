@@ -64,6 +64,7 @@ const Payments = () => {
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [wizardStep, setWizardStep] = useState(0);
     const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
+    const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
     const [isViewNoteOpen, setIsViewNoteOpen] = useState(false);
     const [selectedNote, setSelectedNote] = useState<PaymentNote | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
@@ -189,7 +190,8 @@ const Payments = () => {
 
     // ─── Generate payment note (company or courier) ───
     const generateNoteMutation = useMutation({
-        mutationFn: async (group: TargetGroup) => {
+        mutationFn: async (group: TargetGroup & { selectedOrders: UnpaidOrder[] }) => {
+            const orders = group.selectedOrders;
             const { data: { session } } = await supabase.auth.getSession();
             const isCourier = group.kind === 'courier';
             const ref = `PAY-${isCourier ? 'CR' : group.target_name.substring(0, 3).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
@@ -197,9 +199,9 @@ const Payments = () => {
             const lineItemsTable = isCourier ? 'courier_payment_note_orders' : 'company_payment_note_orders';
             const orderLinkField = isCourier ? 'current_courier_payment_note_id' : 'payment_delivery_id';
 
-            // Recalculate totals from source data (trust DB values not state)
-            const total_amount = group.orders.reduce((s, o) => s + Number(o.price || 0), 0);
-            const total_shipping = group.orders.reduce((s, o) => s + Number(o.shipping_cost || 0), 0);
+            // Recalculate totals from selected orders
+            const total_amount = orders.reduce((s, o) => s + Number(o.price || 0), 0);
+            const total_shipping = orders.reduce((s, o) => s + Number(o.shipping_cost || 0), 0);
             const net_amount = total_amount - total_shipping;
 
             const insertPayload: any = {
@@ -208,7 +210,7 @@ const Payments = () => {
                 total_amount: +total_amount.toFixed(2),
                 total_shipping_fees: +total_shipping.toFixed(2),
                 net_amount: +net_amount.toFixed(2),
-                order_count: group.orders.length,
+                order_count: orders.length,
                 'DigiCom Business': activeBusinessId,
             };
             if (isCourier) {
@@ -227,7 +229,7 @@ const Payments = () => {
             if (noteError) throw noteError;
 
             // Step 2: line items (rollback on failure)
-            const lineItems = group.orders.map(o => ({
+            const lineItems = orders.map(o => ({
                 payment_note_id: note.id,
                 order_id: o.id,
                 tracking_code: isCourier
@@ -244,7 +246,7 @@ const Payments = () => {
             }
 
             // Step 3: stamp orders
-            const orderIds = group.orders.map(o => o.id);
+            const orderIds = orders.map(o => o.id);
             const { error: ordersError } = await (supabase as any)
                 .from('orders')
                 .update({ [orderLinkField]: note.id, updated_at: new Date().toISOString() })
@@ -260,8 +262,8 @@ const Payments = () => {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['payment-notes'] });
             queryClient.invalidateQueries({ queryKey: ['unpaid-livre-orders'] });
-            toast({ title: 'Payment note generated', description: 'All orders have been linked to this note.' });
-            setIsWizardOpen(false); setWizardStep(0); setSelectedTarget(null);
+            toast({ title: 'Payment note generated', description: 'Selected orders have been linked to this note.' });
+            setIsWizardOpen(false); setWizardStep(0); setSelectedTarget(null); setSelectedOrderIds(new Set());
         },
         onError: (e: any) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
     });
@@ -695,25 +697,25 @@ const Payments = () => {
             )}
 
             {/* ─── WIZARD MODAL ─── */}
-            <Dialog open={isWizardOpen} onOpenChange={v => { if (!v) { setIsWizardOpen(false); setWizardStep(0); setSelectedTarget(null); } }}>
+            <Dialog open={isWizardOpen} onOpenChange={v => { if (!v) { setIsWizardOpen(false); setWizardStep(0); setSelectedTarget(null); setSelectedOrderIds(new Set()); } }}>
                 <DialogContent className="max-w-3xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
                     <DialogHeader className="p-10 pb-6">
                         <DialogTitle className="text-3xl font-black text-brand-navy">
-                            {wizardStep === 0 ? (activeTab === 'courier' ? 'Select Courier' : 'Select Provider') : 'Review & Generate'}
+                            {wizardStep === 0 ? (activeTab === 'courier' ? 'Select Courier' : 'Select Provider') : wizardStep === 1 ? 'Select Orders' : 'Review & Generate'}
                         </DialogTitle>
                         <DialogDescription className="text-base font-medium">
-                            {wizardStep === 0 ? `Choose a ${activeTab === 'courier' ? 'courier agent' : 'delivery provider'} to generate a payment note for.` : 'Review the orders and confirm generation.'}
+                            {wizardStep === 0 ? `Choose a ${activeTab === 'courier' ? 'courier agent' : 'delivery provider'} to generate a payment note for.` : wizardStep === 1 ? 'Pick the orders to include in this payment note.' : 'Review the selected orders and confirm generation.'}
                         </DialogDescription>
                     </DialogHeader>
 
                     <div className="px-10 flex items-center gap-3 mb-2">
-                        {[0, 1].map(s => (
+                        {[0, 1, 2].map(s => (
                             <React.Fragment key={s}>
                                 <div className={cn("w-10 h-10 rounded-2xl flex items-center justify-center text-sm font-black transition-all",
                                     wizardStep >= s ? "bg-brand-navy text-white shadow-lg" : "bg-brand-navy/5 text-brand-navy/30")}>
                                     {s + 1}
                                 </div>
-                                {s < 1 && <div className={cn("flex-1 h-1 rounded-full transition-colors", wizardStep > s ? "bg-brand-navy" : "bg-brand-navy/10")} />}
+                                {s < 2 && <div className={cn("flex-1 h-1 rounded-full transition-colors", wizardStep > s ? "bg-brand-navy" : "bg-brand-navy/10")} />}
                             </React.Fragment>
                         ))}
                     </div>
@@ -751,7 +753,11 @@ const Payments = () => {
                                 <div className="flex justify-end gap-3 pt-4">
                                     <Button variant="outline" onClick={() => setIsWizardOpen(false)}
                                         className="rounded-2xl h-12 px-6 font-bold border-brand-navy/10">Cancel</Button>
-                                    <Button disabled={!selectedTarget} onClick={() => setWizardStep(1)}
+                                    <Button disabled={!selectedTarget} onClick={() => {
+                                        const group = activeGroups.find(g => g.target_id === selectedTarget);
+                                        if (group) setSelectedOrderIds(new Set(group.orders.map(o => o.id)));
+                                        setWizardStep(1);
+                                    }}
                                         className="bg-brand-navy hover:bg-brand-navy/90 text-white rounded-2xl h-12 px-8 font-bold shadow-xl">
                                         Next <ArrowRight className="w-4 h-4 ml-2" />
                                     </Button>
@@ -759,13 +765,101 @@ const Payments = () => {
                             </div>
                         )}
 
-                        {wizardStep === 1 && selectedGroup && (
+                        {/* Step 1: Select Orders */}
+                        {wizardStep === 1 && selectedGroup && (() => {
+                            const allOrders = selectedGroup.orders;
+                            const allSelected = allOrders.length > 0 && allOrders.every(o => selectedOrderIds.has(o.id));
+                            return (
+                                <div className="space-y-6">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-4 p-4 bg-brand-navy/5 rounded-[20px] flex-1 min-w-0">
+                                            <EntityLogo kind={selectedGroup.kind} logoUrl={selectedGroup.logo_url} avatarUrl={selectedGroup.avatar_url} name={selectedGroup.target_name} size="md" />
+                                            <div className="min-w-0">
+                                                <p className="text-base font-black text-brand-navy truncate">{selectedGroup.target_name}</p>
+                                                <p className="text-xs font-semibold text-muted-foreground">{selectedOrderIds.size} / {allOrders.length} orders selected</p>
+                                            </div>
+                                        </div>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => {
+                                                if (allSelected) setSelectedOrderIds(new Set());
+                                                else setSelectedOrderIds(new Set(allOrders.map(o => o.id)));
+                                            }}
+                                            className="rounded-xl h-9 px-4 text-xs font-bold border-brand-navy/10 shrink-0 ml-4"
+                                        >
+                                            {allSelected ? 'Deselect All' : `Select All (${allOrders.length})`}
+                                        </Button>
+                                    </div>
+
+                                    <div className="space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar pr-1">
+                                        {allOrders.map((order) => {
+                                            const isChecked = selectedOrderIds.has(order.id);
+                                            const trackingCode = selectedGroup.kind === 'courier'
+                                                ? (order.courier_parcels?.[0]?.tracking_code || order.tracking_number || '')
+                                                : (order.parcels?.[0]?.tracking_code || order.tracking_number || '');
+                                            return (
+                                                <div
+                                                    key={order.id}
+                                                    onClick={() => {
+                                                        setSelectedOrderIds(prev => {
+                                                            const next = new Set(prev);
+                                                            if (next.has(order.id)) next.delete(order.id);
+                                                            else next.add(order.id);
+                                                            return next;
+                                                        });
+                                                    }}
+                                                    className={cn(
+                                                        "flex items-center gap-4 p-4 rounded-2xl cursor-pointer transition-all duration-200 border",
+                                                        isChecked
+                                                            ? "bg-brand-navy/[0.04] border-brand-navy/15 shadow-sm"
+                                                            : "bg-white border-brand-navy/[0.04] hover:border-brand-navy/10"
+                                                    )}
+                                                >
+                                                    <div className={cn(
+                                                        "w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all",
+                                                        isChecked ? "bg-brand-navy border-brand-navy" : "border-brand-navy/20"
+                                                    )}>
+                                                        {isChecked && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-bold text-brand-navy truncate">{order.name}</p>
+                                                        <p className="text-[10px] text-muted-foreground font-medium">{order.phone}{trackingCode ? ` · ${trackingCode}` : ''}</p>
+                                                    </div>
+                                                    <div className="text-right shrink-0">
+                                                        <p className="text-sm font-black text-brand-navy">{Number(order.price || 0).toFixed(2)} <span className="text-[10px] font-bold text-brand-navy/30">MAD</span></p>
+                                                        <p className="text-[10px] font-semibold text-red-400">-{Number(order.shipping_cost || 0).toFixed(2)} ship</p>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+
+                                    <div className="flex justify-end gap-3">
+                                        <Button variant="outline" onClick={() => setWizardStep(0)}
+                                            className="rounded-2xl h-12 px-6 font-bold border-brand-navy/10">Back</Button>
+                                        <Button disabled={selectedOrderIds.size === 0} onClick={() => setWizardStep(2)}
+                                            className="bg-brand-navy hover:bg-brand-navy/90 text-white rounded-2xl h-12 px-8 font-bold shadow-xl">
+                                            Next ({selectedOrderIds.size}) <ArrowRight className="w-4 h-4 ml-2" />
+                                        </Button>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
+                        {/* Step 2: Review & Generate */}
+                        {wizardStep === 2 && selectedGroup && (() => {
+                            const filteredOrders = selectedGroup.orders.filter(o => selectedOrderIds.has(o.id));
+                            const totalAmount = filteredOrders.reduce((s, o) => s + Number(o.price || 0), 0);
+                            const totalShipping = filteredOrders.reduce((s, o) => s + Number(o.shipping_cost || 0), 0);
+                            const netAmount = totalAmount - totalShipping;
+                            return (
                             <div className="space-y-6">
                                 <div className="flex items-center gap-4 p-5 bg-brand-navy/5 rounded-[24px]">
                                     <EntityLogo kind={selectedGroup.kind} logoUrl={selectedGroup.logo_url} avatarUrl={selectedGroup.avatar_url} name={selectedGroup.target_name} size="md" />
                                     <div>
                                         <p className="text-lg font-black text-brand-navy">{selectedGroup.target_name}</p>
-                                        <p className="text-xs font-semibold text-muted-foreground">{selectedGroup.orders.length} orders to include in this note</p>
+                                        <p className="text-xs font-semibold text-muted-foreground">{filteredOrders.length} orders to include in this note</p>
                                     </div>
                                 </div>
 
@@ -776,7 +870,7 @@ const Payments = () => {
                                             <th className="p-4 text-left">Tracking</th><th className="p-4 text-right">Amount</th>
                                             <th className="p-4 text-right">Shipping</th><th className="p-4 text-right">Net</th>
                                         </tr></thead>
-                                        <tbody>{selectedGroup.orders.map((o, i) => {
+                                        <tbody>{filteredOrders.map((o, i) => {
                                             const trackingCode = selectedGroup.kind === 'courier'
                                                 ? (o.courier_parcels?.[0]?.tracking_code || o.tracking_number || 'N/A')
                                                 : (o.parcels?.[0]?.tracking_code || o.tracking_number || 'N/A');
@@ -797,18 +891,18 @@ const Payments = () => {
                                 <div className="bg-brand-navy rounded-[24px] p-6 text-white">
                                     <div className="grid grid-cols-3 gap-6 text-center">
                                         <div><span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block mb-1">Total Amount</span>
-                                            <span className="text-xl font-black">{selectedGroup.total_amount.toFixed(2)}</span></div>
+                                            <span className="text-xl font-black">{totalAmount.toFixed(2)}</span></div>
                                         <div><span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block mb-1">Shipping Fees</span>
-                                            <span className="text-xl font-black text-red-300">-{selectedGroup.total_shipping.toFixed(2)}</span></div>
+                                            <span className="text-xl font-black text-red-300">-{totalShipping.toFixed(2)}</span></div>
                                         <div><span className="text-[10px] font-bold text-white/40 uppercase tracking-widest block mb-1">Net Payable</span>
-                                            <span className="text-xl font-black text-emerald-300">{selectedGroup.net_amount.toFixed(2)}</span></div>
+                                            <span className="text-xl font-black text-emerald-300">{netAmount.toFixed(2)}</span></div>
                                     </div>
                                 </div>
 
                                 <div className="flex justify-end gap-3">
-                                    <Button variant="outline" onClick={() => setWizardStep(0)}
+                                    <Button variant="outline" onClick={() => setWizardStep(1)}
                                         className="rounded-2xl h-12 px-6 font-bold border-brand-navy/10">Back</Button>
-                                    <Button onClick={() => generateNoteMutation.mutate(selectedGroup)}
+                                    <Button onClick={() => generateNoteMutation.mutate({ ...selectedGroup, selectedOrders: filteredOrders })}
                                         disabled={generateNoteMutation.isPending}
                                         className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl h-12 px-8 font-bold shadow-xl shadow-emerald-200">
                                         {generateNoteMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
@@ -816,7 +910,8 @@ const Payments = () => {
                                     </Button>
                                 </div>
                             </div>
-                        )}
+                            );
+                        })()}
                     </div>
                 </DialogContent>
             </Dialog>

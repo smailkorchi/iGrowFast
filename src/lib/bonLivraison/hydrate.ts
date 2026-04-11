@@ -6,13 +6,13 @@ type CityRow = { name?: string | null } | null;
 
 function mergeLine(map: Map<string, DevisLine>, label: string, qty: number, unitPrice: number, productId: string | null) {
   const key = label.trim();
-  if (!key) return;
+  if (!key || qty <= 0) return;
   const prev = map.get(key);
   if (prev) {
     map.set(key, {
       ...prev,
       quantity: prev.quantity + qty,
-      unit_price: unitPrice,
+      unit_price: unitPrice > 0 ? unitPrice : prev.unit_price,
       product_id: prev.product_id ?? productId,
     });
   } else {
@@ -219,24 +219,10 @@ export async function hydrateBonLivraisonFromCompanyNote(
   }
 
   let client: DevisClientBlock;
-  if (phones.size <= 1 && parcelRows?.length) {
-    const firstParcel = parcelRows[0] as Record<string, unknown>;
-    const firstOid = firstParcel.order_id ? String(firstParcel.order_id) : null;
-    const first = firstOid ? ordersMap.get(firstOid) : null;
-    if (first) {
-      client = orderToClient(first);
-    } else {
-      client = { source: 'manual', name: '—' };
-    }
-  } else {
-    client = {
-      source: 'manual',
-      name: 'Plusieurs destinataires',
-      phone: undefined,
-      address: undefined,
-      city: undefined,
-    };
-  }
+  const firstParcel = (parcelRows || [])[0] as Record<string, unknown> | undefined;
+  const firstOid = firstParcel?.order_id ? String(firstParcel.order_id) : null;
+  const first = firstOid ? ordersMap.get(firstOid) : null;
+  client = first ? orderToClient(first) : { source: 'manual', name: '—' };
 
   return {
     lines: Array.from(map.values()),
@@ -249,4 +235,115 @@ export async function hydrateBonLivraisonFromCompanyNote(
     order_id: null,
     show_transport_default: !!transport?.provider_name,
   };
+}
+
+export async function hydrateBonLivraisonFromCourierNote(
+  supabase: SupabaseClient,
+  businessId: string,
+  noteId: string,
+): Promise<BonLivraisonHydrateResult | null> {
+  const { data: note, error: nErr } = await (supabase as any)
+    .from('courier_delivery_notes')
+    .select('id, reference, courier:users!courier_delivery_notes_courier_id_fkey(name)')
+    .eq('id', noteId)
+    .eq('DigiCom Business', businessId)
+    .maybeSingle();
+
+  if (nErr || !note) return null;
+
+  const n = note as Record<string, unknown>;
+  const courier = n.courier as { name?: string } | null;
+  const transport = courier
+    ? { provider_name: courier.name ?? null, provider_logo_url: null }
+    : null;
+
+  const { data: parcelRows, error: pErr } = await (supabase as any)
+    .from('courier_parcels')
+    .select('id, tracking_code, reference, status_label, order_id')
+    .eq('courier_delivery_note_id', noteId)
+    .eq('DigiCom Business', businessId);
+
+  if (pErr) return null;
+
+  const orderIds = [
+    ...new Set(
+      (parcelRows || [])
+        .map((p: Record<string, unknown>) => p.order_id as string | null)
+        .filter((id): id is string => !!id),
+    ),
+  ];
+
+  const ordersMap = new Map<string, Record<string, unknown>>();
+  if (orderIds.length > 0) {
+    const { data: ordersData, error: oErr } = await supabase
+      .from('orders')
+      .select(
+        `
+        id, name, phone, address, delivery_note,
+        city:master_cities(name),
+        items:order_items(quantity, unit_price, product_id, accessory_id, accessory_quantity, accessory_unit_price, product:products(id, name), accessory:accessories(name))
+      `,
+      )
+      .in('id', orderIds)
+      .eq('DigiCom Business', businessId);
+    if (!oErr && ordersData) {
+      for (const ord of ordersData) {
+        ordersMap.set(String((ord as Record<string, unknown>).id), ord as Record<string, unknown>);
+      }
+    }
+  }
+
+  const map = new Map<string, DevisLine>();
+  const phones = new Set<string>();
+  const parcels: BonLivraisonParcelSnapshot[] = [];
+
+  for (const row of parcelRows || []) {
+    const pr = row as Record<string, unknown>;
+    const oid = pr.order_id ? String(pr.order_id) : null;
+    const ord = oid ? ordersMap.get(oid) : null;
+    if (ord) {
+      mergeOrderItemsIntoMap(map, ord, false);
+      const phone = ord.phone ? String(ord.phone).replace(/[^0-9]/g, '') : '';
+      if (phone) phones.add(phone);
+    }
+
+    parcels.push({
+      id: pr.id as string,
+      tracking_code: pr.tracking_code ? String(pr.tracking_code) : null,
+      reference: pr.reference ? String(pr.reference) : null,
+      status_label: pr.status_label ? String(pr.status_label) : null,
+      recipient_name: ord?.name ? String(ord.name) : null,
+      recipient_phone: ord?.phone ? String(ord.phone) : null,
+      order_id: oid,
+    });
+  }
+
+  let client: DevisClientBlock;
+  const firstParcel = (parcelRows || [])[0] as Record<string, unknown> | undefined;
+  const firstOid = firstParcel?.order_id ? String(firstParcel.order_id) : null;
+  const first = firstOid ? ordersMap.get(firstOid) : null;
+  client = first ? orderToClient(first) : { source: 'manual', name: '—' };
+
+  return {
+    lines: Array.from(map.values()),
+    linesSource: 'manual',
+    client,
+    parcels,
+    transport,
+    linked_reference: n.reference ? String(n.reference) : null,
+    company_delivery_note_id: noteId,
+    order_id: null,
+    show_transport_default: !!transport?.provider_name,
+  };
+}
+
+/** Try company note first, fall back to courier note */
+export async function hydrateBonLivraisonFromAnyNote(
+  supabase: SupabaseClient,
+  businessId: string,
+  noteId: string,
+): Promise<BonLivraisonHydrateResult | null> {
+  const company = await hydrateBonLivraisonFromCompanyNote(supabase, businessId, noteId);
+  if (company) return company;
+  return hydrateBonLivraisonFromCourierNote(supabase, businessId, noteId);
 }

@@ -15,7 +15,8 @@ import {
 import { supabase } from '@/lib/supabase';
 import type { Json } from '@/lib/database.types';
 import { embedRemoteImagesForPdf } from '@/lib/bonLivraison/embedImagesForPdf';
-import { hydrateBonLivraisonFromCompanyNote, hydrateBonLivraisonFromOrder } from '@/lib/bonLivraison/hydrate';
+import { registerPdfFonts } from '@/lib/documentPdf/registerFonts';
+import { hydrateBonLivraisonFromAnyNote, hydrateBonLivraisonFromOrder } from '@/lib/bonLivraison/hydrate';
 import type { BonLivraisonSnapshot } from '@/lib/bonLivraison/types';
 import type { OrderDerivedClient } from '@/lib/devis/types';
 import { Button } from '@/components/ui/button';
@@ -201,14 +202,24 @@ export default function BonLivraisonPage() {
     queryKey: ['bl-notes-pick', activeBusinessId],
     enabled: !!activeBusinessId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('company_delivery_notes')
-        .select('id, reference, created_at, provider:providers(name)')
-        .eq('DigiCom Business', activeBusinessId!)
-        .order('created_at', { ascending: false })
-        .limit(300);
-      if (error) throw error;
-      return (data || []).map((n: Record<string, unknown>) => {
+      const [companyRes, courierRes] = await Promise.all([
+        supabase
+          .from('company_delivery_notes')
+          .select('id, reference, created_at, provider:providers(name)')
+          .eq('DigiCom Business', activeBusinessId!)
+          .order('created_at', { ascending: false })
+          .limit(300),
+        (supabase as any)
+          .from('courier_delivery_notes')
+          .select('id, reference, created_at, courier:users!courier_delivery_notes_courier_id_fkey(name)')
+          .eq('DigiCom Business', activeBusinessId!)
+          .order('created_at', { ascending: false })
+          .limit(300),
+      ]);
+      if (companyRes.error) throw companyRes.error;
+      if (courierRes.error) throw courierRes.error;
+
+      const companyNotes = (companyRes.data || []).map((n: Record<string, unknown>) => {
         const p = n.provider as { name?: string } | null;
         const ref = n.reference ? String(n.reference) : String(n.id).slice(0, 8);
         const created = n.created_at ? format(parseISO(String(n.created_at)), 'dd/MM/yy') : '';
@@ -217,6 +228,20 @@ export default function BonLivraisonPage() {
           label: `${ref}${p?.name ? ` — ${p.name}` : ''}${created ? ` (${created})` : ''}`,
         };
       });
+
+      const courierNotes = (courierRes.data || []).map((n: Record<string, unknown>) => {
+        const c = n.courier as { name?: string } | null;
+        const ref = n.reference ? String(n.reference) : String(n.id).slice(0, 8);
+        const created = n.created_at ? format(parseISO(String(n.created_at)), 'dd/MM/yy') : '';
+        return {
+          id: String(n.id),
+          label: `${ref}${c?.name ? ` — ${c.name}` : ''}${created ? ` (${created})` : ''}`,
+        };
+      });
+
+      return [...companyNotes, ...courierNotes].sort((a, b) =>
+        a.label.localeCompare(b.label)
+      );
     },
   });
 
@@ -245,7 +270,7 @@ export default function BonLivraisonPage() {
   const hydrateCompanyNote = useCallback(
     async (noteId: string) => {
       if (!activeBusinessId) return null;
-      return hydrateBonLivraisonFromCompanyNote(supabase, activeBusinessId, noteId);
+      return hydrateBonLivraisonFromAnyNote(supabase, activeBusinessId, noteId);
     },
     [activeBusinessId],
   );
@@ -370,6 +395,7 @@ export default function BonLivraisonPage() {
 
         const snapWithImages = await embedRemoteImagesForPdf(snapForPdf);
 
+        await registerPdfFonts();
         const blob = await pdf(
           <BonLivraisonPdfDocument snapshot={snapWithImages} blNumber={blNumber} issuedAtIso={issuedAtIso} />,
         ).toBlob();
@@ -394,14 +420,18 @@ export default function BonLivraisonPage() {
           .eq('id', rowId);
         if (pathErr) throw pathErr;
 
-        setInlinePdfUrl((prev) => {
-          if (prev) URL.revokeObjectURL(prev);
-          return URL.createObjectURL(blob);
-        });
+        const blobUrl = URL.createObjectURL(blob);
+        setInlinePdfUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return blobUrl; });
 
         setWizardOpen(false);
         setEditingId(null);
         setInitialSnapshot(null);
+
+        setPreviewUrl(blobUrl);
+        setPreviewRow(null);
+        setPreviewLoading(false);
+        setPreviewOpen(true);
+
         await queryClient.invalidateQueries({ queryKey: ['bl-list', activeBusinessId] });
 
         toast({ title: wasEdit ? 'Mis à jour' : 'Enregistré', description: blNumber });
@@ -519,22 +549,7 @@ export default function BonLivraisonPage() {
         </div>
       </div>
 
-      {inlinePdfUrl ? (
-        <Card className="border-0 shadow-sm rounded-3xl overflow-hidden">
-          <CardContent className="p-0">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <p className="text-sm font-medium text-gray-700">Dernier PDF généré</p>
-              <Button variant="outline" size="sm" className="rounded-xl" asChild>
-                <a href={inlinePdfUrl} download="bon-livraison.pdf">
-                  <Download className="w-4 h-4 mr-2" />
-                  Télécharger
-                </a>
-              </Button>
-            </div>
-            <iframe title="BL PDF" src={inlinePdfUrl} className="w-full min-h-[70vh] bg-gray-100" />
-          </CardContent>
-        </Card>
-      ) : null}
+      {/* Inline PDF removed — preview modal opens directly after generation */}
 
       {listLoading ? (
         <Card className="border-0 shadow-sm rounded-3xl">
@@ -629,7 +644,7 @@ export default function BonLivraisonPage() {
         <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0 gap-0 rounded-3xl">
           <DialogHeader className="p-4 border-b shrink-0">
             <DialogTitle className="font-light text-lg">
-              {previewRow?.bl_number}
+              {previewRow?.bl_number || 'Aperçu du bon de livraison'}
               {previewRow ? (
                 <span className="text-sm font-normal text-gray-400 ml-2">{counterpartLabel(previewRow)}</span>
               ) : null}
@@ -659,6 +674,13 @@ export default function BonLivraisonPage() {
                     Modifier
                   </Button>
                 </>
+              ) : inlinePdfUrl ? (
+                <Button size="sm" variant="outline" className="rounded-xl" asChild>
+                  <a href={inlinePdfUrl} download="bon-livraison.pdf">
+                    <Download className="w-4 h-4 mr-2" />
+                    Télécharger
+                  </a>
+                </Button>
               ) : null}
             </div>
           </DialogHeader>
@@ -668,7 +690,7 @@ export default function BonLivraisonPage() {
                 <Loader2 className="w-8 h-8 animate-spin text-primary/40" />
               </div>
             ) : previewUrl ? (
-              <iframe title="Aperçu BL" src={previewUrl} className="w-full h-full border-0" />
+              <iframe title="Aperçu BL" src={`${previewUrl}#toolbar=0&navpanes=0`} className="w-full h-full border-0" />
             ) : (
               <p className="p-8 text-sm text-gray-500">Aucun PDF.</p>
             )}

@@ -32,6 +32,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import ProductSearchSelect from '@/components/tools/ProductSearchSelect';
+import ClientSearchSelect from '@/components/tools/ClientSearchSelect';
+import OrderSearchSelect from '@/components/tools/OrderSearchSelect';
 import { useToast } from '@/hooks/use-toast';
 import type {
   BonLivraisonHydrateResult,
@@ -655,22 +658,12 @@ export function BonLivraisonWizard({
                   {source === 'order' ? (
                     <div className="space-y-2">
                       <Label>Commande</Label>
-                      <Select
+                      <OrderSearchSelect
+                        orders={ordersForPicker}
                         value={selectedOrderId}
                         onValueChange={(id) => void onPickOrder(id)}
                         disabled={hydrating}
-                      >
-                        <SelectTrigger className="rounded-xl">
-                          <SelectValue placeholder="Choisir une commande…" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {ordersForPicker.map((o) => (
-                            <SelectItem key={o.id} value={o.id}>
-                              {o.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      />
                       {hydrating ? (
                         <p className="text-xs text-gray-500 flex items-center gap-2">
                           <Loader2 className="w-3 h-3 animate-spin" /> Chargement…
@@ -682,22 +675,13 @@ export function BonLivraisonWizard({
                   {source === 'company_delivery_note' ? (
                     <div className="space-y-2">
                       <Label>Bon transporteur (société)</Label>
-                      <Select
+                      <OrderSearchSelect
+                        orders={notesForPicker}
                         value={selectedNoteId}
                         onValueChange={(id) => void onPickNote(id)}
+                        placeholder="Choisir une note…"
                         disabled={hydrating}
-                      >
-                        <SelectTrigger className="rounded-xl">
-                          <SelectValue placeholder="Choisir une note…" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {notesForPicker.map((n) => (
-                            <SelectItem key={n.id} value={n.id}>
-                              {n.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      />
                       {hydrating ? (
                         <p className="text-xs text-gray-500 flex items-center gap-2">
                           <Loader2 className="w-3 h-3 animate-spin" /> Chargement…
@@ -740,18 +724,11 @@ export function BonLivraisonWizard({
                     <div className="flex flex-wrap gap-2 items-end">
                       <div className="flex-1 min-w-[160px]">
                         <Label>Produit</Label>
-                        <Select value={pickProductId} onValueChange={setPickProductId}>
-                          <SelectTrigger className="rounded-xl mt-1">
-                            <SelectValue placeholder="Choisir…" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {products.map((p) => (
-                              <SelectItem key={p.id} value={p.id}>
-                                {p.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <ProductSearchSelect
+                          products={products}
+                          value={pickProductId}
+                          onValueChange={setPickProductId}
+                        />
                       </div>
                       <div className="w-20">
                         <Label>Qté</Label>
@@ -855,18 +832,11 @@ export function BonLivraisonWizard({
                   {clientSource === 'orders' ? (
                     <div>
                       <Label>Client</Label>
-                      <Select value={clientPhone} onValueChange={setClientPhone}>
-                        <SelectTrigger className="rounded-xl mt-1">
-                          <SelectValue placeholder="Sélectionner…" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {orderClients.map((c) => (
-                            <SelectItem key={c.phone} value={c.phone}>
-                              {c.name} — {c.phone}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <ClientSearchSelect
+                        clients={orderClients}
+                        value={clientPhone}
+                        onValueChange={setClientPhone}
+                      />
                     </div>
                   ) : (
                     <div className="grid gap-3">
