@@ -11,6 +11,7 @@ const packLoaders: Record<string, () => Promise<Record<string, IconComp>>> = {
     Tb: () => import('react-icons/tb') as any,
     Lu: () => import('react-icons/lu') as any,
     Bs: () => import('react-icons/bs') as any,
+    Bi: () => import('react-icons/bi') as any,
 };
 
 const prefixes = Object.keys(packLoaders).sort((a, b) => b.length - a.length);
@@ -23,11 +24,16 @@ function getPrefix(name: string): string | null {
     return null;
 }
 
+function isFunctionComponent(val: unknown): val is IconComp {
+    return typeof val === 'function';
+}
+
 export function getIconComponent(name: string): IconComp | null {
     if (!name) return null;
     const prefix = getPrefix(name);
     if (!prefix) return null;
-    return loadedPacks[prefix]?.[name] || null;
+    const comp = loadedPacks[prefix]?.[name];
+    return isFunctionComponent(comp) ? comp : null;
 }
 
 async function loadIcon(name: string): Promise<IconComp | null> {
@@ -36,7 +42,8 @@ async function loadIcon(name: string): Promise<IconComp | null> {
     if (!loadedPacks[prefix]) {
         loadedPacks[prefix] = await packLoaders[prefix]();
     }
-    return loadedPacks[prefix][name] || null;
+    const comp = loadedPacks[prefix][name];
+    return isFunctionComponent(comp) ? comp : null;
 }
 
 export async function getAllIconNamesAsync(): Promise<string[]> {
@@ -65,14 +72,17 @@ export function DynamicIcon({
     className?: string;
     style?: React.CSSProperties;
 }) {
-    const [Icon, setIcon] = useState<IconComp | null>(() => name ? getIconComponent(name) : null);
+    const [Icon, setIcon] = useState<IconComp | null>(() => {
+        const c = name ? getIconComponent(name) : null;
+        return c;
+    });
 
     useEffect(() => {
         if (!name) { setIcon(null); return; }
         const sync = getIconComponent(name);
-        if (sync) { setIcon(sync); return; }
+        if (sync) { setIcon(() => sync); return; }
         let cancelled = false;
-        loadIcon(name).then(comp => { if (!cancelled) setIcon(comp); });
+        loadIcon(name).then(comp => { if (!cancelled && comp) setIcon(() => comp); });
         return () => { cancelled = true; };
     }, [name]);
 

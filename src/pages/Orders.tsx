@@ -102,6 +102,8 @@ import { ParcelTrackingDialog } from '@/components/orders/ParcelTrackingDialog';
 import { WebhookHealthIndicator } from '@/components/orders/WebhookHealthIndicator';
 import { getLatestTrackableCompanyParcel } from '@/lib/orders/getLatestTrackableCompanyParcel';
 import { OrderStatusHistoryDialog } from '@/components/orders/OrderStatusHistoryDialog';
+import OrdersListView from '@/components/orders/OrdersListView';
+import QuickStatusChangeModal from '@/components/orders/QuickStatusChangeModal';
 import { DynamicIcon } from '@/lib/renderReactIcon';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { Badge } from "@/components/ui/badge";
@@ -273,6 +275,10 @@ const Orders = () => {
     const [bulkStatusComment, setBulkStatusComment] = useState("");
     const [bulkCommentSectionVisible, setBulkCommentSectionVisible] = useState(false);
     const [sellerSearchQuery, setSellerSearchQuery] = useState("");
+
+    // Quick Status Change Modal States
+    const [quickStatusOrder, setQuickStatusOrder] = useState<any>(null);
+    const [isQuickStatusOpen, setIsQuickStatusOpen] = useState(false);
 
     // Reported Modal States
     const [isReportedModalOpen, setIsReportedModalOpen] = useState(false);
@@ -1693,7 +1699,7 @@ const Orders = () => {
 
     // --- Helpers ---
     const duplicatePhones = useMemo(() => {
-        if (!orders) return new Set();
+        if (!orders) return new Set<string>();
         const phoneCounts: Record<string, number> = {};
         orders.forEach(o => {
             if (o.phone) {
@@ -2853,241 +2859,21 @@ const Orders = () => {
                             })}
                         </div>
                     ) : (
-                        <div className="bg-white rounded-2xl shadow-sm border border-brand-navy/[0.05] overflow-hidden mb-20 animate-in fade-in duration-300">
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left border-collapse min-w-[900px]">
-                                    <thead>
-                                        <tr className="border-b border-brand-navy/[0.06]">
-                                            <th className="px-4 py-3 w-10">
-                                                <Checkbox
-                                                    checked={selectedOrders.length === filteredOrders.length && filteredOrders.length > 0}
-                                                    onCheckedChange={() => toggleSelectAll(filteredOrders.map(o => o.id))}
-                                                    className="h-4 w-4 rounded border-brand-navy/15"
-                                                />
-                                            </th>
-                                            <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-brand-navy/40">Customer</th>
-                                            <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-brand-navy/40">City / Source</th>
-                                            <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-brand-navy/40">Status</th>
-                                            <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-brand-navy/40">Tracking</th>
-                                            <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-brand-navy/40">Commercial</th>
-                                            <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-brand-navy/40 text-right">Amount</th>
-                                            <th className="px-4 py-3 w-28" />
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {filteredOrders.map((order) => {
-                                            const isDuplicateClient = duplicatePhones.has(order.phone);
-                                            const allParcels = [...(order.parcels || []), ...(order.courier_parcels || [])].filter((p: any) => p.tracking_code);
-                                            const latestParcel = allParcels.sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())?.[0];
-                                            const trackingCode = latestParcel?.tracking_code;
-                                            const hasTrackableCourierParcel = (order.courier_parcels || []).some((p: any) => p?.tracking_code && String(p.tracking_code).trim());
-                                            const canTrackParcel = !!getLatestTrackableCompanyParcel(order) || hasTrackableCourierParcel;
-                                            return (
-                                                <tr
-                                                    key={order.id}
-                                                    className={cn(
-                                                        "border-b border-brand-navy/[0.03] transition-colors group",
-                                                        selectedOrders.includes(order.id) ? "bg-brand-navy/[0.02]" : "hover:bg-brand-navy/[0.01]"
-                                                    )}
-                                                >
-                                                    <td className="px-4 py-3">
-                                                        <Checkbox
-                                                            checked={selectedOrders.includes(order.id)}
-                                                            onCheckedChange={() => toggleOrderSelection(order.id)}
-                                                            className="h-4 w-4 rounded border-brand-navy/15"
-                                                        />
-                                                    </td>
-                                                    {/* Customer */}
-                                                    <td className="px-4 py-3">
-                                                        <div className="flex items-center gap-2.5">
-                                                            <div
-                                                                className={cn(
-                                                                    'w-8 h-8 rounded-lg flex items-center justify-center shrink-0',
-                                                                    isDuplicateClient ? 'bg-[#d4c438]' : 'bg-brand-navy/[0.05]'
-                                                                )}
-                                                            >
-                                                                <User
-                                                                    className={cn(
-                                                                        'w-4 h-4',
-                                                                        isDuplicateClient ? 'text-[#9a7f00]' : 'text-brand-navy/40'
-                                                                    )}
-                                                                />
-                                                            </div>
-                                                            <div className="min-w-0">
-                                                                <p className="text-[13px] font-bold truncate leading-tight flex items-center gap-1.5">
-                                                                    <span
-                                                                        className={cn(
-                                                                            'truncate',
-                                                                            isDuplicateClient ? 'text-[#9a7f00]' : 'text-brand-navy'
-                                                                        )}
-                                                                        title={isDuplicateClient ? 'Same phone number on multiple orders' : undefined}
-                                                                    >
-                                                                        {order.name}
-                                                                    </span>
-                                                                    {order.replace && (
-                                                                        <span className="inline-flex shrink-0" title="Exchange">
-                                                                            <RefreshCcw className="w-3 h-3 text-red-500" />
-                                                                        </span>
-                                                                    )}
-                                                                </p>
-                                                                <p className="text-[11px] text-brand-navy/35 font-medium truncate">{order.phone}</p>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                    {/* City / Source */}
-                                                    <td className="px-4 py-3">
-                                                        <p className="text-[12px] font-bold text-brand-navy leading-tight">{order.city?.name || '—'}</p>
-                                                        <p className="text-[10px] text-brand-navy/35 font-medium capitalize">{order.source_name}</p>
-                                                    </td>
-                                                    {/* Status */}
-                                                    <td className="px-4 py-3">
-                                                        <div className="space-y-1">
-                                                            <span
-                                                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide"
-                                                                style={{ backgroundColor: `${order.status?.color}12`, color: order.status?.color }}
-                                                            >
-                                                                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: order.status?.color }} />
-                                                                {order.status?.label || 'DRAFT'}
-                                                            </span>
-                                                            {(() => {
-                                                                const courierPkg = getCourierPackageStatus(order);
-                                                                const pkgLabel = order.package_status?.label || order.package_status_label || courierPkg?.label;
-                                                                const pkgColor = order.package_status?.color || courierPkg?.color || null;
-                                                                if (!pkgLabel) return null;
-                                                                return (
-                                                                    <span
-                                                                        className="flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide w-fit"
-                                                                        style={{
-                                                                            backgroundColor: pkgColor ? `${pkgColor}10` : 'rgba(0,31,63,0.03)',
-                                                                            color: pkgColor || 'rgba(0,31,63,0.45)',
-                                                                        }}
-                                                                    >
-                                                                        <Truck className="w-3 h-3" />
-                                                                        {pkgLabel}
-                                                                    </span>
-                                                                );
-                                                            })()}
-                                                            {isOrderCategory(order.order_status_id, 'postponed') && order.reported_date && (
-                                                                <span className="flex items-center gap-1 text-[9px] font-bold text-amber-700">
-                                                                    <Calendar className="w-2.5 h-2.5" />
-                                                                    {format(new Date(order.reported_date), 'dd/MM HH:mm')}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                    {/* Tracking */}
-                                                    <td className="px-4 py-3">
-                                                        {trackingCode ? (
-                                                            <div className="flex flex-col gap-0.5">
-                                                                <span className="text-[11px] font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded w-fit">{trackingCode}</span>
-                                                                {(order.company?.name || order.courier?.name) && (
-                                                                    <span className="text-[9px] text-brand-navy/30 font-medium">
-                                                                        {order.company?.name || order.courier?.name}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        ) : (
-                                                            <span className="text-[10px] text-brand-navy/15">—</span>
-                                                        )}
-                                                    </td>
-                                                    {/* Seller */}
-                                                    <td className="px-4 py-3">
-                                                        {order.assignee ? (
-                                                            <div className="flex items-center gap-1.5">
-                                                                <Avatar className="w-6 h-6 border border-white shadow-sm">
-                                                                    <AvatarImage src={order.assignee.avatar_url} />
-                                                                    <AvatarFallback className="bg-brand-navy/10 text-brand-navy text-[9px] font-bold">
-                                                                        {order.assignee.name?.[0]}
-                                                                    </AvatarFallback>
-                                                                </Avatar>
-                                                                <span className="text-[11px] font-bold text-brand-navy/60 truncate max-w-[70px]">{order.assignee.name}</span>
-                                                            </div>
-                                                        ) : (
-                                                            <span className="text-[10px] text-brand-navy/15">—</span>
-                                                        )}
-                                                    </td>
-                                                    {/* Amount */}
-                                                    <td className="px-4 py-3 text-right">
-                                                        <span className="text-sm font-black text-brand-navy tabular-nums">
-                                                            {new Intl.NumberFormat('fr-FR').format(order.price || 0)}
-                                                        </span>
-                                                        <span className="text-[10px] font-bold text-brand-navy/30 ml-1">DH</span>
-                                                    </td>
-                                                    {/* Actions */}
-                                                    <td className="px-4 py-3">
-                                                        <div className="flex items-center justify-end gap-1">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => { setSelectedOrder(order); setIsViewModalOpen(true); }}
-                                                                className="w-8 h-8 rounded-lg flex items-center justify-center text-brand-navy/30 hover:text-brand-navy hover:bg-brand-navy/5 transition-colors"
-                                                            >
-                                                                <Eye className="w-4 h-4" />
-                                                            </button>
-                                                            <OrderPhoneContactDropdown phone={order.phone} variant="icon" />
-                                                            <button
-                                                                type="button"
-                                                                disabled={!canTrackParcel}
-                                                                title={canTrackParcel ? 'Track parcel' : 'No provider parcel to track'}
-                                                                onClick={() => {
-                                                                    if (!canTrackParcel) return;
-                                                                    setParcelTrackingOrderId(order.id);
-                                                                    setParcelTrackingOpen(true);
-                                                                }}
-                                                                className="w-8 h-8 rounded-lg flex items-center justify-center text-brand-navy/30 hover:text-brand-navy hover:bg-brand-navy/5 transition-colors disabled:opacity-30 disabled:pointer-events-none"
-                                                            >
-                                                                <Truck className="w-4 h-4" />
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                title="Status history"
-                                                                onClick={() => setHistoryDialogOrder(order)}
-                                                                className="w-8 h-8 rounded-lg flex items-center justify-center text-brand-navy/30 hover:text-brand-navy hover:bg-brand-navy/5 transition-colors"
-                                                            >
-                                                                <Package className="w-4 h-4" />
-                                                            </button>
-                                                            <DropdownMenu>
-                                                                <DropdownMenuTrigger asChild>
-                                                                    <button
-                                                                        type="button"
-                                                                        className="w-8 h-8 rounded-lg flex items-center justify-center text-brand-navy/20 hover:text-brand-navy hover:bg-brand-navy/5 transition-colors"
-                                                                    >
-                                                                        <MoreVertical className="w-4 h-4" />
-                                                                    </button>
-                                                                </DropdownMenuTrigger>
-                                                                <DropdownMenuContent align="end" className="rounded-xl border-none shadow-2xl p-1.5 min-w-[150px]">
-                                                                    <DropdownMenuItem onClick={() => handleEdit(order)} className="rounded-lg px-3 py-2 cursor-pointer gap-2.5 text-xs font-bold">
-                                                                        <Edit2 className="w-3.5 h-3.5" /> Edit
-                                                                    </DropdownMenuItem>
-                                                                    <OrderContactSubmenu phone={order.phone} />
-                                                                    <DropdownMenuItem
-                                                                        disabled={!canTrackParcel}
-                                                                        onClick={() => {
-                                                                            if (!canTrackParcel) return;
-                                                                            setParcelTrackingOrderId(order.id);
-                                                                            setParcelTrackingOpen(true);
-                                                                        }}
-                                                                        className="rounded-lg px-3 py-2 cursor-pointer gap-2.5 text-xs font-bold"
-                                                                    >
-                                                                        <Truck className="w-3.5 h-3.5" /> Track
-                                                                    </DropdownMenuItem>
-                                                                    <DropdownMenuSeparator />
-                                                                    <DropdownMenuItem
-                                                                        onClick={() => setOrderPendingDelete({ id: order.id, name: order.name })}
-                                                                        className="rounded-lg px-3 py-2 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-2.5 text-xs font-bold"
-                                                                    >
-                                                                        <Trash2 className="w-3.5 h-3.5" /> Delete
-                                                                    </DropdownMenuItem>
-                                                                </DropdownMenuContent>
-                                                            </DropdownMenu>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
+                        <OrdersListView
+                            orders={filteredOrders}
+                            selectedOrders={selectedOrders}
+                            duplicatePhones={duplicatePhones}
+                            toggleOrderSelection={toggleOrderSelection}
+                            toggleSelectAll={toggleSelectAll}
+                            onView={(order) => { setSelectedOrder(order); setIsViewModalOpen(true); }}
+                            onEdit={handleEdit}
+                            onDelete={(order) => setOrderPendingDelete(order)}
+                            onTrackParcel={(id) => { setParcelTrackingOrderId(id); setParcelTrackingOpen(true); }}
+                            onStatusHistory={setHistoryDialogOrder}
+                            onQuickStatusChange={(order) => { setQuickStatusOrder(order); setIsQuickStatusOpen(true); }}
+                            isOrderCategory={isOrderCategory}
+                            getCourierPackageStatus={getCourierPackageStatus}
+                        />
                     )}
 
                     {/* Bulk Edit Bar */}
@@ -4152,12 +3938,36 @@ const Orders = () => {
                                         </div>
                                     </div>
                                     <div className="flex flex-wrap gap-2">
-                                        <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white shadow-sm border border-brand-navy/[0.03]">
-                                            <ShieldCheck className="w-4 h-4" style={{ color: selectedOrder.status?.color }} />
+                                        <div className="flex items-center gap-2 px-4 py-2 rounded-xl shadow-sm border border-brand-navy/[0.03]" style={{ backgroundColor: `${selectedOrder.status?.color}12` }}>
+                                            {selectedOrder.status?.icon ? (
+                                                <DynamicIcon name={selectedOrder.status.icon} className="w-4 h-4" style={{ color: selectedOrder.status?.color }} />
+                                            ) : (
+                                                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: selectedOrder.status?.color }} />
+                                            )}
                                             <span className="text-xs font-black uppercase tracking-widest" style={{ color: selectedOrder.status?.color }}>
                                                 {selectedOrder.status?.label || 'DRAFT'}
                                             </span>
                                         </div>
+                                        {(() => {
+                                            const courierPkg = getCourierPackageStatus(selectedOrder);
+                                            const pkgLabel = selectedOrder.package_status?.label || selectedOrder.package_status_label || courierPkg?.label;
+                                            const pkgColor = selectedOrder.package_status?.color || courierPkg?.color || null;
+                                            if (!pkgLabel) return null;
+                                            return (
+                                                <div className="flex items-center gap-2 px-4 py-2 rounded-xl shadow-sm border border-brand-navy/[0.03]" style={{ backgroundColor: pkgColor ? `${pkgColor}12` : 'rgba(0,31,63,0.04)' }}>
+                                                    {selectedOrder.package_status?.icon ? (
+                                                        <DynamicIcon name={selectedOrder.package_status.icon} className="w-4 h-4" style={{ color: pkgColor || undefined }} />
+                                                    ) : pkgColor ? (
+                                                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: pkgColor }} />
+                                                    ) : (
+                                                        <Truck className="w-4 h-4" style={{ color: pkgColor || undefined }} />
+                                                    )}
+                                                    <span className="text-xs font-black uppercase tracking-widest" style={{ color: pkgColor || 'rgba(0,31,63,0.45)' }}>
+                                                        {pkgLabel}
+                                                    </span>
+                                                </div>
+                                            );
+                                        })()}
                                         <Badge variant="outline" className="border-brand-navy/10 text-brand-navy font-bold uppercase tracking-widest px-4 py-2 rounded-xl text-[10px]">
                                             {selectedOrder.source_name}
                                         </Badge>
@@ -4560,6 +4370,29 @@ const Orders = () => {
                     )}
                 </DialogContent>
             </Dialog>
+
+            {/* Quick Status Change Modal */}
+            <QuickStatusChangeModal
+                open={isQuickStatusOpen}
+                onOpenChange={(v) => {
+                    setIsQuickStatusOpen(v);
+                    if (!v) setQuickStatusOrder(null);
+                }}
+                order={quickStatusOrder}
+                orderStatuses={orderStatusesForModal}
+                isOrderCategory={isOrderCategory}
+                onStatusChange={({ orderId, statusId, comment, reportedDate }) => {
+                    bulkStatusMutation.mutate({
+                        orderIds: [orderId],
+                        statusId,
+                        reportedDate,
+                        commentOverride: comment,
+                    });
+                    setIsQuickStatusOpen(false);
+                    setQuickStatusOrder(null);
+                }}
+                isPending={bulkStatusMutation.isPending}
+            />
 
             {/* Bulk Status Update Modal */}
             <Dialog open={isBulkStatusModalOpen} onOpenChange={(v) => {

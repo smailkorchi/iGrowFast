@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from "@/components/ui/badge";
 import { useToast } from '@/hooks/use-toast';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
     Search,
     Truck,
@@ -22,6 +23,8 @@ import {
     AlertCircle,
     FileText,
     Layers,
+    Package,
+    ListChecks,
     User as UserIcon,
 } from 'lucide-react';
 import type { DeliveryNoteSellerScope } from './DeliveryNoteWizard';
@@ -122,12 +125,13 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
     lockCourierId,
     sellerScope,
 }) => {
-    const [step, setStep] = useState<'courier' | 'creating' | 'review' | 'finalizing'>('courier');
+    const [step, setStep] = useState<'courier' | 'select-orders' | 'creating' | 'review' | 'finalizing'>('courier');
     const [selectedCourierId, setSelectedCourierId] = useState<string>(lockCourierId || '');
     const [courierSearch, setCourierSearch] = useState('');
     const [createdParcels, setCreatedParcels] = useState<CreatedParcelEntry[]>([]);
     const [, setDeliveryNotes] = useState<DeliveryNoteEntry[]>([]);
     const [currentCourier, setCurrentCourier] = useState<string>('');
+    const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
 
     React.useEffect(() => {
         if (lockCourierId) setSelectedCourierId(lockCourierId);
@@ -279,7 +283,7 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
 
             return grouped;
         },
-        enabled: !!selectedCourierId && step === 'courier' && !!confirmedStatusId,
+        enabled: !!selectedCourierId && (step === 'courier' || step === 'select-orders') && !!confirmedStatusId,
     });
 
     // ── Step 3: create parcels (pure Postgres, no API) ─────────────────────
@@ -455,6 +459,25 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
             toast({ title: 'Error', description: 'Please select a courier', variant: 'destructive' });
             return;
         }
+        // Initialize selectedOrderIds with all orders from ordersGrouped
+        if (ordersGrouped) {
+            type OrderGroup = { courier: WizardCourier | null; orders: WizardOrder[] };
+            const allIds = new Set<string>();
+            for (const group of Object.values(ordersGrouped as Record<string, OrderGroup>)) {
+                for (const order of group.orders) {
+                    allIds.add(order.id);
+                }
+            }
+            setSelectedOrderIds(allIds);
+        }
+        setStep('select-orders');
+    };
+
+    const handleOrderSelectionConfirm = () => {
+        if (selectedOrderIds.size === 0) {
+            toast({ title: 'Error', description: 'Please select at least one order', variant: 'destructive' });
+            return;
+        }
         setStep('creating');
         handleCreateParcels();
     };
@@ -466,8 +489,10 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
         type OrderGroup = { courier: WizardCourier | null; orders: WizardOrder[] };
         for (const [courierId, group] of Object.entries(ordersGrouped as Record<string, OrderGroup>)) {
             const { courier, orders } = group;
+            const filteredOrders = orders.filter(o => selectedOrderIds.has(o.id));
+            if (filteredOrders.length === 0) continue;
             setCurrentCourier(courier?.name || '');
-            await createParcelsMutation.mutateAsync({ courierId, orders });
+            await createParcelsMutation.mutateAsync({ courierId, orders: filteredOrders });
         }
 
         setStep('review');
@@ -527,6 +552,7 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
         setCreatedParcels([]);
         setDeliveryNotes([]);
         setCurrentCourier('');
+        setSelectedOrderIds(new Set());
     };
 
     const filteredCouriers = useMemo(() => {
@@ -697,12 +723,115 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
                                     disabled={!selectedCourierId}
                                     className="bg-brand-navy hover:bg-brand-navy/90 text-white rounded-2xl"
                                 >
-                                    Create Parcels
+                                    Next: Select Orders
                                 </Button>
                             </DialogFooter>
                         </div>
                     </>
                 )}
+
+                {step === 'select-orders' && ordersGrouped && (() => {
+                    type OrderGroup = { courier: WizardCourier | null; orders: WizardOrder[] };
+                    const allOrders = Object.values(ordersGrouped as Record<string, OrderGroup>).flatMap(g => g.orders);
+                    const allSelected = allOrders.length > 0 && allOrders.every(o => selectedOrderIds.has(o.id));
+                    return (
+                        <>
+                            <div className="bg-brand-navy p-8 text-white relative">
+                                <DialogHeader>
+                                    <DialogTitle className="text-2xl font-black text-white flex items-center gap-3">
+                                        <ListChecks className="w-7 h-7" />
+                                        Select Orders
+                                    </DialogTitle>
+                                    <DialogDescription className="text-white/60 font-medium">
+                                        {allOrders.length} orders available — {selectedOrderIds.size} selected
+                                    </DialogDescription>
+                                </DialogHeader>
+                            </div>
+
+                            <div className="p-8 space-y-4">
+                                <button
+                                    onClick={() => {
+                                        if (allSelected) {
+                                            setSelectedOrderIds(new Set());
+                                        } else {
+                                            setSelectedOrderIds(new Set(allOrders.map(o => o.id)));
+                                        }
+                                    }}
+                                    className="flex items-center gap-2 text-sm font-bold text-brand-navy hover:text-brand-navy/70 transition-colors"
+                                >
+                                    <Checkbox checked={allSelected} />
+                                    {allSelected ? 'Deselect All' : `Select All (${allOrders.length})`}
+                                </button>
+
+                                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                                    {Object.entries(ordersGrouped as Record<string, OrderGroup>).map(([courierId, { courier, orders }]) => (
+                                        <div key={courierId}>
+                                            {selectedCourierId === 'all' && (
+                                                <div className="flex items-center gap-2 py-2 px-1">
+                                                    <div className="w-6 h-6 rounded-lg bg-brand-navy/10 flex items-center justify-center overflow-hidden">
+                                                        {courier?.avatar_url ? (
+                                                            <img src={courier.avatar_url} alt={courier?.name || ''} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <UserIcon className="w-3.5 h-3.5 text-brand-navy" />
+                                                        )}
+                                                    </div>
+                                                    <span className="text-xs font-bold text-brand-navy/60 uppercase tracking-wide">{courier?.name}</span>
+                                                </div>
+                                            )}
+                                            {orders.map((order) => (
+                                                <button
+                                                    key={order.id}
+                                                    onClick={() => {
+                                                        setSelectedOrderIds(prev => {
+                                                            const next = new Set(prev);
+                                                            if (next.has(order.id)) next.delete(order.id);
+                                                            else next.add(order.id);
+                                                            return next;
+                                                        });
+                                                    }}
+                                                    className={`w-full p-3 rounded-xl border transition-all text-left flex items-center gap-3 ${
+                                                        selectedOrderIds.has(order.id)
+                                                            ? 'border-brand-navy/30 bg-brand-navy/5'
+                                                            : 'border-slate-200 hover:border-slate-300'
+                                                    }`}
+                                                >
+                                                    <Checkbox checked={selectedOrderIds.has(order.id)} className="pointer-events-none" />
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="font-bold text-sm text-brand-navy truncate">{order.name || 'No name'}</div>
+                                                        <div className="text-xs text-muted-foreground mt-0.5">
+                                                            {order.phone || '—'}
+                                                            {order.city?.name ? ` · ${order.city.name}` : ''}
+                                                            {order.price != null ? ` · ${order.price} MAD` : ''}
+                                                        </div>
+                                                        {order.items && order.items.length > 0 && (
+                                                            <div className="text-[10px] text-muted-foreground/70 mt-0.5 truncate">
+                                                                {order.items.filter(i => i.quantity > 0).map(i => `${i.product?.code || i.product?.name || 'P'} x${i.quantity}`).join(', ')}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <DialogFooter>
+                                    <Button variant="ghost" onClick={() => setStep('courier')}>
+                                        Back
+                                    </Button>
+                                    <Button
+                                        onClick={handleOrderSelectionConfirm}
+                                        disabled={selectedOrderIds.size === 0}
+                                        className="bg-brand-navy hover:bg-brand-navy/90 text-white rounded-2xl"
+                                    >
+                                        <Package className="w-4 h-4 mr-2" />
+                                        Create Parcels ({selectedOrderIds.size})
+                                    </Button>
+                                </DialogFooter>
+                            </div>
+                        </>
+                    );
+                })()}
 
                 {step === 'creating' && (
                     <div className="p-16 text-center space-y-6">

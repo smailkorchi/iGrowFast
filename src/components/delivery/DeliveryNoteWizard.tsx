@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from '@/hooks/use-toast';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
     Search,
     Building2,
@@ -27,7 +28,8 @@ import {
     FileText,
     ExternalLink,
     Download,
-    Layers
+    Layers,
+    ListChecks
 } from 'lucide-react';
 
 const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/provider-integration`;
@@ -164,12 +166,13 @@ interface DeliveryNoteWizardProps {
 }
 
 export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, onOpenChange, lockProviderId, sellerScope }) => {
-    const [step, setStep] = useState<'provider' | 'creating' | 'review' | 'finalizing'>('provider');
+    const [step, setStep] = useState<'provider' | 'select-orders' | 'creating' | 'review' | 'finalizing'>('provider');
     const [selectedProviderId, setSelectedProviderId] = useState<string>(lockProviderId || '');
     const [providerSearch, setProviderSearch] = useState('');
     const [createdParcels, setCreatedParcels] = useState<CreatedParcelEntry[]>([]);
     const [deliveryNotes, setDeliveryNotes] = useState<DeliveryNoteEntry[]>([]);
     const [currentProvider, setCurrentProvider] = useState<string>('');
+    const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
 
     // Update selectedProviderId when lockProviderId changes
     React.useEffect(() => {
@@ -314,7 +317,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
 
             return grouped;
         },
-        enabled: !!selectedProviderId && step === 'provider' && !!confirmedStatusId
+        enabled: !!selectedProviderId && (step === 'provider' || step === 'select-orders') && !!confirmedStatusId
     });
 
     // Create parcels for a provider
@@ -639,6 +642,25 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
             });
             return;
         }
+        // Initialize selectedOrderIds with all orders from ordersGrouped
+        if (ordersGrouped) {
+            type OrderGroup = { provider: WizardProvider | null; orders: WizardOrder[] };
+            const allIds = new Set<string>();
+            for (const group of Object.values(ordersGrouped as Record<string, OrderGroup>)) {
+                for (const order of group.orders) {
+                    allIds.add(order.id);
+                }
+            }
+            setSelectedOrderIds(allIds);
+        }
+        setStep('select-orders');
+    };
+
+    const handleOrderSelectionConfirm = () => {
+        if (selectedOrderIds.size === 0) {
+            toast({ title: "Error", description: "Please select at least one order", variant: "destructive" });
+            return;
+        }
         setStep('creating');
         handleCreateParcels();
     };
@@ -651,8 +673,10 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
         type OrderGroup = { provider: WizardProvider | null; orders: WizardOrder[] };
         for (const [providerId, group] of Object.entries(ordersGrouped as Record<string, OrderGroup>)) {
             const { provider, orders } = group;
+            const filteredOrders = orders.filter(o => selectedOrderIds.has(o.id));
+            if (filteredOrders.length === 0) continue;
             setCurrentProvider(provider?.name || '');
-            await createParcelsMutation.mutateAsync({ providerId, orders });
+            await createParcelsMutation.mutateAsync({ providerId, orders: filteredOrders });
         }
 
         setStep('review');
@@ -723,6 +747,7 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
         setCreatedParcels([]);
         setDeliveryNotes([]);
         setCurrentProvider('');
+        setSelectedOrderIds(new Set());
     };
 
     const filteredProviders = useMemo(() => {
@@ -880,12 +905,118 @@ export const DeliveryNoteWizard: React.FC<DeliveryNoteWizardProps> = ({ open, on
                                     disabled={!selectedProviderId}
                                     className="bg-brand-navy hover:bg-brand-navy/90 text-white rounded-2xl"
                                 >
-                                    Create Parcels
+                                    Next: Select Orders
                                 </Button>
                             </DialogFooter>
                         </div>
                     </>
                 )}
+
+                {step === 'select-orders' && ordersGrouped && (() => {
+                    type OrderGroup = { provider: WizardProvider | null; orders: WizardOrder[] };
+                    const allOrders = Object.values(ordersGrouped as Record<string, OrderGroup>).flatMap(g => g.orders);
+                    const allSelected = allOrders.length > 0 && allOrders.every(o => selectedOrderIds.has(o.id));
+                    return (
+                        <>
+                            <div className="bg-brand-navy p-8 text-white relative">
+                                <DialogHeader>
+                                    <DialogTitle className="text-2xl font-black text-white flex items-center gap-3">
+                                        <ListChecks className="w-7 h-7" />
+                                        Select Orders
+                                    </DialogTitle>
+                                    <DialogDescription className="text-white/60 font-medium">
+                                        {allOrders.length} orders available — {selectedOrderIds.size} selected
+                                    </DialogDescription>
+                                </DialogHeader>
+                            </div>
+
+                            <div className="p-8 space-y-4">
+                                <button
+                                    onClick={() => {
+                                        if (allSelected) {
+                                            setSelectedOrderIds(new Set());
+                                        } else {
+                                            setSelectedOrderIds(new Set(allOrders.map(o => o.id)));
+                                        }
+                                    }}
+                                    className="flex items-center gap-2 text-sm font-bold text-brand-navy hover:text-brand-navy/70 transition-colors"
+                                >
+                                    <Checkbox checked={allSelected} />
+                                    {allSelected ? 'Deselect All' : `Select All (${allOrders.length})`}
+                                </button>
+
+                                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                                    {Object.entries(ordersGrouped as Record<string, OrderGroup>).map(([providerId, { provider, orders }]) => (
+                                        <div key={providerId}>
+                                            {selectedProviderId === 'all' && (
+                                                <div className="flex items-center gap-2 py-2 px-1">
+                                                    <div
+                                                        className="w-6 h-6 rounded-lg flex items-center justify-center overflow-hidden"
+                                                        style={{ backgroundColor: provider?.logo_url ? 'transparent' : (provider?.color ? `${provider.color}15` : 'rgba(59, 130, 246, 0.1)') }}
+                                                    >
+                                                        {provider?.logo_url ? (
+                                                            <img src={provider.logo_url} alt={provider?.name || ''} className="w-full h-full object-contain" />
+                                                        ) : (
+                                                            <Building2 className="w-3.5 h-3.5" style={{ color: provider?.color || '#3b82f6' }} />
+                                                        )}
+                                                    </div>
+                                                    <span className="text-xs font-bold text-brand-navy/60 uppercase tracking-wide">{provider?.name}</span>
+                                                </div>
+                                            )}
+                                            {orders.map((order) => (
+                                                <button
+                                                    key={order.id}
+                                                    onClick={() => {
+                                                        setSelectedOrderIds(prev => {
+                                                            const next = new Set(prev);
+                                                            if (next.has(order.id)) next.delete(order.id);
+                                                            else next.add(order.id);
+                                                            return next;
+                                                        });
+                                                    }}
+                                                    className={`w-full p-3 rounded-xl border transition-all text-left flex items-center gap-3 ${
+                                                        selectedOrderIds.has(order.id)
+                                                            ? 'border-brand-navy/30 bg-brand-navy/5'
+                                                            : 'border-slate-200 hover:border-slate-300'
+                                                    }`}
+                                                >
+                                                    <Checkbox checked={selectedOrderIds.has(order.id)} className="pointer-events-none" />
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="font-bold text-sm text-brand-navy truncate">{order.name || 'No name'}</div>
+                                                        <div className="text-xs text-muted-foreground mt-0.5">
+                                                            {order.phone || '—'}
+                                                            {order.city?.name ? ` · ${order.city.name}` : ''}
+                                                            {order.price != null ? ` · ${order.price} MAD` : ''}
+                                                        </div>
+                                                        {order.items && order.items.length > 0 && (
+                                                            <div className="text-[10px] text-muted-foreground/70 mt-0.5 truncate">
+                                                                {order.items.filter(i => i.quantity > 0).map(i => `${i.product?.code || i.product?.name || 'P'} x${i.quantity}`).join(', ')}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <DialogFooter>
+                                    <Button variant="ghost" onClick={() => setStep('provider')}>
+                                        Back
+                                    </Button>
+                                    <Button
+                                        onClick={handleOrderSelectionConfirm}
+                                        disabled={selectedOrderIds.size === 0}
+                                        className="bg-brand-navy hover:bg-brand-navy/90 text-white rounded-2xl"
+                                    >
+                                        <Package className="w-4 h-4 mr-2" />
+                                        Create Parcels ({selectedOrderIds.size})
+                                    </Button>
+                                </DialogFooter>
+                            </div>
+                        </>
+                    );
+                })()}
 
                 {step === 'creating' && (
                     <div className="p-16 text-center space-y-6">
