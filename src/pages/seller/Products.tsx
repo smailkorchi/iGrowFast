@@ -113,14 +113,14 @@ const Products = () => {
     const catalogTotals = useMemo(() => {
         const list = products ?? [];
         let totalQuantity = 0;
-        let totalCost = 0;
+        let totalValue = 0;
         for (const p of list) {
             const q = Number(p.stock ?? 0);
-            const c = Number(p.cost_price ?? 0);
+            const v = Number(p.selling_price ?? 0);
             totalQuantity += q;
-            totalCost += q * c;
+            totalValue += q * v;
         }
-        return { totalQuantity, totalCost };
+        return { totalQuantity, totalValue };
     }, [products]);
 
     return (
@@ -214,12 +214,12 @@ const Products = () => {
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="space-y-1 min-w-0">
                                         <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                                            Total cost
+                                            Total value
                                         </p>
                                         <p className="text-2xl font-black tabular-nums text-gray-900 tracking-tight truncate">
-                                            {formatProductDhAggregate(catalogTotals.totalCost)}
+                                            {formatProductDhAggregate(catalogTotals.totalValue)}
                                         </p>
-                                        <p className="text-xs text-gray-500 font-medium">Σ qty × unit cost (inventory)</p>
+                                        <p className="text-xs text-gray-500 font-medium">Σ qty × unit selling price (inventory)</p>
                                     </div>
                                     <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-700">
                                         <Coins className="h-5 w-5" />

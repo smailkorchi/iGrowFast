@@ -131,14 +131,16 @@ const Accessories = () => {
     const catalogTotals = useMemo(() => {
         const list = accessories ?? [];
         let totalQuantity = 0;
-        let totalCost = 0;
+        let totalValue = 0;
         for (const a of list) {
             const q = Number(a.stock ?? 0);
-            const c = Number(a.cost_price ?? 0);
+            // accessories have only cost_price in the schema (no selling price);
+            // the on-hand monetary value is cost-based.
+            const v = Number(a.cost_price ?? 0);
             totalQuantity += q;
-            totalCost += q * c;
+            totalValue += q * v;
         }
-        return { totalQuantity, totalCost };
+        return { totalQuantity, totalValue };
     }, [accessories]);
 
     const formatDhAggregate = (value: number): string =>
@@ -235,10 +237,10 @@ const Accessories = () => {
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="space-y-1 min-w-0">
                                         <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                                            Total cost
+                                            Total value
                                         </p>
                                         <p className="text-2xl font-black tabular-nums text-gray-900 tracking-tight truncate">
-                                            {formatDhAggregate(catalogTotals.totalCost)}
+                                            {formatDhAggregate(catalogTotals.totalValue)}
                                         </p>
                                         <p className="text-xs text-gray-500 font-medium">On-hand quantity × unit cost</p>
                                     </div>
