@@ -398,6 +398,7 @@ const LogRow: React.FC<LogRowProps> = ({ row, variant, businessName, businessLog
     const tone = ACTION_TONE[row.action] ?? ACTION_TONE.custom;
     const actionLabel = ACTION_LABEL[row.action] ?? row.action;
     const flag = flagFromCountryCode(row.geo?.country_code);
+    const isSystem = row.actor_name === 'System' || (row.metadata as { system?: boolean } | null)?.system === true;
     return (
         <tr
             onClick={onOpen}
@@ -416,18 +417,26 @@ const LogRow: React.FC<LogRowProps> = ({ row, variant, businessName, businessLog
             </td>
             <td className="px-4 py-3 align-top">
                 <div className="flex items-center gap-2.5 min-w-0">
-                    <Avatar className="h-8 w-8 rounded-xl shrink-0">
+                    <Avatar className={cn('h-8 w-8 rounded-xl shrink-0', isSystem && 'bg-indigo-50')}>
                         <AvatarImage src={row.actor_avatar_url ?? undefined} />
-                        <AvatarFallback className="text-[10px] font-bold bg-brand-navy/10 text-brand-navy">
-                            {(row.actor_name ?? row.actor_email ?? '?').charAt(0).toUpperCase()}
+                        <AvatarFallback className={cn(
+                            'text-[10px] font-bold',
+                            isSystem ? 'bg-indigo-50 text-indigo-700' : 'bg-brand-navy/10 text-brand-navy',
+                        )}>
+                            {isSystem ? 'SYS' : (row.actor_name ?? row.actor_email ?? '?').charAt(0).toUpperCase()}
                         </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0">
                         <div className="text-[12px] font-bold text-brand-navy truncate">
                             {row.actor_name ?? row.actor_email ?? 'Unknown'}
                         </div>
-                        <div className="text-[10px] font-medium text-brand-navy/40 truncate">
-                            {row.actor_role ?? 'n/a'}
+                        <div className={cn(
+                            'text-[10px] font-medium truncate',
+                            isSystem ? 'text-indigo-600 uppercase tracking-widest' : 'text-brand-navy/40',
+                        )}>
+                            {isSystem
+                                ? ((row.metadata as { origin?: string } | null)?.origin ?? 'automated')
+                                : (row.actor_role ?? '—')}
                         </div>
                     </div>
                 </div>

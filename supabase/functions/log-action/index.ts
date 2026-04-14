@@ -20,11 +20,15 @@
 //   unauthenticated invocations before this function could run, and we would
 //   lose the ability to log failed-login attempts.
 //
-// Env secrets (set via `supabase functions secrets set`):
-//   IPGEO_API_KEY              - ipgeolocation.io API key
+// Env secrets (all auto-populated by Supabase; nothing to set manually):
 //   SUPABASE_URL               - auto-populated
 //   SUPABASE_SERVICE_ROLE_KEY  - auto-populated (used to insert via log_audit RPC)
 //   SUPABASE_ANON_KEY          - auto-populated (used only to verify caller JWT)
+//
+// The ipgeolocation.io API key is NOT a function secret. It lives in the
+// Postgres Vault under the name `ipgeo_api_key` so the same source of truth
+// is used by the async DB backfill cron job. This function reads it once per
+// cold start via the service-role client.
 //
 // Deployment:
 //   supabase functions deploy log-action --no-verify-jwt
@@ -40,7 +44,25 @@ declare const Deno: any;
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
-const IPGEO_API_KEY = Deno.env.get('IPGEO_API_KEY') ?? '';
+
+// Cached Vault lookup for the ipgeolocation.io API key. Fetched on first use
+// per cold start via the service-role client; avoids setting a function secret.
+let CACHED_IPGEO_KEY: string | null = null;
+async function getIpgeoKey(adminClient: any): Promise<string> {
+    if (CACHED_IPGEO_KEY) return CACHED_IPGEO_KEY;
+    const { data, error } = await adminClient
+        .schema('vault')
+        .from('decrypted_secrets')
+        .select('decrypted_secret')
+        .eq('name', 'ipgeo_api_key')
+        .maybeSingle();
+    if (error || !data?.decrypted_secret) {
+        console.warn('[log-action] ipgeo_api_key missing from vault', error);
+        return '';
+    }
+    CACHED_IPGEO_KEY = data.decrypted_secret as string;
+    return CACHED_IPGEO_KEY;
+}
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -60,15 +82,15 @@ const jsonResponse = (status: number, body: unknown) =>
 const geoCache = new Map<string, { at: number; data: any }>();
 const GEO_TTL_MS = 10 * 60 * 1000;
 
-async function resolveGeo(ip: string): Promise<any | null> {
-    if (!ip || !IPGEO_API_KEY) return null;
+async function resolveGeo(ip: string, apiKey: string): Promise<any | null> {
+    if (!ip || !apiKey) return null;
     if (ip === '127.0.0.1' || ip === '::1' || ip.startsWith('10.') || ip.startsWith('192.168.')) {
         return { country: 'Local', country_code: 'LO', city: 'Local', isp: null };
     }
     const cached = geoCache.get(ip);
     if (cached && Date.now() - cached.at < GEO_TTL_MS) return cached.data;
     try {
-        const url = `https://api.ipgeolocation.io/ipgeo?apiKey=${encodeURIComponent(IPGEO_API_KEY)}&ip=${encodeURIComponent(ip)}`;
+        const url = `https://api.ipgeolocation.io/ipgeo?apiKey=${encodeURIComponent(apiKey)}&ip=${encodeURIComponent(ip)}`;
         const res = await fetch(url, { headers: { accept: 'application/json' } });
         if (!res.ok) return null;
         const j = await res.json();
@@ -160,7 +182,8 @@ serve(async (req: Request) => {
 
     const ip = extractIp(req);
     const userAgent = req.headers.get('user-agent') ?? null;
-    const geo = await resolveGeo(ip);
+    const ipgeoKey = await getIpgeoKey(admin);
+    const geo = await resolveGeo(ip, ipgeoKey);
 
     const actor_role = actorRow?.role ?? null;
     const business_id = body.business_id ?? actorRow?.['DigiCom Business'] ?? null;
