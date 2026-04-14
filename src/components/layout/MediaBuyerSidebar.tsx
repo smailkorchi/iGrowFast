@@ -16,6 +16,7 @@ import {
     Loader2,
     type LucideIcon,
 } from 'lucide-react';
+import { SiGoogleanalytics } from 'react-icons/si';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { useQuery } from '@tanstack/react-query';
@@ -54,6 +55,7 @@ const navigation: NavSection[] = [
             { icon: ShoppingCart, label: 'Orders', path: '/mediabuyer/orders' },
             { icon: CreditCard, label: 'Payments', path: '/mediabuyer/payments' },
             { icon: MessageSquare, label: 'Demands', path: '/mediabuyer/demands' },
+            { icon: SiGoogleanalytics, label: 'Google Analytics', path: '/mediabuyer/google-analytics' },
         ],
     },
 ];

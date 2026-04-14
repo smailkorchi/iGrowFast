@@ -38,6 +38,7 @@ import OwnerStatus from "./pages/owner/Status";
 import OwnerCities from "./pages/owner/Cities";
 import OwnerZones from "./pages/owner/Zones";
 import OwnerActivityLog from "./pages/owner/ActivityLog";
+import GoogleAnalyticsPage from "./pages/analytics/GoogleAnalytics";
 import ActivityLog from "./pages/ActivityLog";
 import OwnerLayout from "./components/layout/OwnerLayout";
 import CourierLayout from "./components/layout/CourierLayout";
@@ -193,6 +194,7 @@ const App = () => (
                   <Route path="cities" element={<OwnerCities />} />
                   <Route path="zones" element={<OwnerZones />} />
                   <Route path="activity-log" element={<OwnerActivityLog />} />
+                  <Route path="google-analytics" element={<GoogleAnalyticsPage />} />
                   <Route path="" element={<Navigate to="dashboard" replace />} />
                 </Routes>
               </OwnerLayout>
@@ -215,6 +217,7 @@ const App = () => (
                   <Route path="orders" element={<MediaBuyerOrders />} />
                   <Route path="payments" element={<MediaBuyerPayments />} />
                   <Route path="demands" element={<MediaBuyerDemands />} />
+                  <Route path="google-analytics" element={<GoogleAnalyticsPage />} />
                   <Route path="" element={<Navigate to="dashboard" replace />} />
                 </Routes>
               </MediaBuyerLayout>
@@ -281,6 +284,7 @@ const App = () => (
                     <Route path="/products" element={<Products />} />
                     <Route path="/accessories" element={<Accessories />} />
                     <Route path="/analytics" element={<Analytics />} />
+                    <Route path="/google-analytics" element={<GoogleAnalyticsPage />} />
                     <Route path="/sales-channels" element={<SalesChannels />} />
                     <Route path="/customers" element={<Customers />} />
                     <Route path="/users" element={<Users />} />

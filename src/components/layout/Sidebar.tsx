@@ -55,6 +55,7 @@ import {
     type LucideIcon,
 } from 'lucide-react';
 import { FaWhatsapp } from 'react-icons/fa';
+import { SiGoogleanalytics } from 'react-icons/si';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { useQuery } from '@tanstack/react-query';
@@ -76,6 +77,7 @@ const navigation: NavSection[] = [
         items: [
             { icon: Home, label: 'Dashboard', path: '/' },
             { icon: BarChart2, label: 'Analytics', path: '/analytics' },
+            { icon: SiGoogleanalytics, label: 'Google Analytics', path: '/google-analytics' },
         ]
     },
     {

@@ -16,12 +16,13 @@ import {
     History,
     type LucideIcon,
 } from 'lucide-react';
+import { SiGoogleanalytics } from 'react-icons/si';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { useQuery } from '@tanstack/react-query';
 
 type NavItem = {
-    icon: LucideIcon;
+    icon: LucideIcon | React.ComponentType<{ className?: string }>;
     label: string;
     path: string;
 };
@@ -36,6 +37,7 @@ const navigation: NavItem[] = [
     { icon: MapPin, label: 'Cities', path: '/owner/cities' },
     { icon: Map, label: 'Zones', path: '/owner/zones' },
     { icon: History, label: 'Activity Log', path: '/owner/activity-log' },
+    { icon: SiGoogleanalytics, label: 'Google Analytics', path: '/owner/google-analytics' },
 ];
 
 const OwnerSidebar = () => {

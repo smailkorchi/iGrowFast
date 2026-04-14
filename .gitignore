@@ -27,3 +27,7 @@ dist-ssr
 .env
 .env.*
 docs/infrastructure-secrets.md
+
+# Google service account credentials
+digicom-*.json
+google-*.json
