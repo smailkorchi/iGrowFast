@@ -13,6 +13,7 @@ import {
     RefreshCcw,
     MapPin,
     Map,
+    History,
     type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -34,6 +35,7 @@ const navigation: NavItem[] = [
     { icon: RefreshCcw, label: 'Status', path: '/owner/status' },
     { icon: MapPin, label: 'Cities', path: '/owner/cities' },
     { icon: Map, label: 'Zones', path: '/owner/zones' },
+    { icon: History, label: 'Activity Log', path: '/owner/activity-log' },
 ];
 
 const OwnerSidebar = () => {

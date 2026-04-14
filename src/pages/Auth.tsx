@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { logAction } from '@/lib/auditLog';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, ChevronRight } from 'lucide-react';
 import { useForm } from 'react-hook-form';
@@ -59,12 +60,21 @@ const Auth = () => {
             // Block disabled accounts
             if (profile?.active === false) {
                 await supabase.auth.signOut();
+                void logAction({
+                    action: 'forbidden',
+                    metadata: { reason: 'account_disabled', identifier: values.identifier, email },
+                });
                 throw new Error('Your account has been disabled. Please contact your administrator.');
             }
 
             if (profile?.['DigiCom Business']) {
                 localStorage.setItem('activeBusinessId', profile['DigiCom Business']);
             }
+
+            void logAction({
+                action: 'login',
+                metadata: { identifier: values.identifier, role: profile?.role ?? null },
+            });
 
             toast({
                 title: "Welcome back!",
@@ -83,6 +93,13 @@ const Auth = () => {
                 navigate('/');
             }
         } catch (error) {
+            void logAction({
+                action: 'login_failed',
+                metadata: {
+                    identifier: values.identifier,
+                    reason: (error as Error).message,
+                },
+            });
             toast({
                 title: "Sign in failed",
                 description: (error as Error).message,

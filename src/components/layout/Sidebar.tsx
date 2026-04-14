@@ -51,6 +51,7 @@ import {
     Bike,
     Radar,
     Trash2,
+    History,
     type LucideIcon,
 } from 'lucide-react';
 import { FaWhatsapp } from 'react-icons/fa';
@@ -143,6 +144,7 @@ const navigation: NavSection[] = [
     {
         items: [
             { icon: MessageSquare, label: 'Demands', path: '/demands' },
+            { icon: History, label: 'Activity Log', path: '/activity-log' },
         ]
     },
     {
