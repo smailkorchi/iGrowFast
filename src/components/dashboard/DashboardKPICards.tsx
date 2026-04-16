@@ -39,8 +39,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
         pendingIds,
         deliveredPkgIds,
         returnedPkgIds,
-        getOrderByCategory,
-        getPkgByCategory,
+        getPkgsByCategories,
         isPkgCategory,
     } = useStatusCategories();
 
@@ -90,12 +89,24 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
         const filtered = orders.filter((o: KPIOrder) => isInRange(o.date));
         const total = filtered.length;
 
-        const confirmedId = getOrderByCategory('confirmed')?.id;
-        const newId = getOrderByCategory('new')?.id;
-        const cancelledId = getOrderByCategory('cancelled')?.id;
-        const deliveredPkgId = getPkgByCategory('delivered')?.id;
-        const shippedPkgId = getPkgByCategory('in_transit')?.id;
-        const refusedPkgId = getPkgByCategory('refused')?.id;
+        // Each "click card → filter Orders" link must pass ALL status ids the
+        // card's count aggregates, not just one. Picking a single representative
+        // id (as the old code did with getOrderByCategory) made the filtered list
+        // strictly smaller than the card count — e.g. "Canceled: 6" linking to a
+        // view that only showed 2 because fake/double/blacklisted statuses were
+        // excluded by the single-id match.
+        const confirmedIdList = Array.from(confirmedIds);
+        const cancelledIdList = Array.from(cancelledIds);
+        const pendingIdList = Array.from(pendingIds);
+        const deliveredPkgIdList = Array.from(deliveredPkgIds);
+        // Shipping flow = every status the click filter will match, and nothing
+        // else. The old count used "company_id set AND not delivered/returned",
+        // which also swept in callback, postponed, cancelled and no-package-yet
+        // orders — 32 in the count vs 11 after the click, which is the bug the
+        // user flagged. Keeping count === filter guarantees no drift.
+        const shippedPkgIdList = Array.from(getPkgsByCategories(['in_transit', 'out_for_delivery', 'picked_up', 'pickup_pending']).map(s => s.id));
+        const shippedPkgIdsSet = new Set(shippedPkgIdList);
+        const refusedPkgIdList = Array.from(getPkgsByCategories(['refused']).map(s => s.id));
 
         const confirmed = filtered.filter((o: KPIOrder) =>
             o.order_status_id && confirmedIds.has(o.order_status_id)
@@ -112,9 +123,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
         );
 
         const enCoursLivraison = filtered.filter((o: KPIOrder) =>
-            !!o.company_id &&
-            (!o.package_status_id ||
-                (!isDeliveredForCommission(o, deliveredPkgIds) && !returnedPkgIds.has(o.package_status_id)))
+            !!o.package_status_id && shippedPkgIdsSet.has(o.package_status_id)
         );
 
         const canceled = filtered.filter((o: KPIOrder) =>
@@ -148,7 +157,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
                 icon: CheckCircle2,
                 iconBg: 'bg-emerald-50',
                 iconColor: 'text-emerald-600',
-                onClick: () => navigate('/orders', { state: { filterStatus: confirmedId } }),
+                onClick: () => navigate('/orders', { state: { filterStatusIds: confirmedIdList, filterStatusLabel: 'Confirmed' } }),
             },
             {
                 title: 'Delivered',
@@ -157,7 +166,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
                 icon: Package,
                 iconBg: 'bg-green-50',
                 iconColor: 'text-green-600',
-                onClick: () => navigate('/orders', { state: { filterPackageStatus: deliveredPkgId } }),
+                onClick: () => navigate('/orders', { state: { filterPackageStatusIds: deliveredPkgIdList, filterPackageStatusLabel: 'Delivered' } }),
             },
             {
                 title: 'Delivery Rate',
@@ -174,7 +183,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
                 icon: Clock,
                 iconBg: 'bg-amber-50',
                 iconColor: 'text-amber-600',
-                onClick: () => navigate('/orders', { state: { filterStatus: newId } }),
+                onClick: () => navigate('/orders', { state: { filterStatusIds: pendingIdList, filterStatusLabel: 'Pending confirmation' } }),
             },
             {
                 title: 'In Transit',
@@ -183,7 +192,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
                 icon: Truck,
                 iconBg: 'bg-indigo-50',
                 iconColor: 'text-indigo-600',
-                onClick: () => navigate('/orders', { state: { filterPackageStatus: shippedPkgId } }),
+                onClick: () => navigate('/orders', { state: { filterPackageStatusIds: shippedPkgIdList, filterPackageStatusLabel: 'In transit' } }),
             },
             {
                 title: 'Canceled',
@@ -193,7 +202,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
                 iconBg: 'bg-red-50',
                 iconColor: 'text-red-600',
                 valueColor: canceled.length > 0 ? 'text-red-600' : undefined,
-                onClick: () => navigate('/orders', { state: { filterStatus: cancelledId } }),
+                onClick: () => navigate('/orders', { state: { filterStatusIds: cancelledIdList, filterStatusLabel: 'Canceled' } }),
             },
             {
                 title: 'Refused Packages',
@@ -203,7 +212,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
                 iconBg: 'bg-orange-50',
                 iconColor: 'text-orange-600',
                 valueColor: refused.length > 0 ? 'text-orange-600' : undefined,
-                onClick: () => navigate('/orders', { state: { filterPackageStatus: refusedPkgId } }),
+                onClick: () => navigate('/orders', { state: { filterPackageStatusIds: refusedPkgIdList, filterPackageStatusLabel: 'Refused' } }),
             },
             {
                 title: 'Invoices',
@@ -215,7 +224,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
                 onClick: () => navigate('/payments'),
             },
         ];
-    }, [orders, paymentNotes, dateFilter, navigate, confirmedIds, cancelledIds, pendingIds, deliveredPkgIds, returnedPkgIds, getOrderByCategory, getPkgByCategory, isPkgCategory]);
+    }, [orders, paymentNotes, dateFilter, navigate, confirmedIds, cancelledIds, pendingIds, deliveredPkgIds, returnedPkgIds, getPkgsByCategories, isPkgCategory]);
 
     return (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9 gap-3">

@@ -1,15 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
     format,
-    startOfMonth,
-    subMonths,
-    subDays,
-    endOfMonth,
     parseISO,
-    differenceInDays,
-    startOfDay,
 } from 'date-fns';
 import {
     TrendingUp,
@@ -19,16 +13,13 @@ import {
     PackageCheck,
     Target,
     ArrowRight,
-    Sparkles,
     Plus,
     BarChart3,
     ListChecks,
     AlertTriangle,
-    Trophy,
     Megaphone,
     CheckCircle2,
     Clock,
-    Zap,
     ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -50,7 +41,8 @@ import { supabase } from '@/lib/supabase';
 import { useCurrentUserId } from '@/hooks/useCurrentUserId';
 import { useMediaBuyerStats } from '@/hooks/useMediaBuyerStats';
 import { useMediaBuyerEarnings } from '@/hooks/useMediaBuyerEarnings';
-import { fmtCur, fmtCurFull, fmtNum, fmtPct } from '@/lib/formatNumbers';
+import { todayBusinessYmd, shiftYmd } from '@/lib/dateBuckets';
+import { fmtCur, fmtCurFull, fmtNum } from '@/lib/formatNumbers';
 import { getPlatformColor, getPlatformIcon } from '@/lib/campaignConstants';
 
 type Profile = {
@@ -88,17 +80,52 @@ const Dashboard: React.FC = () => {
     const activeBusinessId = localStorage.getItem('activeBusinessId');
 
     const now = new Date();
-    const todayKey = format(now, 'yyyy-MM-dd');
-    const currentMonth = format(now, 'yyyy-MM');
+    // All date keys below must be in business timezone (Africa/Casablanca) so they
+    // line up with the daily rows produced by useMediaBuyerStats. Using
+    // `format(now, 'yyyy-MM-dd')` gives the viewer's browser-local date, which can
+    // drift one day relative to business time (e.g. SSR in UTC at 23:30 on 15/04
+    // shows "today=15/04" while the business is already on 16/04).
+    const todayKey = todayBusinessYmd();
+    const currentMonth = todayKey.slice(0, 7);
 
-    // Wide range: last 60 days. Covers this month + previous month + 14-day sparkline.
-    const range = useMemo(() => {
-        const to = format(now, 'yyyy-MM-dd');
-        const from = format(subDays(now, 60), 'yyyy-MM-dd');
-        return { from, to };
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    // Time-range filter. Default "all" so the dashboard totals match the sum
+    // of each campaign's preview-page totals without any scope trickery.
+    type Preset = 'all' | 'mtd' | 'lastmonth' | '30d' | '7d';
+    const [preset, setPreset] = useState<Preset>('all');
 
-    const { daily, perCampaign, campaigns, currency, isLoading: loadingStats } = useMediaBuyerStats(range);
+    const filterRange = useMemo<{ from: string; to: string; label: string }>(() => {
+        const y = Number(todayKey.slice(0, 4));
+        const m = Number(todayKey.slice(5, 7));
+        const pad2 = (n: number) => String(n).padStart(2, '0');
+        const lastDay = (yy: number, mm: number) => new Date(yy, mm, 0).getDate();
+        switch (preset) {
+            case '7d':
+                return { from: shiftYmd(todayKey, -6), to: todayKey, label: 'Last 7 days' };
+            case '30d':
+                return { from: shiftYmd(todayKey, -29), to: todayKey, label: 'Last 30 days' };
+            case 'mtd':
+                return { from: `${currentMonth}-01`, to: todayKey, label: 'This month' };
+            case 'lastmonth': {
+                const ly = m === 1 ? y - 1 : y;
+                const lm = m === 1 ? 12 : m - 1;
+                const key = `${ly}-${pad2(lm)}`;
+                return { from: `${key}-01`, to: `${key}-${pad2(lastDay(ly, lm))}`, label: 'Last month' };
+            }
+            case 'all':
+            default:
+                return { from: '2020-01-01', to: todayKey, label: 'All time' };
+        }
+    }, [preset, todayKey, currentMonth]);
+
+    // Primary hook call — scoped to the preset. `totals` and `perCampaign` both
+    // reflect the selected window, so every tile on the dashboard agrees with
+    // the other and with each campaign's preview page (when preset = "all").
+    const { totals, perCampaign, campaigns, currency, isLoading: loadingStats } = useMediaBuyerStats(filterRange);
+
+    // Separate all-time fetch for the 14-day sparkline so the trend line is
+    // stable regardless of the preset the user picks.
+    const allTimeRange = useMemo(() => ({ from: '2020-01-01', to: todayKey }), [todayKey]);
+    const { daily } = useMediaBuyerStats(allTimeRange);
     const { rows: earningsRows } = useMediaBuyerEarnings(currentMonth);
     const myEarnings = useMemo(() => earningsRows.find((r) => r.mediabuyer_id === currentUserId) || null, [earningsRows, currentUserId]);
 
@@ -133,45 +160,11 @@ const Dashboard: React.FC = () => {
         enabled: !!currentUserId && !!activeBusinessId,
     });
 
-    // ─────── Derived metrics ────────
-    const thisMonthStart = format(startOfMonth(now), 'yyyy-MM-dd');
-    const lastMonthStart = format(startOfMonth(subMonths(now, 1)), 'yyyy-MM-dd');
-    const lastMonthEnd = format(endOfMonth(subMonths(now, 1)), 'yyyy-MM-dd');
-    const weekStart = format(subDays(now, 6), 'yyyy-MM-dd');
-    const prevWeekStart = format(subDays(now, 13), 'yyyy-MM-dd');
-    const prevWeekEnd = format(subDays(now, 7), 'yyyy-MM-dd');
-    const sparklineStart = format(subDays(now, 13), 'yyyy-MM-dd');
-
-    const metrics = useMemo(() => {
-        const sum = (from: string, to: string) =>
-            daily
-                .filter((d) => d.date >= from && d.date <= to)
-                .reduce(
-                    (a, r) => {
-                        a.spend += r.spend;
-                        a.leads += r.leads;
-                        a.delivered += r.delivered;
-                        a.revenue += r.revenue;
-                        return a;
-                    },
-                    { spend: 0, leads: 0, delivered: 0, revenue: 0 }
-                );
-        const thisMonth = sum(thisMonthStart, todayKey);
-        const lastMonth = sum(lastMonthStart, lastMonthEnd);
-        const today = sum(todayKey, todayKey);
-        const yesterday = sum(format(subDays(now, 1), 'yyyy-MM-dd'), format(subDays(now, 1), 'yyyy-MM-dd'));
-        const thisWeek = sum(weekStart, todayKey);
-        const prevWeek = sum(prevWeekStart, prevWeekEnd);
-
-        return { thisMonth, lastMonth, today, yesterday, thisWeek, prevWeek };
-    }, [daily, thisMonthStart, todayKey, lastMonthStart, lastMonthEnd, weekStart, prevWeekStart, prevWeekEnd, now]);
-
-    const revThisMonth = metrics.thisMonth.revenue;
-    const revLastMonth = metrics.lastMonth.revenue;
-    const revDelta = computeDelta(revThisMonth, revLastMonth);
-    const spendDelta = computeDelta(metrics.thisMonth.spend, metrics.lastMonth.spend);
-    const deliveredDelta = computeDelta(metrics.thisMonth.delivered, metrics.lastMonth.delivered);
-    const weekRevDelta = computeDelta(metrics.thisWeek.revenue, metrics.prevWeek.revenue);
+    // ─────── Derived date keys (all in business TZ) ────────
+    const curYear = Number(currentMonth.slice(0, 4));
+    const curMon = Number(currentMonth.slice(5, 7)); // 1-12
+    const daysInMonth = (y: number, m: number) => new Date(y, m, 0).getDate();
+    const sparklineStart = shiftYmd(todayKey, -13);
 
     const sparklineData = useMemo(() => {
         return daily
@@ -184,13 +177,11 @@ const Dashboard: React.FC = () => {
     }, [daily, sparklineStart]);
 
     const monthProgress = useMemo(() => {
-        const start = startOfMonth(now);
-        const end = endOfMonth(now);
-        const daysInMonth = differenceInDays(end, start) + 1;
-        const daysElapsed = differenceInDays(startOfDay(now), start) + 1;
-        const pct = (daysElapsed / daysInMonth) * 100;
-        return { daysInMonth, daysElapsed, pct };
-    }, [now]);
+        const total = daysInMonth(curYear, curMon);
+        const elapsed = Number(todayKey.slice(8, 10));
+        const pct = (elapsed / total) * 100;
+        return { daysInMonth: total, daysElapsed: elapsed, pct };
+    }, [todayKey, curYear, curMon]);
 
     const activeCampaigns = useMemo(() => campaigns.filter((c) => c.status === 'active'), [campaigns]);
     const needsAttention = useMemo(
@@ -198,11 +189,6 @@ const Dashboard: React.FC = () => {
         [activeCampaigns, todayEntryCampaignIds]
     );
     const topCampaigns = useMemo(() => perCampaign.filter((c) => c.spend > 0).slice(0, 5), [perCampaign]);
-
-    const bestDay = useMemo(() => {
-        if (daily.length === 0) return null;
-        return [...daily].sort((a, b) => b.revenue - a.revenue)[0];
-    }, [daily]);
 
     const greet = greetForHour(now.getHours());
     const firstName = (profile?.name || 'there').split(' ')[0];
@@ -235,24 +221,49 @@ const Dashboard: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Headline metric: this month revenue */}
+                        {/* Headline revenue — scoped to the selected preset. */}
                         <div className="rounded-3xl bg-white/[0.06] backdrop-blur-xl border border-white/10 p-5 min-w-[260px]">
-                            <div className="flex items-center justify-between gap-3 mb-1">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-white/50">This month · revenue</p>
-                                <DeltaBadge delta={revDelta} dark />
-                            </div>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-white/50 mb-1">{filterRange.label} · revenue</p>
                             {loadingStats ? (
                                 <Skeleton className="h-10 w-40 bg-white/10" />
                             ) : (
-                                <p className="text-3xl font-black text-white tabular-nums leading-tight break-words" title={fmtCurFull(revThisMonth, currency)}>
-                                    {fmtCur(revThisMonth, currency)}
+                                <p className="text-3xl font-black text-white tabular-nums leading-tight break-words" title={fmtCurFull(totals.revenue, currency)}>
+                                    {fmtCur(totals.revenue, currency)}
                                 </p>
                             )}
                             <p className="text-[11px] text-white/40 font-medium mt-1">
-                                {fmtNum(metrics.thisMonth.delivered)} delivered · {fmtCur(metrics.thisMonth.spend, currency)} spend
+                                {fmtNum(totals.delivered)} delivered · {fmtCur(totals.spend, currency)} spend
                             </p>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            {/* ─────── Preset filter bar ─────── */}
+            <div className="flex flex-wrap items-center gap-2 p-2 rounded-3xl bg-white/80 backdrop-blur border border-gray-100 shadow-sm">
+                {([
+                    { k: 'all', label: 'All time' },
+                    { k: 'mtd', label: 'This month' },
+                    { k: 'lastmonth', label: 'Last month' },
+                    { k: '30d', label: 'Last 30 days' },
+                    { k: '7d', label: 'Last 7 days' },
+                ] as const).map(({ k, label }) => (
+                    <button
+                        key={k}
+                        type="button"
+                        onClick={() => setPreset(k)}
+                        className={cn(
+                            'px-4 py-2 rounded-2xl text-[11px] font-black uppercase tracking-wider transition-all',
+                            preset === k
+                                ? 'bg-brand-navy text-white shadow'
+                                : 'text-brand-navy/60 hover:text-brand-navy hover:bg-brand-navy/5'
+                        )}
+                    >
+                        {label}
+                    </button>
+                ))}
+                <div className="ml-auto text-[10px] font-bold text-muted-foreground tabular-nums pr-2">
+                    {filterRange.from} → {filterRange.to}
                 </div>
             </div>
 
@@ -266,38 +277,34 @@ const Dashboard: React.FC = () => {
             ) : (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <KpiCard
-                        label="Today's spend"
-                        value={fmtCur(metrics.today.spend, currency)}
-                        valueTitle={fmtCurFull(metrics.today.spend, currency)}
-                        sub={`${fmtNum(metrics.today.delivered)} delivered today`}
+                        label="Spend"
+                        value={fmtCur(totals.spend, currency)}
+                        valueTitle={fmtCurFull(totals.spend, currency)}
+                        sub={filterRange.label}
                         icon={DollarSign}
                         tone="bg-red-500/10 text-red-500"
                     />
                     <KpiCard
-                        label="This week · revenue"
-                        value={fmtCur(metrics.thisWeek.revenue, currency)}
-                        valueTitle={fmtCurFull(metrics.thisWeek.revenue, currency)}
-                        sub="vs last 7 days"
-                        delta={weekRevDelta}
+                        label="Revenue"
+                        value={fmtCur(totals.revenue, currency)}
+                        valueTitle={fmtCurFull(totals.revenue, currency)}
+                        sub={totals.revenue - totals.spend >= 0 ? 'profitable' : 'below spend'}
                         icon={TrendingUp}
-                        tone={metrics.thisWeek.revenue - metrics.thisWeek.spend >= 0 ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-500'}
+                        tone={totals.revenue - totals.spend >= 0 ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-500'}
                     />
                     <KpiCard
-                        label="Month · spend"
-                        value={fmtCur(metrics.thisMonth.spend, currency)}
-                        valueTitle={fmtCurFull(metrics.thisMonth.spend, currency)}
-                        sub={`${monthProgress.daysElapsed} / ${monthProgress.daysInMonth} days`}
-                        delta={spendDelta}
-                        icon={BarChart3}
-                        tone="bg-indigo-500/10 text-indigo-500"
-                    />
-                    <KpiCard
-                        label="Month · delivered"
-                        value={fmtNum(metrics.thisMonth.delivered)}
+                        label="Delivered"
+                        value={fmtNum(totals.delivered)}
                         sub="commission-eligible"
-                        delta={deliveredDelta}
                         icon={PackageCheck}
                         tone="bg-emerald-500/10 text-emerald-600"
+                    />
+                    <KpiCard
+                        label="Confirmed"
+                        value={fmtNum(totals.confirmed)}
+                        sub={`${fmtNum(totals.leads)} leads`}
+                        icon={BarChart3}
+                        tone="bg-indigo-500/10 text-indigo-500"
                     />
                 </div>
             )}
@@ -371,7 +378,7 @@ const Dashboard: React.FC = () => {
                             <div className="flex items-center justify-between mb-5">
                                 <div>
                                     <h2 className="text-xs font-black uppercase tracking-widest text-brand-navy/50">Top campaigns</h2>
-                                    <p className="text-[11px] text-muted-foreground font-medium mt-0.5">Sorted by revenue · last 60 days</p>
+                                    <p className="text-[11px] text-muted-foreground font-medium mt-0.5">Sorted by revenue · {filterRange.label.toLowerCase()}</p>
                                 </div>
                                 <Button
                                     variant="ghost"
@@ -525,7 +532,7 @@ const Dashboard: React.FC = () => {
                                 </div>
                                 <div className="flex items-center justify-between text-[10px] font-bold text-muted-foreground">
                                     <span>Day {monthProgress.daysElapsed} of {monthProgress.daysInMonth}</span>
-                                    <span>{format(endOfMonth(now), 'MMM d')}</span>
+                                    <span>{format(parseISO(`${currentMonth}-${String(daysInMonth(curYear, curMon)).padStart(2, '0')}`), 'MMM d')}</span>
                                 </div>
                             </div>
                             {myEarnings && (
@@ -539,23 +546,6 @@ const Dashboard: React.FC = () => {
                     </Card>
                 </div>
             </div>
-
-            {/* ─────── Best day badge — only if we have data and revenue is positive ─────── */}
-            {bestDay && bestDay.revenue > 0 && (
-                <div className="rounded-[28px] bg-gradient-to-r from-emerald-500/10 via-emerald-50/50 to-white border border-emerald-200/40 p-5 flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 text-emerald-600 flex items-center justify-center shrink-0">
-                        <Trophy className="w-6 h-6" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700/70">Best day · last 60 days</p>
-                        <p className="text-base font-black text-emerald-800">{format(parseISO(bestDay.date), 'EEEE, MMMM d')}</p>
-                        <p className="text-[11px] text-emerald-800/70 font-medium tabular-nums">
-                            {fmtCurFull(bestDay.revenue, currency)} revenue · {fmtNum(bestDay.delivered)} delivered · {fmtPct(bestDay.deliveryRate)} delivery rate
-                        </p>
-                    </div>
-                    <Sparkles className="w-5 h-5 text-emerald-500/50 shrink-0 hidden md:block" />
-                </div>
-            )}
         </div>
     );
 };

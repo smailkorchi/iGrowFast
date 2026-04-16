@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { useCurrentUserId } from '@/hooks/useCurrentUserId';
 import { getPlatformSource, type Campaign, type CampaignDailyEntry } from '@/lib/campaignConstants';
+import { toBusinessDate, shiftYmd } from '@/lib/dateBuckets';
 
 export type StatsDateRange = {
     from: string; // YYYY-MM-DD
@@ -88,7 +89,7 @@ const finalize = (t: Totals): Totals => {
 export function useMediaBuyerStats(range: StatsDateRange) {
     const activeBusinessId = localStorage.getItem('activeBusinessId');
     const currentUserId = useCurrentUserId();
-    const { confirmedIds, deliveredPkgIds, returnedPkgIds } = useStatusCategories();
+    const { deliveredPkgIds } = useStatusCategories();
 
     // 1. Entries directly by created_by — orphaned-safe.
     const { data: entries = [], isLoading: loadingEntries } = useQuery<CampaignDailyEntry[]>({
@@ -141,14 +142,16 @@ export function useMediaBuyerStats(range: StatsDateRange) {
         queryKey: ['mb-stats-orders', activeBusinessId, range.from, range.to, sourceList.join(',')],
         queryFn: async () => {
             if (!activeBusinessId || sourceList.length === 0) return [];
-            // orders.date is timestamptz — a bare YYYY-MM-DD compares as midnight, so
-            // .lte('date', '2026-03-31') misses the whole day. Append end-of-day.
+            // orders.date is timestamptz while entries use business-local day strings.
+            // Widen the server-side window by 1 day on each end so the 00:00–00:59
+            // local hour (whose UTC day is the previous calendar date) is fetched.
+            // Client-side bucketing below re-attributes each order by business-TZ date.
             const { data, error } = await (supabase as any)
                 .from('orders')
                 .select('id, date, source_name, order_status_id, package_status_id')
                 .eq('DigiCom Business', activeBusinessId)
-                .gte('date', range.from)
-                .lte('date', `${range.to}T23:59:59.999Z`)
+                .gte('date', shiftYmd(range.from, -1))
+                .lte('date', `${shiftYmd(range.to, 1)}T23:59:59.999Z`)
                 .is('date_deleted', null);
             if (error) throw error;
             const srcLower = new Set(sourceList.map((s) => s.toLowerCase()));
@@ -187,23 +190,23 @@ export function useMediaBuyerStats(range: StatsDateRange) {
         for (const c of campaigns) campaignById.set(c.id, c);
 
         // Bucket orders by (YYYY-MM-DD, source_lower).
-        // "Confirmed" = funnel-confirmed: current status in confirmedIds, OR package delivered,
-        // OR package returned (a returned order was confirmed before it was returned).
+        // "Confirmed" = every order placed on the day, regardless of current status. Orders
+        // reaching this loop have already passed the source_name + business + date-range
+        // filter upstream, so presence here means the lead converted into an order.
+        // "Delivered" = package status in the 'delivered' category, regardless of whether
+        // the cash has been collected (PAID/UNPAID both count as delivered).
         const ordersByDaySource = new Map<string, { confirmed: number; delivered: number }>();
         const key = (d: string, s: string) => `${d}|${s}`;
         for (const o of orders) {
             if (!o.date || !o.source_name) continue;
-            const d = o.date.slice(0, 10);
+            const d = toBusinessDate(o.date);
             const s = o.source_name.toLowerCase();
             const k = key(d, s);
             const b = ordersByDaySource.get(k) || { confirmed: 0, delivered: 0 };
-            const isDelivered = !!(o.package_status_id && deliveredPkgIds.has(o.package_status_id));
-            const isReturned = !!(o.package_status_id && returnedPkgIds.has(o.package_status_id));
-            const isConfirmed = !!(o.order_status_id && confirmedIds.has(o.order_status_id))
-                || isDelivered
-                || isReturned;
-            if (isConfirmed) b.confirmed += 1;
-            if (isDelivered) b.delivered += 1;
+            b.confirmed += 1;
+            if (o.package_status_id && deliveredPkgIds.has(o.package_status_id)) {
+                b.delivered += 1;
+            }
             ordersByDaySource.set(k, b);
         }
 
@@ -382,7 +385,7 @@ export function useMediaBuyerStats(range: StatsDateRange) {
             perCampaign: perCampaignArr,
             currency: dominantCurrency,
         };
-    }, [entries, orders, campaigns, confirmedIds, deliveredPkgIds, returnedPkgIds, mediabuyer]);
+    }, [entries, orders, campaigns, deliveredPkgIds, mediabuyer]);
 
     return {
         campaigns,

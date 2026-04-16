@@ -54,6 +54,7 @@ import {
 import { getPlatformIcon, getPlatformColor } from '@/lib/campaignConstants';
 import { useMediaBuyerStats, type StatsDateRange } from '@/hooks/useMediaBuyerStats';
 import { fmtCur, fmtCurFull, fmtNum, fmtNumCompact, fmtPct } from '@/lib/formatNumbers';
+import { todayBusinessYmd, shiftYmd } from '@/lib/dateBuckets';
 
 // ── Date range presets ───────────────────────────────────────────
 type PresetKey = '7d' | '30d' | 'mtd' | 'lastmonth' | 'all';
@@ -67,21 +68,29 @@ const PRESETS: { key: PresetKey; label: string }[] = [
 ];
 
 const computePreset = (key: PresetKey): StatsDateRange => {
-    const today = startOfDay(new Date());
+    // Everything is in business TZ (Africa/Casablanca) to line up with the
+    // `daily` rows produced by useMediaBuyerStats. Browser-local date-fns math
+    // would drift by one day for viewers outside the business TZ (or SSR in UTC).
+    const today = todayBusinessYmd();
+    const [y, m] = today.split('-').map(Number);
+    const pad2 = (n: number) => String(n).padStart(2, '0');
+    const daysInMonth = (yy: number, mm: number) => new Date(yy, mm, 0).getDate();
     switch (key) {
         case '7d':
-            return { from: format(subDays(today, 6), 'yyyy-MM-dd'), to: format(today, 'yyyy-MM-dd') };
+            return { from: shiftYmd(today, -6), to: today };
         case '30d':
-            return { from: format(subDays(today, 29), 'yyyy-MM-dd'), to: format(today, 'yyyy-MM-dd') };
+            return { from: shiftYmd(today, -29), to: today };
         case 'mtd':
-            return { from: format(startOfMonth(today), 'yyyy-MM-dd'), to: format(today, 'yyyy-MM-dd') };
+            return { from: `${today.slice(0, 7)}-01`, to: today };
         case 'lastmonth': {
-            const lm = subMonths(today, 1);
-            return { from: format(startOfMonth(lm), 'yyyy-MM-dd'), to: format(endOfMonth(lm), 'yyyy-MM-dd') };
+            const ly = m === 1 ? y - 1 : y;
+            const lm = m === 1 ? 12 : m - 1;
+            const key = `${ly}-${pad2(lm)}`;
+            return { from: `${key}-01`, to: `${key}-${pad2(daysInMonth(ly, lm))}` };
         }
         case 'all':
         default:
-            return { from: '2000-01-01', to: format(today, 'yyyy-MM-dd') };
+            return { from: '2000-01-01', to: today };
     }
 };
 

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { getPlatformSource } from '@/lib/campaignConstants';
+import { toBusinessDate, shiftYmd } from '@/lib/dateBuckets';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Media buyer monthly earnings — bulk computation for admin payout flow.
@@ -171,6 +172,9 @@ export function useMediaBuyerEarnings(month: string) {
     const sourceList = useMemo(() => Array.from(distinctSources), [distinctSources]);
 
     // 4. Orders in the month scoped to business + sources. Filtered client-side (ilike).
+    // orders.date is timestamptz; entries use business-local day strings. Widen the
+    // server-side window by 1 day on each end to capture orders near midnight that
+    // would otherwise be mis-bucketed after the business-TZ conversion below.
     const { data: orders = [], isLoading: loadingOrders } = useQuery<OrderRow[]>({
         queryKey: ['mb-earnings-orders', activeBusinessId, month, sourceList.join(',')],
         queryFn: async () => {
@@ -179,8 +183,8 @@ export function useMediaBuyerEarnings(month: string) {
                 .from('orders')
                 .select('id, date, source_name, package_status_id')
                 .eq('DigiCom Business', activeBusinessId)
-                .gte('date', from)
-                .lte('date', to)
+                .gte('date', shiftYmd(from, -1))
+                .lte('date', `${shiftYmd(to, 1)}T23:59:59.999Z`)
                 .is('date_deleted', null);
             if (error) throw error;
             const srcLower = new Set(sourceList.map((s) => s.toLowerCase()));
@@ -215,7 +219,7 @@ export function useMediaBuyerEarnings(month: string) {
         for (const o of orders) {
             if (!o.date || !o.source_name || !o.package_status_id) continue;
             if (!deliveredPkgIds.has(o.package_status_id)) continue;
-            const d = o.date.slice(0, 10);
+            const d = toBusinessDate(o.date);
             const s = o.source_name.toLowerCase();
             const k = key(d, s);
             deliveredBy.set(k, (deliveredBy.get(k) || 0) + 1);

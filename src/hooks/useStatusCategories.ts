@@ -96,6 +96,7 @@ export function useStatusCategories() {
       new Set(cats.flatMap(c => (map.get(c) || []).map(s => s.id)));
 
     const confirmedIds = collectIds(CONFIRMED_ORDER_CATS, orderCatMap);
+    const unpaidOrderIds = collectIds(['unpaid'], orderCatMap);
     const cancelledIds = collectIds(CANCELLED_ORDER_CATS, orderCatMap);
     const callbackIds = collectIds(CALLBACK_ORDER_CATS, orderCatMap);
     const pendingIds = collectIds(PENDING_ORDER_CATS, orderCatMap);
@@ -144,6 +145,7 @@ export function useStatusCategories() {
       getPkgCategory: (statusId: string) => pkgIdMap.get(statusId)?.category,
 
       confirmedIds,
+      unpaidOrderIds,
       cancelledIds,
       callbackIds,
       pendingIds,

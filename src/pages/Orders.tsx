@@ -260,7 +260,10 @@ function getCourierPackageStatus(order: any): { label: string; color: string | n
 
 const Orders = () => {
     const location = useLocation();
-    const navState = (location.state || {}) as Record<string, string>;
+    // navState may carry either a single status id (legacy) or an array of ids
+    // (category-wide filter from dashboard KPI cards). Typed loose to keep the
+    // existing string-keyed reads (filterCity, filterSource, …) intact.
+    const navState = (location.state || {}) as Record<string, string | string[]>;
     const [searchParams, setSearchParams] = useSearchParams();
     const prefillProductHandledRef = useRef<string | null>(null);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -306,11 +309,27 @@ const Orders = () => {
     const queryClient = useQueryClient();
     const activeBusinessId = localStorage.getItem('activeBusinessId');
 
-    // Filter states (initialized from navigation state if present)
-    const [filterStatus, setFilterStatus] = useState<string>(navState.filterStatus || "all");
-    const [filterCity, setFilterCity] = useState<string>(navState.filterCity || "all");
-    const [filterSource, setFilterSource] = useState<string>(navState.filterSource || "all");
-    const [filterProvider, setFilterProvider] = useState<string>(navState.filterProvider || "all");
+    // Filter states (initialized from navigation state if present).
+    // navState values may be string (legacy) or string[] (category-wide, from
+    // dashboard KPI cards). The helpers below extract each type safely.
+    const navStr = (v: string | string[] | undefined): string | undefined =>
+        typeof v === 'string' ? v : undefined;
+    const navArr = (v: string | string[] | undefined): string[] | null =>
+        Array.isArray(v) && v.length > 0 ? v : null;
+
+    const [filterStatus, setFilterStatus] = useState<string>(navStr(navState.filterStatus) || "all");
+    // Category-wide status filter — when set, `filterStatus` must be 'all' and
+    // any order whose status falls in this id list matches. Cleared whenever
+    // the user picks a specific status from the dropdown.
+    const [filterStatusIds, setFilterStatusIds] = useState<string[] | null>(
+        navStr(navState.filterStatus) ? null : navArr(navState.filterStatusIds)
+    );
+    const [filterStatusLabel, setFilterStatusLabel] = useState<string | null>(
+        navStr(navState.filterStatusLabel) || null
+    );
+    const [filterCity, setFilterCity] = useState<string>(navStr(navState.filterCity) || "all");
+    const [filterSource, setFilterSource] = useState<string>(navStr(navState.filterSource) || "all");
+    const [filterProvider, setFilterProvider] = useState<string>(navStr(navState.filterProvider) || "all");
 
     // Advanced filter states
     const [filterDateField, setFilterDateField] = useState<string>('date');
@@ -355,7 +374,13 @@ const Orders = () => {
     const [filterPhone, setFilterPhone] = useState('');
     const [filterTracking, setFilterTracking] = useState('');
     const [filterProduct, setFilterProduct] = useState<string>('all');
-    const [filterPackageStatus, setFilterPackageStatus] = useState<string>(navState.filterPackageStatus || 'all');
+    const [filterPackageStatus, setFilterPackageStatus] = useState<string>(navStr(navState.filterPackageStatus) || 'all');
+    const [filterPackageStatusIds, setFilterPackageStatusIds] = useState<string[] | null>(
+        navStr(navState.filterPackageStatus) ? null : navArr(navState.filterPackageStatusIds)
+    );
+    const [filterPackageStatusLabel, setFilterPackageStatusLabel] = useState<string | null>(
+        navStr(navState.filterPackageStatusLabel) || null
+    );
     const [filterConfirmedBy, setFilterConfirmedBy] = useState<string>('all');
     const [filterAssignedTo, setFilterAssignedTo] = useState<string>('all');
     const [filterExchange, setFilterExchange] = useState<string>('all');
@@ -1732,7 +1757,16 @@ const Orders = () => {
         return orders.filter(o => {
             const matchesSearch = orderMatchesTopSearch(o, searchQuery);
 
-            const matchesStatus = filterStatus === "all" || o.order_status_id === filterStatus;
+            // `filterStatusIds` is set only when Orders was opened from a dashboard
+            // KPI card that aggregates a whole category (e.g. "Canceled" = cancelled
+            // ∪ fake ∪ double ∪ blacklisted). Takes effect only if the user hasn't
+            // picked a specific status from the dropdown (i.e. filterStatus === 'all').
+            const matchesStatus =
+                filterStatus !== 'all'
+                    ? o.order_status_id === filterStatus
+                    : filterStatusIds && filterStatusIds.length > 0
+                        ? !!o.order_status_id && filterStatusIds.includes(o.order_status_id)
+                        : true;
             const matchesCity = filterCity === "all" || o.master_city_id === filterCity || o.city_id === filterCity;
             const matchesSource = filterSource === "all" || o.source_name === filterSource;
             const matchesProvider = filterProvider === "all" || o.courier_id === filterProvider || o.company_id === filterProvider;
@@ -1760,8 +1794,13 @@ const Orders = () => {
             // Product
             const matchesProduct = filterProduct === 'all' || o.items?.some((item: any) => item.product_id === filterProduct);
 
-            // Package status
-            const matchesPackageStatus = filterPackageStatus === 'all' || o.package_status_id === filterPackageStatus;
+            // Package status — same dual-mode semantics as order status above.
+            const matchesPackageStatus =
+                filterPackageStatus !== 'all'
+                    ? o.package_status_id === filterPackageStatus
+                    : filterPackageStatusIds && filterPackageStatusIds.length > 0
+                        ? !!o.package_status_id && filterPackageStatusIds.includes(o.package_status_id)
+                        : true;
 
             // Confirmed by
             const matchesConfirmedBy = filterConfirmedBy === 'all' || o.confirmed_by_id === filterConfirmedBy;
@@ -1774,11 +1813,12 @@ const Orders = () => {
 
             return matchesSearch && matchesStatus && matchesCity && matchesSource && matchesProvider && matchesDate && matchesCustomerName && matchesPhone && matchesTracking && matchesProduct && matchesPackageStatus && matchesConfirmedBy && matchesAssignedTo && matchesExchange;
         });
-    }, [orders, searchQuery, filterStatus, filterCity, filterSource, filterProvider, getDateRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterPackageStatus, filterConfirmedBy, filterAssignedTo, filterExchange]);
+    }, [orders, searchQuery, filterStatus, filterStatusIds, filterCity, filterSource, filterProvider, getDateRange, filterDateField, filterCustomerName, filterPhone, filterTracking, filterProduct, filterPackageStatus, filterPackageStatusIds, filterConfirmedBy, filterAssignedTo, filterExchange]);
 
     const activeFilterCount = useMemo(() => {
         let count = 0;
         if (filterStatus !== 'all') count++;
+        else if (filterStatusIds && filterStatusIds.length > 0) count++;
         if (filterCity !== 'all') count++;
         if (filterSource !== 'all') count++;
         if (filterProvider !== 'all') count++;
@@ -1788,14 +1828,17 @@ const Orders = () => {
         if (filterTracking.trim()) count++;
         if (filterProduct !== 'all') count++;
         if (filterPackageStatus !== 'all') count++;
+        else if (filterPackageStatusIds && filterPackageStatusIds.length > 0) count++;
         if (filterConfirmedBy !== 'all') count++;
         if (filterAssignedTo !== 'all') count++;
         if (filterExchange !== 'all') count++;
         return count;
-    }, [filterStatus, filterCity, filterSource, filterProvider, filterTimeRange, filterCustomerName, filterPhone, filterTracking, filterProduct, filterPackageStatus, filterConfirmedBy, filterAssignedTo, filterExchange]);
+    }, [filterStatus, filterStatusIds, filterCity, filterSource, filterProvider, filterTimeRange, filterCustomerName, filterPhone, filterTracking, filterProduct, filterPackageStatus, filterPackageStatusIds, filterConfirmedBy, filterAssignedTo, filterExchange]);
 
     const clearAllFilters = () => {
         setFilterStatus('all');
+        setFilterStatusIds(null);
+        setFilterStatusLabel(null);
         setFilterCity('all');
         setFilterSource('all');
         setFilterProvider('all');
@@ -1807,6 +1850,8 @@ const Orders = () => {
         setFilterTracking('');
         setFilterProduct('all');
         setFilterPackageStatus('all');
+        setFilterPackageStatusIds(null);
+        setFilterPackageStatusLabel(null);
         setFilterConfirmedBy('all');
         setFilterAssignedTo('all');
         setFilterExchange('all');
@@ -2188,18 +2233,30 @@ const Orders = () => {
                                         <button onClick={() => { setFilterTimeRange('all'); setFilterCustomRange(undefined); }} className="ml-0.5 hover:bg-blue-100 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
                                     </span>
                                 )}
-                                {filterStatus !== 'all' && (
+                                {filterStatus !== 'all' ? (
                                     <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-purple-50 text-purple-700 text-[10px] font-bold border border-purple-100">
                                         <ShieldCheck className="w-3 h-3" />
                                         {orderStatuses?.find((s: any) => s.id === filterStatus)?.label || 'Status'}
                                         <button onClick={() => setFilterStatus('all')} className="ml-0.5 hover:bg-purple-100 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
                                     </span>
+                                ) : filterStatusIds && filterStatusIds.length > 0 && (
+                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-purple-50 text-purple-700 text-[10px] font-bold border border-purple-100">
+                                        <ShieldCheck className="w-3 h-3" />
+                                        {filterStatusLabel || 'Status'} ({filterStatusIds.length})
+                                        <button onClick={() => { setFilterStatusIds(null); setFilterStatusLabel(null); }} className="ml-0.5 hover:bg-purple-100 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
+                                    </span>
                                 )}
-                                {filterPackageStatus !== 'all' && (
+                                {filterPackageStatus !== 'all' ? (
                                     <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-orange-50 text-orange-700 text-[10px] font-bold border border-orange-100">
                                         <Package className="w-3 h-3" />
                                         {packageStatuses?.find((s: any) => s.id === filterPackageStatus)?.label || 'Package'}
                                         <button onClick={() => setFilterPackageStatus('all')} className="ml-0.5 hover:bg-orange-100 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
+                                    </span>
+                                ) : filterPackageStatusIds && filterPackageStatusIds.length > 0 && (
+                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-orange-50 text-orange-700 text-[10px] font-bold border border-orange-100">
+                                        <Package className="w-3 h-3" />
+                                        {filterPackageStatusLabel || 'Package'} ({filterPackageStatusIds.length})
+                                        <button onClick={() => { setFilterPackageStatusIds(null); setFilterPackageStatusLabel(null); }} className="ml-0.5 hover:bg-orange-100 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
                                     </span>
                                 )}
                                 {filterCity !== 'all' && (
@@ -2430,9 +2487,18 @@ const Orders = () => {
                                     <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider flex items-center gap-1">
                                         <ShieldCheck className="w-3 h-3" /> Status
                                     </span>
-                                    <Select value={filterStatus} onValueChange={setFilterStatus}>
-                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterStatus !== 'all' ? "border-purple-200 bg-purple-50/50 text-purple-700" : "border-brand-navy/[0.06] bg-brand-navy/[0.02] text-brand-navy")}>
-                                            <SelectValue placeholder="All" />
+                                    <Select
+                                        value={filterStatus}
+                                        onValueChange={(v) => {
+                                            setFilterStatus(v);
+                                            // Manual override wipes the category-wide preset so the
+                                            // two modes can't combine and surprise the user.
+                                            setFilterStatusIds(null);
+                                            setFilterStatusLabel(null);
+                                        }}
+                                    >
+                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterStatus !== 'all' || (filterStatusIds && filterStatusIds.length > 0) ? "border-purple-200 bg-purple-50/50 text-purple-700" : "border-brand-navy/[0.06] bg-brand-navy/[0.02] text-brand-navy")}>
+                                            <SelectValue placeholder={filterStatusIds && filterStatusIds.length > 0 ? `${filterStatusLabel || 'Category'} (${filterStatusIds.length})` : 'All'} />
                                         </SelectTrigger>
                                         <SelectContent className="rounded-2xl border-none shadow-2xl shadow-brand-navy/10 max-h-[300px]">
                                             <SelectItem value="all" className="font-bold text-xs rounded-xl">All Statuses</SelectItem>
@@ -2453,9 +2519,16 @@ const Orders = () => {
                                     <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider flex items-center gap-1">
                                         <Package className="w-3 h-3" /> Package
                                     </span>
-                                    <Select value={filterPackageStatus} onValueChange={setFilterPackageStatus}>
-                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterPackageStatus !== 'all' ? "border-orange-200 bg-orange-50/50 text-orange-700" : "border-brand-navy/[0.06] bg-brand-navy/[0.02] text-brand-navy")}>
-                                            <SelectValue placeholder="All" />
+                                    <Select
+                                        value={filterPackageStatus}
+                                        onValueChange={(v) => {
+                                            setFilterPackageStatus(v);
+                                            setFilterPackageStatusIds(null);
+                                            setFilterPackageStatusLabel(null);
+                                        }}
+                                    >
+                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterPackageStatus !== 'all' || (filterPackageStatusIds && filterPackageStatusIds.length > 0) ? "border-orange-200 bg-orange-50/50 text-orange-700" : "border-brand-navy/[0.06] bg-brand-navy/[0.02] text-brand-navy")}>
+                                            <SelectValue placeholder={filterPackageStatusIds && filterPackageStatusIds.length > 0 ? `${filterPackageStatusLabel || 'Category'} (${filterPackageStatusIds.length})` : 'All'} />
                                         </SelectTrigger>
                                         <SelectContent className="rounded-2xl border-none shadow-2xl shadow-brand-navy/10 max-h-[300px]">
                                             <SelectItem value="all" className="font-bold text-xs rounded-xl">All Packages</SelectItem>

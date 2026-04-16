@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { getPlatformSource, type Campaign, type CampaignDailyEntry } from '@/lib/campaignConstants';
+import { toBusinessDate, shiftYmd } from '@/lib/dateBuckets';
 
 export type DailyMetrics = {
     date: string; // YYYY-MM-DD
@@ -61,7 +62,7 @@ type OrderRow = {
  * cells with no data don't show fake #DIV/0 values).
  */
 export function useCampaignMetrics(campaign: Campaign | null | undefined) {
-    const { confirmedIds, deliveredPkgIds, returnedPkgIds } = useStatusCategories();
+    const { deliveredPkgIds } = useStatusCategories();
     const activeBusinessId = localStorage.getItem('activeBusinessId');
 
     // Daily entries (manual spend + leads)
@@ -108,9 +109,11 @@ export function useCampaignMetrics(campaign: Campaign | null | undefined) {
     }, [entries, campaign]);
 
     // Orders scoped to business + source + date range.
-    // orders.date is a timestamptz column — a bare YYYY-MM-DD string compares as midnight,
-    // so .lte('date', '2026-03-31') would exclude every order after 00:00 on that day.
-    // We append T23:59:59.999Z to the upper bound to capture the full day.
+    // orders.date is a timestamptz column and entry_date is a local (business-TZ) day.
+    // We widen the server-side window by 1 day on each end so orders whose UTC day
+    // differs from their business-TZ day (the 00:00–00:59 local hour in Africa/Casablanca
+    // lands the previous UTC day, and 23:00–23:59 local lands the next UTC day) are
+    // fetched. The client-side bucketing below re-attributes them by business-TZ date.
     const source = campaign ? getPlatformSource(campaign.platform) : '';
     const { data: orders = [], isLoading: loadingOrders } = useQuery<OrderRow[]>({
         queryKey: ['campaign-orders', campaign?.id, activeBusinessId, source, dateRange.from, dateRange.to],
@@ -122,8 +125,8 @@ export function useCampaignMetrics(campaign: Campaign | null | undefined) {
                 .select('id, date, source_name, order_status_id, package_status_id')
                 .eq('DigiCom Business', activeBusinessId)
                 .ilike('source_name', source)
-                .gte('date', dateRange.from)
-                .lte('date', `${dateRange.to}T23:59:59.999Z`)
+                .gte('date', shiftYmd(dateRange.from, -1))
+                .lte('date', `${shiftYmd(dateRange.to, 1)}T23:59:59.999Z`)
                 .is('date_deleted', null);
             if (error) throw error;
             return (data || []) as OrderRow[];
@@ -136,23 +139,22 @@ export function useCampaignMetrics(campaign: Campaign | null | undefined) {
         const commissionPrice =
             mediabuyer?.payment_type === 'commission' ? Number(mediabuyer.commission_price || 0) : 0;
 
-        // Index orders by YYYY-MM-DD.
-        // "Confirmed" in the funnel sense: an order that progressed past initial confirmation,
-        // regardless of whether it was later returned. This matches the tracking sheet where a
-        // returned order still counts as "confirmed" (the return happened post-delivery).
-        // Concretely: current status in confirmedIds, OR package was delivered, OR package was returned.
+        // Index orders by YYYY-MM-DD in business timezone.
+        // "Confirmed" = every order placed on the day, regardless of current status. Orders
+        // reaching this loop have already passed the source_name + business + date-range
+        // filter upstream, so presence here means the lead converted into an order.
+        // "Delivered" = package status is in the 'delivered' category. No order-status
+        // filter: a package marked delivered counts as a delivery regardless of whether
+        // the cash has been collected (PAID/UNPAID) yet.
         const ordersByDate = new Map<string, { confirmed: number; delivered: number }>();
         for (const o of orders) {
             if (!o.date) continue;
-            const d = o.date.slice(0, 10); // YYYY-MM-DD
+            const d = toBusinessDate(o.date);
             const bucket = ordersByDate.get(d) || { confirmed: 0, delivered: 0 };
-            const isDelivered = !!(o.package_status_id && deliveredPkgIds.has(o.package_status_id));
-            const isReturned = !!(o.package_status_id && returnedPkgIds.has(o.package_status_id));
-            const isConfirmed = !!(o.order_status_id && confirmedIds.has(o.order_status_id))
-                || isDelivered
-                || isReturned;
-            if (isConfirmed) bucket.confirmed += 1;
-            if (isDelivered) bucket.delivered += 1;
+            bucket.confirmed += 1;
+            if (o.package_status_id && deliveredPkgIds.has(o.package_status_id)) {
+                bucket.delivered += 1;
+            }
             ordersByDate.set(d, bucket);
         }
 
@@ -214,7 +216,7 @@ export function useCampaignMetrics(campaign: Campaign | null | undefined) {
         t.days = dailyRows.length;
 
         return { daily: dailyRows, totals: t };
-    }, [entries, orders, confirmedIds, deliveredPkgIds, returnedPkgIds, mediabuyer]);
+    }, [entries, orders, deliveredPkgIds, mediabuyer]);
 
     return {
         entries,
