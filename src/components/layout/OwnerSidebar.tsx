@@ -16,7 +16,8 @@ import {
     History,
     type LucideIcon,
 } from 'lucide-react';
-import { SiGoogleanalytics } from 'react-icons/si';
+import { SiMeta } from 'react-icons/si';
+import { FaGoogle } from 'react-icons/fa';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { useQuery } from '@tanstack/react-query';
@@ -37,7 +38,8 @@ const navigation: NavItem[] = [
     { icon: MapPin, label: 'Cities', path: '/owner/cities' },
     { icon: Map, label: 'Zones', path: '/owner/zones' },
     { icon: History, label: 'Activity Log', path: '/owner/activity-log' },
-    { icon: SiGoogleanalytics, label: 'Google Analytics', path: '/owner/google-analytics' },
+    { icon: FaGoogle, label: 'Google Analytics', path: '/owner/google-analytics' },
+    { icon: SiMeta, label: 'Meta Ads', path: '/owner/meta-ads' },
 ];
 
 const OwnerSidebar = () => {
