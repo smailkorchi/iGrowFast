@@ -65,6 +65,7 @@ export type Database = {
         Row: {
           amount: number
           created_at: string | null
+          created_by: string | null
           "DigiCom Business": string | null
           end_date: string
           id: string
@@ -77,6 +78,7 @@ export type Database = {
         Insert: {
           amount?: number
           created_at?: string | null
+          created_by?: string | null
           "DigiCom Business"?: string | null
           end_date: string
           id?: string
@@ -89,6 +91,7 @@ export type Database = {
         Update: {
           amount?: number
           created_at?: string | null
+          created_by?: string | null
           "DigiCom Business"?: string | null
           end_date?: string
           id?: string
@@ -104,6 +107,13 @@ export type Database = {
             columns: ["DigiCom Business"]
             isOneToOne: false
             referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ads_history_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
           {
@@ -263,6 +273,225 @@ export type Database = {
           zone?: string | null
         }
         Relationships: []
+      }
+      audit_log_geo_jobs: {
+        Row: {
+          audit_log_id: string
+          dispatched_at: string
+          ip: string
+          request_id: number
+        }
+        Insert: {
+          audit_log_id: string
+          dispatched_at?: string
+          ip: string
+          request_id: number
+        }
+        Update: {
+          audit_log_id?: string
+          dispatched_at?: string
+          ip?: string
+          request_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_log_geo_jobs_audit_log_id_fkey"
+            columns: ["audit_log_id"]
+            isOneToOne: false
+            referencedRelation: "audit_logs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audit_logs: {
+        Row: {
+          action: string
+          actor_avatar_url: string | null
+          actor_email: string | null
+          actor_id: string | null
+          actor_name: string | null
+          actor_role: Database["public"]["Enums"]["user_role"] | null
+          business_id: string | null
+          changes: Json | null
+          created_at: string
+          entity_id: string | null
+          entity_label: string | null
+          entity_table: string | null
+          geo: Json | null
+          id: string
+          ip: string | null
+          metadata: Json | null
+          scope: string
+          session_id: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          action: string
+          actor_avatar_url?: string | null
+          actor_email?: string | null
+          actor_id?: string | null
+          actor_name?: string | null
+          actor_role?: Database["public"]["Enums"]["user_role"] | null
+          business_id?: string | null
+          changes?: Json | null
+          created_at?: string
+          entity_id?: string | null
+          entity_label?: string | null
+          entity_table?: string | null
+          geo?: Json | null
+          id?: string
+          ip?: string | null
+          metadata?: Json | null
+          scope: string
+          session_id?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          action?: string
+          actor_avatar_url?: string | null
+          actor_email?: string | null
+          actor_id?: string | null
+          actor_name?: string | null
+          actor_role?: Database["public"]["Enums"]["user_role"] | null
+          business_id?: string | null
+          changes?: Json | null
+          created_at?: string
+          entity_id?: string | null
+          entity_label?: string | null
+          entity_table?: string | null
+          geo?: Json | null
+          id?: string
+          ip?: string | null
+          metadata?: Json | null
+          scope?: string
+          session_id?: string | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_logs_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_logs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bons_commande: {
+        Row: {
+          bc_number: string
+          business_id: string
+          created_at: string
+          created_by: string | null
+          direction: string
+          id: string
+          issued_at: string
+          pdf_storage_path: string | null
+          snapshot_json: Json
+          status: string
+          subtotal_ht: number
+          total_ttc: number
+          tva_amount: number
+          tva_rate: number
+          updated_at: string
+        }
+        Insert: {
+          bc_number: string
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          direction: string
+          id?: string
+          issued_at?: string
+          pdf_storage_path?: string | null
+          snapshot_json?: Json
+          status?: string
+          subtotal_ht?: number
+          total_ttc?: number
+          tva_amount?: number
+          tva_rate?: number
+          updated_at?: string
+        }
+        Update: {
+          bc_number?: string
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          direction?: string
+          id?: string
+          issued_at?: string
+          pdf_storage_path?: string | null
+          snapshot_json?: Json
+          status?: string
+          subtotal_ht?: number
+          total_ttc?: number
+          tva_amount?: number
+          tva_rate?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bons_commande_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bons_livraison: {
+        Row: {
+          bl_number: string
+          business_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          issued_at: string
+          pdf_storage_path: string | null
+          snapshot_json: Json
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          bl_number: string
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          issued_at?: string
+          pdf_storage_path?: string | null
+          snapshot_json?: Json
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          bl_number?: string
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          issued_at?: string
+          pdf_storage_path?: string | null
+          snapshot_json?: Json
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bons_livraison_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       business_payments: {
         Row: {
@@ -451,6 +680,169 @@ export type Database = {
             columns: ["plan_id"]
             isOneToOne: false
             referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaign_daily_entries: {
+        Row: {
+          campaign_id: string | null
+          created_at: string
+          created_by: string | null
+          "DigiCom Business": string
+          entry_date: string
+          id: string
+          leads: number
+          notes: string | null
+          platform: string
+          spend: number
+          updated_at: string
+        }
+        Insert: {
+          campaign_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          "DigiCom Business": string
+          entry_date: string
+          id?: string
+          leads?: number
+          notes?: string | null
+          platform: string
+          spend?: number
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          "DigiCom Business"?: string
+          entry_date?: string
+          id?: string
+          leads?: number
+          notes?: string | null
+          platform?: string
+          spend?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_daily_entries_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_daily_entries_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_daily_entries_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaigns: {
+        Row: {
+          audience: Json | null
+          campaign_type: string
+          conversion_content: string | null
+          conversion_type: string
+          created_at: string
+          created_by: string | null
+          cta_label: string | null
+          currency: string
+          daily_budget: number | null
+          "DigiCom Business": string
+          end_date: string | null
+          headline: string | null
+          id: string
+          media: Json
+          name: string
+          notes: string | null
+          objective: string | null
+          pixel_id: string | null
+          platform: string
+          primary_text: string | null
+          spending_type: string
+          start_date: string | null
+          status: string
+          total_budget: number | null
+          updated_at: string
+        }
+        Insert: {
+          audience?: Json | null
+          campaign_type: string
+          conversion_content?: string | null
+          conversion_type: string
+          created_at?: string
+          created_by?: string | null
+          cta_label?: string | null
+          currency?: string
+          daily_budget?: number | null
+          "DigiCom Business": string
+          end_date?: string | null
+          headline?: string | null
+          id?: string
+          media?: Json
+          name: string
+          notes?: string | null
+          objective?: string | null
+          pixel_id?: string | null
+          platform: string
+          primary_text?: string | null
+          spending_type: string
+          start_date?: string | null
+          status?: string
+          total_budget?: number | null
+          updated_at?: string
+        }
+        Update: {
+          audience?: Json | null
+          campaign_type?: string
+          conversion_content?: string | null
+          conversion_type?: string
+          created_at?: string
+          created_by?: string | null
+          cta_label?: string | null
+          currency?: string
+          daily_budget?: number | null
+          "DigiCom Business"?: string
+          end_date?: string | null
+          headline?: string | null
+          id?: string
+          media?: Json
+          name?: string
+          notes?: string | null
+          objective?: string | null
+          pixel_id?: string | null
+          platform?: string
+          primary_text?: string | null
+          spending_type?: string
+          start_date?: string | null
+          status?: string
+          total_budget?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaigns_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaigns_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -661,6 +1053,7 @@ export type Database = {
           fee: number
           id: string
           master_city_id: string | null
+          return_fee: number
           updated_at: string | null
         }
         Insert: {
@@ -671,6 +1064,7 @@ export type Database = {
           fee?: number
           id?: string
           master_city_id?: string | null
+          return_fee?: number
           updated_at?: string | null
         }
         Update: {
@@ -681,6 +1075,7 @@ export type Database = {
           fee?: number
           id?: string
           master_city_id?: string | null
+          return_fee?: number
           updated_at?: string | null
         }
         Relationships: [
@@ -1120,40 +1515,56 @@ export type Database = {
         Row: {
           courier_id: string | null
           created_at: string | null
+          created_by: string | null
           "DigiCom Business": string | null
           external_id: string | null
           id: string
+          is_finalized: boolean | null
           parcel_count: number | null
           reference: string | null
           status_id: string | null
           updated_at: string | null
+          zone_id: string | null
         }
         Insert: {
           courier_id?: string | null
           created_at?: string | null
+          created_by?: string | null
           "DigiCom Business"?: string | null
           external_id?: string | null
           id?: string
+          is_finalized?: boolean | null
           parcel_count?: number | null
           reference?: string | null
           status_id?: string | null
           updated_at?: string | null
+          zone_id?: string | null
         }
         Update: {
           courier_id?: string | null
           created_at?: string | null
+          created_by?: string | null
           "DigiCom Business"?: string | null
           external_id?: string | null
           id?: string
+          is_finalized?: boolean | null
           parcel_count?: number | null
           reference?: string | null
           status_id?: string | null
           updated_at?: string | null
+          zone_id?: string | null
         }
         Relationships: [
           {
             foreignKeyName: "courier_delivery_notes_courier_id_fkey"
             columns: ["courier_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "courier_delivery_notes_created_by_fkey"
+            columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
@@ -1172,6 +1583,13 @@ export type Database = {
             referencedRelation: "package_statuses"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "courier_delivery_notes_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "zones"
+            referencedColumns: ["id"]
+          },
         ]
       }
       courier_fees: {
@@ -1183,6 +1601,7 @@ export type Database = {
           fee: number
           id: string
           master_city_id: string | null
+          return_fee: number
           updated_at: string | null
         }
         Insert: {
@@ -1193,6 +1612,7 @@ export type Database = {
           fee?: number
           id?: string
           master_city_id?: string | null
+          return_fee?: number
           updated_at?: string | null
         }
         Update: {
@@ -1203,6 +1623,7 @@ export type Database = {
           fee?: number
           id?: string
           master_city_id?: string | null
+          return_fee?: number
           updated_at?: string | null
         }
         Relationships: [
@@ -1236,6 +1657,60 @@ export type Database = {
           },
         ]
       }
+      courier_notifications: {
+        Row: {
+          body: string | null
+          courier_id: string
+          created_at: string
+          "DigiCom Business": string
+          id: string
+          payload: Json | null
+          read_at: string | null
+          target_url: string | null
+          title: string
+          type: string
+        }
+        Insert: {
+          body?: string | null
+          courier_id: string
+          created_at?: string
+          "DigiCom Business": string
+          id?: string
+          payload?: Json | null
+          read_at?: string | null
+          target_url?: string | null
+          title: string
+          type: string
+        }
+        Update: {
+          body?: string | null
+          courier_id?: string
+          created_at?: string
+          "DigiCom Business"?: string
+          id?: string
+          payload?: Json | null
+          read_at?: string | null
+          target_url?: string | null
+          title?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "courier_notifications_courier_id_fkey"
+            columns: ["courier_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "courier_notifications_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       courier_parcels: {
         Row: {
           courier_delivery_note_id: string | null
@@ -1245,9 +1720,14 @@ export type Database = {
           "DigiCom Business": string | null
           external_id: string | null
           id: string
+          is_fragile: boolean | null
+          is_open: boolean | null
+          is_try_on: boolean | null
           order_id: string | null
           provider_response: Json | null
           reference: string | null
+          status_color: string | null
+          status_id: string | null
           status_label: string | null
           tracking_code: string | null
           updated_at: string | null
@@ -1260,9 +1740,14 @@ export type Database = {
           "DigiCom Business"?: string | null
           external_id?: string | null
           id?: string
+          is_fragile?: boolean | null
+          is_open?: boolean | null
+          is_try_on?: boolean | null
           order_id?: string | null
           provider_response?: Json | null
           reference?: string | null
+          status_color?: string | null
+          status_id?: string | null
           status_label?: string | null
           tracking_code?: string | null
           updated_at?: string | null
@@ -1275,9 +1760,14 @@ export type Database = {
           "DigiCom Business"?: string | null
           external_id?: string | null
           id?: string
+          is_fragile?: boolean | null
+          is_open?: boolean | null
+          is_try_on?: boolean | null
           order_id?: string | null
           provider_response?: Json | null
           reference?: string | null
+          status_color?: string | null
+          status_id?: string | null
           status_label?: string | null
           tracking_code?: string | null
           updated_at?: string | null
@@ -1318,6 +1808,196 @@ export type Database = {
             referencedRelation: "orders"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "courier_parcels_status_id_fkey"
+            columns: ["status_id"]
+            isOneToOne: false
+            referencedRelation: "package_statuses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      courier_payment_note_orders: {
+        Row: {
+          amount: number
+          created_at: string | null
+          "DigiCom Business": string | null
+          id: string
+          order_id: string
+          payment_note_id: string
+          shipping_fee: number
+          tracking_code: string | null
+        }
+        Insert: {
+          amount?: number
+          created_at?: string | null
+          "DigiCom Business"?: string | null
+          id?: string
+          order_id: string
+          payment_note_id: string
+          shipping_fee?: number
+          tracking_code?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          "DigiCom Business"?: string | null
+          id?: string
+          order_id?: string
+          payment_note_id?: string
+          shipping_fee?: number
+          tracking_code?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "courier_payment_note_orders_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "courier_payment_note_orders_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "courier_payment_note_orders_payment_note_id_fkey"
+            columns: ["payment_note_id"]
+            isOneToOne: false
+            referencedRelation: "courier_payment_notes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      courier_payment_notes: {
+        Row: {
+          courier_id: string | null
+          created_at: string | null
+          created_by: string | null
+          "DigiCom Business": string | null
+          id: string
+          net_amount: number
+          note: string | null
+          order_count: number
+          paid_at: string | null
+          reference: string
+          status: string
+          total_amount: number
+          total_shipping_fees: number
+          updated_at: string | null
+        }
+        Insert: {
+          courier_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          "DigiCom Business"?: string | null
+          id?: string
+          net_amount?: number
+          note?: string | null
+          order_count?: number
+          paid_at?: string | null
+          reference: string
+          status?: string
+          total_amount?: number
+          total_shipping_fees?: number
+          updated_at?: string | null
+        }
+        Update: {
+          courier_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          "DigiCom Business"?: string | null
+          id?: string
+          net_amount?: number
+          note?: string | null
+          order_count?: number
+          paid_at?: string | null
+          reference?: string
+          status?: string
+          total_amount?: number
+          total_shipping_fees?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "courier_payment_notes_courier_id_fkey"
+            columns: ["courier_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "courier_payment_notes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "courier_payment_notes_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      courier_return_note_orders: {
+        Row: {
+          amount: number | null
+          created_at: string
+          "DigiCom Business": string | null
+          id: string
+          order_id: string | null
+          return_note_id: string
+          shipping_fee: number | null
+          tracking_code: string | null
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string
+          "DigiCom Business"?: string | null
+          id?: string
+          order_id?: string | null
+          return_note_id: string
+          shipping_fee?: number | null
+          tracking_code?: string | null
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string
+          "DigiCom Business"?: string | null
+          id?: string
+          order_id?: string | null
+          return_note_id?: string
+          shipping_fee?: number | null
+          tracking_code?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "courier_return_note_orders_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "courier_return_note_orders_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "courier_return_note_orders_return_note_id_fkey"
+            columns: ["return_note_id"]
+            isOneToOne: false
+            referencedRelation: "courier_return_notes"
+            referencedColumns: ["id"]
+          },
         ]
       }
       courier_return_notes: {
@@ -1325,30 +2005,54 @@ export type Database = {
           courier_delivery_note_id: string | null
           courier_id: string | null
           created_at: string | null
+          created_by: string | null
           "DigiCom Business": string | null
           id: string
+          net_amount: number | null
+          note: string | null
+          order_count: number | null
+          received_at: string | null
           reference: string | null
+          status: string
           status_id: string | null
+          total_amount: number | null
+          total_shipping_fees: number | null
           updated_at: string | null
         }
         Insert: {
           courier_delivery_note_id?: string | null
           courier_id?: string | null
           created_at?: string | null
+          created_by?: string | null
           "DigiCom Business"?: string | null
           id?: string
+          net_amount?: number | null
+          note?: string | null
+          order_count?: number | null
+          received_at?: string | null
           reference?: string | null
+          status?: string
           status_id?: string | null
+          total_amount?: number | null
+          total_shipping_fees?: number | null
           updated_at?: string | null
         }
         Update: {
           courier_delivery_note_id?: string | null
           courier_id?: string | null
           created_at?: string | null
+          created_by?: string | null
           "DigiCom Business"?: string | null
           id?: string
+          net_amount?: number | null
+          note?: string | null
+          order_count?: number | null
+          received_at?: string | null
           reference?: string | null
+          status?: string
           status_id?: string | null
+          total_amount?: number | null
+          total_shipping_fees?: number | null
           updated_at?: string | null
         }
         Relationships: [
@@ -1362,6 +2066,13 @@ export type Database = {
           {
             foreignKeyName: "courier_return_notes_courier_id_fkey"
             columns: ["courier_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "courier_return_notes_created_by_fkey"
+            columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
@@ -1490,183 +2201,6 @@ export type Database = {
           },
         ]
       }
-      factures: {
-        Row: {
-          business_id: string
-          created_at: string
-          created_by: string | null
-          devis_reference: string | null
-          due_date: string | null
-          facture_number: string
-          id: string
-          issued_at: string
-          payment_terms: string | null
-          pdf_storage_path: string | null
-          snapshot_json: Json
-          status: string
-          subtotal_ht: number
-          total_ttc: number
-          tva_amount: number
-          tva_rate: number
-          updated_at: string
-        }
-        Insert: {
-          business_id: string
-          created_at?: string
-          created_by?: string | null
-          devis_reference?: string | null
-          due_date?: string | null
-          facture_number: string
-          id?: string
-          issued_at?: string
-          payment_terms?: string | null
-          pdf_storage_path?: string | null
-          snapshot_json?: Json
-          status?: string
-          subtotal_ht?: number
-          total_ttc?: number
-          tva_amount?: number
-          tva_rate?: number
-          updated_at?: string
-        }
-        Update: {
-          business_id?: string
-          created_at?: string
-          created_by?: string | null
-          devis_reference?: string | null
-          due_date?: string | null
-          facture_number?: string
-          id?: string
-          issued_at?: string
-          payment_terms?: string | null
-          pdf_storage_path?: string | null
-          snapshot_json?: Json
-          status?: string
-          subtotal_ht?: number
-          total_ttc?: number
-          tva_amount?: number
-          tva_rate?: number
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "factures_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      bons_commande: {
-        Row: {
-          bc_number: string
-          business_id: string
-          created_at: string
-          created_by: string | null
-          direction: string
-          id: string
-          issued_at: string
-          pdf_storage_path: string | null
-          snapshot_json: Json
-          status: string
-          subtotal_ht: number
-          total_ttc: number
-          tva_amount: number
-          tva_rate: number
-          updated_at: string
-        }
-        Insert: {
-          bc_number: string
-          business_id: string
-          created_at?: string
-          created_by?: string | null
-          direction: string
-          id?: string
-          issued_at?: string
-          pdf_storage_path?: string | null
-          snapshot_json?: Json
-          status?: string
-          subtotal_ht?: number
-          total_ttc?: number
-          tva_amount?: number
-          tva_rate?: number
-          updated_at?: string
-        }
-        Update: {
-          bc_number?: string
-          business_id?: string
-          created_at?: string
-          created_by?: string | null
-          direction?: string
-          id?: string
-          issued_at?: string
-          pdf_storage_path?: string | null
-          snapshot_json?: Json
-          status?: string
-          subtotal_ht?: number
-          total_ttc?: number
-          tva_amount?: number
-          tva_rate?: number
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bons_commande_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      bons_livraison: {
-        Row: {
-          bl_number: string
-          business_id: string
-          created_at: string
-          created_by: string | null
-          id: string
-          issued_at: string
-          pdf_storage_path: string | null
-          snapshot_json: Json
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          bl_number: string
-          business_id: string
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          issued_at?: string
-          pdf_storage_path?: string | null
-          snapshot_json?: Json
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          bl_number?: string
-          business_id?: string
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          issued_at?: string
-          pdf_storage_path?: string | null
-          snapshot_json?: Json
-          status?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bons_livraison_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       expense_types: {
         Row: {
           active: boolean | null
@@ -1756,6 +2290,127 @@ export type Database = {
           },
         ]
       }
+      factures: {
+        Row: {
+          business_id: string
+          created_at: string
+          created_by: string | null
+          devis_reference: string | null
+          due_date: string | null
+          facture_number: string
+          id: string
+          issued_at: string
+          payment_terms: string | null
+          pdf_storage_path: string | null
+          snapshot_json: Json
+          status: string
+          subtotal_ht: number
+          total_ttc: number
+          tva_amount: number
+          tva_rate: number
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          devis_reference?: string | null
+          due_date?: string | null
+          facture_number: string
+          id?: string
+          issued_at?: string
+          payment_terms?: string | null
+          pdf_storage_path?: string | null
+          snapshot_json?: Json
+          status?: string
+          subtotal_ht?: number
+          total_ttc?: number
+          tva_amount?: number
+          tva_rate?: number
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          devis_reference?: string | null
+          due_date?: string | null
+          facture_number?: string
+          id?: string
+          issued_at?: string
+          payment_terms?: string | null
+          pdf_storage_path?: string | null
+          snapshot_json?: Json
+          status?: string
+          subtotal_ht?: number
+          total_ttc?: number
+          tva_amount?: number
+          tva_rate?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "factures_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      google_analytics_connections: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          "DigiCom Business": string
+          display_name: string
+          id: string
+          is_default: boolean
+          last_verified_at: string | null
+          property_id: string
+          updated_at: string
+          verification_error: string | null
+          verification_status: string
+          website_url: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          "DigiCom Business": string
+          display_name: string
+          id?: string
+          is_default?: boolean
+          last_verified_at?: string | null
+          property_id: string
+          updated_at?: string
+          verification_error?: string | null
+          verification_status?: string
+          website_url?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          "DigiCom Business"?: string
+          display_name?: string
+          id?: string
+          is_default?: boolean
+          last_verified_at?: string | null
+          property_id?: string
+          updated_at?: string
+          verification_error?: string | null
+          verification_status?: string
+          website_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_analytics_connections_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       master_cities: {
         Row: {
           ameex_city_id: string | null
@@ -1829,6 +2484,206 @@ export type Database = {
             columns: ["zone_id"]
             isOneToOne: false
             referencedRelation: "zones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mediabuyer_demands: {
+        Row: {
+          admin_response: string | null
+          admin_response_media: Json
+          category: string
+          content: string | null
+          created_at: string
+          "DigiCom Business": string
+          id: string
+          media: Json
+          mediabuyer_id: string
+          priority: string
+          responded_at: string | null
+          status: string
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          admin_response?: string | null
+          admin_response_media?: Json
+          category: string
+          content?: string | null
+          created_at?: string
+          "DigiCom Business": string
+          id?: string
+          media?: Json
+          mediabuyer_id: string
+          priority?: string
+          responded_at?: string | null
+          status?: string
+          subject: string
+          updated_at?: string
+        }
+        Update: {
+          admin_response?: string | null
+          admin_response_media?: Json
+          category?: string
+          content?: string | null
+          created_at?: string
+          "DigiCom Business"?: string
+          id?: string
+          media?: Json
+          mediabuyer_id?: string
+          priority?: string
+          responded_at?: string | null
+          status?: string
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mediabuyer_demands_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mediabuyer_demands_mediabuyer_id_fkey"
+            columns: ["mediabuyer_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mediabuyer_payments: {
+        Row: {
+          bank_snapshot: Json | null
+          campaigns_count: number
+          commission_earned: number
+          created_at: string
+          delivered_orders: number
+          "DigiCom Business": string
+          id: string
+          mediabuyer_id: string
+          paid_at: string | null
+          payment_type: string
+          payout_month: string
+          salary_earned: number
+          status: string
+          total_amount: number
+          total_spend: number
+          updated_at: string
+        }
+        Insert: {
+          bank_snapshot?: Json | null
+          campaigns_count?: number
+          commission_earned?: number
+          created_at?: string
+          delivered_orders?: number
+          "DigiCom Business": string
+          id?: string
+          mediabuyer_id: string
+          paid_at?: string | null
+          payment_type: string
+          payout_month: string
+          salary_earned?: number
+          status?: string
+          total_amount?: number
+          total_spend?: number
+          updated_at?: string
+        }
+        Update: {
+          bank_snapshot?: Json | null
+          campaigns_count?: number
+          commission_earned?: number
+          created_at?: string
+          delivered_orders?: number
+          "DigiCom Business"?: string
+          id?: string
+          mediabuyer_id?: string
+          paid_at?: string | null
+          payment_type?: string
+          payout_month?: string
+          salary_earned?: number
+          status?: string
+          total_amount?: number
+          total_spend?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mediabuyer_payments_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mediabuyer_payments_mediabuyer_id_fkey"
+            columns: ["mediabuyer_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meta_ads_connections: {
+        Row: {
+          ad_account_id: string
+          business_id_meta: string | null
+          created_at: string
+          created_by: string | null
+          "DigiCom Business": string
+          display_name: string
+          id: string
+          is_default: boolean
+          last_verified_at: string | null
+          pixel_id: string | null
+          token_expires_at: string | null
+          token_secret_id: string
+          updated_at: string
+          verification_error: string | null
+          verification_status: string
+        }
+        Insert: {
+          ad_account_id: string
+          business_id_meta?: string | null
+          created_at?: string
+          created_by?: string | null
+          "DigiCom Business": string
+          display_name: string
+          id?: string
+          is_default?: boolean
+          last_verified_at?: string | null
+          pixel_id?: string | null
+          token_expires_at?: string | null
+          token_secret_id: string
+          updated_at?: string
+          verification_error?: string | null
+          verification_status?: string
+        }
+        Update: {
+          ad_account_id?: string
+          business_id_meta?: string | null
+          created_at?: string
+          created_by?: string | null
+          "DigiCom Business"?: string
+          display_name?: string
+          id?: string
+          is_default?: boolean
+          last_verified_at?: string | null
+          pixel_id?: string | null
+          token_expires_at?: string | null
+          token_secret_id?: string
+          updated_at?: string
+          verification_error?: string | null
+          verification_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_ads_connections_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -2024,11 +2879,16 @@ export type Database = {
           code: string
           color: string | null
           created_at: string | null
+          icon: string | null
           id: string
           label: string
+          perf_breakdown: boolean
+          perf_breakdown_phase: string | null
           ranking: number | null
           recheck: boolean | null
           show_in_order: boolean
+          show_in_quick_status: boolean
+          show_in_seller_confirmation: boolean
           updated_at: string | null
         }
         Insert: {
@@ -2037,11 +2897,16 @@ export type Database = {
           code: string
           color?: string | null
           created_at?: string | null
+          icon?: string | null
           id?: string
           label: string
+          perf_breakdown?: boolean
+          perf_breakdown_phase?: string | null
           ranking?: number | null
           recheck?: boolean | null
           show_in_order?: boolean
+          show_in_quick_status?: boolean
+          show_in_seller_confirmation?: boolean
           updated_at?: string | null
         }
         Update: {
@@ -2050,11 +2915,16 @@ export type Database = {
           code?: string
           color?: string | null
           created_at?: string | null
+          icon?: string | null
           id?: string
           label?: string
+          perf_breakdown?: boolean
+          perf_breakdown_phase?: string | null
           ranking?: number | null
           recheck?: boolean | null
           show_in_order?: boolean
+          show_in_quick_status?: boolean
+          show_in_seller_confirmation?: boolean
           updated_at?: string | null
         }
         Relationships: []
@@ -2074,6 +2944,8 @@ export type Database = {
           confirmed_by_id: string | null
           courier_id: string | null
           created_at: string | null
+          current_courier_payment_note_id: string | null
+          current_courier_return_note_id: string | null
           current_delivery_note_id: string | null
           current_return_note_id: string | null
           date: string | null
@@ -2126,6 +2998,8 @@ export type Database = {
           confirmed_by_id?: string | null
           courier_id?: string | null
           created_at?: string | null
+          current_courier_payment_note_id?: string | null
+          current_courier_return_note_id?: string | null
           current_delivery_note_id?: string | null
           current_return_note_id?: string | null
           date?: string | null
@@ -2178,6 +3052,8 @@ export type Database = {
           confirmed_by_id?: string | null
           courier_id?: string | null
           created_at?: string | null
+          current_courier_payment_note_id?: string | null
+          current_courier_return_note_id?: string | null
           current_delivery_note_id?: string | null
           current_return_note_id?: string | null
           date?: string | null
@@ -2250,6 +3126,20 @@ export type Database = {
             columns: ["courier_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_current_courier_payment_note_id_fkey"
+            columns: ["current_courier_payment_note_id"]
+            isOneToOne: false
+            referencedRelation: "courier_payment_notes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_current_courier_return_note_id_fkey"
+            columns: ["current_courier_return_note_id"]
+            isOneToOne: false
+            referencedRelation: "courier_return_notes"
             referencedColumns: ["id"]
           },
           {
@@ -2340,10 +3230,15 @@ export type Database = {
           color: string | null
           created_at: string | null
           delivery_service_statuses: Json | null
+          icon: string | null
           id: string
           label: string
+          perf_breakdown: boolean
+          perf_breakdown_phase: string | null
           ranking: number | null
           recheck: boolean | null
+          show_in_courier: boolean
+          show_in_seller_suivi: boolean
           updated_at: string | null
         }
         Insert: {
@@ -2353,10 +3248,15 @@ export type Database = {
           color?: string | null
           created_at?: string | null
           delivery_service_statuses?: Json | null
+          icon?: string | null
           id?: string
           label: string
+          perf_breakdown?: boolean
+          perf_breakdown_phase?: string | null
           ranking?: number | null
           recheck?: boolean | null
+          show_in_courier?: boolean
+          show_in_seller_suivi?: boolean
           updated_at?: string | null
         }
         Update: {
@@ -2366,10 +3266,15 @@ export type Database = {
           color?: string | null
           created_at?: string | null
           delivery_service_statuses?: Json | null
+          icon?: string | null
           id?: string
           label?: string
+          perf_breakdown?: boolean
+          perf_breakdown_phase?: string | null
           ranking?: number | null
           recheck?: boolean | null
+          show_in_courier?: boolean
+          show_in_seller_suivi?: boolean
           updated_at?: string | null
         }
         Relationships: []
@@ -2747,6 +3652,63 @@ export type Database = {
           },
         ]
       }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          "DigiCom Business": string | null
+          endpoint: string
+          id: string
+          p256dh: string
+          platform: string | null
+          revoked_at: string | null
+          updated_at: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          "DigiCom Business"?: string | null
+          endpoint: string
+          id?: string
+          p256dh: string
+          platform?: string | null
+          revoked_at?: string | null
+          updated_at?: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          "DigiCom Business"?: string | null
+          endpoint?: string
+          id?: string
+          p256dh?: string
+          platform?: string | null
+          revoked_at?: string | null
+          updated_at?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_subscriptions_DigiCom Business_fkey"
+            columns: ["DigiCom Business"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "push_subscriptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sales_channels: {
         Row: {
           consumer_key: string | null
@@ -2851,11 +3813,13 @@ export type Database = {
       seller_demands: {
         Row: {
           admin_response: string | null
+          admin_response_media: Json
           category: string | null
           content: string | null
           created_at: string | null
-          "DigiCom Business": string | null
+          "DigiCom Business": string
           id: string
+          media: Json
           priority: string | null
           responded_at: string | null
           seller_id: string | null
@@ -2865,11 +3829,13 @@ export type Database = {
         }
         Insert: {
           admin_response?: string | null
+          admin_response_media?: Json
           category?: string | null
           content?: string | null
           created_at?: string | null
-          "DigiCom Business"?: string | null
+          "DigiCom Business": string
           id?: string
+          media?: Json
           priority?: string | null
           responded_at?: string | null
           seller_id?: string | null
@@ -2879,11 +3845,13 @@ export type Database = {
         }
         Update: {
           admin_response?: string | null
+          admin_response_media?: Json
           category?: string | null
           content?: string | null
           created_at?: string | null
-          "DigiCom Business"?: string | null
+          "DigiCom Business"?: string
           id?: string
+          media?: Json
           priority?: string | null
           responded_at?: string | null
           seller_id?: string | null
@@ -3012,6 +3980,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      tracking_sync_runs: {
+        Row: {
+          changed: number
+          duration_ms: number | null
+          error: string | null
+          failed: number
+          finished_at: string | null
+          id: string
+          started_at: string
+          status: string
+          total: number
+          trigger: string
+        }
+        Insert: {
+          changed?: number
+          duration_ms?: number | null
+          error?: string | null
+          failed?: number
+          finished_at?: string | null
+          id?: string
+          started_at?: string
+          status?: string
+          total?: number
+          trigger?: string
+        }
+        Update: {
+          changed?: number
+          duration_ms?: number | null
+          error?: string | null
+          failed?: number
+          finished_at?: string | null
+          id?: string
+          started_at?: string
+          status?: string
+          total?: number
+          trigger?: string
+        }
+        Relationships: []
       }
       transactions: {
         Row: {
@@ -3213,15 +4220,20 @@ export type Database = {
           cin_number: string | null
           commission_basis: string
           commission_price: number | null
+          courier_parcel_fragile: boolean | null
+          courier_parcel_open: boolean | null
+          courier_parcel_try_on: boolean | null
           created_at: string
           "DigiCom Business": string | null
           email: string
           id: string
           name: string
+          payment_type: string | null
           permissions: Json | null
           phone: string | null
           products: Json | null
           role: Database["public"]["Enums"]["user_role"]
+          salary_amount: number | null
           updated_at: string
           username: string
         }
@@ -3236,15 +4248,20 @@ export type Database = {
           cin_number?: string | null
           commission_basis?: string
           commission_price?: number | null
+          courier_parcel_fragile?: boolean | null
+          courier_parcel_open?: boolean | null
+          courier_parcel_try_on?: boolean | null
           created_at?: string
           "DigiCom Business"?: string | null
           email: string
           id?: string
           name: string
+          payment_type?: string | null
           permissions?: Json | null
           phone?: string | null
           products?: Json | null
           role: Database["public"]["Enums"]["user_role"]
+          salary_amount?: number | null
           updated_at?: string
           username: string
         }
@@ -3259,15 +4276,20 @@ export type Database = {
           cin_number?: string | null
           commission_basis?: string
           commission_price?: number | null
+          courier_parcel_fragile?: boolean | null
+          courier_parcel_open?: boolean | null
+          courier_parcel_try_on?: boolean | null
           created_at?: string
           "DigiCom Business"?: string | null
           email?: string
           id?: string
           name?: string
+          payment_type?: string | null
           permissions?: Json | null
           phone?: string | null
           products?: Json | null
           role?: Database["public"]["Enums"]["user_role"]
+          salary_amount?: number | null
           updated_at?: string
           username?: string
         }
@@ -3329,24 +4351,6 @@ export type Database = {
           },
         ]
       }
-      zones: {
-        Row: {
-          created_at: string | null
-          id: string
-          name: string
-        }
-        Insert: {
-          created_at?: string | null
-          id?: string
-          name: string
-        }
-        Update: {
-          created_at?: string | null
-          id?: string
-          name?: string
-        }
-        Relationships: []
-      }
       whatsapp_auto_replies: {
         Row: {
           active: boolean
@@ -3398,11 +4402,124 @@ export type Database = {
           },
         ]
       }
+      whatsapp_chat_labels: {
+        Row: {
+          business_id: string
+          created_at: string
+          id: string
+          instance_id: string | null
+          label_id: string
+          remote_jid: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          id?: string
+          instance_id?: string | null
+          label_id: string
+          remote_jid: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          id?: string
+          instance_id?: string | null
+          label_id?: string
+          remote_jid?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_chat_labels_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_chat_labels_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_chat_labels_label_id_fkey"
+            columns: ["label_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_labels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_chat_settings: {
+        Row: {
+          business_id: string
+          created_at: string
+          id: string
+          instance_id: string | null
+          is_archived: boolean
+          is_blocked: boolean
+          is_favorited: boolean
+          is_muted: boolean
+          is_pinned: boolean
+          last_read_at: number | null
+          muted_until: string | null
+          remote_jid: string
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          id?: string
+          instance_id?: string | null
+          is_archived?: boolean
+          is_blocked?: boolean
+          is_favorited?: boolean
+          is_muted?: boolean
+          is_pinned?: boolean
+          last_read_at?: number | null
+          muted_until?: string | null
+          remote_jid: string
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          id?: string
+          instance_id?: string | null
+          is_archived?: boolean
+          is_blocked?: boolean
+          is_favorited?: boolean
+          is_muted?: boolean
+          is_pinned?: boolean
+          last_read_at?: number | null
+          muted_until?: string | null
+          remote_jid?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_chat_settings_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_chat_settings_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_contacts: {
         Row: {
           business_id: string
           created_at: string
           id: string
+          instance_id: string | null
           name: string | null
           phone_number: string
           profile_pic: string | null
@@ -3412,6 +4529,7 @@ export type Database = {
           business_id: string
           created_at?: string
           id?: string
+          instance_id?: string | null
           name?: string | null
           phone_number: string
           profile_pic?: string | null
@@ -3421,6 +4539,7 @@ export type Database = {
           business_id?: string
           created_at?: string
           id?: string
+          instance_id?: string | null
           name?: string | null
           phone_number?: string
           profile_pic?: string | null
@@ -3432,6 +4551,93 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_contacts_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_conversations: {
+        Row: {
+          business_id: string
+          contact_id: string | null
+          created_at: string | null
+          display_name: string | null
+          group_id: string | null
+          id: string
+          instance_id: string
+          jid: string
+          last_message_content: string | null
+          last_message_direction: string | null
+          last_message_id: string | null
+          last_message_status: string | null
+          last_message_ts: string | null
+          last_message_type: string | null
+          lid_jid: string | null
+          message_count: number | null
+          phone_jid: string | null
+          profile_pic: string | null
+          type: string
+          unread_count: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          business_id: string
+          contact_id?: string | null
+          created_at?: string | null
+          display_name?: string | null
+          group_id?: string | null
+          id?: string
+          instance_id: string
+          jid: string
+          last_message_content?: string | null
+          last_message_direction?: string | null
+          last_message_id?: string | null
+          last_message_status?: string | null
+          last_message_ts?: string | null
+          last_message_type?: string | null
+          lid_jid?: string | null
+          message_count?: number | null
+          phone_jid?: string | null
+          profile_pic?: string | null
+          type?: string
+          unread_count?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          business_id?: string
+          contact_id?: string | null
+          created_at?: string | null
+          display_name?: string | null
+          group_id?: string | null
+          id?: string
+          instance_id?: string
+          jid?: string
+          last_message_content?: string | null
+          last_message_direction?: string | null
+          last_message_id?: string | null
+          last_message_status?: string | null
+          last_message_ts?: string | null
+          last_message_type?: string | null
+          lid_jid?: string | null
+          message_count?: number | null
+          phone_jid?: string | null
+          profile_pic?: string | null
+          type?: string
+          unread_count?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_conversations_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
             referencedColumns: ["id"]
           },
         ]
@@ -3464,6 +4670,109 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_group_participants: {
+        Row: {
+          business_id: string
+          created_at: string | null
+          display_name: string | null
+          group_id: string
+          id: string
+          participant_jid: string
+          role: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string | null
+          display_name?: string | null
+          group_id: string
+          id?: string
+          participant_jid: string
+          role?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string | null
+          display_name?: string | null
+          group_id?: string
+          id?: string
+          participant_jid?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_group_participants_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_groups: {
+        Row: {
+          business_id: string
+          created_at: string | null
+          creation_ts: number | null
+          description: string | null
+          group_jid: string
+          id: string
+          instance_id: string
+          invite_code: string | null
+          is_announce: boolean | null
+          is_community: boolean | null
+          is_restrict: boolean | null
+          owner_jid: string | null
+          participant_count: number | null
+          profile_pic: string | null
+          subject: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          business_id: string
+          created_at?: string | null
+          creation_ts?: number | null
+          description?: string | null
+          group_jid: string
+          id?: string
+          instance_id: string
+          invite_code?: string | null
+          is_announce?: boolean | null
+          is_community?: boolean | null
+          is_restrict?: boolean | null
+          owner_jid?: string | null
+          participant_count?: number | null
+          profile_pic?: string | null
+          subject?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          business_id?: string
+          created_at?: string | null
+          creation_ts?: number | null
+          description?: string | null
+          group_jid?: string
+          id?: string
+          instance_id?: string
+          invite_code?: string | null
+          is_announce?: boolean | null
+          is_community?: boolean | null
+          is_restrict?: boolean | null
+          owner_jid?: string | null
+          participant_count?: number | null
+          profile_pic?: string | null
+          subject?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_groups_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
             referencedColumns: ["id"]
           },
         ]
@@ -3509,46 +4818,142 @@ export type Database = {
           },
         ]
       }
+      whatsapp_jid_mappings: {
+        Row: {
+          business_id: string
+          created_at: string
+          id: string
+          instance_id: string
+          lid_jid: string
+          phone_jid: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          id?: string
+          instance_id: string
+          lid_jid: string
+          phone_jid: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          id?: string
+          instance_id?: string
+          lid_jid?: string
+          phone_jid?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_jid_mappings_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_jid_mappings_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_labels: {
+        Row: {
+          business_id: string
+          color: string
+          created_at: string
+          id: string
+          instance_id: string | null
+          name: string
+          whatsapp_label_id: string | null
+        }
+        Insert: {
+          business_id: string
+          color?: string
+          created_at?: string
+          id?: string
+          instance_id?: string | null
+          name: string
+          whatsapp_label_id?: string | null
+        }
+        Update: {
+          business_id?: string
+          color?: string
+          created_at?: string
+          id?: string
+          instance_id?: string | null
+          name?: string
+          whatsapp_label_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_labels_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_labels_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_messages: {
         Row: {
           business_id: string
-          contact_id: string
+          contact_id: string | null
           content: string | null
+          conversation_id: string | null
           created_at: string
           direction: string
           id: string
           instance_id: string
           media_url: string | null
           message_id: string
+          raw_key: Json | null
           remote_jid: string
+          sender_jid: string | null
           status: string
           type: string
         }
         Insert: {
           business_id: string
-          contact_id: string
+          contact_id?: string | null
           content?: string | null
+          conversation_id?: string | null
           created_at?: string
           direction: string
           id?: string
           instance_id: string
           media_url?: string | null
           message_id: string
+          raw_key?: Json | null
           remote_jid: string
+          sender_jid?: string | null
           status?: string
           type?: string
         }
         Update: {
           business_id?: string
-          contact_id?: string
+          contact_id?: string | null
           content?: string | null
+          conversation_id?: string | null
           created_at?: string
           direction?: string
           id?: string
           instance_id?: string
           media_url?: string | null
           message_id?: string
+          raw_key?: Json | null
           remote_jid?: string
+          sender_jid?: string | null
           status?: string
           type?: string
         }
@@ -3575,6 +4980,238 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      whatsapp_pinned_messages: {
+        Row: {
+          business_id: string
+          content: string | null
+          created_at: string
+          id: string
+          instance_id: string | null
+          message_id: string
+          pinned_by: string | null
+          remote_jid: string
+        }
+        Insert: {
+          business_id: string
+          content?: string | null
+          created_at?: string
+          id?: string
+          instance_id?: string | null
+          message_id: string
+          pinned_by?: string | null
+          remote_jid: string
+        }
+        Update: {
+          business_id?: string
+          content?: string | null
+          created_at?: string
+          id?: string
+          instance_id?: string | null
+          message_id?: string
+          pinned_by?: string | null
+          remote_jid?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_pinned_messages_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_pinned_messages_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_starred_messages: {
+        Row: {
+          business_id: string
+          content: string | null
+          created_at: string
+          id: string
+          instance_id: string | null
+          message_id: string
+          remote_jid: string
+        }
+        Insert: {
+          business_id: string
+          content?: string | null
+          created_at?: string
+          id?: string
+          instance_id?: string | null
+          message_id: string
+          remote_jid: string
+        }
+        Update: {
+          business_id?: string
+          content?: string | null
+          created_at?: string
+          id?: string
+          instance_id?: string | null
+          message_id?: string
+          remote_jid?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_starred_messages_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_starred_messages_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_sync_jobs: {
+        Row: {
+          business_id: string
+          completed_at: string | null
+          created_at: string
+          current_phase: number
+          error_message: string | null
+          id: string
+          instance_id: string
+          instance_name: string
+          max_retries: number
+          phase_cursors: Json
+          phases: Json
+          retry_count: number
+          started_at: string | null
+          status: string
+          sync_metadata: Json
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          completed_at?: string | null
+          created_at?: string
+          current_phase?: number
+          error_message?: string | null
+          id?: string
+          instance_id: string
+          instance_name: string
+          max_retries?: number
+          phase_cursors?: Json
+          phases?: Json
+          retry_count?: number
+          started_at?: string | null
+          status?: string
+          sync_metadata?: Json
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          completed_at?: string | null
+          created_at?: string
+          current_phase?: number
+          error_message?: string | null
+          id?: string
+          instance_id?: string
+          instance_name?: string
+          max_retries?: number
+          phase_cursors?: Json
+          phases?: Json
+          retry_count?: number
+          started_at?: string | null
+          status?: string
+          sync_metadata?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_sync_jobs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_sync_jobs_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_user_instances: {
+        Row: {
+          business_id: string
+          created_at: string
+          id: string
+          instance_id: string | null
+          scope: string
+          user_id: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          id?: string
+          instance_id?: string | null
+          scope: string
+          user_id: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          id?: string
+          instance_id?: string | null
+          scope?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_user_instances_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_user_instances_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_user_instances_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      zones: {
+        Row: {
+          created_at: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
       }
     }
     Views: {
@@ -3609,14 +5246,50 @@ export type Database = {
       }
     }
     Functions: {
+      audit_log_dispatch_geo: { Args: never; Returns: undefined }
+      audit_log_reap_geo: { Args: never; Returns: undefined }
       check_expired_licenses: { Args: never; Returns: undefined }
       check_user_role: {
         Args: { allowed_roles: string[]; target_id: string }
         Returns: boolean
       }
+      create_meta_ads_connection: {
+        Args: {
+          p_ad_account_id: string
+          p_business_id: string
+          p_business_id_meta?: string
+          p_created_by?: string
+          p_display_name: string
+          p_is_default?: boolean
+          p_pixel_id?: string
+          p_token: string
+          p_token_expires_at?: string
+        }
+        Returns: string
+      }
+      current_user_digicom_business_id: { Args: never; Returns: string }
       delete_open_company_delivery_note: {
         Args: { p_delivery_note_id: string }
         Returns: undefined
+      }
+      get_chat_list: {
+        Args: { p_instance_id: string }
+        Returns: {
+          contact_id: string
+          conv_type: string
+          conversation_id: string
+          display_name: string
+          group_id: string
+          jid: string
+          last_message_content: string
+          last_message_direction: string
+          last_message_id: string
+          last_message_status: string
+          last_message_ts: string
+          last_message_type: string
+          profile_pic: string
+          unread_count: number
+        }[]
       }
       get_daily_attribution_progress: {
         Args: { p_business_id: string; p_date?: string }
@@ -3630,7 +5303,38 @@ export type Database = {
           seller_name: string
         }[]
       }
+      get_google_analytics_sa_key: { Args: never; Returns: string }
+      get_meta_ads_token: { Args: { p_connection_id: string }; Returns: string }
+      get_meta_app_secret: { Args: never; Returns: string }
+      get_meta_oauth_state_secret: { Args: never; Returns: string }
+      invoke_ozon_poll: { Args: { p_trigger?: string }; Returns: number }
+      invoke_tracking_sync: { Args: { p_trigger?: string }; Returns: number }
       is_owner: { Args: never; Returns: boolean }
+      log_audit: { Args: { payload: Json }; Returns: string }
+      match_package_status: {
+        Args: { p_status_value: string }
+        Returns: {
+          category: string
+          code: string
+          color: string
+          id: string
+          label: string
+        }[]
+      }
+      purge_soft_deleted_orders: { Args: never; Returns: undefined }
+      query_audit_logs: {
+        Args: {
+          p_filters?: Json
+          p_from?: string
+          p_limit?: number
+          p_offset?: number
+          p_to?: string
+        }
+        Returns: {
+          rows: Json
+          total: number
+        }[]
+      }
       reattribute_unassigned_orders: {
         Args: { p_business_id: string; p_date?: string }
         Returns: number
@@ -3643,6 +5347,8 @@ export type Database = {
         Args: { p_business_id: string; p_date?: string }
         Returns: undefined
       }
+      row_actor: { Args: never; Returns: Json }
+      scrub_sensitive: { Args: { j: Json }; Returns: Json }
       sum_order_units_for_seller_products: {
         Args: { p_order_id: string; p_seller_id: string }
         Returns: number
@@ -3668,6 +5374,20 @@ export type Database = {
           p_signature_url: string
         }
         Returns: Json
+      }
+      upsert_meta_ads_connection: {
+        Args: {
+          p_ad_account_id: string
+          p_business_id: string
+          p_business_id_meta?: string
+          p_created_by?: string
+          p_display_name: string
+          p_is_default?: boolean
+          p_pixel_id?: string
+          p_token: string
+          p_token_expires_at?: string
+        }
+        Returns: string
       }
     }
     Enums: {
@@ -3816,4 +5536,3 @@ export const Constants = {
     },
   },
 } as const
-

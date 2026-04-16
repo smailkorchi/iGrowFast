@@ -24,6 +24,10 @@ export interface OrderStatus {
   ranking: number | null;
   recheck: boolean | null;
   active: boolean | null;
+  show_in_quick_status: boolean;
+  show_in_seller_confirmation: boolean;
+  perf_breakdown: boolean;
+  perf_breakdown_phase: string | null;
 }
 
 export interface PackageStatus {
@@ -34,6 +38,10 @@ export interface PackageStatus {
   category: PkgCategory;
   ranking: number | null;
   delivery_service_statuses: unknown;
+  show_in_courier: boolean;
+  show_in_seller_suivi: boolean;
+  perf_breakdown: boolean;
+  perf_breakdown_phase: string | null;
 }
 
 export function useStatusCategories() {
@@ -45,7 +53,7 @@ export function useStatusCategories() {
       if (!activeBusinessId) return [];
       const { data } = await supabase
         .from('order_statuses')
-        .select('id, code, label, color, category, ranking, recheck, active')
+        .select('id, code, label, color, category, ranking, recheck, active, show_in_quick_status, show_in_seller_confirmation, perf_breakdown, perf_breakdown_phase')
         .order('ranking');
       return (data || []) as OrderStatus[];
     },
@@ -58,7 +66,7 @@ export function useStatusCategories() {
       if (!activeBusinessId) return [];
       const { data } = await supabase
         .from('package_statuses')
-        .select('id, code, label, color, category, ranking, delivery_service_statuses')
+        .select('id, code, label, color, category, ranking, delivery_service_statuses, show_in_courier, show_in_seller_suivi, perf_breakdown, perf_breakdown_phase')
         .order('ranking');
       return (data || []) as PackageStatus[];
     },
@@ -95,6 +103,19 @@ export function useStatusCategories() {
     const shippedPkgIds = collectIds(SHIPPED_PKG_CATS, pkgCatMap);
     const returnedPkgIds = collectIds(RETURNED_PKG_CATS, pkgCatMap);
 
+    // Performance breakdown sets
+    const preConfBreakdownIds = new Set(
+      orderStatuses.filter(s => s.perf_breakdown && s.perf_breakdown_phase === 'before_confirmation').map(s => s.id)
+    );
+    const postConfBreakdownIds = new Set(
+      packageStatuses.filter(s => s.perf_breakdown && s.perf_breakdown_phase === 'after_confirmation').map(s => s.id)
+    );
+
+    const getPreConfBreakdownStatuses = () =>
+      orderStatuses.filter(s => s.perf_breakdown && s.perf_breakdown_phase === 'before_confirmation');
+    const getPostConfBreakdownStatuses = () =>
+      packageStatuses.filter(s => s.perf_breakdown && s.perf_breakdown_phase === 'after_confirmation');
+
     return {
       orderStatuses,
       packageStatuses,
@@ -129,6 +150,11 @@ export function useStatusCategories() {
       deliveredPkgIds,
       shippedPkgIds,
       returnedPkgIds,
+
+      preConfBreakdownIds,
+      postConfBreakdownIds,
+      getPreConfBreakdownStatuses,
+      getPostConfBreakdownStatuses,
 
       getCategoryColor: (cat: string) =>
         ORDER_CATEGORY_COLORS[cat] || PKG_CATEGORY_COLORS[cat] || '#6b7280',

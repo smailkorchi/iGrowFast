@@ -17,7 +17,11 @@ import {
 } from 'recharts';
 import { format, startOfDay, endOfDay, isWithinInterval, startOfMonth, eachMonthOfInterval, subMonths } from 'date-fns';
 
-const EXPENSE_COLORS = ['#3b5e5e', '#7a9385', '#c93942', '#daddcc', '#F97316', '#6366F1'];
+const EXPENSE_COLORS = [
+    '#3b5e5e', '#7a9385', '#c93942', '#daddcc', '#F97316', '#6366F1',
+    '#0EA5E9', '#14B8A6', '#A855F7', '#EC4899', '#84CC16', '#F43F5E',
+    '#22D3EE', '#FBBF24', '#8B5CF6', '#EF4444', '#06B6D4', '#D946EF',
+];
 
 interface ProfitabilitySectionProps {
     businessId: string;
@@ -200,15 +204,22 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
         const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
         const roi = allExpenses > 0 ? (netProfit / allExpenses) * 100 : 0;
 
+        // Group "Other Expenses" by individual expense_type name
+        const expenseByType = new Map<string, number>();
+        filteredExpenses.forEach(e => {
+            const typeName = (e.expense_types as any)?.name?.trim() || 'Uncategorized';
+            expenseByType.set(typeName, (expenseByType.get(typeName) || 0) + Number(e.amount || 0));
+        });
+
         const expenseBreakdown = [
-            { name: 'COGS', value: totalCOGS },
+            { name: 'COGS (Product Cost)', value: totalCOGS },
             { name: 'Shipping', value: totalShippingCost },
             { name: 'Product Ads', value: spendProductAds },
             { name: 'Global Ads', value: spendGlobalAds },
             { name: 'Seller Salaries', value: totalSellerSalaries },
             { name: 'Media Buyer Salaries', value: totalMediabuyerSalaries },
-            { name: 'Other Expenses', value: totalExpenses },
-        ].filter(e => e.value > 0);
+            ...Array.from(expenseByType.entries()).map(([name, value]) => ({ name, value })),
+        ].filter(e => e.value > 0).sort((a, b) => b.value - a.value);
 
         const rangeStart = dateFilter.from || (filteredOrders.length > 0
             ? new Date(Math.min(...filteredOrders.filter(o => o.date).map(o => new Date(o.date!).getTime())))
@@ -419,71 +430,142 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
                         />
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                        <Card className="border-0 shadow-sm rounded-3xl lg:col-span-2">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-bold text-brand-navy">Revenue vs Expenses</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <ResponsiveContainer width="100%" height={300}>
-                                    <AreaChart data={metrics.trendData}>
-                                        <defs>
-                                            <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#10B981" stopOpacity={0.3} />
-                                                <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
-                                            </linearGradient>
-                                            <linearGradient id="colorExpenses" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#c93942" stopOpacity={0.3} />
-                                                <stop offset="95%" stopColor="#c93942" stopOpacity={0} />
-                                            </linearGradient>
-                                            <linearGradient id="colorProvisional" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.25} />
-                                                <stop offset="95%" stopColor="#F59E0B" stopOpacity={0} />
-                                            </linearGradient>
-                                        </defs>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                                        <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9ca3af' }} />
-                                        <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} />
-                                        <Tooltip
-                                            contentStyle={{ borderRadius: 16, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
-                                            formatter={(val: number) => `${val.toLocaleString('fr-MA')} MAD`}
-                                        />
-                                        <Area type="monotone" dataKey="revenue" stroke="#10B981" fill="url(#colorRevenue)" strokeWidth={2.5} name="Revenue (paid)" />
-                                        <Area type="monotone" dataKey="expenses" stroke="#c93942" fill="url(#colorExpenses)" strokeWidth={2.5} name="Expenses" />
-                                        <Area type="monotone" dataKey="provisional" stroke="#F59E0B" fill="url(#colorProvisional)" strokeWidth={2} strokeDasharray="5 3" name="Provisional Profit" />
-                                        <Legend />
-                                    </AreaChart>
-                                </ResponsiveContainer>
-                            </CardContent>
-                        </Card>
+                    {/* Revenue vs Expenses — full width */}
+                    <Card className="border-0 shadow-sm rounded-3xl">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-bold text-brand-navy">Revenue vs Expenses</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <ResponsiveContainer width="100%" height={300}>
+                                <AreaChart data={metrics.trendData}>
+                                    <defs>
+                                        <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#10B981" stopOpacity={0.3} />
+                                            <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
+                                        </linearGradient>
+                                        <linearGradient id="colorExpenses" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#c93942" stopOpacity={0.3} />
+                                            <stop offset="95%" stopColor="#c93942" stopOpacity={0} />
+                                        </linearGradient>
+                                        <linearGradient id="colorProvisional" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.25} />
+                                            <stop offset="95%" stopColor="#F59E0B" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                    <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9ca3af' }} />
+                                    <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} />
+                                    <Tooltip
+                                        contentStyle={{ borderRadius: 16, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
+                                        formatter={(val: number) => `${val.toLocaleString('fr-MA')} MAD`}
+                                    />
+                                    <Area type="monotone" dataKey="revenue" stroke="#10B981" fill="url(#colorRevenue)" strokeWidth={2.5} name="Revenue (paid)" />
+                                    <Area type="monotone" dataKey="expenses" stroke="#c93942" fill="url(#colorExpenses)" strokeWidth={2.5} name="Expenses" />
+                                    <Area type="monotone" dataKey="provisional" stroke="#F59E0B" fill="url(#colorProvisional)" strokeWidth={2} strokeDasharray="5 3" name="Provisional Profit" />
+                                    <Legend />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        </CardContent>
+                    </Card>
 
-                        <Card className="border-0 shadow-sm rounded-3xl">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-bold text-brand-navy">Expense Breakdown</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <ResponsiveContainer width="100%" height={300}>
-                                    <PieChart>
-                                        <Pie
-                                            data={metrics.expenseBreakdown}
-                                            cx="50%"
-                                            cy="50%"
-                                            innerRadius={60}
-                                            outerRadius={100}
-                                            paddingAngle={4}
-                                            dataKey="value"
-                                        >
-                                            {metrics.expenseBreakdown.map((_, i) => (
-                                                <Cell key={i} fill={EXPENSE_COLORS[i % EXPENSE_COLORS.length]} />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip formatter={(val: number) => `${val.toLocaleString('fr-MA')} MAD`} />
-                                        <Legend />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                            </CardContent>
-                        </Card>
-                    </div>
+                    {/* Expense Breakdown — full width, donut left + detail table right */}
+                    <Card className="border-0 shadow-sm rounded-3xl">
+                        <CardHeader className="pb-0">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <CardTitle className="text-sm font-bold text-brand-navy">Expense Breakdown</CardTitle>
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                        Where your money goes — {metrics.expenseBreakdown.length} categories
+                                    </p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-lg font-bold text-brand-navy tabular-nums">{metrics.allExpenses.toLocaleString('fr-MA')} <span className="text-xs font-medium text-muted-foreground">MAD</span></p>
+                                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Expenses</p>
+                                </div>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="pt-4">
+                            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                                {/* Donut chart with center label */}
+                                <div className="lg:col-span-2 flex items-center justify-center">
+                                    <div className="relative">
+                                        <ResponsiveContainer width={260} height={260}>
+                                            <PieChart>
+                                                <Pie
+                                                    data={metrics.expenseBreakdown}
+                                                    cx="50%"
+                                                    cy="50%"
+                                                    innerRadius={70}
+                                                    outerRadius={115}
+                                                    paddingAngle={2}
+                                                    dataKey="value"
+                                                    stroke="none"
+                                                >
+                                                    {metrics.expenseBreakdown.map((_, i) => (
+                                                        <Cell key={i} fill={EXPENSE_COLORS[i % EXPENSE_COLORS.length]} />
+                                                    ))}
+                                                </Pie>
+                                                <Tooltip
+                                                    contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', fontSize: 12 }}
+                                                    formatter={(val: number, name: string) => [`${val.toLocaleString('fr-MA')} MAD`, name]}
+                                                />
+                                            </PieChart>
+                                        </ResponsiveContainer>
+                                        {/* Center label */}
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                            <span className="text-[10px] uppercase tracking-widest text-muted-foreground">Top Cost</span>
+                                            <span className="text-sm font-bold text-brand-navy mt-0.5 max-w-[90px] text-center leading-tight">
+                                                {metrics.expenseBreakdown[0]?.name}
+                                            </span>
+                                            <span className="text-xs text-muted-foreground mt-0.5 tabular-nums">
+                                                {metrics.allExpenses > 0
+                                                    ? ((metrics.expenseBreakdown[0]?.value / metrics.allExpenses) * 100).toFixed(0)
+                                                    : 0}%
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Detailed breakdown table */}
+                                <div className="lg:col-span-3 flex flex-col justify-center">
+                                    <div className="space-y-2.5">
+                                        {metrics.expenseBreakdown.map((entry, i) => {
+                                            const pct = metrics.allExpenses > 0 ? (entry.value / metrics.allExpenses) * 100 : 0;
+                                            const maxVal = metrics.expenseBreakdown[0]?.value || 1;
+                                            const barWidth = (entry.value / maxVal) * 100;
+                                            return (
+                                                <div key={entry.name} className="group">
+                                                    <div className="flex items-center gap-3 mb-1">
+                                                        <span
+                                                            className="w-2.5 h-2.5 rounded-[4px] shrink-0"
+                                                            style={{ backgroundColor: EXPENSE_COLORS[i % EXPENSE_COLORS.length] }}
+                                                        />
+                                                        <span className="text-[13px] text-brand-navy/80 flex-1 truncate">{entry.name}</span>
+                                                        <span className="text-[13px] font-semibold text-brand-navy tabular-nums">
+                                                            {entry.value.toLocaleString('fr-MA')} <span className="text-[10px] font-normal text-muted-foreground">MAD</span>
+                                                        </span>
+                                                        <span className="text-[11px] text-muted-foreground tabular-nums w-12 text-right">
+                                                            {pct.toFixed(1)}%
+                                                        </span>
+                                                    </div>
+                                                    <div className="ml-[22px] h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                                        <div
+                                                            className="h-full rounded-full transition-all duration-500"
+                                                            style={{
+                                                                width: `${barWidth}%`,
+                                                                backgroundColor: EXPENSE_COLORS[i % EXPENSE_COLORS.length],
+                                                                opacity: 0.7,
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
 
                     {insights.length > 0 && (
                         <Card className="border-0 shadow-sm rounded-3xl bg-gradient-to-br from-brand-navy/[0.02] to-brand-blue/[0.04]">

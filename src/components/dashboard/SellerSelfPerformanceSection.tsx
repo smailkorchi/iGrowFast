@@ -15,49 +15,7 @@ import {
     type CommissionBasis,
 } from '@/lib/commercialCommission';
 
-const PRE_CONFIRMATION_LABELS = new Set<string>([
-    'NOUVELLE COMMANDE',
-    'Black liste',
-    'Fausse commande',
-    'ANNULER',
-    'RAPPELE 1',
-    'RAPPELE 2',
-    'RAPPELE 3',
-    'RAPPELE 4',
-    'RAPPELE 5',
-    'RAPPELE 6',
-    'Boite vocale',
-    'Boite vocale + Sms',
-    'Boite vocale + message whatsup',
-    'Pas de réponse',
-    'Pas de réponse + SMS',
-    'Pas de réponse + Message whatsup',
-    'Mauvais numéro',
-].map((l) => l.trim().toLowerCase()));
-
-const POST_CONFIRMATION_LABELS = new Set<string>([
-    'Client pas intéressé',
-    'Mise en distribution',
-    'Relancer',
-    'Relancé nouveau client',
-    'PRÉPARATION RETOUR',
-    'RETURN',
-    'Reporté',
-    'Annulé',
-    'Pas de réponse',
-    'Refusé',
-    'Hors-zone',
-    'Numéro Incorrect',
-    'Pas de réponse + SMS',
-    'Injoignable',
-    'Client na pas commandé',
-    'Boite Vocal',
-    'En voyage',
-    'Programmé',
-    'Retourné',
-].map((l) => l.trim().toLowerCase()));
-
-const normalizeLabel = (l: string | null | undefined) => (l || '').trim().toLowerCase();
+// PRE/POST_CONFIRMATION_LABELS removed — now driven by perf_breakdown flags on order_statuses / package_statuses
 
 const SOURCE_COLORS: Record<string, string> = {
     facebook: 'bg-blue-50 text-blue-700',
@@ -104,6 +62,8 @@ export function SellerSelfPerformanceSection({
         getPkgsByCategories,
         getOrderStatusColor,
         getPkgStatusColor,
+        preConfBreakdownIds,
+        postConfBreakdownIds,
     } = useStatusCategories();
 
     const { data: sellerRow, isLoading: loadingSeller } = useQuery({
@@ -181,10 +141,9 @@ export function SellerSelfPerformanceSection({
             sourceBreakdown[src] = (sourceBreakdown[src] || 0) + 1;
         });
 
-        const preConfOrders = sellerOrders.filter((o) => {
-            const label = o.order_statuses?.label;
-            return PRE_CONFIRMATION_LABELS.has(normalizeLabel(label));
-        });
+        const preConfOrders = sellerOrders.filter((o) =>
+            !!o.order_status_id && preConfBreakdownIds.has(o.order_status_id)
+        );
         const preConfirmationBreakdown: Record<string, { count: number; color: string }> = {};
         preConfOrders.forEach((o) => {
             const label = o.order_statuses?.label || 'Unknown';
@@ -201,7 +160,7 @@ export function SellerSelfPerformanceSection({
         const confirmedPercent = assignedCount > 0 ? (confirmedCount / assignedCount) * 100 : 0;
 
         const postConfOrders = sellerOrders.filter((o) =>
-            POST_CONFIRMATION_LABELS.has(normalizeLabel(o.package_status_label))
+            !!o.package_status_id && postConfBreakdownIds.has(o.package_status_id)
         );
         const postConfirmationBreakdown: Record<string, { count: number; color: string }> = {};
         postConfOrders.forEach((o) => {
@@ -256,6 +215,8 @@ export function SellerSelfPerformanceSection({
         callbackIds,
         cancelledIds,
         deliveredPkgIds,
+        preConfBreakdownIds,
+        postConfBreakdownIds,
         getPkgsByCategories,
         getOrderStatusColor,
         getPkgStatusColor,

@@ -50,7 +50,8 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
             const { data } = await supabase
                 .from('package_statuses')
                 .select('id, code, label, color, icon, delivery_service_statuses')
-                .eq('active', true);
+                .eq('active', true)
+                .eq('show_in_courier', true);
             return (data || []) as unknown as PkgStatus[];
         },
         staleTime: 5 * 60 * 1000,

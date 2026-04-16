@@ -83,8 +83,16 @@ const statusSchema = z.object({
     icon: z.string().optional().default(''),
     recheck: z.boolean().default(false),
     active: z.boolean().default(true),
-    /** order_statuses only: shown in add/edit order modals */
+    // Order-specific display options
     show_in_order: z.boolean().default(true),
+    show_in_quick_status: z.boolean().default(true),
+    show_in_seller_confirmation: z.boolean().default(true),
+    // Package-specific display options
+    show_in_courier: z.boolean().default(true),
+    show_in_seller_suivi: z.boolean().default(true),
+    // Shared: performance breakdown
+    perf_breakdown: z.boolean().default(false),
+    perf_breakdown_phase: z.enum(['before_confirmation', 'after_confirmation']).nullable().default(null),
     delivery_service_statuses: z.array(z.object({
         value: z.string().min(1, "Status code is required")
     })).optional().default([]),
@@ -107,8 +115,15 @@ type StatusRow = {
     updated_at: string | null;
     // order_statuses only
     show_in_order?: boolean;
+    show_in_quick_status?: boolean;
+    show_in_seller_confirmation?: boolean;
     // package_statuses only
+    show_in_courier?: boolean;
+    show_in_seller_suivi?: boolean;
     delivery_service_statuses?: string[] | null;
+    // shared
+    perf_breakdown?: boolean;
+    perf_breakdown_phase?: string | null;
 };
 
 const errorMessage = (err: unknown): string =>
@@ -205,6 +220,8 @@ const Status = () => {
                 ? values.delivery_service_statuses.map(s => s.value)
                 : undefined;
 
+            const perfPhase = values.perf_breakdown ? values.perf_breakdown_phase : null;
+
             const payload = {
                 code: values.code,
                 label: values.label,
@@ -213,8 +230,17 @@ const Status = () => {
                 icon: values.icon || null,
                 recheck: values.recheck,
                 active: values.active,
+                perf_breakdown: values.perf_breakdown,
+                perf_breakdown_phase: perfPhase,
                 delivery_service_statuses: deliveryStatuses,
-                ...(activeTab === 'orders' ? { show_in_order: values.show_in_order } : {}),
+                ...(activeTab === 'orders' ? {
+                    show_in_order: values.show_in_order,
+                    show_in_quick_status: values.show_in_quick_status,
+                    show_in_seller_confirmation: values.show_in_seller_confirmation,
+                } : {
+                    show_in_courier: values.show_in_courier,
+                    show_in_seller_suivi: values.show_in_seller_suivi,
+                }),
             };
 
             if (editingStatus) {
@@ -289,6 +315,12 @@ const Status = () => {
                 recheck: status.recheck ?? false,
                 active: status.active ?? true,
                 show_in_order: status.show_in_order ?? true,
+                show_in_quick_status: status.show_in_quick_status ?? true,
+                show_in_seller_confirmation: status.show_in_seller_confirmation ?? true,
+                show_in_courier: status.show_in_courier ?? true,
+                show_in_seller_suivi: status.show_in_seller_suivi ?? true,
+                perf_breakdown: status.perf_breakdown ?? false,
+                perf_breakdown_phase: (status.perf_breakdown_phase as 'before_confirmation' | 'after_confirmation') ?? null,
                 delivery_service_statuses: deliveryStatuses,
             });
         } else {
@@ -302,6 +334,12 @@ const Status = () => {
                 recheck: false,
                 active: true,
                 show_in_order: true,
+                show_in_quick_status: true,
+                show_in_seller_confirmation: true,
+                show_in_courier: true,
+                show_in_seller_suivi: true,
+                perf_breakdown: false,
+                perf_breakdown_phase: null,
                 delivery_service_statuses: [],
             });
         }
@@ -478,7 +516,7 @@ const Status = () => {
 
             {/* Upsert Modal */}
             <Dialog open={isUpsertOpen} onOpenChange={setIsUpsertOpen}>
-                <DialogContent className="max-w-lg p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden">
+                <DialogContent className="max-w-2xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden">
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit(handleUpsert)} className="flex flex-col">
                             {/* Live preview header */}
@@ -617,21 +655,168 @@ const Status = () => {
                                             )}
                                         />
                                     </div>
+                                </div>
+
+                                {/* Section: Display Options */}
+                                <div className="space-y-3">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/30">Display Options</p>
+
                                     {activeTab === 'orders' && (
+                                        <div className="space-y-2">
+                                            <FormField
+                                                control={form.control}
+                                                name="show_in_order"
+                                                render={({ field }) => (
+                                                    <FormItem className="flex items-center justify-between p-3 rounded-xl bg-brand-navy/[0.02] border border-brand-navy/[0.03]">
+                                                        <div className="min-w-0 space-y-0.5">
+                                                            <FormLabel className="text-sm font-bold text-brand-navy">Show in Order Modals</FormLabel>
+                                                            <FormDescription className="text-[11px] text-muted-foreground leading-snug">
+                                                                Visible in add/edit order status dropdown.
+                                                            </FormDescription>
+                                                        </div>
+                                                        <FormControl>
+                                                            <Switch checked={field.value} onCheckedChange={field.onChange} className="shrink-0" />
+                                                        </FormControl>
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <FormField
+                                                control={form.control}
+                                                name="show_in_quick_status"
+                                                render={({ field }) => (
+                                                    <FormItem className="flex items-center justify-between p-3 rounded-xl bg-brand-navy/[0.02] border border-brand-navy/[0.03]">
+                                                        <div className="min-w-0 space-y-0.5">
+                                                            <FormLabel className="text-sm font-bold text-brand-navy">Show in Quick Status Change</FormLabel>
+                                                            <FormDescription className="text-[11px] text-muted-foreground leading-snug">
+                                                                Visible in the quick status change grid on orders.
+                                                            </FormDescription>
+                                                        </div>
+                                                        <FormControl>
+                                                            <Switch checked={field.value} onCheckedChange={field.onChange} className="shrink-0" />
+                                                        </FormControl>
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <FormField
+                                                control={form.control}
+                                                name="show_in_seller_confirmation"
+                                                render={({ field }) => (
+                                                    <FormItem className="flex items-center justify-between p-3 rounded-xl bg-brand-navy/[0.02] border border-brand-navy/[0.03]">
+                                                        <div className="min-w-0 space-y-0.5">
+                                                            <FormLabel className="text-sm font-bold text-brand-navy">Show in Seller Confirmation Tab</FormLabel>
+                                                            <FormDescription className="text-[11px] text-muted-foreground leading-snug">
+                                                                Appears as a pill filter in the seller's confirmation tab.
+                                                            </FormDescription>
+                                                        </div>
+                                                        <FormControl>
+                                                            <Switch checked={field.value} onCheckedChange={field.onChange} className="shrink-0" />
+                                                        </FormControl>
+                                                    </FormItem>
+                                                )}
+                                            />
+                                        </div>
+                                    )}
+
+                                    {activeTab === 'packages' && (
+                                        <div className="space-y-2">
+                                            <FormField
+                                                control={form.control}
+                                                name="show_in_courier"
+                                                render={({ field }) => (
+                                                    <FormItem className="flex items-center justify-between p-3 rounded-xl bg-brand-navy/[0.02] border border-brand-navy/[0.03]">
+                                                        <div className="min-w-0 space-y-0.5">
+                                                            <FormLabel className="text-sm font-bold text-brand-navy">Show in Courier Statuses</FormLabel>
+                                                            <FormDescription className="text-[11px] text-muted-foreground leading-snug">
+                                                                Visible in courier views and parcel tracking.
+                                                            </FormDescription>
+                                                        </div>
+                                                        <FormControl>
+                                                            <Switch checked={field.value} onCheckedChange={field.onChange} className="shrink-0" />
+                                                        </FormControl>
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <FormField
+                                                control={form.control}
+                                                name="show_in_seller_suivi"
+                                                render={({ field }) => (
+                                                    <FormItem className="flex items-center justify-between p-3 rounded-xl bg-brand-navy/[0.02] border border-brand-navy/[0.03]">
+                                                        <div className="min-w-0 space-y-0.5">
+                                                            <FormLabel className="text-sm font-bold text-brand-navy">Show in Seller Suivi Tab</FormLabel>
+                                                            <FormDescription className="text-[11px] text-muted-foreground leading-snug">
+                                                                Appears as a pill filter in the seller's suivi tab.
+                                                            </FormDescription>
+                                                        </div>
+                                                        <FormControl>
+                                                            <Switch checked={field.value} onCheckedChange={field.onChange} className="shrink-0" />
+                                                        </FormControl>
+                                                    </FormItem>
+                                                )}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Section: Performance Breakdown */}
+                                <div className="space-y-3">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/30">Seller Performance Breakdown</p>
+                                    <FormField
+                                        control={form.control}
+                                        name="perf_breakdown"
+                                        render={({ field }) => (
+                                            <FormItem className="flex items-center justify-between p-3 rounded-xl bg-brand-navy/[0.02] border border-brand-navy/[0.03]">
+                                                <div className="min-w-0 space-y-0.5">
+                                                    <FormLabel className="text-sm font-bold text-brand-navy">Include in Performance Breakdown</FormLabel>
+                                                    <FormDescription className="text-[11px] text-muted-foreground leading-snug">
+                                                        When active, this status appears in seller performance analytics.
+                                                    </FormDescription>
+                                                </div>
+                                                <FormControl>
+                                                    <Switch checked={field.value} onCheckedChange={(v) => {
+                                                        field.onChange(v);
+                                                        if (!v) form.setValue('perf_breakdown_phase', null);
+                                                    }} className="shrink-0" />
+                                                </FormControl>
+                                            </FormItem>
+                                        )}
+                                    />
+                                    {form.watch('perf_breakdown') && (
                                         <FormField
                                             control={form.control}
-                                            name="show_in_order"
+                                            name="perf_breakdown_phase"
                                             render={({ field }) => (
-                                                <FormItem className="flex items-center justify-between p-3 rounded-xl bg-brand-navy/[0.02] border border-brand-navy/[0.03]">
-                                                    <div className="min-w-0 space-y-0.5">
-                                                        <FormLabel className="text-sm font-bold text-brand-navy">Show in Order Modals</FormLabel>
-                                                        <FormDescription className="text-[11px] text-muted-foreground leading-snug">
-                                                            When off, hidden from add/edit order modals but still works for filters and automation.
-                                                        </FormDescription>
+                                                <FormItem className="space-y-2 p-3 rounded-xl bg-brand-navy/[0.02] border border-brand-navy/[0.03]">
+                                                    <FormLabel className="text-sm font-bold text-brand-navy">Phase</FormLabel>
+                                                    <FormDescription className="text-[11px] text-muted-foreground leading-snug">
+                                                        Before = pre-confirmation statuses (calls, no-answer, etc). After = post-confirmation statuses (delivery outcomes).
+                                                    </FormDescription>
+                                                    <div className="grid grid-cols-2 gap-2 pt-1">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => field.onChange('before_confirmation')}
+                                                            className={cn(
+                                                                'h-10 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border',
+                                                                field.value === 'before_confirmation'
+                                                                    ? 'bg-brand-navy text-white border-brand-navy shadow-md'
+                                                                    : 'bg-brand-navy/[0.03] text-brand-navy/60 border-brand-navy/[0.06] hover:bg-brand-navy/[0.06]'
+                                                            )}
+                                                        >
+                                                            Before Confirmation
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => field.onChange('after_confirmation')}
+                                                            className={cn(
+                                                                'h-10 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border',
+                                                                field.value === 'after_confirmation'
+                                                                    ? 'bg-brand-navy text-white border-brand-navy shadow-md'
+                                                                    : 'bg-brand-navy/[0.03] text-brand-navy/60 border-brand-navy/[0.06] hover:bg-brand-navy/[0.06]'
+                                                            )}
+                                                        >
+                                                            After Confirmation
+                                                        </button>
                                                     </div>
-                                                    <FormControl>
-                                                        <Switch checked={field.value} onCheckedChange={field.onChange} className="shrink-0" />
-                                                    </FormControl>
+                                                    <FormMessage />
                                                 </FormItem>
                                             )}
                                         />
@@ -782,19 +967,38 @@ const Status = () => {
                                     </div>
                                 </div>
 
-                                {activeTab === 'orders' && (
-                                    <div className="flex items-start gap-3 text-brand-navy/60 pt-2 border-t border-brand-navy/[0.05]">
-                                        <ClipboardCheck className="w-5 h-5 shrink-0 mt-0.5" />
-                                        <div className="min-w-0 space-y-1">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Add / edit order modals</p>
-                                            <p className="text-sm font-bold text-brand-navy leading-snug">
-                                                {viewingStatus.show_in_order !== false
-                                                    ? 'Shown in order modals. Turn off in edit to hide from those pickers only.'
-                                                    : 'Hidden from add/edit order modals. Turn on in edit to show again.'}
-                                            </p>
-                                        </div>
+                                {/* Display Options */}
+                                <div className="space-y-3 pt-2 border-t border-brand-navy/[0.05]">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Display Options</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {activeTab === 'orders' && (
+                                            <>
+                                                <Badge variant="outline" className={cn('text-[10px] font-bold px-2.5 py-1 rounded-lg', viewingStatus.show_in_order !== false ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-500 border-red-200')}>
+                                                    Order Modals: {viewingStatus.show_in_order !== false ? 'ON' : 'OFF'}
+                                                </Badge>
+                                                <Badge variant="outline" className={cn('text-[10px] font-bold px-2.5 py-1 rounded-lg', viewingStatus.show_in_quick_status !== false ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-500 border-red-200')}>
+                                                    Quick Status: {viewingStatus.show_in_quick_status !== false ? 'ON' : 'OFF'}
+                                                </Badge>
+                                                <Badge variant="outline" className={cn('text-[10px] font-bold px-2.5 py-1 rounded-lg', viewingStatus.show_in_seller_confirmation !== false ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-500 border-red-200')}>
+                                                    Seller Confirmation: {viewingStatus.show_in_seller_confirmation !== false ? 'ON' : 'OFF'}
+                                                </Badge>
+                                            </>
+                                        )}
+                                        {activeTab === 'packages' && (
+                                            <>
+                                                <Badge variant="outline" className={cn('text-[10px] font-bold px-2.5 py-1 rounded-lg', viewingStatus.show_in_courier !== false ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-500 border-red-200')}>
+                                                    Courier: {viewingStatus.show_in_courier !== false ? 'ON' : 'OFF'}
+                                                </Badge>
+                                                <Badge variant="outline" className={cn('text-[10px] font-bold px-2.5 py-1 rounded-lg', viewingStatus.show_in_seller_suivi !== false ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-500 border-red-200')}>
+                                                    Seller Suivi: {viewingStatus.show_in_seller_suivi !== false ? 'ON' : 'OFF'}
+                                                </Badge>
+                                            </>
+                                        )}
+                                        <Badge variant="outline" className={cn('text-[10px] font-bold px-2.5 py-1 rounded-lg', viewingStatus.perf_breakdown ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-gray-50 text-gray-500 border-gray-200')}>
+                                            Perf Breakdown: {viewingStatus.perf_breakdown ? (viewingStatus.perf_breakdown_phase === 'before_confirmation' ? 'Before' : 'After') : 'OFF'}
+                                        </Badge>
                                     </div>
-                                )}
+                                </div>
 
                                 {activeTab === 'packages' && viewingStatus.delivery_service_statuses?.length > 0 && (
                                     <div className="space-y-4 pt-4 border-t border-brand-navy/[0.05]">

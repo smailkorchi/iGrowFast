@@ -979,7 +979,7 @@ const Orders = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('order_statuses')
-                .select('id, code, label, ranking, color, icon, show_in_order, recheck')
+                .select('id, code, label, ranking, color, icon, show_in_order, show_in_quick_status, show_in_seller_confirmation, recheck')
                 .eq('active', true)
                 .order('ranking', { ascending: true });
             if (error) throw error;
@@ -1006,13 +1006,19 @@ const Orders = () => {
         return eligible;
     }, [orderStatuses, selectedOrder?.order_status_id, defaultNewOrderStatusId]);
 
+    const orderStatusesForQuickStatus = useMemo(() => {
+        if (!orderStatuses?.length) return [];
+        const list = orderStatuses as any[];
+        return list.filter((s) => s.show_in_quick_status !== false);
+    }, [orderStatuses]);
+
     const { data: packageStatuses } = useQuery({
         queryKey: ['package-statuses-dropdown', activeBusinessId],
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('package_statuses')
-                .select('id, code, label, color, icon, ranking, recheck')
+                .select('id, code, label, color, icon, ranking, recheck, show_in_seller_suivi')
                 .eq('active', true)
                 .order('ranking', { ascending: true });
             if (error) throw error;
@@ -1930,7 +1936,7 @@ const Orders = () => {
 
     const recheckOrderStatusBuckets = useMemo(() => {
         if (activeTab !== 'confirmation') return [] as StatusBucket[];
-        const seed = (orderStatuses as any[] | undefined)?.filter((s) => s.recheck === true) ?? [];
+        const seed = (orderStatuses as any[] | undefined)?.filter((s) => s.recheck === true && s.show_in_seller_confirmation !== false) ?? [];
         const buckets = new Map<string, StatusBucket>();
         for (const s of seed) {
             buckets.set(s.id, {
@@ -1969,7 +1975,7 @@ const Orders = () => {
 
     const recheckPackageStatusBuckets = useMemo(() => {
         if (activeTab !== 'suivi') return [] as StatusBucket[];
-        const seedFromMaster = (packageStatuses as any[] | undefined)?.filter((s) => s.recheck === true) ?? [];
+        const seedFromMaster = (packageStatuses as any[] | undefined)?.filter((s) => s.recheck === true && s.show_in_seller_suivi !== false) ?? [];
         const buckets = new Map<string, StatusBucket>();
         for (const s of seedFromMaster) {
             buckets.set(s.id, {
@@ -4468,7 +4474,7 @@ const Orders = () => {
                     if (!v) setQuickStatusOrder(null);
                 }}
                 order={quickStatusOrder}
-                orderStatuses={orderStatusesForModal}
+                orderStatuses={orderStatusesForQuickStatus}
                 isOrderCategory={statusCats.isOrderCategory}
                 onStatusChange={({ orderId, statusId, comment, reportedDate }) => {
                     quickStatusMutation.mutate({ orderId, statusId, comment, reportedDate });

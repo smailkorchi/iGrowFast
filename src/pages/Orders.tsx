@@ -835,7 +835,7 @@ const Orders = () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('order_statuses')
-                .select('id, code, label, ranking, color, show_in_order')
+                .select('id, code, label, ranking, color, show_in_order, show_in_quick_status')
                 .eq('active', true)
                 .order('ranking', { ascending: true });
             if (error) throw error;
@@ -861,6 +861,12 @@ const Orders = () => {
         }
         return eligible;
     }, [orderStatuses, selectedOrder?.order_status_id, defaultNewOrderStatusId]);
+
+    const orderStatusesForQuickStatus = useMemo(() => {
+        if (!orderStatuses?.length) return [];
+        const list = orderStatuses as any[];
+        return list.filter((s) => s.show_in_quick_status !== false);
+    }, [orderStatuses]);
 
     const { data: products } = useQuery({
         queryKey: ['products-dropdown', activeBusinessId],
@@ -4381,7 +4387,7 @@ const Orders = () => {
                     if (!v) setQuickStatusOrder(null);
                 }}
                 order={quickStatusOrder}
-                orderStatuses={orderStatusesForModal}
+                orderStatuses={orderStatusesForQuickStatus}
                 isOrderCategory={isOrderCategory}
                 onStatusChange={({ orderId, statusId, comment, reportedDate }) => {
                     bulkStatusMutation.mutate({
