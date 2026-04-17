@@ -1776,13 +1776,24 @@ const Orders = () => {
         const isReported = !!(REPORTED_STATUS_ID && o.order_status_id === REPORTED_STATUS_ID);
         const isNew = !!(newStatusId && o.order_status_id === newStatusId);
 
+        // Confirmation tab: both order_status AND package_status must allow it
+        const orderStatusAllowsConfirmation = o.status?.show_in_seller_confirmation !== false;
+        const packageStatusAllowsConfirmation = o.package_status?.show_in_seller_confirmation !== false;
         const orderStatusRecheckActive =
-            o.status?.recheck === true && o.status?.active !== false;
+            o.status?.recheck === true &&
+            o.status?.active !== false &&
+            orderStatusAllowsConfirmation &&
+            packageStatusAllowsConfirmation;
 
+        // Suivi tab: both order_status AND package_status must allow it
+        const orderStatusAllowsSuivi = o.status?.show_in_seller_suivi !== false;
+        const packageStatusAllowsSuivi = o.package_status?.show_in_seller_suivi !== false;
         // DB: package_statuses.recheck + active (see Supabase); category 'recheck' counts when flag not set.
         const packageRecheckActive =
             !!o.package_status_id &&
             (o.package_status?.active !== false) &&
+            orderStatusAllowsSuivi &&
+            packageStatusAllowsSuivi &&
             (o.package_status?.recheck === true ||
                 statusCats.isPkgCategory(o.package_status_id, 'recheck'));
 

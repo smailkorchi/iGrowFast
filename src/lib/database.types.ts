@@ -597,7 +597,6 @@ export type Database = {
           identifiant_fiscal: string | null
           legal_address: string | null
           legal_city: string | null
-          postal_code: string | null
           legal_form: string | null
           license_end: string | null
           license_start: string
@@ -607,6 +606,7 @@ export type Database = {
           paid: boolean
           patente: string | null
           plan_id: string | null
+          postal_code: string | null
           rc: string | null
           signature_url: string | null
           status: string
@@ -627,7 +627,6 @@ export type Database = {
           identifiant_fiscal?: string | null
           legal_address?: string | null
           legal_city?: string | null
-          postal_code?: string | null
           legal_form?: string | null
           license_end?: string | null
           license_start?: string
@@ -637,6 +636,7 @@ export type Database = {
           paid?: boolean
           patente?: string | null
           plan_id?: string | null
+          postal_code?: string | null
           rc?: string | null
           signature_url?: string | null
           status?: string
@@ -657,7 +657,6 @@ export type Database = {
           identifiant_fiscal?: string | null
           legal_address?: string | null
           legal_city?: string | null
-          postal_code?: string | null
           legal_form?: string | null
           license_end?: string | null
           license_start?: string
@@ -667,6 +666,7 @@ export type Database = {
           paid?: boolean
           patente?: string | null
           plan_id?: string | null
+          postal_code?: string | null
           rc?: string | null
           signature_url?: string | null
           status?: string
@@ -2895,6 +2895,7 @@ export type Database = {
           show_in_order: boolean
           show_in_quick_status: boolean
           show_in_seller_confirmation: boolean
+          show_in_seller_suivi: boolean
           updated_at: string | null
         }
         Insert: {
@@ -2913,6 +2914,7 @@ export type Database = {
           show_in_order?: boolean
           show_in_quick_status?: boolean
           show_in_seller_confirmation?: boolean
+          show_in_seller_suivi?: boolean
           updated_at?: string | null
         }
         Update: {
@@ -2931,6 +2933,7 @@ export type Database = {
           show_in_order?: boolean
           show_in_quick_status?: boolean
           show_in_seller_confirmation?: boolean
+          show_in_seller_suivi?: boolean
           updated_at?: string | null
         }
         Relationships: []
@@ -3244,6 +3247,7 @@ export type Database = {
           ranking: number | null
           recheck: boolean | null
           show_in_courier: boolean
+          show_in_seller_confirmation: boolean
           show_in_seller_suivi: boolean
           updated_at: string | null
         }
@@ -3262,6 +3266,7 @@ export type Database = {
           ranking?: number | null
           recheck?: boolean | null
           show_in_courier?: boolean
+          show_in_seller_confirmation?: boolean
           show_in_seller_suivi?: boolean
           updated_at?: string | null
         }
@@ -3280,6 +3285,7 @@ export type Database = {
           ranking?: number | null
           recheck?: boolean | null
           show_in_courier?: boolean
+          show_in_seller_confirmation?: boolean
           show_in_seller_suivi?: boolean
           updated_at?: string | null
         }

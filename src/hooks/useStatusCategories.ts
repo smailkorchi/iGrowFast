@@ -26,6 +26,7 @@ export interface OrderStatus {
   active: boolean | null;
   show_in_quick_status: boolean;
   show_in_seller_confirmation: boolean;
+  show_in_seller_suivi: boolean;
   perf_breakdown: boolean;
   perf_breakdown_phase: string | null;
 }
@@ -40,6 +41,7 @@ export interface PackageStatus {
   delivery_service_statuses: unknown;
   show_in_courier: boolean;
   show_in_seller_suivi: boolean;
+  show_in_seller_confirmation: boolean;
   perf_breakdown: boolean;
   perf_breakdown_phase: string | null;
 }
@@ -53,7 +55,7 @@ export function useStatusCategories() {
       if (!activeBusinessId) return [];
       const { data } = await supabase
         .from('order_statuses')
-        .select('id, code, label, color, category, ranking, recheck, active, show_in_quick_status, show_in_seller_confirmation, perf_breakdown, perf_breakdown_phase')
+        .select('id, code, label, color, category, ranking, recheck, active, show_in_quick_status, show_in_seller_confirmation, show_in_seller_suivi, perf_breakdown, perf_breakdown_phase')
         .order('ranking');
       return (data || []) as OrderStatus[];
     },
@@ -66,7 +68,7 @@ export function useStatusCategories() {
       if (!activeBusinessId) return [];
       const { data } = await supabase
         .from('package_statuses')
-        .select('id, code, label, color, category, ranking, delivery_service_statuses, show_in_courier, show_in_seller_suivi, perf_breakdown, perf_breakdown_phase')
+        .select('id, code, label, color, category, ranking, delivery_service_statuses, show_in_courier, show_in_seller_suivi, show_in_seller_confirmation, perf_breakdown, perf_breakdown_phase')
         .order('ranking');
       return (data || []) as PackageStatus[];
     },
