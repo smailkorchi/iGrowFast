@@ -13,7 +13,6 @@ import {
     ShoppingCart,
     Hash,
     Layers,
-    Coins,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -25,7 +24,6 @@ import { cn } from '@/lib/utils';
 import { ImageHoverPreview } from '@/components/catalog/ImageHoverPreview';
 import {
     ProductPreviewDialog,
-    formatProductDhAggregate,
     type ProductPreviewRow,
 } from '@/components/catalog/ProductPreviewDialog';
 
@@ -113,14 +111,10 @@ const Products = () => {
     const catalogTotals = useMemo(() => {
         const list = products ?? [];
         let totalQuantity = 0;
-        let totalValue = 0;
         for (const p of list) {
-            const q = Number(p.stock ?? 0);
-            const v = Number(p.selling_price ?? 0);
-            totalQuantity += q;
-            totalValue += q * v;
+            totalQuantity += Number(p.stock ?? 0);
         }
-        return { totalQuantity, totalValue };
+        return { totalQuantity };
     }, [products]);
 
     return (
@@ -171,13 +165,13 @@ const Products = () => {
                     </div>
 
                     {isLoading ? (
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 pt-2">
-                            {Array.from({ length: 3 }).map((_, i) => (
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 pt-2">
+                            {Array.from({ length: 2 }).map((_, i) => (
                                 <Skeleton key={i} className="h-28 rounded-3xl bg-white/60" />
                             ))}
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 pt-2">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 pt-2">
                             <div className="rounded-3xl border border-gray-100/80 bg-white/90 p-5 shadow-sm backdrop-blur-sm">
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="space-y-1">
@@ -207,22 +201,6 @@ const Products = () => {
                                     </div>
                                     <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                                         <Layers className="h-5 w-5" />
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="rounded-3xl border border-gray-100/80 bg-white/90 p-5 shadow-sm backdrop-blur-sm">
-                                <div className="flex items-start justify-between gap-3">
-                                    <div className="space-y-1 min-w-0">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                                            Total value
-                                        </p>
-                                        <p className="text-2xl font-black tabular-nums text-gray-900 tracking-tight truncate">
-                                            {formatProductDhAggregate(catalogTotals.totalValue)}
-                                        </p>
-                                        <p className="text-xs text-gray-500 font-medium">Σ qty × unit selling price (inventory)</p>
-                                    </div>
-                                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-700">
-                                        <Coins className="h-5 w-5" />
                                     </div>
                                 </div>
                             </div>
