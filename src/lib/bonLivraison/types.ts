@@ -43,6 +43,7 @@ export type BonLivraisonSnapshot = {
   };
   delivery_date?: string | null;
   notes?: string | null;
+  thank_you_text?: string | null;
   issued_at_iso?: string;
   bl_number?: string;
 };

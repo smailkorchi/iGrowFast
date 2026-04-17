@@ -51,8 +51,10 @@ type BusinessRow = {
   capital_social?: string | null;
   legal_address?: string | null;
   legal_city?: string | null;
+  postal_code?: string | null;
   business_phone?: string | null;
   business_email?: string | null;
+  website?: string | null;
   cachet_url?: string | null;
   signature_url?: string | null;
 };
@@ -80,8 +82,10 @@ function emptyManualBusiness() {
     capital_social: '',
     legal_address: '',
     legal_city: '',
+    postal_code: '',
     business_phone: '',
     business_email: '',
+    website: '',
   };
 }
 
@@ -98,8 +102,10 @@ function businessBlockFromRow(b: BusinessRow): DevisSnapshot['business'] {
     capital_social: b.capital_social,
     legal_address: b.legal_address,
     legal_city: b.legal_city,
+    postal_code: b.postal_code,
     business_phone: b.business_phone,
     business_email: b.business_email,
+    website: b.website,
     logo_url: b.logo,
   };
 }
@@ -153,6 +159,10 @@ export function BonCommandeWizard({
   const [stampSource, setStampSource] = useState<'business' | 'blank'>('business');
   const [validUntil, setValidUntil] = useState('');
   const [notes, setNotes] = useState('');
+  // Optional user-supplied BC number. Empty → auto-generated at save.
+  const [customNumber, setCustomNumber] = useState('');
+  // Optional closing line printed just above the legal footer.
+  const [thankYou, setThankYou] = useState('');
 
   const editingLocked = !!initialSnapshot;
 
@@ -174,8 +184,10 @@ export function BonCommandeWizard({
           capital_social: initialSnapshot.business.capital_social || '',
           legal_address: initialSnapshot.business.legal_address || '',
           legal_city: initialSnapshot.business.legal_city || '',
+          postal_code: initialSnapshot.business.postal_code || '',
           business_phone: initialSnapshot.business.business_phone || '',
           business_email: initialSnapshot.business.business_email || '',
+          website: initialSnapshot.business.website || '',
         });
       } else {
         setManualBusiness(emptyManualBusiness());
@@ -218,6 +230,8 @@ export function BonCommandeWizard({
       setStampSource(initialSnapshot.stamps.source);
       setValidUntil(initialSnapshot.valid_until ? initialSnapshot.valid_until.slice(0, 10) : '');
       setNotes(initialSnapshot.notes || '');
+      setCustomNumber(initialSnapshot.bc_number || '');
+      setThankYou(initialSnapshot.thank_you_text || '');
       return;
     }
     setDirection('purchase');
@@ -236,6 +250,8 @@ export function BonCommandeWizard({
     setStampSource('business');
     setValidUntil('');
     setNotes('');
+    setCustomNumber('');
+    setThankYou('');
   }, [open, initialSnapshot]);
 
   const businessBlock = useMemo((): DevisSnapshot['business'] => {
@@ -254,8 +270,10 @@ export function BonCommandeWizard({
       capital_social: manualBusiness.capital_social || null,
       legal_address: manualBusiness.legal_address || null,
       legal_city: manualBusiness.legal_city || null,
+      postal_code: manualBusiness.postal_code || null,
       business_phone: manualBusiness.business_phone || null,
       business_email: manualBusiness.business_email || null,
+      website: manualBusiness.website || null,
       logo_url: null,
     };
   }, [businessSource, business, manualBusiness]);
@@ -400,6 +418,8 @@ export function BonCommandeWizard({
       stamps: stampsBlock,
       valid_until: validUntil ? `${validUntil}T12:00:00.000Z` : null,
       notes: notes.trim() || null,
+      bc_number: customNumber.trim() || undefined,
+      thank_you_text: thankYou.trim() || null,
     };
     const snapshot: BonCommandeSnapshot =
       direction === 'purchase'
@@ -566,10 +586,37 @@ export function BonCommandeWizard({
                         />
                       </div>
                       <div>
+                        <Label>Code postal</Label>
+                        <Input
+                          value={manualBusiness.postal_code}
+                          onChange={(e) => setManualBusiness((m) => ({ ...m, postal_code: e.target.value }))}
+                          placeholder="20000"
+                          className="rounded-xl mt-1"
+                        />
+                      </div>
+                      <div>
                         <Label>Téléphone</Label>
                         <Input
                           value={manualBusiness.business_phone}
                           onChange={(e) => setManualBusiness((m) => ({ ...m, business_phone: e.target.value }))}
+                          className="rounded-xl mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label>Email</Label>
+                        <Input
+                          value={manualBusiness.business_email}
+                          onChange={(e) => setManualBusiness((m) => ({ ...m, business_email: e.target.value }))}
+                          type="email"
+                          className="rounded-xl mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label>Site web</Label>
+                        <Input
+                          value={manualBusiness.website}
+                          onChange={(e) => setManualBusiness((m) => ({ ...m, website: e.target.value }))}
+                          placeholder="https://acme.ma"
                           className="rounded-xl mt-1"
                         />
                       </div>
@@ -881,6 +928,19 @@ export function BonCommandeWizard({
                   </div>
                   <div className="grid sm:grid-cols-2 gap-4">
                     <div>
+                      <Label>Numéro (optionnel)</Label>
+                      <Input
+                        value={customNumber}
+                        onChange={(e) => setCustomNumber(e.target.value)}
+                        placeholder="BC-2026-001"
+                        disabled={!!initialSnapshot}
+                        className="rounded-xl mt-1"
+                      />
+                      <p className="text-[10px] text-gray-400 mt-1">
+                        Laisser vide pour générer automatiquement.
+                      </p>
+                    </div>
+                    <div>
                       <Label>{validUntilLabel}</Label>
                       <Input
                         type="date"
@@ -897,6 +957,18 @@ export function BonCommandeWizard({
                       onChange={(e) => setNotes(e.target.value)}
                       className="rounded-xl mt-1 min-h-[80px]"
                     />
+                  </div>
+                  <div>
+                    <Label>Phrase de remerciement (optionnel)</Label>
+                    <Input
+                      value={thankYou}
+                      onChange={(e) => setThankYou(e.target.value)}
+                      placeholder="Merci pour votre confiance."
+                      className="rounded-xl mt-1"
+                    />
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      Affichée en bas de page, juste au-dessus des mentions légales.
+                    </p>
                   </div>
                   <div className="rounded-2xl border border-dashed border-gray-200 p-4 space-y-2 text-sm">
                     <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Récapitulatif</p>

@@ -49,10 +49,13 @@ const styles = StyleSheet.create({
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 },
   totalStrong: { fontFamily: FONT_BOLD, fontWeight: 'bold' as const, fontSize: 10 },
   notes: { marginTop: 12, padding: 10, backgroundColor: '#f7f7f7', fontSize: 8, color: '#444' },
-  stampRow: { flexDirection: 'row', gap: 24, marginTop: 24, justifyContent: 'flex-end' },
-  stampImg: { width: 120, height: 60, objectFit: 'contain' },
-  footer: { position: 'absolute', bottom: 20, left: 40, right: 40, borderTopWidth: 0.5, borderTopColor: '#ddd', paddingTop: 6 },
-  footerText: { fontSize: 6.5, color: '#999', textAlign: 'center', lineHeight: 1.4 },
+  // See DevisPdfDocument — stamps raised to clear the taller footer block.
+  stampBlock: { position: 'absolute', right: 40, bottom: 90, width: 180, height: 120 },
+  stampImg: { position: 'absolute', top: 0, left: 0, width: 180, height: 120, objectFit: 'contain' },
+  footer: { position: 'absolute', bottom: 20, left: 40, right: 40 },
+  footerThankYou: { fontSize: 9, color: '#333', textAlign: 'center', marginBottom: 4 },
+  footerDivider: { height: 0.5, backgroundColor: '#bbb', marginBottom: 5 },
+  footerText: { fontSize: 7, color: '#555', textAlign: 'center', lineHeight: 1.45 },
 });
 
 function fmtDate(iso?: string | null) {
@@ -61,17 +64,37 @@ function fmtDate(iso?: string | null) {
 }
 function fmtMoney(n: number) { return `${n.toFixed(2)} MAD`; }
 
-function buildFooterParts(b: BonLivraisonSnapshot['business']) {
-  const parts: string[] = [];
-  if (b.legal_address) parts.push(b.legal_address);
-  if (b.legal_city) parts.push(b.legal_city);
-  if (b.capital_social) parts.push(`Capital : ${b.capital_social}`);
-  if (b.ice) parts.push(`ICE : ${b.ice}`);
-  if (b.rc) parts.push(`RC : ${b.rc}`);
-  if (b.identifiant_fiscal) parts.push(`IF : ${b.identifiant_fiscal}`);
-  if (b.business_phone) parts.push(`Tél. ${b.business_phone}`);
-  if (b.business_email) parts.push(b.business_email);
-  return parts.join(' · ');
+// See DevisPdfDocument for rationale — 3-line footer with graceful skipping.
+function buildFooterLines(b: BonLivraisonSnapshot['business']): string[] {
+  const join = (parts: (string | null | undefined)[]) => parts.filter(Boolean).join(' · ');
+
+  const identityLead: string[] = [];
+  if (b.name) identityLead.push(b.name);
+  if (b.legal_form) identityLead.push(b.legal_form);
+  const identityHead = identityLead.join(' ');
+  const capital = b.capital_social ? `au capital de ${b.capital_social} Dhs` : null;
+  const line1 = join([
+    [identityHead, capital].filter(Boolean).join(' ') || null,
+    b.rc ? `RC : ${b.rc}` : null,
+    b.patente ? `Patente : ${b.patente}` : null,
+    b.identifiant_fiscal ? `IF : ${b.identifiant_fiscal}` : null,
+    b.ice ? `ICE : ${b.ice}` : null,
+    b.cnss ? `CNSS : ${b.cnss}` : null,
+  ]);
+
+  const cityAndPostal = [b.legal_city, b.postal_code].filter(Boolean).join(' ');
+  const siegeParts: string[] = [];
+  if (b.legal_address) siegeParts.push(b.legal_address);
+  if (cityAndPostal) siegeParts.push(cityAndPostal);
+  const line2 = siegeParts.length ? `Siège : ${siegeParts.join(' · ')} · Maroc` : '';
+
+  const line3 = join([
+    b.business_phone ? `Tél : ${b.business_phone}` : null,
+    b.business_email ? `Email : ${b.business_email}` : null,
+    b.website ? `Site Web : ${b.website}` : null,
+  ]);
+
+  return [line1, line2, line3].filter(Boolean);
 }
 
 type Props = { snapshot: BonLivraisonSnapshot; blNumber: string; issuedAtIso: string };
@@ -107,13 +130,11 @@ export function BonLivraisonPdfDocument({ snapshot, blNumber, issuedAtIso }: Pro
 
         <View style={styles.twoCol}>
           <View style={styles.col}>
-            <Text style={styles.blockTitle}>Émetteur</Text>
             <Text style={styles.blockName}>{business.name || '—'}</Text>
             {business.business_phone ? <Text style={styles.line}>Tél. {business.business_phone}</Text> : null}
             {business.business_email ? <Text style={styles.line}>{business.business_email}</Text> : null}
           </View>
           <View style={styles.col}>
-            <Text style={styles.blockTitle}>Destinataire</Text>
             <Text style={styles.blockName}>{client.name || '—'}</Text>
             {client.phone ? <Text style={styles.line}>Tél. {client.phone}</Text> : null}
             {client.address ? <Text style={styles.line}>{client.address}</Text> : null}
@@ -170,14 +191,20 @@ export function BonLivraisonPdfDocument({ snapshot, blNumber, issuedAtIso }: Pro
         ) : null}
 
         {showStamps ? (
-          <View style={styles.stampRow}>
+          <View style={styles.stampBlock} fixed>
             {stamps.cachet_url ? <Image src={stamps.cachet_url} style={styles.stampImg} /> : null}
             {stamps.signature_url ? <Image src={stamps.signature_url} style={styles.stampImg} /> : null}
           </View>
         ) : null}
 
         <View style={styles.footer} fixed>
-          <Text style={styles.footerText}>{buildFooterParts(business)}</Text>
+          {snapshot.thank_you_text ? (
+            <Text style={styles.footerThankYou}>{snapshot.thank_you_text}</Text>
+          ) : null}
+          <View style={styles.footerDivider} />
+          {buildFooterLines(business).map((line, i) => (
+            <Text key={i} style={styles.footerText}>{line}</Text>
+          ))}
         </View>
       </Page>
     </Document>

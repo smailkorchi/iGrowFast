@@ -12,8 +12,10 @@ export type DevisBusinessBlock = {
   capital_social?: string | null;
   legal_address?: string | null;
   legal_city?: string | null;
+  postal_code?: string | null;
   business_phone?: string | null;
   business_email?: string | null;
+  website?: string | null;
   logo_url?: string | null;
 };
 
@@ -52,6 +54,8 @@ export type DevisSnapshot = {
   };
   valid_until?: string | null;
   notes?: string | null;
+  // Optional closing line shown above the legal footer (e.g. "Merci pour votre confiance.").
+  thank_you_text?: string | null;
   issued_at_iso?: string;
   devis_number?: string;
 };

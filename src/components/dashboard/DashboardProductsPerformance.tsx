@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { ShoppingBag, Box, ChevronDown } from 'lucide-react';
+import { ShoppingBag, Box, ChevronDown, ChevronRight } from 'lucide-react';
 import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
 import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
@@ -17,6 +17,8 @@ interface DashboardProductsPerformanceProps {
 export const DashboardProductsPerformance = ({ businessId, dateFilter }: DashboardProductsPerformanceProps) => {
     const { confirmedIds, isPkgCategory } = useStatusCategories();
     const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
+    const [showAll, setShowAll] = useState(false);
+    const TOP_N = 3;
 
     const toggleProduct = (id: string) => {
         setExpandedProducts(prev => {
@@ -239,21 +241,29 @@ export const DashboardProductsPerformance = ({ businessId, dateFilter }: Dashboa
 
     if (!metrics) return null;
 
+    const totalProducts = metrics.productData.length;
+    const visibleProducts = showAll ? metrics.productData : metrics.productData.slice(0, TOP_N);
+    const hasMore = totalProducts > TOP_N;
+
     return (
         <Card className="border-0 shadow-sm rounded-3xl">
             <CardHeader className="pb-2">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-teal-50 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-2xl bg-teal-50 flex items-center justify-center shrink-0">
                         <ShoppingBag className="w-5 h-5 text-teal-600" />
                     </div>
-                    <div>
+                    <div className="flex-1 min-w-0">
                         <CardTitle className="text-sm font-bold text-brand-navy">Products Performance</CardTitle>
-                        <p className="text-xs text-gray-400 mt-0.5">{metrics.productData.length} products tracked</p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                            {hasMore && !showAll
+                                ? `Top ${Math.min(TOP_N, totalProducts)} of ${totalProducts} products`
+                                : `${totalProducts} products tracked`}
+                        </p>
                     </div>
                 </div>
             </CardHeader>
             <CardContent className="space-y-1.5">
-                {metrics.productData.map((p) => {
+                {visibleProducts.map((p) => {
                     const isExpanded = expandedProducts.has(p.id);
                     return (
                         <div
@@ -374,8 +384,18 @@ export const DashboardProductsPerformance = ({ businessId, dateFilter }: Dashboa
                         </div>
                     );
                 })}
-                {metrics.productData.length === 0 && (
+                {totalProducts === 0 && (
                     <p className="text-center py-8 text-gray-400 text-xs">No products found</p>
+                )}
+                {hasMore && (
+                    <button
+                        type="button"
+                        onClick={() => setShowAll((v) => !v)}
+                        className="w-full flex items-center justify-center gap-1 py-2 text-[11px] font-bold text-brand-navy/60 hover:text-brand-navy hover:bg-gray-50 rounded-xl transition-colors"
+                    >
+                        {showAll ? 'Show top 3 only' : `Show all ${totalProducts} products`}
+                        <ChevronRight className={cn('w-3.5 h-3.5 transition-transform', showAll && 'rotate-90')} />
+                    </button>
                 )}
             </CardContent>
         </Card>

@@ -47,18 +47,24 @@ const styles = StyleSheet.create({
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
   totalStrong: { fontFamily: FONT_BOLD, fontWeight: 'bold' as const, fontSize: 11 },
   notes: { marginTop: 16, padding: 10, backgroundColor: '#f7f7f7', fontSize: 8, color: '#444' },
-  stampRow: { flexDirection: 'row', gap: 24, marginTop: 28, justifyContent: 'flex-end' },
-  stampImg: { width: 120, height: 60, objectFit: 'contain' },
+  // Stamps sit at a fixed position above the footer so they always end up
+  // near the bottom of every page regardless of how short the content is.
+  // Cachet + signature share the same box so the signature visually overlays
+  // the cachet the way a real hand-signed document looks.
+  // Stamps live above the footer block. Raised to clear the taller footer
+  // (thank-you + 3 legal lines when all fields are filled).
+  stampBlock: { position: 'absolute', right: 40, bottom: 90, width: 180, height: 120 },
+  stampImg: { position: 'absolute', top: 0, left: 0, width: 180, height: 120, objectFit: 'contain' },
   footer: {
     position: 'absolute',
     bottom: 20,
     left: 40,
     right: 40,
-    borderTopWidth: 0.5,
-    borderTopColor: '#ddd',
-    paddingTop: 6,
   },
-  footerText: { fontSize: 6.5, color: '#999', textAlign: 'center', lineHeight: 1.4 },
+  // Closing phrase above the divider — same footer block as the legal info.
+  footerThankYou: { fontSize: 9, color: '#333', textAlign: 'center', marginBottom: 4 },
+  footerDivider: { height: 0.5, backgroundColor: '#bbb', marginBottom: 5 },
+  footerText: { fontSize: 7, color: '#555', textAlign: 'center', lineHeight: 1.45 },
 });
 
 function fmtDate(iso?: string | null) {
@@ -68,17 +74,43 @@ function fmtDate(iso?: string | null) {
 
 function fmtMoney(n: number) { return `${n.toFixed(2)} MAD`; }
 
-function buildFooterParts(b: DevisSnapshot['business']) {
-  const parts: string[] = [];
-  if (b.legal_address) parts.push(b.legal_address);
-  if (b.legal_city) parts.push(b.legal_city);
-  if (b.capital_social) parts.push(`Capital : ${b.capital_social}`);
-  if (b.ice) parts.push(`ICE : ${b.ice}`);
-  if (b.rc) parts.push(`RC : ${b.rc}`);
-  if (b.identifiant_fiscal) parts.push(`IF : ${b.identifiant_fiscal}`);
-  if (b.business_phone) parts.push(`Tél. ${b.business_phone}`);
-  if (b.business_email) parts.push(b.business_email);
-  return parts.join(' · ');
+// Three-line legal footer. Each line is assembled from whichever fields exist;
+// empty lines are dropped so a partially-filled business record still looks clean.
+function buildFooterLines(b: DevisSnapshot['business']): string[] {
+  const join = (parts: (string | null | undefined)[]) => parts.filter(Boolean).join(' · ');
+
+  // Line 1: identity — "{name} {legal_form} au capital de {capital} Dhs · RC · Patente · IF · ICE · CNSS"
+  const identityLead: string[] = [];
+  if (b.name) identityLead.push(b.name);
+  if (b.legal_form) identityLead.push(b.legal_form);
+  const identityHead = identityLead.join(' ');
+  const capital = b.capital_social ? `au capital de ${b.capital_social} Dhs` : null;
+  const line1 = join([
+    [identityHead, capital].filter(Boolean).join(' ') || null,
+    b.rc ? `RC : ${b.rc}` : null,
+    b.patente ? `Patente : ${b.patente}` : null,
+    b.identifiant_fiscal ? `IF : ${b.identifiant_fiscal}` : null,
+    b.ice ? `ICE : ${b.ice}` : null,
+    b.cnss ? `CNSS : ${b.cnss}` : null,
+  ]);
+
+  // Line 2: "Siège : {address} · {city} {postal} · Maroc"
+  const cityAndPostal = [b.legal_city, b.postal_code].filter(Boolean).join(' ');
+  const siegeParts: string[] = [];
+  if (b.legal_address) siegeParts.push(b.legal_address);
+  if (cityAndPostal) siegeParts.push(cityAndPostal);
+  const line2 = siegeParts.length
+    ? `Siège : ${siegeParts.join(' · ')} · Maroc`
+    : '';
+
+  // Line 3: "Tél : ... · Email : ... · Site Web : ..."
+  const line3 = join([
+    b.business_phone ? `Tél : ${b.business_phone}` : null,
+    b.business_email ? `Email : ${b.business_email}` : null,
+    b.website ? `Site Web : ${b.website}` : null,
+  ]);
+
+  return [line1, line2, line3].filter(Boolean);
 }
 
 type Props = { snapshot: DevisSnapshot; devisNumber: string; issuedAtIso: string };
@@ -107,16 +139,14 @@ export function DevisPdfDocument({ snapshot, devisNumber, issuedAtIso }: Props) 
           </View>
         </View>
 
-        {/* Emetteur (name, phone, email only) + Client */}
+        {/* Issuer + client — no column headers, the layout alone conveys the roles. */}
         <View style={styles.twoCol}>
           <View style={styles.col}>
-            <Text style={styles.blockTitle}>Émetteur</Text>
             <Text style={styles.blockName}>{business.name || '—'}</Text>
             {business.business_phone ? <Text style={styles.line}>Tél. {business.business_phone}</Text> : null}
             {business.business_email ? <Text style={styles.line}>{business.business_email}</Text> : null}
           </View>
           <View style={styles.col}>
-            <Text style={styles.blockTitle}>Client</Text>
             <Text style={styles.blockName}>{client.name || '—'}</Text>
             {client.phone ? <Text style={styles.line}>Tél. {client.phone}</Text> : null}
             {client.address ? <Text style={styles.line}>{client.address}</Text> : null}
@@ -162,15 +192,21 @@ export function DevisPdfDocument({ snapshot, devisNumber, issuedAtIso }: Props) 
         ) : null}
 
         {showStamps ? (
-          <View style={styles.stampRow}>
+          <View style={styles.stampBlock} fixed>
             {stamps.cachet_url ? <Image src={stamps.cachet_url} style={styles.stampImg} /> : null}
             {stamps.signature_url ? <Image src={stamps.signature_url} style={styles.stampImg} /> : null}
           </View>
         ) : null}
 
-        {/* Footer */}
+        {/* Footer: optional thank-you phrase + divider + 3 legal-identity lines */}
         <View style={styles.footer} fixed>
-          <Text style={styles.footerText}>{buildFooterParts(business)}</Text>
+          {snapshot.thank_you_text ? (
+            <Text style={styles.footerThankYou}>{snapshot.thank_you_text}</Text>
+          ) : null}
+          <View style={styles.footerDivider} />
+          {buildFooterLines(business).map((line, i) => (
+            <Text key={i} style={styles.footerText}>{line}</Text>
+          ))}
         </View>
       </Page>
     </Document>

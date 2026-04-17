@@ -57,8 +57,10 @@ type BusinessRow = {
   capital_social?: string | null;
   legal_address?: string | null;
   legal_city?: string | null;
+  postal_code?: string | null;
   business_phone?: string | null;
   business_email?: string | null;
+  website?: string | null;
   cachet_url?: string | null;
   signature_url?: string | null;
 };
@@ -88,8 +90,10 @@ function emptyManualBusiness() {
     capital_social: '',
     legal_address: '',
     legal_city: '',
+    postal_code: '',
     business_phone: '',
     business_email: '',
+    website: '',
   };
 }
 
@@ -106,8 +110,10 @@ function businessBlockFromRow(b: BusinessRow): DevisSnapshot['business'] {
     capital_social: b.capital_social,
     legal_address: b.legal_address,
     legal_city: b.legal_city,
+    postal_code: b.postal_code,
     business_phone: b.business_phone,
     business_email: b.business_email,
+    website: b.website,
     logo_url: b.logo,
   };
 }
@@ -187,6 +193,10 @@ export function BonLivraisonWizard({
   const [stampSource, setStampSource] = useState<'business' | 'blank'>('business');
   const [deliveryDate, setDeliveryDate] = useState('');
   const [notes, setNotes] = useState('');
+  // Optional user-supplied BL number. Empty → auto-generated at save.
+  const [customNumber, setCustomNumber] = useState('');
+  // Optional closing line printed just above the legal footer.
+  const [thankYou, setThankYou] = useState('');
   const [includePrices, setIncludePrices] = useState(false);
   const [showTransportBlock, setShowTransportBlock] = useState(false);
   const [transport, setTransport] = useState<BonLivraisonSnapshot['transport']>(null);
@@ -215,8 +225,10 @@ export function BonLivraisonWizard({
         capital_social: snap.business.capital_social || '',
         legal_address: snap.business.legal_address || '',
         legal_city: snap.business.legal_city || '',
+        postal_code: snap.business.postal_code || '',
         business_phone: snap.business.business_phone || '',
         business_email: snap.business.business_email || '',
+        website: snap.business.website || '',
       });
     } else {
       setManualBusiness(emptyManualBusiness());
@@ -247,6 +259,8 @@ export function BonLivraisonWizard({
     setStampSource(snap.stamps.source);
     setDeliveryDate(snap.delivery_date ? snap.delivery_date.slice(0, 10) : '');
     setNotes(snap.notes || '');
+    setCustomNumber(snap.bl_number || '');
+    setThankYou(snap.thank_you_text || '');
   }, []);
 
   useEffect(() => {
@@ -269,6 +283,8 @@ export function BonLivraisonWizard({
     setStampSource('business');
     setDeliveryDate('');
     setNotes('');
+    setCustomNumber('');
+    setThankYou('');
     setIncludePrices(false);
     setShowTransportBlock(false);
     setTransport(null);
@@ -296,8 +312,10 @@ export function BonLivraisonWizard({
       capital_social: manualBusiness.capital_social || null,
       legal_address: manualBusiness.legal_address || null,
       legal_city: manualBusiness.legal_city || null,
+      postal_code: manualBusiness.postal_code || null,
       business_phone: manualBusiness.business_phone || null,
       business_email: manualBusiness.business_email || null,
+      website: manualBusiness.website || null,
       logo_url: null,
     };
   }, [businessSource, business, manualBusiness]);
@@ -495,6 +513,8 @@ export function BonLivraisonWizard({
       stamps: stampsBlock,
       delivery_date: deliveryDate ? `${deliveryDate}T12:00:00.000Z` : null,
       notes: notes.trim() || null,
+      bl_number: customNumber.trim() || undefined,
+      thank_you_text: thankYou.trim() || null,
     };
     await onSubmit(snapshot);
   }
@@ -940,14 +960,29 @@ export function BonLivraisonWizard({
                       </label>
                     </RadioGroup>
                   </div>
-                  <div>
-                    <Label>Date de livraison (optionnel)</Label>
-                    <Input
-                      type="date"
-                      value={deliveryDate}
-                      onChange={(e) => setDeliveryDate(e.target.value)}
-                      className="rounded-xl mt-1 max-w-xs"
-                    />
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Numéro (optionnel)</Label>
+                      <Input
+                        value={customNumber}
+                        onChange={(e) => setCustomNumber(e.target.value)}
+                        placeholder="BL-2026-001"
+                        disabled={!!initialSnapshot}
+                        className="rounded-xl mt-1"
+                      />
+                      <p className="text-[10px] text-gray-400 mt-1">
+                        Laisser vide pour générer automatiquement.
+                      </p>
+                    </div>
+                    <div>
+                      <Label>Date de livraison (optionnel)</Label>
+                      <Input
+                        type="date"
+                        value={deliveryDate}
+                        onChange={(e) => setDeliveryDate(e.target.value)}
+                        className="rounded-xl mt-1"
+                      />
+                    </div>
                   </div>
                   <div>
                     <Label>Notes</Label>
@@ -956,6 +991,18 @@ export function BonLivraisonWizard({
                       onChange={(e) => setNotes(e.target.value)}
                       className="rounded-xl mt-1 min-h-[72px]"
                     />
+                  </div>
+                  <div>
+                    <Label>Phrase de remerciement (optionnel)</Label>
+                    <Input
+                      value={thankYou}
+                      onChange={(e) => setThankYou(e.target.value)}
+                      placeholder="Merci pour votre confiance."
+                      className="rounded-xl mt-1"
+                    />
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      Affichée en bas de page, juste au-dessus des mentions légales.
+                    </p>
                   </div>
                   <div className="rounded-2xl border border-dashed border-gray-200 p-4 space-y-2 text-sm">
                     <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Récap</p>

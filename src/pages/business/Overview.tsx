@@ -50,6 +50,7 @@ const profileSchema = z.object({
   capital_social: z.string().optional().nullable(),
   legal_address: z.string().optional().nullable(),
   legal_city: z.string().optional().nullable(),
+  postal_code: z.string().optional().nullable(),
   business_phone: z.string().optional().nullable(),
   business_email: z
     .string()
@@ -58,6 +59,16 @@ const profileSchema = z.object({
     .refine((v) => !v || v === '' || z.string().email().safeParse(v).success, {
       message: 'Email invalide',
     }),
+  website: z
+    .string()
+    .optional()
+    .nullable()
+    .refine((v) => {
+      if (!v || v === '') return true;
+      // Accept domain-only entries (e.g. "acme.ma") by prepending https:// before validation.
+      const candidate = /^https?:\/\//i.test(v) ? v : `https://${v}`;
+      return z.string().url().safeParse(candidate).success;
+    }, { message: 'URL invalide' }),
   cachet_url: z.string().optional().nullable(),
   signature_url: z.string().optional().nullable(),
 });
@@ -96,8 +107,10 @@ type BusinessRow = {
   capital_social?: string | null;
   legal_address?: string | null;
   legal_city?: string | null;
+  postal_code?: string | null;
   business_phone?: string | null;
   business_email?: string | null;
+  website?: string | null;
   cachet_url?: string | null;
   signature_url?: string | null;
 };
@@ -115,10 +128,52 @@ const statusStyles: Record<string, string> = {
   suspended: 'bg-amber-50 text-amber-900 border-amber-100',
 };
 
+// @react-pdf/renderer's <Image> component only accepts raster formats (PNG / JPEG).
+// SVG files render as a blank box in Devis / Facture / Bon de commande / Bon de
+// livraison PDFs. To keep the upload UX unchanged while guaranteeing the document
+// templates render, every branding asset is rasterised to PNG on the client before
+// it hits Supabase Storage. Raster inputs are re-encoded (cheap) so dimensions are
+// also normalised.
+async function rasteriseToPng(file: File, maxDim = 1024): Promise<Blob> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    reader.onload = () => resolve(String(reader.result));
+    reader.readAsDataURL(file);
+  });
+
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const el = new Image();
+    el.crossOrigin = 'anonymous';
+    el.onload = () => resolve(el);
+    el.onerror = () => reject(new Error('Image inaccessible'));
+    el.src = dataUrl;
+  });
+
+  const w = img.naturalWidth || img.width;
+  const h = img.naturalHeight || img.height;
+  if (!w || !h) throw new Error('Image sans dimensions (SVG vectoriel sans viewBox ?)');
+  const scale = Math.min(1, maxDim / Math.max(w, h));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(w * scale);
+  canvas.height = Math.round(h * scale);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas 2D indisponible');
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error('Conversion PNG échouée'));
+    }, 'image/png');
+  });
+}
+
 async function uploadBrandingAsset(businessId: string, kind: 'logo' | 'cachet' | 'signature', file: File) {
-  const ext = file.name.split('.').pop() || 'png';
-  const path = `profile/${businessId}/${kind}-${Date.now()}.${ext}`;
-  const { error } = await supabase.storage.from('business-logos').upload(path, file);
+  const pngBlob = await rasteriseToPng(file);
+  const path = `profile/${businessId}/${kind}-${Date.now()}.png`;
+  const { error } = await supabase.storage
+    .from('business-logos')
+    .upload(path, pngBlob, { contentType: 'image/png' });
   if (error) throw error;
   const {
     data: { publicUrl },
@@ -146,8 +201,10 @@ const BusinessOverview = () => {
       capital_social: '',
       legal_address: '',
       legal_city: '',
+      postal_code: '',
       business_phone: '',
       business_email: '',
+      website: '',
       cachet_url: '',
       signature_url: '',
     },
@@ -187,8 +244,10 @@ const BusinessOverview = () => {
       capital_social: business.capital_social || '',
       legal_address: business.legal_address || '',
       legal_city: business.legal_city || '',
+      postal_code: business.postal_code || '',
       business_phone: business.business_phone || '',
       business_email: business.business_email || '',
+      website: business.website || '',
       cachet_url: business.cachet_url || '',
       signature_url: business.signature_url || '',
     });
@@ -210,8 +269,10 @@ const BusinessOverview = () => {
         p_capital_social: values.capital_social || '',
         p_legal_address: values.legal_address || '',
         p_legal_city: values.legal_city || '',
+        p_postal_code: values.postal_code || '',
         p_business_phone: values.business_phone || '',
         p_business_email: values.business_email || '',
+        p_website: values.website || '',
         p_cachet_url: values.cachet_url || '',
         p_signature_url: values.signature_url || '',
       });
@@ -666,7 +727,7 @@ const BusinessOverview = () => {
                       </FormItem>
                     )}
                   />
-                  <div className="grid sm:grid-cols-2 gap-5">
+                  <div className="grid sm:grid-cols-3 gap-5">
                     <FormField
                       control={form.control}
                       name="legal_city"
@@ -679,6 +740,26 @@ const BusinessOverview = () => {
                             <Input
                               {...field}
                               value={field.value ?? ''}
+                              className="h-11 rounded-2xl border-gray-100 bg-gray-50/50"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="postal_code"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                            Code postal
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              value={field.value ?? ''}
+                              placeholder="20000"
                               className="h-11 rounded-2xl border-gray-100 bg-gray-50/50"
                             />
                           </FormControl>
@@ -719,6 +800,26 @@ const BusinessOverview = () => {
                               {...field}
                               value={field.value ?? ''}
                               type="email"
+                              className="h-11 rounded-2xl border-gray-100 bg-gray-50/50"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="website"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                            Site web
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              value={field.value ?? ''}
+                              placeholder="https://acme.ma"
                               className="h-11 rounded-2xl border-gray-100 bg-gray-50/50"
                             />
                           </FormControl>

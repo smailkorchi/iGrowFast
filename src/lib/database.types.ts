@@ -597,6 +597,7 @@ export type Database = {
           identifiant_fiscal: string | null
           legal_address: string | null
           legal_city: string | null
+          postal_code: string | null
           legal_form: string | null
           license_end: string | null
           license_start: string
@@ -610,6 +611,7 @@ export type Database = {
           signature_url: string | null
           status: string
           updated_at: string | null
+          website: string | null
         }
         Insert: {
           active?: boolean | null
@@ -625,6 +627,7 @@ export type Database = {
           identifiant_fiscal?: string | null
           legal_address?: string | null
           legal_city?: string | null
+          postal_code?: string | null
           legal_form?: string | null
           license_end?: string | null
           license_start?: string
@@ -638,6 +641,7 @@ export type Database = {
           signature_url?: string | null
           status?: string
           updated_at?: string | null
+          website?: string | null
         }
         Update: {
           active?: boolean | null
@@ -653,6 +657,7 @@ export type Database = {
           identifiant_fiscal?: string | null
           legal_address?: string | null
           legal_city?: string | null
+          postal_code?: string | null
           legal_form?: string | null
           license_end?: string | null
           license_start?: string
@@ -666,6 +671,7 @@ export type Database = {
           signature_url?: string | null
           status?: string
           updated_at?: string | null
+          website?: string | null
         }
         Relationships: [
           {
@@ -5370,8 +5376,10 @@ export type Database = {
           p_logo: string
           p_name: string
           p_patente: string
+          p_postal_code: string
           p_rc: string
           p_signature_url: string
+          p_website: string
         }
         Returns: Json
       }

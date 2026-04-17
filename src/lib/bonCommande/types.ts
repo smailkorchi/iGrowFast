@@ -34,6 +34,7 @@ export type BonCommandeSnapshot = {
   };
   valid_until?: string | null;
   notes?: string | null;
+  thank_you_text?: string | null;
   issued_at_iso?: string;
   bc_number?: string;
 };

@@ -69,8 +69,10 @@ type BusinessRow = {
   capital_social?: string | null;
   legal_address?: string | null;
   legal_city?: string | null;
+  postal_code?: string | null;
   business_phone?: string | null;
   business_email?: string | null;
+  website?: string | null;
   cachet_url?: string | null;
   signature_url?: string | null;
 };
@@ -122,7 +124,7 @@ export default function BonCommandePage() {
       const { data, error } = await supabase
         .from('businesses')
         .select(
-          'id, name, logo, ice, rc, identifiant_fiscal, patente, cnss, legal_form, capital_social, legal_address, legal_city, business_phone, business_email, cachet_url, signature_url',
+          'id, name, logo, ice, rc, identifiant_fiscal, patente, cnss, legal_form, capital_social, legal_address, legal_city, postal_code, business_phone, business_email, website, cachet_url, signature_url',
         )
         .eq('id', activeBusinessId!)
         .single();
@@ -290,7 +292,8 @@ export default function BonCommandePage() {
             .eq('id', editingId);
           if (upErr) throw upErr;
         } else {
-          bcNumber = await uniqueBcNumber(activeBusinessId);
+          const customNumber = snapshot.bc_number?.trim();
+          bcNumber = customNumber || (await uniqueBcNumber(activeBusinessId));
           issuedAtIso = new Date().toISOString();
           const enriched: BonCommandeSnapshot = {
             ...snapshot,
@@ -314,7 +317,12 @@ export default function BonCommandePage() {
             })
             .select('id')
             .single();
-          if (insErr) throw insErr;
+          if (insErr) {
+            if (customNumber && (insErr.code === '23505' || /duplicate|unique/i.test(insErr.message))) {
+              throw new Error(`Le numéro « ${customNumber} » existe déjà pour ce business.`);
+            }
+            throw insErr;
+          }
           rowId = inserted!.id;
         }
 
