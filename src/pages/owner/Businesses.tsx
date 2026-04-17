@@ -87,8 +87,16 @@ type BusinessUpdateFields = {
     updated_at?: string;
 };
 
-const errorMessage = (err: unknown): string =>
-    err instanceof Error ? err.message : String(err);
+const errorMessage = (err: unknown): string => {
+    if (err instanceof Error) return err.message;
+    if (err && typeof err === 'object') {
+        const e = err as { message?: unknown; details?: unknown; hint?: unknown };
+        if (typeof e.message === 'string' && e.message) return e.message;
+        if (typeof e.details === 'string' && e.details) return e.details;
+        if (typeof e.hint === 'string' && e.hint) return e.hint;
+    }
+    return String(err);
+};
 
 const adminUserSchema = z.object({
     name: z.string().min(2, 'Name is required'),
@@ -319,7 +327,7 @@ const Businesses = () => {
 
     const deleteMutation = useMutation({
         mutationFn: async (id: string) => {
-            const { error } = await supabase.from('businesses').delete().eq('id', id);
+            const { error } = await supabase.rpc('delete_business', { p_business_id: id });
             if (error) throw error;
         },
         onSuccess: () => {

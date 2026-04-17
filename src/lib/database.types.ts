@@ -5280,6 +5280,10 @@ export type Database = {
         Returns: string
       }
       current_user_digicom_business_id: { Args: never; Returns: string }
+      delete_business: {
+        Args: { p_business_id: string }
+        Returns: undefined
+      }
       delete_open_company_delivery_note: {
         Args: { p_delivery_note_id: string }
         Returns: undefined
