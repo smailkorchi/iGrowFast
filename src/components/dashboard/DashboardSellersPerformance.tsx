@@ -2,32 +2,54 @@ import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { Users, ChevronDown } from 'lucide-react';
+import { Users, ChevronDown, AlertTriangle } from 'lucide-react';
 import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
 import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { useSellerCommissionTotals } from '@/hooks/useSellerCommissionTotals';
 import {
+    assignmentTimestampForMetrics,
     commissionAccruedForDeliveredOrder,
+    isConfirmed,
     isDeliveredForCommission,
     normalizeCommissionBasis,
     type CommissionBasis,
 } from '@/lib/commercialCommission';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { PerformanceFunnel, type FunnelStage } from './performance/PerformanceFunnel';
+import { StatusQueuePane, type StatusQueueEntry } from './performance/StatusQueuePane';
+import { SourcePills, type SourceStat } from './performance/SourcePills';
+import { FinancialsWaterfall } from './performance/FinancialsWaterfall';
 
 interface DashboardSellersPerformanceProps {
     businessId: string;
     dateFilter: DateFilter;
 }
 
-// PRE/POST_CONFIRMATION_LABELS removed — now driven by perf_breakdown flags on order_statuses / package_statuses
-
-// Types verified against public.{orders, order_items, order_statuses, users, ads_history} via MCP
-type DSOrderItem = { product_id: string; quantity: number; unit_price: number; total_price: number | null };
-type DSOrderStatuses = { code: string; label: string } | null;
+// Types verified against public.{orders, order_items, order_statuses, package_statuses, users, ads_history} via MCP
+type DSOrderItem = {
+    product_id: string;
+    quantity: number;
+    unit_price: number;
+    total_price: number | null;
+    accessory_id: string | null;
+    accessory_quantity: number | null;
+};
+type DSOrderStatusJoin = { code: string; label: string; category: string } | null;
+type DSPackageStatusJoin = { label: string; category: string } | null;
 type DSOrder = {
     id: string;
     date: string | null;
+    assignment_date: string | null;
+    confirmation_date: string | null;
+    date_livraison: string | null;
+    updated_at: string | null;
     price: number | null;
     raw_price: number | null;
     shipping_cost: number | null;
@@ -39,7 +61,8 @@ type DSOrder = {
     company_id: string | null;
     source_name: string | null;
     order_items: DSOrderItem[] | null;
-    order_statuses: DSOrderStatuses;
+    order_statuses: DSOrderStatusJoin;
+    package_statuses: DSPackageStatusJoin;
 };
 type DSSeller = {
     id: string;
@@ -51,17 +74,8 @@ type DSSeller = {
     products: unknown;
 };
 type DSAd = { product_id: string | null; amount: number; start_date: string };
-
-const SOURCE_COLORS: Record<string, string> = {
-    facebook: 'bg-blue-50 text-blue-700',
-    instagram: 'bg-pink-50 text-pink-700',
-    tiktok: 'bg-slate-100 text-slate-800',
-    whatsapp: 'bg-emerald-50 text-emerald-700',
-    'phone call': 'bg-sky-50 text-sky-700',
-    connaissance: 'bg-amber-50 text-amber-700',
-    reorder: 'bg-teal-50 text-teal-700',
-    other: 'bg-gray-100 text-gray-600',
-};
+type DSProduct = { id: string; cost_price: number | null };
+type DSAccessory = { id: string; cost_price: number | null };
 
 /** Product-line revenue only (no shipping). Uses line totals; falls back to raw_price or price − shipping. */
 function productRevenueExcludingShipping(o: DSOrder): number {
@@ -84,17 +98,12 @@ function productRevenueExcludingShipping(o: DSOrder): number {
 export const DashboardSellersPerformance = ({ businessId, dateFilter }: DashboardSellersPerformanceProps) => {
     const [expandedSellers, setExpandedSellers] = useState<Set<string>>(new Set());
     const {
+        orderStatuses,
+        packageStatuses,
         confirmedIds,
-        callbackIds,
-        cancelledIds,
         deliveredPkgIds,
-        getPkgsByCategories,
         getOrderStatusColor,
         getPkgStatusColor,
-        preConfBreakdownIds,
-        postConfBreakdownIds,
-        getPreConfBreakdownStatuses,
-        getPostConfBreakdownStatuses,
     } = useStatusCategories();
 
     const toggleSeller = (id: string) => {
@@ -119,14 +128,13 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
         enabled: !!businessId,
     });
 
-    /** Rich orders for net math (isolated key so shared dashboard-orders stays unchanged). */
     const { data: orders } = useQuery({
         queryKey: ['dashboard-sellers-performance-orders', businessId],
         queryFn: async () => {
             const { data } = await supabase
                 .from('orders')
                 .select(
-                    'id, date, price, raw_price, shipping_cost, include_delivery_in_total, order_status_id, package_status_id, package_status_label, seller_id, company_id, source_name, order_items(product_id, quantity, unit_price, total_price), order_statuses(code, label)'
+                    'id, date, assignment_date, confirmation_date, date_livraison, updated_at, price, raw_price, shipping_cost, include_delivery_in_total, order_status_id, package_status_id, package_status_label, seller_id, company_id, source_name, order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity), order_statuses(code, label, category), package_statuses(label, category)'
                 )
                 .eq('DigiCom Business', businessId)
                 .is('date_deleted', null);
@@ -147,28 +155,64 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
         enabled: !!businessId,
     });
 
+    const { data: products } = useQuery({
+        queryKey: ['dashboard-products', businessId],
+        queryFn: async () => {
+            const { data } = await supabase
+                .from('products')
+                .select('id, name, image_url, stock, cost_price, selling_price, active')
+                .eq('DigiCom Business', businessId);
+            return data || [];
+        },
+        enabled: !!businessId,
+    });
+
+    const { data: accessories } = useQuery({
+        queryKey: ['dashboard-accessories', businessId],
+        queryFn: async () => {
+            const { data } = await supabase
+                .from('accessories')
+                .select('id, cost_price')
+                .eq('DigiCom Business', businessId);
+            return data || [];
+        },
+        enabled: !!businessId,
+    });
+
+    const { data: commissionTotals } = useSellerCommissionTotals(
+        businessId,
+        dateFilter.from,
+        dateFilter.to,
+    );
+
     const metrics = useMemo(() => {
         if (!sellers || !orders) return null;
 
-        const recheckPackageIds = new Set(getPkgsByCategories(['recheck']).map((p) => p.id));
-        const isExcludedFromConfirmation = (statusId: string) =>
-            callbackIds.has(statusId) || cancelledIds.has(statusId);
-
-        const isInRange = (dateStr: string | null) => {
-            if (!dateStr) return true;
+        const withinWindow = (d: Date | null) => {
+            if (!d) return false;
             if (!dateFilter.from && !dateFilter.to) return true;
-            const d = new Date(dateStr);
             return isWithinInterval(d, {
                 start: dateFilter.from ? startOfDay(dateFilter.from) : new Date(0),
                 end: dateFilter.to ? endOfDay(dateFilter.to) : new Date(),
             });
         };
 
-        const ordersTyped = orders as unknown as DSOrder[];
-        const filtered = ordersTyped.filter((o) => isInRange(o.date));
-        const totalOrders = filtered.length;
+        const inCohortWindow = (o: DSOrder) => withinWindow(assignmentTimestampForMetrics(o));
+        const inCreateWindow = (o: DSOrder) => {
+            if (!o.date) return false;
+            const d = new Date(o.date);
+            return Number.isNaN(d.getTime()) ? false : withinWindow(d);
+        };
 
-        const filteredAds = ((adsHistory || []) as unknown as DSAd[]).filter((a) => isInRange(a.start_date));
+        const ordersTyped = orders as unknown as DSOrder[];
+        const totalInWindow = ordersTyped.filter(inCreateWindow).length;
+
+        // Ads restricted to window + business
+        const filteredAds = ((adsHistory || []) as unknown as DSAd[]).filter((a) => {
+            if (!a.start_date) return false;
+            const d = new Date(a.start_date);
+            return withinWindow(d);
+        });
         const adsByProduct = new Map<string, number>();
         filteredAds.forEach((a) => {
             if (a.product_id) {
@@ -176,96 +220,169 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
             }
         });
 
-        const globalProductDeliveredQty = new Map<string, number>();
-        filtered.forEach((o) => {
+        // Product cost lookup
+        const productCost = new Map<string, number>();
+        (products as unknown as DSProduct[] | undefined)?.forEach((p) => {
+            productCost.set(p.id, Number(p.cost_price || 0));
+        });
+        const accessoryCost = new Map<string, number>();
+        (accessories as unknown as DSAccessory[] | undefined)?.forEach((a) => {
+            accessoryCost.set(a.id, Number(a.cost_price || 0));
+        });
+
+        // Status-id lookup for naming pills in the live-queue panes
+        const orderStatusById = new Map(orderStatuses.map((s) => [s.id, s]));
+        const packageStatusById = new Map(packageStatuses.map((s) => [s.id, s]));
+
+        // Global cohort-delivered qty per product for ads share denominator
+        const globalDeliveredQty = new Map<string, number>();
+        ordersTyped.forEach((o) => {
+            if (!inCohortWindow(o)) return;
             if (!isDeliveredForCommission(o, deliveredPkgIds)) return;
-            const items = o.order_items || [];
-            for (const oi of items) {
-                const pid = oi?.product_id;
-                if (!pid) continue;
-                const q = Number(oi.quantity || 1);
-                globalProductDeliveredQty.set(pid, (globalProductDeliveredQty.get(pid) || 0) + q);
+            for (const oi of o.order_items || []) {
+                if (!oi?.product_id) continue;
+                globalDeliveredQty.set(
+                    oi.product_id,
+                    (globalDeliveredQty.get(oi.product_id) || 0) + Number(oi.quantity || 1),
+                );
             }
         });
 
         const sellersTyped = sellers as unknown as DSSeller[];
         const sellerData = sellersTyped.map((seller) => {
-            const sellerOrders = filtered.filter((o) => o.seller_id === seller.id);
-            const assignedCount = sellerOrders.length;
-            const assignedPercent = totalOrders > 0 ? (assignedCount / totalOrders) * 100 : 0;
+            const sellerOrders = ordersTyped.filter((o) => o.seller_id === seller.id);
 
-            const sourceBreakdown: Record<string, number> = {};
-            sellerOrders.forEach((o) => {
-                const src = (o.source_name || 'other').toLowerCase();
-                sourceBreakdown[src] = (sourceBreakdown[src] || 0) + 1;
-            });
+            // Cohort = orders assigned to this seller, anchored in window by assignment_date
+            // (fallback orders.date). Confirmed/delivered are strict subsets of cohort so the
+            // funnel always reconciles: assigned = confirmed + not-confirmed-yet (which is
+            // the pre-conf live queue), and confirmed = delivered + not-delivered-yet (post-conf).
+            const cohort = sellerOrders.filter(inCohortWindow);
+            const assignedCount = cohort.length;
+            const assignedPercent = totalInWindow > 0 ? (assignedCount / totalInWindow) * 100 : 0;
 
-            const preConfOrders = sellerOrders.filter((o) =>
-                !!o.order_status_id && preConfBreakdownIds.has(o.order_status_id)
-            );
-            const preConfirmationBreakdown: Record<string, { count: number; color: string }> = {};
-            preConfOrders.forEach((o) => {
-                const label = o.order_statuses?.label || 'Unknown';
-                if (!preConfirmationBreakdown[label]) {
-                    preConfirmationBreakdown[label] = {
-                        count: 0,
-                        color: getOrderStatusColor(o.order_status_id),
-                    };
-                }
-                preConfirmationBreakdown[label].count += 1;
-            });
-
-            const confirmedCount = sellerOrders.filter((o) => !!o.order_status_id && confirmedIds.has(o.order_status_id)).length;
+            const confirmed = cohort.filter((o) => isConfirmed(o, confirmedIds));
+            const confirmedCount = confirmed.length;
             const confirmedPercent = assignedCount > 0 ? (confirmedCount / assignedCount) * 100 : 0;
 
-            const postConfOrders = sellerOrders.filter((o) =>
-                !!o.package_status_id && postConfBreakdownIds.has(o.package_status_id)
-            );
-            const postConfirmationBreakdown: Record<string, { count: number; color: string }> = {};
-            postConfOrders.forEach((o) => {
-                const label = o.package_status_label || 'Unknown';
-                if (!postConfirmationBreakdown[label]) {
-                    postConfirmationBreakdown[label] = {
-                        count: 0,
-                        color: getPkgStatusColor(o.package_status_id),
-                    };
-                }
-                postConfirmationBreakdown[label].count += 1;
-            });
-
-            const delivered = sellerOrders.filter((o) => isDeliveredForCommission(o, deliveredPkgIds));
+            const delivered = confirmed.filter((o) => isDeliveredForCommission(o, deliveredPkgIds));
             const deliveredCount = delivered.length;
             const deliveredPercent = confirmedCount > 0 ? (deliveredCount / confirmedCount) * 100 : 0;
 
+            // Sources — bucket by the cohort, each source counts assigned/confirmed/delivered subsets
+            const sourceAgg = new Map<string, { assigned: number; confirmed: number; delivered: number }>();
+            const bump = (src: string, k: 'assigned' | 'confirmed' | 'delivered') => {
+                const row = sourceAgg.get(src) || { assigned: 0, confirmed: 0, delivered: 0 };
+                row[k] += 1;
+                sourceAgg.set(src, row);
+            };
+            cohort.forEach((o) => bump((o.source_name || 'other').toLowerCase(), 'assigned'));
+            confirmed.forEach((o) => bump((o.source_name || 'other').toLowerCase(), 'confirmed'));
+            delivered.forEach((o) => bump((o.source_name || 'other').toLowerCase(), 'delivered'));
+            const sources: SourceStat[] = Array.from(sourceAgg, ([source, v]) => ({ source, ...v }));
+
+            // Pre-confirmation bucket = cohort orders NOT YET confirmed. Every distinct current
+            // order_status gets its own pill. Orders with no status are grouped as "— no status".
+            // Sum of pills always equals assignedCount - confirmedCount.
+            const notYetConfirmed = cohort.filter((o) => !isConfirmed(o, confirmedIds));
+            const preConfShareTotal = notYetConfirmed.length;
+            const preCountByStatus = new Map<string | null, number>();
+            notYetConfirmed.forEach((o) => {
+                preCountByStatus.set(o.order_status_id, (preCountByStatus.get(o.order_status_id) || 0) + 1);
+            });
+            const preConfEntries: StatusQueueEntry[] = Array.from(preCountByStatus, ([sid, count]) => {
+                if (!sid) {
+                    return { id: '__unset__', label: 'Unset (no status)', count, color: '#9ca3af' };
+                }
+                const status = orderStatusById.get(sid);
+                return {
+                    id: sid,
+                    label: status?.label || 'Unknown status',
+                    count,
+                    color: getOrderStatusColor(sid),
+                };
+            });
+
+            // Post-confirmation bucket = confirmed orders NOT YET delivered. Same treatment —
+            // every current package_status gets its own pill. Orders without a package_status
+            // (pre-dispatch) are grouped as "— no package status".
+            const notYetDelivered = confirmed.filter((o) => !isDeliveredForCommission(o, deliveredPkgIds));
+            const postConfShareTotal = notYetDelivered.length;
+            // If a package_status is set, bucket by that. Otherwise bucket by the current
+            // order_status (confirmed sub-state like "Paid" / "Unpaid" / "Processed").
+            // Namespaces keep the two kinds from colliding.
+            const postCountByStatus = new Map<string, number>();
+            notYetDelivered.forEach((o) => {
+                const key = o.package_status_id
+                    ? `pkg:${o.package_status_id}`
+                    : o.order_status_id
+                        ? `os:${o.order_status_id}`
+                        : 'unset';
+                postCountByStatus.set(key, (postCountByStatus.get(key) || 0) + 1);
+            });
+            const postConfEntries: StatusQueueEntry[] = Array.from(postCountByStatus, ([key, count]) => {
+                if (key === 'unset') {
+                    return { id: 'unset', label: 'Unset (no status)', count, color: '#9ca3af' };
+                }
+                if (key.startsWith('pkg:')) {
+                    const sid = key.slice(4);
+                    const status = packageStatusById.get(sid);
+                    return {
+                        id: key,
+                        label: status?.label || 'Unknown package status',
+                        count,
+                        color: getPkgStatusColor(sid),
+                    };
+                }
+                const sid = key.slice(3);
+                const status = orderStatusById.get(sid);
+                return {
+                    id: key,
+                    label: status?.label || 'Unknown status',
+                    count,
+                    color: getOrderStatusColor(sid),
+                };
+            });
+
+            // Net components
             const basis: CommissionBasis = normalizeCommissionBasis(seller.commission_basis);
             const commissionPrice = Number(seller.commission_price ?? 0) || 0;
             const sellerProductIds: string[] = Array.isArray(seller.products)
                 ? (seller.products as string[]).filter((id): id is string => typeof id === 'string' && id.length > 0)
                 : [];
 
-            let productRevenueDelivered = 0;
-            const sellerProductDeliveredQty = new Map<string, number>();
-
+            let revenue = 0;
+            let cogs = 0;
+            let shipping = 0;
+            const sellerDeliveredQty = new Map<string, number>();
             delivered.forEach((o) => {
-                productRevenueDelivered += productRevenueExcludingShipping(o);
-                const items = o.order_items || [];
-                for (const oi of items) {
-                    const pid = oi?.product_id;
-                    if (!pid) continue;
+                revenue += productRevenueExcludingShipping(o);
+                shipping += Number(o.shipping_cost || 0);
+                for (const oi of o.order_items || []) {
                     const q = Number(oi.quantity || 1);
-                    sellerProductDeliveredQty.set(pid, (sellerProductDeliveredQty.get(pid) || 0) + q);
+                    if (oi.product_id) {
+                        cogs += (productCost.get(oi.product_id) || 0) * q;
+                        sellerDeliveredQty.set(
+                            oi.product_id,
+                            (sellerDeliveredQty.get(oi.product_id) || 0) + q,
+                        );
+                    }
+                    if (oi.accessory_id) {
+                        const aq = Number(oi.accessory_quantity || 0);
+                        cogs += (accessoryCost.get(oi.accessory_id) || 0) * aq;
+                    }
                 }
             });
 
             let adsShare = 0;
-            sellerProductDeliveredQty.forEach((sqty, pid) => {
-                const gqty = globalProductDeliveredQty.get(pid) || 0;
+            sellerDeliveredQty.forEach((sqty, pid) => {
+                const gqty = globalDeliveredQty.get(pid) || 0;
                 const ads = adsByProduct.get(pid) || 0;
                 if (gqty > 0 && ads > 0) adsShare += (sqty / gqty) * ads;
             });
 
-            const commissionTotal = delivered.reduce(
-                (s: number, o) =>
+            // Commission: view is source of truth; client calc used for drift detection
+            const commissionClient = delivered.reduce(
+                (s, o) =>
                     s +
                     commissionAccruedForDeliveredOrder({
                         order: o,
@@ -273,10 +390,14 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                         commissionPrice,
                         sellerProductIds,
                     }),
-                0
+                0,
             );
+            const commissionFromView = commissionTotals?.totals.get(seller.id) ?? null;
+            const commission = commissionFromView ?? commissionClient;
+            const commissionDrift =
+                commissionFromView !== null && Math.abs(commissionFromView - commissionClient) > 1;
 
-            const netResult = productRevenueDelivered - adsShare - commissionTotal;
+            const netResult = revenue - cogs - shipping - adsShare - commission;
 
             return {
                 id: seller.id,
@@ -285,30 +406,39 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                 active: seller.active,
                 assignedCount,
                 assignedPercent,
-                sourceBreakdown,
-                preConfirmationBreakdown,
                 confirmedCount,
                 confirmedPercent,
-                postConfirmationBreakdown,
                 deliveredCount,
                 deliveredPercent,
+                sources,
+                preConfEntries,
+                preConfShareTotal,
+                postConfEntries,
+                postConfShareTotal,
+                revenue,
+                cogs,
+                shipping,
+                adsShare,
+                commission,
+                commissionClient,
+                commissionDrift,
                 netResult,
             };
         }).sort((a, b) => b.deliveredCount - a.deliveredCount);
 
-        return { sellerData, totalOrders };
+        return { sellerData, totalInWindow };
     }, [
         sellers,
         orders,
         adsHistory,
+        products,
+        accessories,
+        commissionTotals,
         dateFilter,
         confirmedIds,
-        callbackIds,
-        cancelledIds,
         deliveredPkgIds,
-        preConfBreakdownIds,
-        postConfBreakdownIds,
-        getPkgsByCategories,
+        orderStatuses,
+        packageStatuses,
         getOrderStatusColor,
         getPkgStatusColor,
     ]);
@@ -325,141 +455,116 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                     <div>
                         <CardTitle className="text-sm font-bold text-brand-navy">Sellers Performance</CardTitle>
                         <p className="text-xs text-gray-400 mt-0.5">
-                            {metrics.sellerData.length} sellers &middot; {metrics.totalOrders.toLocaleString('fr-MA')}{' '}
-                            total orders &middot; Net = product total − ads (share) − commission
+                            {metrics.sellerData.length} sellers &middot;{' '}
+                            {metrics.totalInWindow.toLocaleString('fr-MA')} orders in period &middot; Net =
+                            revenue &minus; COGS &minus; ads &minus; commission &minus; shipping
                         </p>
                     </div>
                 </div>
             </CardHeader>
-            <CardContent className="space-y-1.5">
+            <CardContent className="space-y-2">
                 {metrics.sellerData.map((s) => {
                     const isExpanded = expandedSellers.has(s.id);
+                    const stages: FunnelStage[] = [
+                        {
+                            key: 'assigned',
+                            label: 'Assigned',
+                            count: s.assignedCount,
+                            sub: `${s.assignedPercent.toFixed(1)}% of all`,
+                            accent: '#6b7280',
+                            fillClass: 'bg-gray-50',
+                        },
+                        {
+                            key: 'confirmed',
+                            label: 'Confirmed',
+                            count: s.confirmedCount,
+                            ratePct: s.confirmedPercent,
+                            accent: '#3b82f6',
+                            fillClass: 'bg-blue-50/70',
+                        },
+                        {
+                            key: 'delivered',
+                            label: 'Delivered',
+                            count: s.deliveredCount,
+                            ratePct: s.deliveredPercent,
+                            accent: '#10b981',
+                            fillClass: 'bg-emerald-50/70',
+                        },
+                    ];
+
                     return (
                         <div
                             key={s.id}
                             className={cn(
-                                'border rounded-2xl overflow-hidden transition-all',
-                                isExpanded ? 'border-gray-200 shadow-sm' : 'border-gray-100'
+                                'border rounded-3xl overflow-hidden transition-all bg-white',
+                                isExpanded ? 'border-gray-200 shadow-sm' : 'border-gray-100',
                             )}
                         >
-                            <button
-                                type="button"
-                                onClick={() => toggleSeller(s.id)}
-                                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50/60 transition-colors text-left"
-                            >
-                                <div className="flex items-center gap-2.5 min-w-[130px] shrink-0">
-                                    {s.avatar_url ? (
-                                        <img src={s.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
-                                    ) : (
-                                        <div className="w-8 h-8 rounded-full bg-brand-navy/10 flex items-center justify-center text-[11px] font-bold text-brand-navy shrink-0">
-                                            {s.name?.[0]}
-                                        </div>
-                                    )}
-                                    <div className="min-w-0">
-                                        <span className="font-bold text-brand-navy text-xs block truncate">{s.name}</span>
-                                        {!s.active && (
-                                            <Badge variant="outline" className="text-[8px] px-1 py-0 mt-0.5">
-                                                Inactive
-                                            </Badge>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
-                                    <MetricCell
-                                        label="Assigned"
-                                        value={s.assignedCount}
-                                        sub={`${s.assignedPercent.toFixed(1)}% of total`}
-                                    />
-                                    <MetricCell
-                                        label="Confirmed"
-                                        value={s.confirmedCount}
-                                        percent={s.confirmedPercent}
-                                    />
-                                    <MetricCell
-                                        label="Delivered"
-                                        value={s.deliveredCount}
-                                        percent={s.deliveredPercent}
-                                    />
-                                    <div className="text-center">
-                                        <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">
-                                            Net result
-                                        </p>
-                                        <p
-                                            className={cn(
-                                                'text-sm font-bold leading-tight mt-0.5',
-                                                s.netResult >= 0 ? 'text-emerald-600' : 'text-red-600'
-                                            )}
-                                        >
-                                            {s.netResult.toLocaleString('fr-MA')}
-                                        </p>
-                                        <p className="text-[10px] text-gray-400">MAD</p>
-                                        <p className="text-[8px] text-gray-400 leading-tight mt-0.5 px-0.5">
-                                            excl. shipping, ads share, commission
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <ChevronDown
-                                    className={cn(
-                                        'w-4 h-4 text-gray-400 transition-transform shrink-0',
-                                        isExpanded && 'rotate-180'
-                                    )}
-                                />
-                            </button>
+                            <SellerHeaderRow
+                                seller={s}
+                                stages={stages}
+                                isExpanded={isExpanded}
+                                onToggle={() => toggleSeller(s.id)}
+                            />
 
                             {isExpanded && (
-                                <div className="px-4 pb-4 pt-2 border-t border-gray-100 bg-gray-50/30 space-y-3">
-                                    <BreakdownSection title="Sources">
-                                        {Object.entries(s.sourceBreakdown).length > 0 ? (
-                                            Object.entries(s.sourceBreakdown)
-                                                .sort(([, a], [, b]) => b - a)
-                                                .map(([source, count]) => (
-                                                    <PillBadge
-                                                        key={source}
-                                                        label={source}
-                                                        count={count}
-                                                        className={SOURCE_COLORS[source] || SOURCE_COLORS.other}
-                                                    />
-                                                ))
-                                        ) : (
-                                            <EmptyLabel text="No source data" />
-                                        )}
-                                    </BreakdownSection>
+                                <div className="px-4 pb-4 pt-3 border-t border-gray-100 bg-gradient-to-b from-gray-50/40 to-transparent">
+                                    <div className="grid grid-cols-1 lg:grid-cols-[1.15fr,1fr] gap-3">
+                                        <section className="rounded-2xl bg-white border border-gray-100 p-4 space-y-4">
+                                            <header className="flex items-baseline justify-between">
+                                                <h4 className="text-[11px] font-bold text-brand-navy uppercase tracking-[0.2em]">
+                                                    Funnel dropoff
+                                                </h4>
+                                                <span className="text-[10px] text-gray-400 tabular-nums">
+                                                    {(s.assignedCount - s.deliveredCount).toLocaleString('fr-MA')} not delivered of {s.assignedCount.toLocaleString('fr-MA')}
+                                                </span>
+                                            </header>
+                                            <StatusQueuePane
+                                                title="Before confirmation"
+                                                totalLost={s.assignedCount - s.confirmedCount}
+                                                cohortSize={s.assignedCount}
+                                                entries={s.preConfEntries}
+                                                emptyText="All cohort orders confirmed"
+                                            />
+                                            <div className="h-px bg-gray-100" />
+                                            <StatusQueuePane
+                                                title="After confirmation"
+                                                totalLost={s.confirmedCount - s.deliveredCount}
+                                                cohortSize={s.confirmedCount}
+                                                entries={s.postConfEntries}
+                                                emptyText="All confirmed orders delivered"
+                                            />
+                                        </section>
 
-                                    <BreakdownSection title="Status Before Confirmation">
-                                        {Object.entries(s.preConfirmationBreakdown).length > 0 ? (
-                                            Object.entries(s.preConfirmationBreakdown)
-                                                .sort(([, a], [, b]) => b.count - a.count)
-                                                .map(([label, { count, color }]) => (
-                                                    <PillBadge
-                                                        key={label}
-                                                        label={label}
-                                                        count={count}
-                                                        color={color}
-                                                    />
-                                                ))
-                                        ) : (
-                                            <EmptyLabel text="None pending" />
-                                        )}
-                                    </BreakdownSection>
+                                        <section className="rounded-2xl bg-white border border-gray-100 p-4 space-y-3">
+                                            <header className="flex items-baseline justify-between">
+                                                <h4 className="text-[11px] font-bold text-brand-navy uppercase tracking-[0.2em]">
+                                                    Financials
+                                                </h4>
+                                                <span className="text-[10px] text-gray-400">
+                                                    on {s.deliveredCount.toLocaleString('fr-MA')} delivered
+                                                </span>
+                                            </header>
+                                            <FinancialsWaterfall
+                                                revenue={s.revenue}
+                                                cogs={s.cogs}
+                                                adsShare={s.adsShare}
+                                                commission={s.commission}
+                                                shipping={s.shipping}
+                                                net={s.netResult}
+                                            />
+                                        </section>
+                                    </div>
 
-                                    <BreakdownSection title="Status After Confirmation">
-                                        {Object.entries(s.postConfirmationBreakdown).length > 0 ? (
-                                            Object.entries(s.postConfirmationBreakdown)
-                                                .sort(([, a], [, b]) => b.count - a.count)
-                                                .map(([label, { count, color }]) => (
-                                                    <PillBadge
-                                                        key={label}
-                                                        label={label}
-                                                        count={count}
-                                                        color={color}
-                                                    />
-                                                ))
-                                        ) : (
-                                            <EmptyLabel text="None in suivi" />
-                                        )}
-                                    </BreakdownSection>
+                                    <section className="mt-3 rounded-2xl bg-white border border-gray-100 p-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+                                        <h4 className="text-[11px] font-bold text-brand-navy uppercase tracking-[0.2em] shrink-0">
+                                            Sources
+                                        </h4>
+                                        <span className="text-[10px] text-gray-400">hover for conversion</span>
+                                        <div className="flex-1 min-w-[220px]">
+                                            <SourcePills sources={s.sources} />
+                                        </div>
+                                    </section>
                                 </div>
                             )}
                         </div>
@@ -473,74 +578,96 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
     );
 };
 
-function MetricCell({
-    label,
-    value,
-    sub,
-    percent,
+interface SellerRow {
+    id: string;
+    name: string;
+    avatar_url: string | null;
+    active: boolean | null;
+    netResult: number;
+    commission: number;
+    commissionClient: number;
+    commissionDrift: boolean;
+    deliveredCount: number;
+}
+
+function SellerHeaderRow({
+    seller,
+    stages,
+    isExpanded,
+    onToggle,
 }: {
-    label: string;
-    value: number;
-    sub?: string;
-    percent?: number;
+    seller: SellerRow;
+    stages: FunnelStage[];
+    isExpanded: boolean;
+    onToggle: () => void;
 }) {
+    const netPositive = seller.netResult >= 0;
     return (
-        <div className="text-center">
-            <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">{label}</p>
-            <p className="text-sm font-bold text-brand-navy leading-tight mt-0.5">{value}</p>
-            {sub && <p className="text-[10px] text-gray-400">{sub}</p>}
-            {percent !== undefined && (
-                <Badge
+        <button
+            type="button"
+            onClick={onToggle}
+            className="w-full grid grid-cols-[minmax(150px,180px)_1fr_minmax(130px,150px)_20px] items-center gap-4 px-4 py-3 hover:bg-gray-50/50 transition-colors text-left"
+        >
+            <div className="flex items-center gap-2.5 min-w-0">
+                {seller.avatar_url ? (
+                    <img src={seller.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover shrink-0" />
+                ) : (
+                    <div className="w-10 h-10 rounded-full bg-brand-navy/10 flex items-center justify-center text-sm font-bold text-brand-navy shrink-0">
+                        {seller.name?.[0]}
+                    </div>
+                )}
+                <div className="min-w-0">
+                    <p className="font-bold text-brand-navy text-sm truncate leading-tight">{seller.name}</p>
+                    <p className="text-[10px] text-gray-400 uppercase tracking-[0.18em] mt-0.5">
+                        {seller.active === false ? 'Inactive' : 'Commercial'}
+                    </p>
+                </div>
+            </div>
+
+            <div className="min-w-0">
+                <PerformanceFunnel stages={stages} dense />
+            </div>
+
+            <div className="min-w-0 pr-1 border-l border-gray-100 pl-4">
+                <p className="text-[9px] text-gray-400 font-bold uppercase tracking-[0.2em]">Net contribution</p>
+                <p
                     className={cn(
-                        'text-[9px] px-1.5 py-0 font-bold',
-                        percent >= 50
-                            ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-50'
-                            : percent >= 25
-                              ? 'bg-amber-50 text-amber-600 hover:bg-amber-50'
-                              : 'bg-red-50 text-red-600 hover:bg-red-50'
+                        'text-xl font-bold leading-tight tabular-nums',
+                        netPositive ? 'text-emerald-600' : 'text-red-600',
                     )}
                 >
-                    {percent.toFixed(1)}%
-                </Badge>
-            )}
-        </div>
-    );
-}
+                    {Math.round(seller.netResult).toLocaleString('fr-MA')}
+                    <span className="text-[10px] text-gray-400 font-medium ml-1">MAD</span>
+                </p>
+                <p className="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
+                    <span className="tabular-nums">
+                        {Math.round(seller.commission).toLocaleString('fr-MA')} comm
+                    </span>
+                    {seller.commissionDrift && (
+                        <TooltipProvider delayDuration={120}>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <span className="inline-flex items-center text-amber-500">
+                                        <AlertTriangle className="w-3 h-3" />
+                                    </span>
+                                </TooltipTrigger>
+                                <TooltipContent className="text-[10px]">
+                                    <div className="font-bold mb-0.5">Commission drift</div>
+                                    <div>view: {Math.round(seller.commission).toLocaleString('fr-MA')} MAD</div>
+                                    <div>client: {Math.round(seller.commissionClient).toLocaleString('fr-MA')} MAD</div>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    )}
+                </p>
+            </div>
 
-function BreakdownSection({ title, children }: { title: string; children: React.ReactNode }) {
-    return (
-        <div>
-            <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">{title}</h5>
-            <div className="flex flex-wrap gap-1.5">{children}</div>
-        </div>
+            <ChevronDown
+                className={cn(
+                    'w-4 h-4 text-gray-300 transition-transform justify-self-end',
+                    isExpanded && 'rotate-180 text-gray-500',
+                )}
+            />
+        </button>
     );
-}
-
-function PillBadge({
-    label,
-    count,
-    className,
-    color,
-}: {
-    label: string;
-    count: number;
-    className?: string;
-    color?: string;
-}) {
-    const style = color ? { backgroundColor: `${color}1A`, color } : undefined;
-    return (
-        <span
-            className={cn(
-                'inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full',
-                className
-            )}
-            style={style}
-        >
-            {label}: {count}
-        </span>
-    );
-}
-
-function EmptyLabel({ text }: { text: string }) {
-    return <span className="text-[10px] text-gray-400 italic">{text}</span>;
 }

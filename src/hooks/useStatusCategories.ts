@@ -15,6 +15,11 @@ import {
   PKG_CATEGORY_COLORS,
 } from '@/lib/status-categories';
 
+const CONFIRMED_ORDER_CAT_SET: Set<string> = new Set(CONFIRMED_ORDER_CATS);
+const CANCELLED_ORDER_CAT_SET: Set<string> = new Set(CANCELLED_ORDER_CATS);
+const DELIVERED_PKG_CAT_SET: Set<string> = new Set(DELIVERED_PKG_CATS);
+const RETURNED_PKG_CAT_SET: Set<string> = new Set(RETURNED_PKG_CATS);
+
 export interface OrderStatus {
   id: string;
   code: string;
@@ -119,6 +124,22 @@ export function useStatusCategories() {
     const getPostConfBreakdownStatuses = () =>
       packageStatuses.filter(s => s.perf_breakdown && s.perf_breakdown_phase === 'after_confirmation');
 
+    // Live-queue variants: drop any perf-flagged status whose category already represents a
+    // terminal stage (confirmed/cancelled for pre-conf, delivered/returned for post-conf).
+    // Guards against owner misconfiguration and keeps pills meaning "still stuck here".
+    const liveBeforeConfStatuses: OrderStatus[] = orderStatuses.filter(s =>
+      s.perf_breakdown &&
+      s.perf_breakdown_phase === 'before_confirmation' &&
+      !CONFIRMED_ORDER_CAT_SET.has(s.category) &&
+      !CANCELLED_ORDER_CAT_SET.has(s.category),
+    );
+    const liveAfterConfStatuses: PackageStatus[] = packageStatuses.filter(s =>
+      s.perf_breakdown &&
+      s.perf_breakdown_phase === 'after_confirmation' &&
+      !DELIVERED_PKG_CAT_SET.has(s.category) &&
+      !RETURNED_PKG_CAT_SET.has(s.category),
+    );
+
     return {
       orderStatuses,
       packageStatuses,
@@ -159,6 +180,8 @@ export function useStatusCategories() {
       postConfBreakdownIds,
       getPreConfBreakdownStatuses,
       getPostConfBreakdownStatuses,
+      liveBeforeConfStatuses,
+      liveAfterConfStatuses,
 
       getCategoryColor: (cat: string) =>
         ORDER_CATEGORY_COLORS[cat] || PKG_CATEGORY_COLORS[cat] || '#6b7280',

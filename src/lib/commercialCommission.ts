@@ -44,6 +44,39 @@ export function normalizeCommissionBasis(v: string | null | undefined): Commissi
   return v === "per_unit" ? "per_unit" : "per_order";
 }
 
+/** True when the order's order_status belongs to a "committed to fulfill" category. */
+export function isConfirmed(
+  o: { order_status_id?: string | null },
+  confirmedIds: Set<string>,
+): boolean {
+  return !!o.order_status_id && confirmedIds.has(o.order_status_id);
+}
+
+/**
+ * Stage attribution timestamps — each stage uses its dedicated column with a safe fallback
+ * so orders without the dedicated timestamp still bucket into the period correctly.
+ * Mirrors the policy used by seller_daily_earnings for delivery.
+ */
+export function assignmentTimestampForMetrics(o: {
+  assignment_date?: string | null;
+  date?: string | null;
+}): Date | null {
+  const s = o.assignment_date || o.date;
+  if (!s) return null;
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+export function confirmationTimestampForMetrics(o: {
+  confirmation_date?: string | null;
+  date?: string | null;
+}): Date | null {
+  const s = o.confirmation_date || o.date;
+  if (!s) return null;
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 /**
  * Sum quantities on order lines: if the seller has no assigned product IDs, count **all** lines;
  * otherwise only lines whose product_id is in the assigned list.
