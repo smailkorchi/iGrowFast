@@ -31,7 +31,7 @@ import {
 } from 'date-fns';
 
 // Ranked cost tones (darkest = biggest expense). Uses the locked palette — no rainbow.
-const EXPENSE_COLORS = ['#3b5e5e', '#6b8784', '#9aaba8', '#c5cdcb', '#d1d5db', '#e5e7eb'];
+const EXPENSE_COLORS = ['#141413', '#3f3e3a', '#6b6a63', '#8d8b84', '#b0aea5', '#d8d6cc'];
 
 interface ProfitabilitySectionProps {
     businessId: string;
@@ -512,8 +512,8 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
             title="Profitability & P&L"
             description="Pure revenue minus every real cost — COGS, shipping, returns, ads, salaries, expenses"
             icon={DollarSign}
-            iconBg="bg-emerald-50"
-            iconColor="text-emerald-600"
+            iconBg="bg-ant-green/10"
+            iconColor="text-ant-green"
             loading={isLoading}
         >
             {metrics && (() => {
@@ -558,14 +558,14 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
                     >
 
                     {/* Revenue vs Expenses — full width */}
-                    <Card className="border border-gray-100 shadow-none rounded-xl">
+                    <Card className="border border-ant-line shadow-none rounded-xl">
                         <CardHeader className="pb-1">
                             <div className="flex items-center justify-between gap-2 flex-wrap">
-                                <CardTitle className="text-[12px] font-semibold text-brand-navy">Revenue vs Expenses</CardTitle>
-                                <div className="flex items-center gap-2.5 text-[10px] text-gray-500">
-                                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#059669]" /> Revenue</span>
-                                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#ef4444]" /> Expenses</span>
-                                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#d97706]" /> Provisional</span>
+                                <CardTitle className="text-[12px] font-semibold text-ant-ink">Revenue vs Expenses</CardTitle>
+                                <div className="flex items-center gap-2.5 text-[10px] text-ant-muted">
+                                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#788c5d]" /> Revenue</span>
+                                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#c96356]" /> Expenses</span>
+                                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#d97757]" /> Provisional</span>
                                 </div>
                             </div>
                         </CardHeader>
@@ -574,48 +574,48 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
                                 <AreaChart data={metrics.trendData} margin={{ top: 4, right: 6, bottom: 0, left: 0 }}>
                                     <defs>
                                         <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#059669" stopOpacity={0.22} />
-                                            <stop offset="95%" stopColor="#059669" stopOpacity={0} />
+                                            <stop offset="5%" stopColor="#788c5d" stopOpacity={0.22} />
+                                            <stop offset="95%" stopColor="#788c5d" stopOpacity={0} />
                                         </linearGradient>
                                         <linearGradient id="colorExpenses" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#ef4444" stopOpacity={0.22} />
-                                            <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                                            <stop offset="5%" stopColor="#c96356" stopOpacity={0.22} />
+                                            <stop offset="95%" stopColor="#c96356" stopOpacity={0} />
                                         </linearGradient>
                                         <linearGradient id="colorProvisional" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#d97706" stopOpacity={0.18} />
-                                            <stop offset="95%" stopColor="#d97706" stopOpacity={0} />
+                                            <stop offset="5%" stopColor="#d97757" stopOpacity={0.18} />
+                                            <stop offset="95%" stopColor="#d97757" stopOpacity={0} />
                                         </linearGradient>
                                     </defs>
-                                    <CartesianGrid strokeDasharray="2 4" stroke="#f3f4f6" vertical={false} />
-                                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
-                                    <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} width={40} />
+                                    <CartesianGrid strokeDasharray="2 4" stroke="#e8e6dc" vertical={false} />
+                                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#b0aea5' }} tickLine={false} axisLine={false} />
+                                    <YAxis tick={{ fontSize: 10, fill: '#b0aea5' }} tickLine={false} axisLine={false} width={40} />
                                     <Tooltip
-                                        contentStyle={{ borderRadius: 10, border: '1px solid #f3f4f6', boxShadow: 'none', fontSize: 11 }}
+                                        contentStyle={{ borderRadius: 10, border: '1px solid #e8e6dc', boxShadow: 'none', fontSize: 11 }}
                                         formatter={(val: number) => `${val.toLocaleString('fr-MA')} MAD`}
                                     />
-                                    <Area type="monotone" dataKey="revenue" stroke="#059669" fill="url(#colorRevenue)" strokeWidth={1.75} name="Revenue" dot={false} />
-                                    <Area type="monotone" dataKey="expenses" stroke="#ef4444" fill="url(#colorExpenses)" strokeWidth={1.75} name="Expenses" dot={false} />
-                                    <Area type="monotone" dataKey="provisional" stroke="#d97706" fill="url(#colorProvisional)" strokeWidth={1.5} strokeDasharray="4 3" name="Provisional" dot={false} />
+                                    <Area type="monotone" dataKey="revenue" stroke="#788c5d" fill="url(#colorRevenue)" strokeWidth={1.75} name="Revenue" dot={false} />
+                                    <Area type="monotone" dataKey="expenses" stroke="#c96356" fill="url(#colorExpenses)" strokeWidth={1.75} name="Expenses" dot={false} />
+                                    <Area type="monotone" dataKey="provisional" stroke="#d97757" fill="url(#colorProvisional)" strokeWidth={1.5} strokeDasharray="4 3" name="Provisional" dot={false} />
                                 </AreaChart>
                             </ResponsiveContainer>
                         </CardContent>
                     </Card>
 
                     {/* Expense Breakdown */}
-                    <Card className="border border-gray-100 shadow-none rounded-xl">
+                    <Card className="border border-ant-line shadow-none rounded-xl">
                         <CardHeader className="pb-1">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <CardTitle className="text-[12px] font-semibold text-brand-navy">Expense breakdown</CardTitle>
-                                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                                    <CardTitle className="text-[12px] font-semibold text-ant-ink">Expense breakdown</CardTitle>
+                                    <p className="text-[10px] text-ant-muted mt-0.5">
                                         {metrics.expenseBreakdown.length} categories, sorted by size
                                     </p>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-[14px] font-semibold text-brand-navy tabular-nums leading-none">
-                                        {Math.round(metrics.allExpenses).toLocaleString('fr-MA')} <span className="text-[10px] font-medium text-muted-foreground">MAD</span>
+                                    <p className="text-[14px] font-semibold text-ant-ink tabular-nums leading-none">
+                                        {Math.round(metrics.allExpenses).toLocaleString('fr-MA')} <span className="text-[10px] font-medium text-ant-muted">MAD</span>
                                     </p>
-                                    <p className="text-[9px] text-muted-foreground uppercase tracking-[0.14em] mt-0.5">Total expenses</p>
+                                    <p className="text-[9px] text-ant-muted uppercase tracking-[0.14em] mt-0.5">Total expenses</p>
                                 </div>
                             </div>
                         </CardHeader>
@@ -632,16 +632,16 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
                                                     className="w-[3px] h-3 rounded-full shrink-0"
                                                     style={{ backgroundColor: EXPENSE_COLORS[i % EXPENSE_COLORS.length] }}
                                                 />
-                                                <span className="text-[11px] text-brand-navy/80 flex-1 truncate">{entry.name}</span>
-                                                <span className="text-[11px] font-semibold text-brand-navy tabular-nums">
+                                                <span className="text-[11px] text-ant-ink/80 flex-1 truncate">{entry.name}</span>
+                                                <span className="text-[11px] font-semibold text-ant-ink tabular-nums">
                                                     {Math.round(entry.value).toLocaleString('fr-MA')}
-                                                    <span className="text-[9px] font-normal text-muted-foreground ml-0.5">MAD</span>
+                                                    <span className="text-[9px] font-normal text-ant-muted ml-0.5">MAD</span>
                                                 </span>
-                                                <span className="text-[10px] text-muted-foreground tabular-nums w-10 text-right">
+                                                <span className="text-[10px] text-ant-muted tabular-nums w-10 text-right">
                                                     {pct.toFixed(1)}%
                                                 </span>
                                             </div>
-                                            <div className="ml-[11px] h-1 bg-gray-100 rounded-full overflow-hidden">
+                                            <div className="ml-[11px] h-1 bg-ant-line rounded-full overflow-hidden">
                                                 <div
                                                     className="h-full rounded-full transition-all duration-500"
                                                     style={{
@@ -658,10 +658,10 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
                     </Card>
 
                     {insights.length > 0 && (
-                        <Card className="border border-gray-100 shadow-none rounded-xl">
+                        <Card className="border border-ant-line shadow-none rounded-xl">
                             <CardHeader className="pb-1">
-                                <CardTitle className="text-[12px] font-semibold text-brand-navy flex items-center gap-1.5">
-                                    <Lightbulb className="w-3 h-3 text-amber-500" />
+                                <CardTitle className="text-[12px] font-semibold text-ant-ink flex items-center gap-1.5">
+                                    <Lightbulb className="w-3 h-3 text-ant-orange" />
                                     Insights
                                 </CardTitle>
                             </CardHeader>
@@ -669,13 +669,13 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
                                 <div className="space-y-1.5">
                                     {insights.map((insight, i) => (
                                         <div key={i} className={`flex items-start gap-2 px-2.5 py-1.5 rounded-md ${
-                                            insight.type === 'warning' ? 'bg-red-50/60' :
-                                            insight.type === 'success' ? 'bg-emerald-50/60' : 'bg-blue-50/60'
+                                            insight.type === 'warning' ? 'bg-ant-rose/10' :
+                                            insight.type === 'success' ? 'bg-ant-green/10' : 'bg-ant-blue/10'
                                         }`}>
-                                            {insight.type === 'warning' && <AlertTriangle className="w-3 h-3 text-red-500 mt-0.5 shrink-0" />}
-                                            {insight.type === 'success' && <TrendingUp className="w-3 h-3 text-emerald-500 mt-0.5 shrink-0" />}
-                                            {insight.type === 'info' && <Lightbulb className="w-3 h-3 text-blue-500 mt-0.5 shrink-0" />}
-                                            <p className="text-[11px] text-brand-navy/80 leading-snug">{insight.text}</p>
+                                            {insight.type === 'warning' && <AlertTriangle className="w-3 h-3 text-ant-rose mt-0.5 shrink-0" />}
+                                            {insight.type === 'success' && <TrendingUp className="w-3 h-3 text-ant-green mt-0.5 shrink-0" />}
+                                            {insight.type === 'info' && <Lightbulb className="w-3 h-3 text-ant-blue mt-0.5 shrink-0" />}
+                                            <p className="text-[11px] text-ant-ink/80 leading-snug">{insight.text}</p>
                                         </div>
                                     ))}
                                 </div>

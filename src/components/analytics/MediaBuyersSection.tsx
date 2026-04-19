@@ -397,7 +397,7 @@ export const MediaBuyersSection = ({ businessId, dateFilter }: MediaBuyersSectio
             title="Media Buyers"
             description="Attributed revenue, all-in costs, and net profit per media buyer"
             icon={Radar}
-            iconColor="text-gray-400"
+            iconColor="text-ant-mid"
             loading={isLoading}
         >
             {metrics && (() => {
@@ -431,75 +431,75 @@ export const MediaBuyersSection = ({ businessId, dateFilter }: MediaBuyersSectio
                         ]}
                     >
                         {metrics.perMB.length > 0 && (
-                            <Card className="border border-gray-100 shadow-none rounded-xl">
+                            <Card className="border border-ant-line shadow-none rounded-xl">
                                 <CardHeader className="pb-1">
-                                    <CardTitle className="text-[12px] font-semibold text-brand-navy">Media buyer leaderboard</CardTitle>
+                                    <CardTitle className="text-[12px] font-semibold text-ant-ink">Media buyer leaderboard</CardTitle>
                                 </CardHeader>
                                 <CardContent>
                                     <div className="overflow-x-auto">
                                         <table className="w-full">
                                             <thead>
-                                                <tr className="border-b border-gray-100">
-                                                    <th className="text-left py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Buyer</th>
-                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Spend</th>
-                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Delivered</th>
-                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Revenue</th>
-                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">COGS + ship</th>
-                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Seller comm.</th>
-                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Buyer comm.</th>
-                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">ROAS</th>
-                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Net profit</th>
+                                                <tr className="border-b border-ant-line">
+                                                    <th className="text-left py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid">Buyer</th>
+                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid">Spend</th>
+                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid">Delivered</th>
+                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid">Revenue</th>
+                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid">COGS + ship</th>
+                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid">Seller comm.</th>
+                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid">Buyer comm.</th>
+                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid">ROAS</th>
+                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid">Net profit</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {metrics.perMB.map((m) => {
                                                     const roasTone =
-                                                        m.roas >= 2 ? 'text-emerald-600' : m.roas >= 1 ? 'text-amber-600' : 'text-red-500';
-                                                    const netTone = m.netProfit > 0 ? 'text-emerald-600' : m.netProfit === 0 ? 'text-gray-500' : 'text-red-500';
+                                                        m.roas >= 2 ? 'text-ant-green' : m.roas >= 1 ? 'text-ant-orange' : 'text-ant-rose';
+                                                    const netTone = m.netProfit > 0 ? 'text-ant-green' : m.netProfit === 0 ? 'text-ant-muted' : 'text-ant-rose';
                                                     return (
-                                                        <tr key={m.id} className="border-b border-gray-50 hover:bg-brand-navy/[0.02] transition-colors">
+                                                        <tr key={m.id} className="border-b border-ant-line hover:bg-ant-ink/[0.02] transition-colors">
                                                             <td className="py-1.5">
                                                                 <div className="flex items-center gap-2">
                                                                     {m.avatar_url ? (
-                                                                        <img src={m.avatar_url} alt={m.name} className="w-6 h-6 rounded-full object-cover border border-brand-navy/5 shrink-0" />
+                                                                        <img src={m.avatar_url} alt={m.name} className="w-6 h-6 rounded-full object-cover border border-ant-ink/5 shrink-0" />
                                                                     ) : (
-                                                                        <div className="w-6 h-6 rounded-full bg-brand-navy/[0.04] flex items-center justify-center shrink-0">
-                                                                            <User className="w-3 h-3 text-brand-navy/20" />
+                                                                        <div className="w-6 h-6 rounded-full bg-ant-ink/[0.04] flex items-center justify-center shrink-0">
+                                                                            <User className="w-3 h-3 text-ant-line" />
                                                                         </div>
                                                                     )}
-                                                                    <span className="text-[11px] font-medium text-brand-navy truncate">{m.name || 'Unnamed'}</span>
+                                                                    <span className="text-[11px] font-medium text-ant-ink truncate">{m.name || 'Unnamed'}</span>
                                                                     {m.active === false && (
-                                                                        <span className="text-[8px] uppercase tracking-[0.14em] font-bold text-red-400">· inactive</span>
+                                                                        <span className="text-[8px] uppercase tracking-[0.14em] font-bold text-ant-rose">· inactive</span>
                                                                     )}
                                                                 </div>
                                                             </td>
-                                                            <td className="py-1.5 text-right text-[11px] text-gray-500 tabular-nums">
+                                                            <td className="py-1.5 text-right text-[11px] text-ant-muted tabular-nums">
                                                                 {Math.round(m.spend).toLocaleString('fr-MA')}
-                                                                <span className="text-[9px] text-brand-navy/40 ml-0.5">MAD</span>
+                                                                <span className="text-[9px] text-ant-mid ml-0.5">MAD</span>
                                                             </td>
-                                                            <td className="py-1.5 text-right text-[11px] font-semibold text-brand-navy tabular-nums">{m.attributedDelivered}</td>
-                                                            <td className="py-1.5 text-right text-[11px] font-semibold text-emerald-600 tabular-nums">
+                                                            <td className="py-1.5 text-right text-[11px] font-semibold text-ant-ink tabular-nums">{m.attributedDelivered}</td>
+                                                            <td className="py-1.5 text-right text-[11px] font-semibold text-ant-green tabular-nums">
                                                                 {Math.round(m.revenue).toLocaleString('fr-MA')}
-                                                                <span className="text-[9px] text-brand-navy/40 ml-0.5">MAD</span>
+                                                                <span className="text-[9px] text-ant-mid ml-0.5">MAD</span>
                                                             </td>
-                                                            <td className="py-1.5 text-right text-[11px] text-gray-500 tabular-nums">
+                                                            <td className="py-1.5 text-right text-[11px] text-ant-muted tabular-nums">
                                                                 {Math.round(m.cogs + m.shipping).toLocaleString('fr-MA')}
-                                                                <span className="text-[9px] text-brand-navy/40 ml-0.5">MAD</span>
+                                                                <span className="text-[9px] text-ant-mid ml-0.5">MAD</span>
                                                             </td>
-                                                            <td className="py-1.5 text-right text-[11px] text-gray-500 tabular-nums">
+                                                            <td className="py-1.5 text-right text-[11px] text-ant-muted tabular-nums">
                                                                 {Math.round(m.sellerCommission).toLocaleString('fr-MA')}
-                                                                <span className="text-[9px] text-brand-navy/40 ml-0.5">MAD</span>
+                                                                <span className="text-[9px] text-ant-mid ml-0.5">MAD</span>
                                                             </td>
-                                                            <td className="py-1.5 text-right text-[11px] text-gray-500 tabular-nums">
+                                                            <td className="py-1.5 text-right text-[11px] text-ant-muted tabular-nums">
                                                                 {Math.round(m.mbCommission).toLocaleString('fr-MA')}
-                                                                <span className="text-[9px] text-brand-navy/40 ml-0.5">MAD</span>
+                                                                <span className="text-[9px] text-ant-mid ml-0.5">MAD</span>
                                                             </td>
                                                             <td className={`py-1.5 text-right text-[11px] font-semibold tabular-nums ${roasTone}`}>
                                                                 {m.roas.toFixed(2)}x
                                                             </td>
                                                             <td className={`py-1.5 text-right text-[11px] font-semibold tabular-nums ${netTone}`}>
                                                                 {Math.round(m.netProfit).toLocaleString('fr-MA')}
-                                                                <span className="text-[9px] text-brand-navy/40 ml-0.5">MAD</span>
+                                                                <span className="text-[9px] text-ant-mid ml-0.5">MAD</span>
                                                             </td>
                                                         </tr>
                                                     );

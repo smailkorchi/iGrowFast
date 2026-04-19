@@ -143,7 +143,7 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
             title="Business Health"
             description="Raw confirmation rate, delivery rate, and speed — no composite score"
             icon={Activity}
-            iconColor="text-gray-400"
+            iconColor="text-ant-mid"
             loading={isLoading}
         >
             {metrics && (() => {
@@ -182,14 +182,14 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
                             { label: 'Growth', value: `${metrics.revenueGrowth >= 0 ? '+' : ''}${metrics.revenueGrowth.toFixed(1)}%`, tone: metrics.revenueGrowth >= 0 ? 'positive' : 'negative' },
                         ]}
                     >
-                        <Card className="border border-gray-100 shadow-none rounded-xl">
+                        <Card className="border border-ant-line shadow-none rounded-xl">
                             <CardHeader className="pb-1">
                                 <div className="flex items-center justify-between gap-2 flex-wrap">
-                                    <CardTitle className="text-[12px] font-semibold text-brand-navy">Revenue + conversion rates</CardTitle>
-                                    <div className="flex items-center gap-2.5 text-[10px] text-gray-500">
-                                        <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#059669]" /> Revenue</span>
-                                        <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#3b5e5e]" /> Confirm %</span>
-                                        <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#d97706]" /> Delivery %</span>
+                                    <CardTitle className="text-[12px] font-semibold text-ant-ink">Revenue + conversion rates</CardTitle>
+                                    <div className="flex items-center gap-2.5 text-[10px] text-ant-muted">
+                                        <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#788c5d]" /> Revenue</span>
+                                        <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#141413]" /> Confirm %</span>
+                                        <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#d97757]" /> Delivery %</span>
                                     </div>
                                 </div>
                             </CardHeader>
@@ -198,18 +198,18 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
                                     <AreaChart data={metrics.trendData} margin={{ top: 4, right: 6, bottom: 0, left: 0 }}>
                                         <defs>
                                             <linearGradient id="colorBizRevenue" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#059669" stopOpacity={0.22} />
-                                                <stop offset="95%" stopColor="#059669" stopOpacity={0} />
+                                                <stop offset="5%" stopColor="#788c5d" stopOpacity={0.22} />
+                                                <stop offset="95%" stopColor="#788c5d" stopOpacity={0} />
                                             </linearGradient>
                                         </defs>
-                                        <CartesianGrid strokeDasharray="2 4" stroke="#f3f4f6" vertical={false} />
-                                        <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
-                                        <YAxis yAxisId="revenue" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} width={40} tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)} />
-                                        <YAxis yAxisId="rate" orientation="right" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} width={28} domain={[0, 100]} />
-                                        <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #f3f4f6', boxShadow: 'none', fontSize: 11 }} />
-                                        <Area yAxisId="revenue" type="monotone" dataKey="revenue" stroke="#059669" fill="url(#colorBizRevenue)" strokeWidth={1.75} name="Revenue" dot={false} />
-                                        <Area yAxisId="rate" type="monotone" dataKey="confirmRate" stroke="#3b5e5e" fill="none" strokeWidth={1.5} name="Confirm %" dot={false} />
-                                        <Area yAxisId="rate" type="monotone" dataKey="deliveryRate" stroke="#d97706" fill="none" strokeWidth={1.5} strokeDasharray="4 3" name="Delivery %" dot={false} />
+                                        <CartesianGrid strokeDasharray="2 4" stroke="#e8e6dc" vertical={false} />
+                                        <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#b0aea5' }} tickLine={false} axisLine={false} />
+                                        <YAxis yAxisId="revenue" tick={{ fontSize: 10, fill: '#b0aea5' }} tickLine={false} axisLine={false} width={40} tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)} />
+                                        <YAxis yAxisId="rate" orientation="right" tick={{ fontSize: 10, fill: '#b0aea5' }} tickLine={false} axisLine={false} width={28} domain={[0, 100]} />
+                                        <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e8e6dc', boxShadow: 'none', fontSize: 11 }} />
+                                        <Area yAxisId="revenue" type="monotone" dataKey="revenue" stroke="#788c5d" fill="url(#colorBizRevenue)" strokeWidth={1.75} name="Revenue" dot={false} />
+                                        <Area yAxisId="rate" type="monotone" dataKey="confirmRate" stroke="#141413" fill="none" strokeWidth={1.5} name="Confirm %" dot={false} />
+                                        <Area yAxisId="rate" type="monotone" dataKey="deliveryRate" stroke="#d97757" fill="none" strokeWidth={1.5} strokeDasharray="4 3" name="Delivery %" dot={false} />
                                     </AreaChart>
                                 </ResponsiveContainer>
                             </CardContent>

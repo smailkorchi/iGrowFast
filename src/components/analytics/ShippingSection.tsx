@@ -209,7 +209,7 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
             title="Shipping & Delivery"
             description="Delivery rate = delivered ÷ confirmed. Return rate = returned ÷ shipped. Stuck flagged after 5 days."
             icon={Truck}
-            iconColor="text-gray-400"
+            iconColor="text-ant-mid"
             loading={isLoading}
         >
             {metrics && (() => {
@@ -252,13 +252,13 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
                         ]}
                     >
 
-                    <Card className="border border-gray-100 shadow-none rounded-xl">
+                    <Card className="border border-ant-line shadow-none rounded-xl">
                         <CardHeader className="pb-1">
                             <div className="flex items-center justify-between gap-2 flex-wrap">
-                                <CardTitle className="text-[12px] font-semibold text-brand-navy">Shipped vs delivered</CardTitle>
-                                <div className="flex items-center gap-2.5 text-[10px] text-gray-500">
-                                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#3b5e5e]" /> Shipped</span>
-                                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#059669]" /> Delivered</span>
+                                <CardTitle className="text-[12px] font-semibold text-ant-ink">Shipped vs delivered</CardTitle>
+                                <div className="flex items-center gap-2.5 text-[10px] text-ant-muted">
+                                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#141413]" /> Shipped</span>
+                                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#788c5d]" /> Delivered</span>
                                 </div>
                             </div>
                         </CardHeader>
@@ -267,59 +267,59 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
                                 <AreaChart data={metrics.trendData} margin={{ top: 4, right: 6, bottom: 0, left: 0 }}>
                                     <defs>
                                         <linearGradient id="colorShipped" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#3b5e5e" stopOpacity={0.2} />
-                                            <stop offset="95%" stopColor="#3b5e5e" stopOpacity={0} />
+                                            <stop offset="5%" stopColor="#141413" stopOpacity={0.2} />
+                                            <stop offset="95%" stopColor="#141413" stopOpacity={0} />
                                         </linearGradient>
                                         <linearGradient id="colorDelivered2" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#059669" stopOpacity={0.2} />
-                                            <stop offset="95%" stopColor="#059669" stopOpacity={0} />
+                                            <stop offset="5%" stopColor="#788c5d" stopOpacity={0.2} />
+                                            <stop offset="95%" stopColor="#788c5d" stopOpacity={0} />
                                         </linearGradient>
                                     </defs>
-                                    <CartesianGrid strokeDasharray="2 4" stroke="#f3f4f6" vertical={false} />
-                                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
-                                    <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} width={32} />
-                                    <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #f3f4f6', boxShadow: 'none', fontSize: 11 }} />
-                                    <Area type="monotone" dataKey="shipped" stroke="#3b5e5e" fill="url(#colorShipped)" strokeWidth={1.75} name="Shipped" dot={false} />
-                                    <Area type="monotone" dataKey="delivered" stroke="#059669" fill="url(#colorDelivered2)" strokeWidth={1.75} name="Delivered" dot={false} />
+                                    <CartesianGrid strokeDasharray="2 4" stroke="#e8e6dc" vertical={false} />
+                                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#b0aea5' }} tickLine={false} axisLine={false} />
+                                    <YAxis tick={{ fontSize: 10, fill: '#b0aea5' }} tickLine={false} axisLine={false} width={32} />
+                                    <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e8e6dc', boxShadow: 'none', fontSize: 11 }} />
+                                    <Area type="monotone" dataKey="shipped" stroke="#141413" fill="url(#colorShipped)" strokeWidth={1.75} name="Shipped" dot={false} />
+                                    <Area type="monotone" dataKey="delivered" stroke="#788c5d" fill="url(#colorDelivered2)" strokeWidth={1.75} name="Delivered" dot={false} />
                                 </AreaChart>
                             </ResponsiveContainer>
                         </CardContent>
                     </Card>
 
-                    <Card className="border border-gray-100 shadow-none rounded-xl">
+                    <Card className="border border-ant-line shadow-none rounded-xl">
                         <CardHeader className="pb-1">
-                            <CardTitle className="text-[12px] font-semibold text-brand-navy">By fulfiller</CardTitle>
+                            <CardTitle className="text-[12px] font-semibold text-ant-ink">By fulfiller</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-1">
                                 {metrics.providerData.map((p, i) => (
-                                    <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-brand-navy/[0.03] transition-colors">
-                                        <div className="w-6 h-6 rounded bg-white border border-brand-navy/5 flex items-center justify-center overflow-hidden shrink-0">
+                                    <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-ant-ink/[0.03] transition-colors">
+                                        <div className="w-6 h-6 rounded bg-white border border-ant-ink/5 flex items-center justify-center overflow-hidden shrink-0">
                                             {p.logo_url ? (
                                                 <img src={p.logo_url} alt={p.name} className="w-full h-full object-contain p-0.5" />
                                             ) : (
-                                                <Building2 className="w-3.5 h-3.5 text-brand-navy/30" />
+                                                <Building2 className="w-3.5 h-3.5 text-ant-ink/30" />
                                             )}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <div className="text-[11px] font-semibold text-brand-navy leading-tight truncate flex items-center gap-1.5">
+                                            <div className="text-[11px] font-semibold text-ant-ink leading-tight truncate flex items-center gap-1.5">
                                                 {p.name}
-                                                <span className="text-[8px] uppercase tracking-[0.14em] font-bold text-gray-400">
+                                                <span className="text-[8px] uppercase tracking-[0.14em] font-bold text-ant-mid">
                                                     · {p.kind}
                                                 </span>
                                             </div>
-                                            <div className="text-[10px] text-gray-400 tabular-nums">{p.total} assigned · {p.delivered} delivered</div>
+                                            <div className="text-[10px] text-ant-mid tabular-nums">{p.total} assigned · {p.delivered} delivered</div>
                                         </div>
-                                        <div className="w-20 h-1 rounded-full bg-gray-100 overflow-hidden shrink-0">
-                                            <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${p.rate}%` }} />
+                                        <div className="w-20 h-1 rounded-full bg-ant-line overflow-hidden shrink-0">
+                                            <div className="h-full bg-ant-green/100 rounded-full" style={{ width: `${p.rate}%` }} />
                                         </div>
-                                        <div className="text-[12px] font-semibold text-brand-navy tabular-nums shrink-0 w-12 text-right">
+                                        <div className="text-[12px] font-semibold text-ant-ink tabular-nums shrink-0 w-12 text-right">
                                             {p.rate.toFixed(1)}%
                                         </div>
                                     </div>
                                 ))}
                                 {metrics.providerData.length === 0 && (
-                                    <p className="text-[11px] text-gray-400 text-center py-2">No fulfiller data yet</p>
+                                    <p className="text-[11px] text-ant-mid text-center py-2">No fulfiller data yet</p>
                                 )}
                             </div>
                         </CardContent>

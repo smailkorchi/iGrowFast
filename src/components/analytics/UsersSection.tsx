@@ -10,12 +10,12 @@ import {
 } from 'lucide-react';
 
 const ROLE_COLORS: Record<string, string> = {
-    'super admin': '#c93942',
-    'admin': '#3b5e5e',
-    'commercial': '#F97316',
-    'mediabuyer': '#A855F7',
-    'courier': '#14B8A6',
-    'owner': '#3B82F6',
+    'super admin': '#8d8b84',
+    'admin': '#141413',
+    'commercial': '#6a9bcc',
+    'mediabuyer': '#b0aea5',
+    'courier': '#c96356',
+    'owner': '#788c5d',
 };
 
 const ROLE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -108,7 +108,7 @@ export const UsersSection = ({ businessId, dateFilter }: UsersSectionProps) => {
                 value: data.total,
                 active: data.active,
                 inactive: data.total - data.active,
-                color: ROLE_COLORS[role] || '#6B7280',
+                color: ROLE_COLORS[role] || '#6b6a63',
             }))
             .sort((a, b) => b.value - a.value);
 
@@ -130,7 +130,7 @@ export const UsersSection = ({ businessId, dateFilter }: UsersSectionProps) => {
             title="Users & Team"
             description="Active = flagged active AND activity in the last 30 days. Owner/admin exempt."
             icon={Users}
-            iconColor="text-gray-400"
+            iconColor="text-ant-mid"
             loading={isLoading}
         >
             {metrics && (() => {
@@ -162,9 +162,9 @@ export const UsersSection = ({ businessId, dateFilter }: UsersSectionProps) => {
                         ]}
                     >
 
-                    <Card className="border border-gray-100 shadow-none rounded-xl">
+                    <Card className="border border-ant-line shadow-none rounded-xl">
                         <CardHeader className="pb-1">
-                            <CardTitle className="text-[12px] font-semibold text-brand-navy">Team by role</CardTitle>
+                            <CardTitle className="text-[12px] font-semibold text-ant-ink">Team by role</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="flex flex-wrap gap-1.5">
@@ -173,21 +173,21 @@ export const UsersSection = ({ businessId, dateFilter }: UsersSectionProps) => {
                                     return (
                                         <div
                                             key={role.name}
-                                            className="flex items-center gap-2 px-2.5 py-1.5 rounded-md border border-gray-100 flex-1 min-w-[150px] max-w-[240px]"
+                                            className="flex items-center gap-2 px-2.5 py-1.5 rounded-md border border-ant-line flex-1 min-w-[150px] max-w-[240px]"
                                         >
-                                            <RoleIcon className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                                            <RoleIcon className="w-3.5 h-3.5 text-ant-mid shrink-0" />
                                             <div className="flex-1 min-w-0">
-                                                <div className="text-[11px] font-semibold text-brand-navy capitalize leading-tight truncate">
+                                                <div className="text-[11px] font-semibold text-ant-ink capitalize leading-tight truncate">
                                                     {role.name}
                                                 </div>
-                                                <div className="text-[10px] text-gray-400 tabular-nums">{role.value} total</div>
+                                                <div className="text-[10px] text-ant-mid tabular-nums">{role.value} total</div>
                                             </div>
                                             <div className="flex items-center gap-1 shrink-0 tabular-nums">
-                                                <span className="text-[10px] font-semibold text-emerald-600">{role.active}</span>
+                                                <span className="text-[10px] font-semibold text-ant-green">{role.active}</span>
                                                 {role.inactive > 0 && (
                                                     <>
-                                                        <span className="text-[9px] text-gray-300">/</span>
-                                                        <span className="text-[10px] font-semibold text-red-500">{role.inactive}</span>
+                                                        <span className="text-[9px] text-ant-mid">/</span>
+                                                        <span className="text-[10px] font-semibold text-ant-rose">{role.inactive}</span>
                                                     </>
                                                 )}
                                             </div>

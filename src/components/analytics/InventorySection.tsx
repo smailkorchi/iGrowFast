@@ -130,7 +130,7 @@ export const InventorySection = ({ businessId, dateFilter }: InventorySectionPro
             title="Inventory & Products"
             description={`Stock at cost + at selling price. Flagged below ${LOW_STOCK_THRESHOLD} units.`}
             icon={PackageOpen}
-            iconColor="text-gray-400"
+            iconColor="text-ant-mid"
             loading={isLoading}
         >
             {metrics && (() => {
@@ -162,43 +162,43 @@ export const InventorySection = ({ businessId, dateFilter }: InventorySectionPro
                     >
 
                     {metrics.productPerformance.length > 0 && (
-                        <Card className="border border-gray-100 shadow-none rounded-xl">
+                        <Card className="border border-ant-line shadow-none rounded-xl">
                             <CardHeader className="pb-1">
-                                <CardTitle className="text-[12px] font-semibold text-brand-navy">Top products</CardTitle>
+                                <CardTitle className="text-[12px] font-semibold text-ant-ink">Top products</CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <div className="overflow-x-auto">
                                     <table className="w-full">
                                         <thead>
-                                            <tr className="border-b border-gray-100">
-                                                <th className="text-left py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Product</th>
-                                                <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Sold</th>
-                                                <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Revenue</th>
-                                                <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Cost</th>
-                                                <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Margin</th>
+                                            <tr className="border-b border-ant-line">
+                                                <th className="text-left py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid">Product</th>
+                                                <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid">Sold</th>
+                                                <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid">Revenue</th>
+                                                <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid">Cost</th>
+                                                <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid">Margin</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {metrics.productPerformance.slice(0, 10).map((p, i) => {
                                                 const marginTone =
-                                                    p.margin > 30 ? 'text-emerald-600' : p.margin > 0 ? 'text-amber-600' : 'text-red-500';
+                                                    p.margin > 30 ? 'text-ant-green' : p.margin > 0 ? 'text-ant-orange' : 'text-ant-rose';
                                                 return (
-                                                    <tr key={i} className="border-b border-gray-50 hover:bg-brand-navy/[0.02] transition-colors">
+                                                    <tr key={i} className="border-b border-ant-line hover:bg-ant-ink/[0.02] transition-colors">
                                                         <td className="py-1.5">
                                                             <div className="flex items-center gap-2">
                                                                 {p.image_url ? (
-                                                                    <img src={p.image_url} alt={p.name} className="w-6 h-6 rounded-sm object-cover border border-brand-navy/5 shrink-0" />
+                                                                    <img src={p.image_url} alt={p.name} className="w-6 h-6 rounded-sm object-cover border border-ant-ink/5 shrink-0" />
                                                                 ) : (
-                                                                    <div className="w-6 h-6 rounded-sm bg-brand-navy/[0.04] flex items-center justify-center shrink-0">
-                                                                        <Box className="w-3 h-3 text-brand-navy/20" />
+                                                                    <div className="w-6 h-6 rounded-sm bg-ant-ink/[0.04] flex items-center justify-center shrink-0">
+                                                                        <Box className="w-3 h-3 text-ant-line" />
                                                                     </div>
                                                                 )}
-                                                                <span className="text-[11px] font-medium text-brand-navy truncate">{p.name}</span>
+                                                                <span className="text-[11px] font-medium text-ant-ink truncate">{p.name}</span>
                                                             </div>
                                                         </td>
-                                                        <td className="py-1.5 text-right text-[11px] font-semibold text-brand-navy tabular-nums">{p.sold}</td>
-                                                        <td className="py-1.5 text-right text-[11px] tabular-nums">{p.revenue.toLocaleString('fr-MA')} <span className="text-[9px] text-brand-navy/40">MAD</span></td>
-                                                        <td className="py-1.5 text-right text-[11px] text-gray-500 tabular-nums">{p.cost.toLocaleString('fr-MA')} <span className="text-[9px] text-brand-navy/40">MAD</span></td>
+                                                        <td className="py-1.5 text-right text-[11px] font-semibold text-ant-ink tabular-nums">{p.sold}</td>
+                                                        <td className="py-1.5 text-right text-[11px] tabular-nums">{p.revenue.toLocaleString('fr-MA')} <span className="text-[9px] text-ant-mid">MAD</span></td>
+                                                        <td className="py-1.5 text-right text-[11px] text-ant-muted tabular-nums">{p.cost.toLocaleString('fr-MA')} <span className="text-[9px] text-ant-mid">MAD</span></td>
                                                         <td className={`py-1.5 text-right text-[11px] font-semibold tabular-nums ${marginTone}`}>
                                                             {p.margin.toFixed(1)}%
                                                         </td>
@@ -241,9 +241,9 @@ export const InventorySection = ({ businessId, dateFilter }: InventorySectionPro
                         ].sort((a, b) => a.stock - b.stock);
 
                         return (
-                            <Card className="border border-red-100 shadow-none rounded-xl">
+                            <Card className="border border-ant-rose/25 shadow-none rounded-xl">
                                 <CardHeader className="pb-1">
-                                    <CardTitle className="text-[12px] font-semibold text-red-600 flex items-center gap-1.5">
+                                    <CardTitle className="text-[12px] font-semibold text-ant-rose flex items-center gap-1.5">
                                         <AlertTriangle className="w-3 h-3" /> Low stock — {rows.length} item{rows.length > 1 ? 's' : ''}
                                     </CardTitle>
                                 </CardHeader>
@@ -251,46 +251,46 @@ export const InventorySection = ({ businessId, dateFilter }: InventorySectionPro
                                     <div className="overflow-x-auto">
                                         <table className="w-full">
                                             <thead>
-                                                <tr className="border-b border-gray-100">
-                                                    <th className="text-left py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Item</th>
-                                                    <th className="text-left py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Kind</th>
-                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Stock</th>
-                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Unit cost</th>
-                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">At risk</th>
+                                                <tr className="border-b border-ant-line">
+                                                    <th className="text-left py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid">Item</th>
+                                                    <th className="text-left py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid">Kind</th>
+                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid">Stock</th>
+                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid">Unit cost</th>
+                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid">At risk</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {rows.map((r) => {
                                                     const stockTone =
-                                                        r.stock === 0 ? 'text-red-600' : r.stock <= 2 ? 'text-red-500' : 'text-amber-600';
+                                                        r.stock === 0 ? 'text-ant-rose' : r.stock <= 2 ? 'text-ant-rose' : 'text-ant-orange';
                                                     const atRisk = r.stock * r.cost;
                                                     return (
-                                                        <tr key={`${r.kind}-${r.id}`} className="border-b border-gray-50 hover:bg-red-50/30 transition-colors">
+                                                        <tr key={`${r.kind}-${r.id}`} className="border-b border-ant-line hover:bg-ant-rose/10 transition-colors">
                                                             <td className="py-1.5">
                                                                 <div className="flex items-center gap-2">
                                                                     {r.image ? (
-                                                                        <img src={r.image} alt={r.name} className="w-6 h-6 rounded-sm object-cover border border-brand-navy/5 shrink-0" />
+                                                                        <img src={r.image} alt={r.name} className="w-6 h-6 rounded-sm object-cover border border-ant-ink/5 shrink-0" />
                                                                     ) : (
-                                                                        <div className="w-6 h-6 rounded-sm bg-brand-navy/[0.04] flex items-center justify-center shrink-0">
-                                                                            <Box className="w-3 h-3 text-brand-navy/20" />
+                                                                        <div className="w-6 h-6 rounded-sm bg-ant-ink/[0.04] flex items-center justify-center shrink-0">
+                                                                            <Box className="w-3 h-3 text-ant-line" />
                                                                         </div>
                                                                     )}
-                                                                    <span className="text-[11px] font-medium text-brand-navy truncate">{r.name}</span>
+                                                                    <span className="text-[11px] font-medium text-ant-ink truncate">{r.name}</span>
                                                                 </div>
                                                             </td>
-                                                            <td className="py-1.5 text-[10px] uppercase tracking-[0.12em] font-bold text-gray-400">
+                                                            <td className="py-1.5 text-[10px] uppercase tracking-[0.12em] font-bold text-ant-mid">
                                                                 {r.kind}
                                                             </td>
                                                             <td className={`py-1.5 text-right text-[11px] font-semibold tabular-nums ${stockTone}`}>
                                                                 {r.stock} left
                                                             </td>
-                                                            <td className="py-1.5 text-right text-[11px] text-gray-500 tabular-nums">
+                                                            <td className="py-1.5 text-right text-[11px] text-ant-muted tabular-nums">
                                                                 {r.cost.toLocaleString('fr-MA')}
-                                                                <span className="text-[9px] text-brand-navy/40 ml-0.5">MAD</span>
+                                                                <span className="text-[9px] text-ant-mid ml-0.5">MAD</span>
                                                             </td>
-                                                            <td className="py-1.5 text-right text-[11px] text-brand-navy tabular-nums">
+                                                            <td className="py-1.5 text-right text-[11px] text-ant-ink tabular-nums">
                                                                 {atRisk.toLocaleString('fr-MA')}
-                                                                <span className="text-[9px] text-brand-navy/40 ml-0.5">MAD</span>
+                                                                <span className="text-[9px] text-ant-mid ml-0.5">MAD</span>
                                                             </td>
                                                         </tr>
                                                     );

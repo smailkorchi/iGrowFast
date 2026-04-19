@@ -54,7 +54,7 @@ const PLATFORM_COLORS: Record<string, string> = {
     'Facebook ads': '#1877F2', 'Instagram ads': '#E4405F', 'Tiktok ads': '#000000',
     'Google ads': '#4285F4', 'Snapchat ads': '#FFFC00', 'Twitter ads': '#1DA1F2',
     'Whatsapp ads': '#25D366', 'Messenger ads': '#0084FF', 'Pinterest ads': '#E60023',
-    'Reddit ads': '#FF4500', 'Bing ads': '#00809D', 'Native ads': '#6B7280',
+    'Reddit ads': '#FF4500', 'Bing ads': '#00809D', 'Native ads': '#6b6a63',
 };
 
 interface AdsSectionProps {
@@ -327,7 +327,7 @@ export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
                 globalCount: data.globalCount,
                 cpd: data.delivered > 0 ? data.spend / data.delivered : 0,
                 roas: data.spend > 0 ? data.revenue / data.spend : 0,
-                color: PLATFORM_COLORS[platform] || '#6B7280',
+                color: PLATFORM_COLORS[platform] || '#6b6a63',
             }))
             .sort((a, b) => b.spend - a.spend);
 
@@ -416,7 +416,7 @@ export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
             title="Advertising & Campaigns"
             description="Product ads + campaign ads. Spend pro-rated by window overlap. ROAS uses delivered revenue (paid or not)."
             icon={Megaphone}
-            iconColor="text-gray-400"
+            iconColor="text-ant-mid"
             loading={isLoading}
         >
             {metrics && (() => {
@@ -446,13 +446,13 @@ export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
                         ]}
                     >
 
-                    <Card className="border border-gray-100 shadow-none rounded-xl">
+                    <Card className="border border-ant-line shadow-none rounded-xl">
                         <CardHeader className="pb-1">
                             <div className="flex items-center justify-between gap-2 flex-wrap">
-                                <CardTitle className="text-[12px] font-semibold text-brand-navy">Spend vs revenue</CardTitle>
-                                <div className="flex items-center gap-2.5 text-[10px] text-gray-500">
-                                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#ef4444]" /> Spend</span>
-                                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#059669]" /> Revenue</span>
+                                <CardTitle className="text-[12px] font-semibold text-ant-ink">Spend vs revenue</CardTitle>
+                                <div className="flex items-center gap-2.5 text-[10px] text-ant-muted">
+                                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#c96356]" /> Spend</span>
+                                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#788c5d]" /> Revenue</span>
                                 </div>
                             </div>
                         </CardHeader>
@@ -461,29 +461,29 @@ export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
                                 <AreaChart data={metrics.trendData} margin={{ top: 4, right: 6, bottom: 0, left: 0 }}>
                                     <defs>
                                         <linearGradient id="colorAdSpend" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#ef4444" stopOpacity={0.18} />
-                                            <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                                            <stop offset="5%" stopColor="#c96356" stopOpacity={0.18} />
+                                            <stop offset="95%" stopColor="#c96356" stopOpacity={0} />
                                         </linearGradient>
                                         <linearGradient id="colorAdRevenue" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#059669" stopOpacity={0.22} />
-                                            <stop offset="95%" stopColor="#059669" stopOpacity={0} />
+                                            <stop offset="5%" stopColor="#788c5d" stopOpacity={0.22} />
+                                            <stop offset="95%" stopColor="#788c5d" stopOpacity={0} />
                                         </linearGradient>
                                     </defs>
-                                    <CartesianGrid strokeDasharray="2 4" stroke="#f3f4f6" vertical={false} />
-                                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
-                                    <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} width={32} />
-                                    <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #f3f4f6', boxShadow: 'none', fontSize: 11 }} formatter={(val: number) => `${val.toLocaleString('fr-MA')} MAD`} />
-                                    <Area type="monotone" dataKey="spend" stroke="#ef4444" fill="url(#colorAdSpend)" strokeWidth={1.75} name="Spend" dot={false} />
-                                    <Area type="monotone" dataKey="revenue" stroke="#059669" fill="url(#colorAdRevenue)" strokeWidth={1.75} name="Revenue" dot={false} />
+                                    <CartesianGrid strokeDasharray="2 4" stroke="#e8e6dc" vertical={false} />
+                                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#b0aea5' }} tickLine={false} axisLine={false} />
+                                    <YAxis tick={{ fontSize: 10, fill: '#b0aea5' }} tickLine={false} axisLine={false} width={32} />
+                                    <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e8e6dc', boxShadow: 'none', fontSize: 11 }} formatter={(val: number) => `${val.toLocaleString('fr-MA')} MAD`} />
+                                    <Area type="monotone" dataKey="spend" stroke="#c96356" fill="url(#colorAdSpend)" strokeWidth={1.75} name="Spend" dot={false} />
+                                    <Area type="monotone" dataKey="revenue" stroke="#788c5d" fill="url(#colorAdRevenue)" strokeWidth={1.75} name="Revenue" dot={false} />
                                 </AreaChart>
                             </ResponsiveContainer>
                         </CardContent>
                     </Card>
 
                     {metrics.platformData.length > 0 && (
-                        <Card className="border border-gray-100 shadow-none rounded-xl">
+                        <Card className="border border-ant-line shadow-none rounded-xl">
                             <CardHeader className="pb-1">
-                                <CardTitle className="text-[12px] font-semibold text-brand-navy">By platform</CardTitle>
+                                <CardTitle className="text-[12px] font-semibold text-ant-ink">By platform</CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <div className="space-y-1">
@@ -491,22 +491,22 @@ export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
                                         const maxSpend = Math.max(...metrics.platformData.map((x) => x.spend), 1);
                                         const sharePct = (p.spend / maxSpend) * 100;
                                         return (
-                                            <div key={p.platform} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-brand-navy/[0.03] transition-colors">
-                                                <div className="w-6 h-6 rounded text-gray-500 flex items-center justify-center shrink-0">
+                                            <div key={p.platform} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-ant-ink/[0.03] transition-colors">
+                                                <div className="w-6 h-6 rounded text-ant-muted flex items-center justify-center shrink-0">
                                                     {getPlatformIcon(p.platform)}
                                                 </div>
                                                 <div className="flex-1 min-w-0">
-                                                    <div className="text-[11px] font-semibold text-brand-navy leading-tight truncate">{p.platform}</div>
-                                                    <div className="text-[10px] text-gray-400 tabular-nums">
+                                                    <div className="text-[11px] font-semibold text-ant-ink leading-tight truncate">{p.platform}</div>
+                                                    <div className="text-[10px] text-ant-mid tabular-nums">
                                                         {p.orders} orders · {p.delivered} delivered
                                                     </div>
                                                 </div>
-                                                <div className="w-20 h-1 rounded-full bg-gray-100 overflow-hidden shrink-0">
-                                                    <div className="h-full rounded-full bg-brand-navy/60" style={{ width: `${sharePct}%` }} />
+                                                <div className="w-20 h-1 rounded-full bg-ant-line overflow-hidden shrink-0">
+                                                    <div className="h-full rounded-full bg-ant-ink/60" style={{ width: `${sharePct}%` }} />
                                                 </div>
                                                 <div className="text-right shrink-0 tabular-nums">
-                                                    <div className="text-[12px] font-semibold text-brand-navy">{Math.round(p.spend).toLocaleString('fr-MA')} <span className="text-[9px] text-brand-navy/40">MAD</span></div>
-                                                    <div className="text-[9px] text-gray-400">ROAS {p.roas.toFixed(2)}x</div>
+                                                    <div className="text-[12px] font-semibold text-ant-ink">{Math.round(p.spend).toLocaleString('fr-MA')} <span className="text-[9px] text-ant-mid">MAD</span></div>
+                                                    <div className="text-[9px] text-ant-mid">ROAS {p.roas.toFixed(2)}x</div>
                                                 </div>
                                             </div>
                                         );

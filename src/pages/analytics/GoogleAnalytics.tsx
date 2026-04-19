@@ -119,9 +119,9 @@ const parseGaDate = (s: string) => {
 // Single brand-navy channel base; ranks stepped down by opacity so the UI reads
 // as one sorted list, not a rainbow. Matches the Analytics page palette.
 const CHANNEL_SHADES = [
-    '#3b5e5e', '#6b8784', '#8a9e9b', '#adbab8',
-    '#c5cdcb', '#d1d5db', '#dde1df', '#e5e7eb',
-    '#eaecec', '#eef0f0',
+    '#141413', '#3f3e3a', '#6b6a63', '#8d8b84',
+    '#b0aea5', '#c9c6bc', '#d4d1c6', '#d8d6cc',
+    '#e0ded3', '#e8e6dc',
 ];
 
 // ── Business resolution ─────────────────────────────────────────────
@@ -212,15 +212,15 @@ const GoogleAnalyticsPage: React.FC = () => {
     // Early states
     if (profileLoading) {
         return (
-            <div className="flex items-center justify-center py-24">
-                <Loader2 className="w-8 h-8 animate-spin text-brand-navy" />
+            <div className="ant-surface flex items-center justify-center py-24">
+                <Loader2 className="w-8 h-8 animate-spin text-ant-ink" />
             </div>
         );
     }
 
     if (isOwner && !businessId) {
         return (
-            <div className="mx-auto max-w-[640px] px-3 md:px-5 py-6">
+            <div className="ant-surface mx-auto max-w-[640px] px-3 md:px-5 py-6">
                 <EmptyBusinessPicker
                     businesses={businesses ?? []}
                     onSelect={setOwnerBusinessId}
@@ -229,36 +229,42 @@ const GoogleAnalyticsPage: React.FC = () => {
         );
     }
 
+    const today = format(new Date(), 'EEEE, MMMM d');
+
     return (
-        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
-            {/* Header — matches /analytics compact style */}
-            <header className="space-y-2.5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">
-                            Google Analytics
-                        </h1>
-                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">
-                            Live GA4 traffic, engagement & conversions
-                        </p>
-                    </div>
-                    {isOwner && businesses && (
-                        <BusinessSwitcher
-                            businesses={businesses}
-                            value={ownerBusinessId}
-                            onChange={setOwnerBusinessId}
-                        />
-                    )}
+        <div className="ant-surface mx-auto max-w-[1440px] px-2 md:px-3 py-2 space-y-4">
+            {/* Editorial header */}
+            <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 pt-1">
+                <div className="space-y-1.5">
+                    <span className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                        <span className="w-1 h-1 rounded-full bg-ant-orange" />
+                        {today}
+                    </span>
+                    <h1 className="font-display text-[30px] md:text-[34px] font-semibold text-ant-ink leading-[1.05] tracking-[-0.02em]">
+                        Google Analytics
+                    </h1>
+                    <p className="font-serif-display text-[13px] text-ant-muted italic">
+                        Live GA4 traffic, engagement, and conversions.
+                    </p>
                 </div>
+                {isOwner && businesses && (
+                    <BusinessSwitcher
+                        businesses={businesses}
+                        value={ownerBusinessId}
+                        onChange={setOwnerBusinessId}
+                    />
+                )}
             </header>
+
+            <div className="h-px bg-ant-line" />
 
             {/* Connections row */}
             {connectionsLoading ? (
-                <Skeleton className="h-12 w-full rounded-xl" />
+                <Skeleton className="h-12 w-full rounded-xl bg-ant-line-soft" />
             ) : connections.length === 0 ? (
                 <OnboardingCard onAdd={() => setAddOpen(true)} />
             ) : (
-                <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2">
+                <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2 flex-wrap">
                     <PropertySwitcher
                         connections={connections}
                         active={activeConnection}
@@ -273,10 +279,7 @@ const GoogleAnalyticsPage: React.FC = () => {
 
             {/* Dashboard */}
             {connections.length > 0 && activeConnection && (
-                <Dashboard
-                    reports={reports}
-                    realtime={realtime.data}
-                />
+                <Dashboard reports={reports} realtime={realtime.data} />
             )}
 
             {/* Add connection dialog */}
@@ -309,16 +312,12 @@ const BusinessSwitcher: React.FC<{
     return (
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 rounded-md border-gray-200 bg-white text-[11px] font-semibold text-brand-navy min-w-[180px] justify-between px-2.5"
-                >
+                <button className="h-9 rounded-full border border-ant-line bg-ant-paper text-[11px] font-medium text-ant-ink min-w-[200px] inline-flex items-center justify-between px-3.5 gap-2 hover:border-ant-ink/25 transition">
                     <span className="truncate">{current?.name ?? 'Select business'}</span>
-                    <ChevronsUpDown className="w-3 h-3 opacity-50" />
-                </Button>
+                    <ChevronsUpDown className="w-3 h-3 text-ant-mid" />
+                </button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-[240px] p-1">
+            <PopoverContent align="end" className="ant-surface w-[260px] p-1 rounded-xl border-ant-line bg-ant-paper">
                 {businesses.map((b) => (
                     <button
                         key={b.id}
@@ -327,12 +326,12 @@ const BusinessSwitcher: React.FC<{
                             setOpen(false);
                         }}
                         className={cn(
-                            'w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-[11px] font-semibold text-left hover:bg-gray-100 transition',
-                            value === b.id && 'bg-gray-100'
+                            'w-full flex items-center justify-between px-3 py-2 rounded-lg text-[11.5px] font-medium text-left hover:bg-ant-line-soft transition',
+                            value === b.id && 'bg-ant-line-soft text-ant-ink'
                         )}
                     >
                         <span className="truncate">{b.name}</span>
-                        {value === b.id && <Check className="w-3 h-3 text-brand-navy" />}
+                        {value === b.id && <Check className="w-3 h-3 text-ant-orange" />}
                     </button>
                 ))}
             </PopoverContent>
@@ -344,28 +343,26 @@ const EmptyBusinessPicker: React.FC<{
     businesses: { id: string; name: string }[];
     onSelect: (id: string) => void;
 }> = ({ businesses, onSelect }) => (
-    <Card className="border border-gray-100 shadow-none rounded-xl">
-        <CardContent className="p-5 text-center">
-            <div className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-brand-navy/[0.04] mb-2.5">
-                <BarChart3 className="w-4 h-4 text-brand-navy" />
-            </div>
-            <h2 className="text-[14px] font-semibold text-brand-navy">Choose a business</h2>
-            <p className="text-[11px] text-gray-500 mt-0.5 mb-3">
-                Pick a business to view its Google Analytics.
-            </p>
-            <div className="max-w-sm mx-auto space-y-1">
-                {businesses.map((b) => (
-                    <button
-                        key={b.id}
-                        onClick={() => onSelect(b.id)}
-                        className="w-full px-3 py-2 rounded-md border border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-300 transition text-left text-[11px] font-semibold text-brand-navy"
-                    >
-                        {b.name}
-                    </button>
-                ))}
-            </div>
-        </CardContent>
-    </Card>
+    <div className="rounded-2xl border border-ant-line bg-ant-paper p-6 text-center">
+        <div className="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-ant-orange/10 mb-3">
+            <BarChart3 className="w-5 h-5 text-ant-orange" strokeWidth={1.75} />
+        </div>
+        <h2 className="font-display text-[20px] font-semibold text-ant-ink tracking-tight">Choose a business</h2>
+        <p className="font-serif-display text-[12.5px] text-ant-muted italic mt-1 mb-4">
+            Pick a business to view its Google Analytics.
+        </p>
+        <div className="max-w-sm mx-auto space-y-1.5">
+            {businesses.map((b) => (
+                <button
+                    key={b.id}
+                    onClick={() => onSelect(b.id)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-ant-line bg-ant-paper hover:border-ant-ink/25 hover:bg-ant-line-soft transition text-left text-[12px] font-medium text-ant-ink"
+                >
+                    {b.name}
+                </button>
+            ))}
+        </div>
+    </div>
 );
 
 const PropertySwitcher: React.FC<{
@@ -384,29 +381,29 @@ const PropertySwitcher: React.FC<{
         <div className="flex items-center gap-2">
             <Popover open={open} onOpenChange={setOpen}>
                 <PopoverTrigger asChild>
-                    <button className="flex items-center gap-2 h-8 px-2.5 rounded-md bg-white border border-gray-200 hover:border-gray-300 transition min-w-[220px]">
-                        <Layers className="w-3 h-3 text-gray-400 shrink-0" />
+                    <button className="flex items-center gap-2.5 h-9 px-3.5 rounded-full bg-ant-paper border border-ant-line hover:border-ant-ink/25 transition min-w-[240px]">
+                        <Layers className="w-3.5 h-3.5 text-ant-orange shrink-0" strokeWidth={1.75} />
                         <div className="flex-1 text-left min-w-0">
-                            <div className="text-[9px] text-gray-400 font-bold uppercase tracking-[0.14em] leading-none">
+                            <div className="text-[9px] text-ant-mid font-medium uppercase tracking-[0.2em] leading-none">
                                 Property
                             </div>
-                            <div className="text-[11px] font-semibold text-brand-navy truncate leading-tight">
+                            <div className="text-[11.5px] font-medium text-ant-ink truncate leading-tight mt-0.5">
                                 {active?.display_name ?? '—'}
                             </div>
                         </div>
-                        <ChevronsUpDown className="w-3 h-3 text-gray-400 shrink-0" />
+                        <ChevronsUpDown className="w-3 h-3 text-ant-mid shrink-0" />
                     </button>
                 </PopoverTrigger>
-                <PopoverContent align="start" className="w-[320px] p-1">
-                    <div className="px-2.5 pt-1.5 pb-1 text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400">
+                <PopoverContent align="start" className="ant-surface w-[340px] p-1.5 rounded-xl border-ant-line bg-ant-paper">
+                    <div className="px-2.5 pt-1 pb-1.5 text-[9.5px] font-medium uppercase tracking-[0.2em] text-ant-mid">
                         Connected properties
                     </div>
                     {connections.map((c) => (
                         <div
                             key={c.id}
                             className={cn(
-                                'group flex items-center gap-1 px-1.5 py-1.5 rounded-md hover:bg-gray-50',
-                                active?.id === c.id && 'bg-gray-50'
+                                'group flex items-center gap-1 px-1.5 py-1.5 rounded-lg hover:bg-ant-line-soft',
+                                active?.id === c.id && 'bg-ant-line-soft'
                             )}
                         >
                             <button
@@ -416,28 +413,28 @@ const PropertySwitcher: React.FC<{
                                 }}
                                 className="flex-1 flex items-center gap-2 text-left min-w-0"
                             >
-                                <Globe2 className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                                <Globe2 className="w-3.5 h-3.5 text-ant-mid shrink-0" strokeWidth={1.75} />
                                 <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-1">
-                                        <span className="text-[11px] font-semibold text-brand-navy truncate">
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-[11.5px] font-semibold text-ant-ink truncate">
                                             {c.display_name}
                                         </span>
                                         {c.is_default && (
-                                            <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400 shrink-0" />
+                                            <Star className="w-3 h-3 fill-ant-orange text-ant-orange shrink-0" />
                                         )}
                                     </div>
-                                    <div className="text-[10px] text-gray-400 font-mono">
+                                    <div className="text-[10px] text-ant-mid font-mono">
                                         {c.property_id}
                                     </div>
                                 </div>
                                 {active?.id === c.id && (
-                                    <Check className="w-3 h-3 text-brand-navy shrink-0" />
+                                    <Check className="w-3 h-3 text-ant-orange shrink-0" />
                                 )}
                             </button>
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <button className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-white opacity-0 group-hover:opacity-100 transition">
-                                        <MoreVertical className="w-3 h-3 text-gray-500" />
+                                    <button className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-ant-paper opacity-0 group-hover:opacity-100 transition">
+                                        <MoreVertical className="w-3 h-3 text-ant-muted" />
                                     </button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-40">
@@ -456,7 +453,7 @@ const PropertySwitcher: React.FC<{
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem
-                                        className="text-red-600"
+                                        className="text-ant-rose"
                                         onClick={async () => {
                                             await deleteConn.mutateAsync(c.id);
                                             toast({ title: 'Property removed' });
@@ -469,15 +466,15 @@ const PropertySwitcher: React.FC<{
                             </DropdownMenu>
                         </div>
                     ))}
-                    <div className="border-t border-gray-100 mt-1 pt-1">
+                    <div className="border-t border-ant-line mt-1 pt-1">
                         <button
                             onClick={() => {
                                 setOpen(false);
                                 onAdd();
                             }}
-                            className="w-full flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-semibold text-brand-navy hover:bg-gray-50"
+                            className="w-full flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-[11.5px] font-semibold text-ant-ink hover:bg-ant-line-soft"
                         >
-                            <Plus className="w-3 h-3" />
+                            <Plus className="w-3 h-3 text-ant-orange" />
                             Connect another property
                         </button>
                     </div>
@@ -492,22 +489,22 @@ const DateRangeBar: React.FC<{
     onChange: (k: PresetKey) => void;
     range: DateRange;
 }> = ({ value, onChange, range }) => (
-    <div className="flex items-center gap-0.5 h-8 px-0.5 rounded-md bg-white border border-gray-200">
+    <div className="flex items-center gap-1 flex-wrap">
         {PRESETS.map((p) => (
             <button
                 key={p.key}
                 onClick={() => onChange(p.key)}
                 className={cn(
-                    'h-7 px-2.5 rounded-md text-[10px] font-semibold transition whitespace-nowrap',
+                    'h-9 px-3.5 rounded-full text-[11px] font-medium transition whitespace-nowrap border',
                     value === p.key
-                        ? 'bg-brand-navy text-white'
-                        : 'text-gray-500 hover:bg-gray-100'
+                        ? 'bg-ant-ink text-ant-light border-ant-ink'
+                        : 'bg-transparent text-ant-ink border-ant-line hover:border-ant-ink/30',
                 )}
             >
                 {p.label}
             </button>
         ))}
-        <div className="hidden lg:flex items-center px-2 text-[9px] font-mono text-gray-400 border-l border-gray-100 ml-0.5">
+        <div className="hidden lg:flex items-center px-3 h-9 text-[9.5px] font-mono text-ant-mid border-l border-ant-line ml-1">
             {range.start} → {range.end}
         </div>
     </div>
@@ -517,19 +514,17 @@ const RealtimePill: React.FC<{ total: number; isLoading: boolean }> = ({
     total,
     isLoading,
 }) => (
-    <div className="flex items-center gap-1.5 h-8 px-2.5 rounded-md bg-emerald-50 border border-emerald-100">
-        <div className="relative">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            <div className="absolute inset-0 w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-        </div>
-        <div className="flex items-baseline gap-1.5 leading-none">
-            <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-emerald-700">
-                Live
-            </span>
-            <span className="text-[11px] font-semibold text-emerald-900 tabular-nums">
-                {isLoading ? '—' : `${nf.format(total)} active`}
-            </span>
-        </div>
+    <div className="inline-flex items-center gap-2 h-9 px-3.5 rounded-full bg-ant-green/10 border border-ant-green/25">
+        <span className="relative inline-flex">
+            <span className="w-1.5 h-1.5 rounded-full bg-ant-green" />
+            <span className="absolute inset-0 w-1.5 h-1.5 rounded-full bg-ant-green animate-ping" />
+        </span>
+        <span className="text-[9.5px] font-medium uppercase tracking-[0.22em] text-ant-green">
+            Live
+        </span>
+        <span className="text-[11.5px] font-semibold text-ant-ink tabular-nums">
+            {isLoading ? '—' : `${nf.format(total)} active`}
+        </span>
     </div>
 );
 
@@ -542,61 +537,59 @@ const Dashboard: React.FC<{
 
     if (error) {
         return (
-            <Card className="rounded-xl border-red-200 bg-red-50 shadow-none">
-                <CardContent className="p-3.5 flex items-start gap-2">
-                    <AlertCircle className="w-3.5 h-3.5 text-red-600 mt-0.5 shrink-0" />
-                    <div>
-                        <div className="text-[12px] font-semibold text-red-900">Cannot load data</div>
-                        <div className="text-[11px] text-red-700 mt-0.5">
-                            {(error as Error).message}
-                        </div>
+            <div className="ant-surface rounded-xl border border-ant-rose/30 bg-ant-rose/10 p-4 flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-ant-rose mt-0.5 shrink-0" strokeWidth={1.75} />
+                <div>
+                    <div className="font-display text-[13px] font-semibold text-ant-rose">Cannot load data</div>
+                    <div className="text-[11.5px] text-ant-rose mt-0.5">
+                        {(error as Error).message}
                     </div>
-                </CardContent>
-            </Card>
+                </div>
+            </div>
         );
     }
 
     if (isLoading || !data) {
         return (
-            <div className="space-y-2.5">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <div className="space-y-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                     {Array.from({ length: 4 }).map((_, i) => (
-                        <Skeleton key={i} className="h-16 rounded-xl" />
+                        <Skeleton key={i} className="h-20 rounded-xl bg-ant-line-soft" />
                     ))}
                 </div>
-                <Skeleton className="h-48 rounded-xl" />
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-2.5">
-                    <Skeleton className="h-48 rounded-xl lg:col-span-2" />
-                    <Skeleton className="h-48 rounded-xl" />
+                <Skeleton className="h-56 rounded-xl bg-ant-line-soft" />
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                    <Skeleton className="h-56 rounded-xl lg:col-span-2 bg-ant-line-soft" />
+                    <Skeleton className="h-56 rounded-xl bg-ant-line-soft" />
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="space-y-2.5">
-            {/* KPI strip — matches DashboardKPICards pattern: left accent stripe + tabular number. */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <div className="space-y-3">
+            {/* KPI strip — unified neutral cards, single orange accent on engagement */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                 <Kpi
                     label="Active users"
                     value={nf.format(data.totals.activeUsers ?? 0)}
                     sublabel={`${nf.format(data.totals.newUsers ?? 0)} new`}
                     icon={UsersIcon}
-                    accent="#3b5e5e"
+                    accent="#141413"
                 />
                 <Kpi
                     label="Sessions"
                     value={nf.format(data.totals.sessions ?? 0)}
                     sublabel={`${nfc.format(data.totals.screenPageViews ?? 0)} views`}
                     icon={Activity}
-                    accent="#3b5e5e"
+                    accent="#141413"
                 />
                 <Kpi
                     label="Engagement rate"
                     value={pct(data.totals.engagementRate ?? 0)}
                     sublabel={`${pct(1 - (data.totals.bounceRate ?? 0))} non-bounce`}
                     icon={TrendingUp}
-                    accent="#059669"
+                    accent="#d97757"
                     rate={(data.totals.engagementRate ?? 0) * 100}
                 />
                 <Kpi
@@ -604,24 +597,27 @@ const Dashboard: React.FC<{
                     value={dur(data.totals.averageSessionDuration ?? 0)}
                     sublabel={`${nfc.format(data.totals.eventCount ?? 0)} events`}
                     icon={Clock}
-                    accent="#d97706"
+                    accent="#788c5d"
                 />
             </div>
 
             {/* Trend */}
-            <Card className="border border-gray-100 shadow-none rounded-xl">
-                <CardContent className="p-3.5">
-                    <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
-                        <div>
-                            <h3 className="text-[12px] font-semibold text-brand-navy">Traffic trend</h3>
-                            <p className="text-[9px] text-gray-400 uppercase tracking-[0.14em] mt-0.5">
-                                Daily users · sessions · page views
-                            </p>
+            <Card className="border border-ant-line bg-ant-paper shadow-none rounded-xl">
+                <CardContent className="p-4">
+                    <div className="flex items-center justify-between gap-2 flex-wrap mb-3">
+                        <div className="flex items-center gap-2">
+                            <span className="w-1 h-1 rounded-full bg-ant-orange" />
+                            <div>
+                                <h3 className="font-display text-[13px] font-semibold text-ant-ink tracking-tight">Traffic trend</h3>
+                                <p className="text-[10px] text-ant-mid uppercase tracking-[0.18em] mt-0.5">
+                                    Daily users · sessions · page views
+                                </p>
+                            </div>
                         </div>
-                        <div className="flex items-center gap-2.5 text-[10px] text-gray-500">
-                            <LegendDot color="#3b5e5e" label="Users" />
-                            <LegendDot color="#059669" label="Sessions" />
-                            <LegendDot color="#d97706" label="Views" />
+                        <div className="flex items-center gap-3 text-[10px] text-ant-muted">
+                            <LegendDot color="#141413" label="Users" />
+                            <LegendDot color="#788c5d" label="Sessions" />
+                            <LegendDot color="#d97757" label="Views" />
                         </div>
                     </div>
                     <div className="h-44">
@@ -629,24 +625,24 @@ const Dashboard: React.FC<{
                             <AreaChart data={data.trend} margin={{ top: 4, right: 6, bottom: 0, left: 0 }}>
                                 <defs>
                                     <linearGradient id="ga-users" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stopColor="#3b5e5e" stopOpacity={0.22} />
-                                        <stop offset="100%" stopColor="#3b5e5e" stopOpacity={0} />
+                                        <stop offset="0%" stopColor="#141413" stopOpacity={0.22} />
+                                        <stop offset="100%" stopColor="#141413" stopOpacity={0} />
                                     </linearGradient>
                                     <linearGradient id="ga-sessions" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stopColor="#059669" stopOpacity={0.18} />
-                                        <stop offset="100%" stopColor="#059669" stopOpacity={0} />
+                                        <stop offset="0%" stopColor="#788c5d" stopOpacity={0.18} />
+                                        <stop offset="100%" stopColor="#788c5d" stopOpacity={0} />
                                     </linearGradient>
                                 </defs>
-                                <CartesianGrid strokeDasharray="2 4" stroke="#f3f4f6" vertical={false} />
+                                <CartesianGrid strokeDasharray="2 4" stroke="#e8e6dc" vertical={false} />
                                 <XAxis
                                     dataKey="date"
                                     tickFormatter={(v) => parseGaDate(String(v))}
-                                    tick={{ fontSize: 10, fill: '#9ca3af' }}
+                                    tick={{ fontSize: 10, fill: '#b0aea5' }}
                                     axisLine={false}
                                     tickLine={false}
                                 />
                                 <YAxis
-                                    tick={{ fontSize: 10, fill: '#9ca3af' }}
+                                    tick={{ fontSize: 10, fill: '#b0aea5' }}
                                     axisLine={false}
                                     tickLine={false}
                                     width={36}
@@ -655,16 +651,16 @@ const Dashboard: React.FC<{
                                 <Tooltip
                                     contentStyle={{
                                         borderRadius: 10,
-                                        border: '1px solid #f3f4f6',
+                                        border: '1px solid #e8e6dc',
                                         boxShadow: 'none',
                                         fontSize: 11,
                                     }}
                                     labelFormatter={(v) => parseGaDate(String(v))}
                                     formatter={(v: number, name: string) => [nf.format(v), name]}
                                 />
-                                <Area type="monotone" dataKey="activeUsers" name="Users" stroke="#3b5e5e" strokeWidth={1.75} fill="url(#ga-users)" dot={false} />
-                                <Area type="monotone" dataKey="sessions" name="Sessions" stroke="#059669" strokeWidth={1.5} fill="url(#ga-sessions)" dot={false} />
-                                <Area type="monotone" dataKey="screenPageViews" name="Views" stroke="#d97706" strokeWidth={1.25} strokeDasharray="4 3" fill="transparent" dot={false} />
+                                <Area type="monotone" dataKey="activeUsers" name="Users" stroke="#141413" strokeWidth={1.75} fill="url(#ga-users)" dot={false} />
+                                <Area type="monotone" dataKey="sessions" name="Sessions" stroke="#788c5d" strokeWidth={1.5} fill="url(#ga-sessions)" dot={false} />
+                                <Area type="monotone" dataKey="screenPageViews" name="Views" stroke="#d97757" strokeWidth={1.25} strokeDasharray="4 3" fill="transparent" dot={false} />
                             </AreaChart>
                         </ResponsiveContainer>
                     </div>
@@ -672,20 +668,23 @@ const Dashboard: React.FC<{
             </Card>
 
             {/* Row 1: acquisition + devices */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-2.5">
-                <Card className="border border-gray-100 shadow-none rounded-xl lg:col-span-2">
-                    <CardContent className="p-3.5">
-                        <div className="flex items-center justify-between mb-2">
-                            <div>
-                                <h3 className="text-[12px] font-semibold text-brand-navy">Acquisition</h3>
-                                <p className="text-[9px] text-gray-400 uppercase tracking-[0.14em] mt-0.5">
-                                    Sessions by channel
-                                </p>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                <Card className="border border-ant-line bg-ant-paper shadow-none rounded-xl lg:col-span-2">
+                    <CardContent className="p-4">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                                <span className="w-1 h-1 rounded-full bg-ant-orange" />
+                                <div>
+                                    <h3 className="font-display text-[13px] font-semibold text-ant-ink tracking-tight">Acquisition</h3>
+                                    <p className="text-[10px] text-ant-mid uppercase tracking-[0.18em] mt-0.5">
+                                        Sessions by channel
+                                    </p>
+                                </div>
                             </div>
                         </div>
-                        <div className="space-y-1.5">
+                        <div className="space-y-2">
                             {data.channels.length === 0 && (
-                                <p className="text-[11px] text-gray-400 text-center py-4">No channel data yet</p>
+                                <p className="font-serif-display text-[12px] text-ant-muted italic text-center py-4">No channel data yet</p>
                             )}
                             {data.channels.map((c, i) => {
                                 const total = data.channels.reduce((s, r) => s + (Number(r.sessions) || 0), 0);
@@ -695,22 +694,22 @@ const Dashboard: React.FC<{
                                 const width = (value / max) * 100;
                                 return (
                                     <div key={String(c.sessionDefaultChannelGroup) + i}>
-                                        <div className="flex items-center gap-2 mb-0.5">
+                                        <div className="flex items-center gap-2 mb-1">
                                             <span
-                                                className="w-[3px] h-3 rounded-full shrink-0"
+                                                className="w-[3px] h-3.5 rounded-full shrink-0"
                                                 style={{ backgroundColor: CHANNEL_SHADES[i % CHANNEL_SHADES.length] }}
                                             />
-                                            <span className="text-[11px] text-brand-navy/80 flex-1 truncate capitalize">
+                                            <span className="text-[11.5px] font-medium text-ant-ink flex-1 truncate capitalize">
                                                 {String(c.sessionDefaultChannelGroup || 'Unassigned')}
                                             </span>
-                                            <span className="text-[11px] font-semibold text-brand-navy tabular-nums">
+                                            <span className="text-[11.5px] font-semibold text-ant-ink tabular-nums">
                                                 {nfc.format(value)}
                                             </span>
-                                            <span className="text-[10px] text-gray-400 tabular-nums w-10 text-right">
+                                            <span className="text-[10px] text-ant-mid tabular-nums w-10 text-right">
                                                 {share.toFixed(1)}%
                                             </span>
                                         </div>
-                                        <div className="ml-[11px] h-1 bg-gray-100 rounded-full overflow-hidden">
+                                        <div className="ml-[11px] h-1 bg-ant-line rounded-full overflow-hidden">
                                             <div
                                                 className="h-full rounded-full transition-all duration-500"
                                                 style={{ width: `${width}%`, backgroundColor: CHANNEL_SHADES[i % CHANNEL_SHADES.length] }}
@@ -723,29 +722,32 @@ const Dashboard: React.FC<{
                     </CardContent>
                 </Card>
 
-                <Card className="border border-gray-100 shadow-none rounded-xl">
-                    <CardContent className="p-3.5">
-                        <div className="flex items-center justify-between mb-2">
-                            <div>
-                                <h3 className="text-[12px] font-semibold text-brand-navy">Devices</h3>
-                                <p className="text-[9px] text-gray-400 uppercase tracking-[0.14em] mt-0.5">
-                                    Sessions by device
-                                </p>
+                <Card className="border border-ant-line bg-ant-paper shadow-none rounded-xl">
+                    <CardContent className="p-4">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                                <span className="w-1 h-1 rounded-full bg-ant-orange" />
+                                <div>
+                                    <h3 className="font-display text-[13px] font-semibold text-ant-ink tracking-tight">Devices</h3>
+                                    <p className="text-[10px] text-ant-mid uppercase tracking-[0.18em] mt-0.5">
+                                        Sessions by device
+                                    </p>
+                                </div>
                             </div>
-                            <Smartphone className="w-3 h-3 text-gray-300" />
+                            <Smartphone className="w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
                         </div>
                         <div className="h-40">
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={data.devices} margin={{ top: 4, right: 6, bottom: 0, left: 0 }}>
-                                    <CartesianGrid strokeDasharray="2 4" stroke="#f3f4f6" vertical={false} />
+                                    <CartesianGrid strokeDasharray="2 4" stroke="#e8e6dc" vertical={false} />
                                     <XAxis
                                         dataKey="deviceCategory"
-                                        tick={{ fontSize: 10, fill: '#9ca3af' }}
+                                        tick={{ fontSize: 10, fill: '#b0aea5' }}
                                         axisLine={false}
                                         tickLine={false}
                                     />
                                     <YAxis
-                                        tick={{ fontSize: 10, fill: '#9ca3af' }}
+                                        tick={{ fontSize: 10, fill: '#b0aea5' }}
                                         axisLine={false}
                                         tickLine={false}
                                         width={32}
@@ -754,13 +756,13 @@ const Dashboard: React.FC<{
                                     <Tooltip
                                         contentStyle={{
                                             borderRadius: 10,
-                                            border: '1px solid #f3f4f6',
+                                            border: '1px solid #e8e6dc',
                                             boxShadow: 'none',
                                             fontSize: 11,
                                         }}
                                         formatter={(v: number) => nf.format(v)}
                                     />
-                                    <Bar dataKey="sessions" fill="#3b5e5e" radius={[4, 4, 0, 0]} />
+                                    <Bar dataKey="sessions" fill="#141413" radius={[4, 4, 0, 0]} />
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
@@ -769,7 +771,7 @@ const Dashboard: React.FC<{
             </div>
 
             {/* Row 2: top pages + countries */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 <RankList
                     title="Top pages"
                     subtitle="Most viewed"
@@ -796,7 +798,7 @@ const Dashboard: React.FC<{
             </div>
 
             {/* Row 3: events + browsers + realtime countries */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
                 <RankList
                     title="Top events"
                     subtitle="Most triggered"
@@ -834,8 +836,8 @@ const Dashboard: React.FC<{
 };
 
 // ── Shared widgets ───────────────────────────────────────────────────
-// KPI card — left accent stripe + dense tabular number. Matches DashboardKPICards
-// and uses the locked 5-tone palette (navy / emerald / red / amber / gray).
+// KPI tile — matches Dashboard KPI aesthetic: hairline border, tiny accent dot
+// next to the icon, Poppins display numeric, optional rate bar.
 const Kpi: React.FC<{
     label: string;
     value: string;
@@ -844,42 +846,45 @@ const Kpi: React.FC<{
     accent: string;
     rate?: number;
 }> = ({ label, value, sublabel, icon: Icon, accent, rate }) => (
-    <Card className="border border-gray-100 shadow-none rounded-xl overflow-hidden">
-        <CardContent className="p-2.5 relative">
-            <span
-                className="absolute top-2.5 left-0 w-[3px] h-8 rounded-r-full"
-                style={{ backgroundColor: accent }}
-                aria-hidden
-            />
-            <div className="pl-2">
-                <div className="flex items-center gap-1.5">
-                    <Icon className="w-3 h-3 text-gray-400 shrink-0" />
-                    <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400 truncate">
+    <Card className="border border-ant-line bg-ant-paper shadow-none rounded-xl overflow-hidden">
+        <CardContent className="p-3">
+            <div className="flex items-center justify-between gap-1.5">
+                <div className="flex items-center gap-1.5 min-w-0">
+                    <Icon className="w-3 h-3 text-ant-mid shrink-0" />
+                    <span className="text-[9.5px] uppercase tracking-[0.18em] font-medium text-ant-mid truncate">
                         {label}
                     </span>
                 </div>
-                <div className="text-[18px] font-semibold text-brand-navy tabular-nums leading-tight mt-0.5">
-                    {value}
-                </div>
-                {sublabel && (
-                    <div className="text-[10px] font-medium text-gray-400 tabular-nums">{sublabel}</div>
-                )}
-                {rate !== undefined && (
-                    <div className="h-1 bg-gray-100 rounded-full overflow-hidden mt-1.5">
-                        <div
-                            className="h-full rounded-full transition-all duration-500"
-                            style={{ width: `${Math.max(0, Math.min(100, rate))}%`, backgroundColor: accent }}
-                        />
-                    </div>
-                )}
+                <span
+                    className="flex items-center justify-center w-5 h-5 rounded-md shrink-0"
+                    style={{ backgroundColor: `${accent}14`, color: accent }}
+                >
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: accent }} />
+                </span>
             </div>
+            <div className="font-display text-[20px] font-semibold text-ant-ink tabular-nums leading-none tracking-[-0.02em] mt-2">
+                {value}
+            </div>
+            {rate !== undefined && (
+                <div className="mt-2 h-[3px] rounded-full overflow-hidden bg-ant-line/70">
+                    <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{ width: `${Math.max(0, Math.min(100, rate))}%`, backgroundColor: accent }}
+                    />
+                </div>
+            )}
+            {sublabel && (
+                <div className="text-[10px] font-medium text-ant-muted tabular-nums mt-1.5 truncate">
+                    {sublabel}
+                </div>
+            )}
         </CardContent>
     </Card>
 );
 
 const LegendDot: React.FC<{ color: string; label: string }> = ({ color, label }) => (
-    <span className="inline-flex items-center gap-1 text-[10px] text-gray-500">
-        <span className="w-2 h-2 rounded-full" style={{ background: color }} />
+    <span className="inline-flex items-center gap-1.5 text-[10px] text-ant-muted">
+        <span className="w-1.5 h-1.5 rounded-full" style={{ background: color }} />
         {label}
     </span>
 );
@@ -893,24 +898,27 @@ const RankList: React.FC<{
     accent?: 'default' | 'emerald';
 }> = ({ title, subtitle, icon: Icon, rows, valueFormatter, accent = 'default' }) => {
     const max = Math.max(1, ...rows.map((r) => r.value));
-    const barColor = accent === 'emerald' ? 'bg-emerald-500' : 'bg-brand-navy/70';
+    const barColor = accent === 'emerald' ? 'bg-ant-green' : 'bg-ant-ink/70';
     return (
-        <Card className="border border-gray-100 shadow-none rounded-xl">
-            <CardContent className="p-3.5">
-                <div className="flex items-center justify-between mb-2">
-                    <div>
-                        <h3 className="text-[12px] font-semibold text-brand-navy">{title}</h3>
-                        {subtitle && (
-                            <p className="text-[9px] text-gray-400 uppercase tracking-[0.14em] mt-0.5">
-                                {subtitle}
-                            </p>
-                        )}
+        <Card className="border border-ant-line bg-ant-paper shadow-none rounded-xl">
+            <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                        <span className={cn('w-1 h-1 rounded-full', accent === 'emerald' ? 'bg-ant-green' : 'bg-ant-orange')} />
+                        <div>
+                            <h3 className="font-display text-[13px] font-semibold text-ant-ink tracking-tight truncate">{title}</h3>
+                            {subtitle && (
+                                <p className="text-[10px] text-ant-mid uppercase tracking-[0.18em] mt-0.5 truncate">
+                                    {subtitle}
+                                </p>
+                            )}
+                        </div>
                     </div>
-                    <Icon className="w-3 h-3 text-gray-300" />
+                    <Icon className="w-3.5 h-3.5 text-ant-mid shrink-0" strokeWidth={1.75} />
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                     {rows.length === 0 ? (
-                        <div className="text-[11px] text-gray-400 py-4 text-center">
+                        <div className="font-serif-display text-[11px] text-ant-muted italic py-4 text-center">
                             No data for this range
                         </div>
                     ) : (
@@ -918,29 +926,29 @@ const RankList: React.FC<{
                             const pctWidth = (r.value / max) * 100;
                             return (
                                 <div key={i}>
-                                    <div className="flex items-center justify-between gap-2 mb-0.5">
+                                    <div className="flex items-center justify-between gap-2 mb-1">
                                         <div className="flex-1 min-w-0">
-                                            <div className="text-[11px] font-medium text-brand-navy truncate">
+                                            <div className="text-[11.5px] font-medium text-ant-ink truncate">
                                                 {r.label}
                                             </div>
                                             {r.sub && (
-                                                <div className="text-[9px] font-mono text-gray-400 truncate">
+                                                <div className="text-[9.5px] font-mono text-ant-mid truncate">
                                                     {r.sub}
                                                 </div>
                                             )}
                                         </div>
                                         <div className="text-right shrink-0">
-                                            <div className="text-[11px] font-semibold text-brand-navy tabular-nums">
+                                            <div className="text-[11.5px] font-semibold text-ant-ink tabular-nums">
                                                 {valueFormatter(r.value)}
                                             </div>
                                             {r.extra && (
-                                                <div className="text-[9px] text-gray-400 tabular-nums">
+                                                <div className="text-[9.5px] text-ant-mid tabular-nums">
                                                     {r.extra}
                                                 </div>
                                             )}
                                         </div>
                                     </div>
-                                    <div className="h-1 rounded-full bg-gray-100 overflow-hidden">
+                                    <div className="h-[3px] rounded-full bg-ant-line overflow-hidden">
                                         <div
                                             className={cn('h-full rounded-full transition-all duration-500', barColor)}
                                             style={{ width: `${pctWidth}%` }}
@@ -961,92 +969,88 @@ const OnboardingCard: React.FC<{ onAdd: () => void }> = ({ onAdd }) => {
     const { data: sa, isLoading, error, refetch } = useServiceAccountEmail();
     const { toast } = useToast();
     return (
-        <Card className="border border-gray-100 shadow-none rounded-xl">
-            <CardContent className="p-3.5">
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-3.5">
-                    <div className="md:col-span-2 p-3 rounded-xl bg-brand-navy/[0.03] border border-brand-navy/10">
-                        <div className="flex items-center gap-1.5">
-                            <BarChart3 className="w-3.5 h-3.5 text-brand-navy" />
-                            <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400">
-                                Connect
-                            </span>
-                        </div>
-                        <h2 className="text-[14px] font-semibold text-brand-navy tracking-tight mt-1">
-                            Google Analytics
-                        </h2>
-                        <p className="text-[11px] text-gray-500 leading-snug mt-1">
-                            Grant read access to our service account and paste your GA4 Property ID.
-                            No OAuth, no popups. Works for multiple properties.
-                        </p>
+        <div className="rounded-2xl border border-ant-line bg-ant-paper p-5">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-5">
+                <div className="md:col-span-2 p-4 rounded-xl bg-ant-light border border-ant-line">
+                    <div className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-ant-orange/10 mb-3">
+                        <BarChart3 className="w-4 h-4 text-ant-orange" strokeWidth={1.75} />
                     </div>
-                    <div className="md:col-span-3 space-y-3">
-                        <Step
-                            num={1}
-                            title="Open GA4 property access"
-                            body="In Google Analytics, go to Admin → Property access management → Add users."
-                        />
-                        <Step
-                            num={2}
-                            title="Add our service account as Viewer"
-                            body={
-                                <div className="space-y-1 mt-1">
-                                    <div className="flex items-center gap-1.5">
-                                        <code className="flex-1 px-2 py-1 rounded-md bg-gray-100 text-[10px] font-mono text-brand-navy truncate">
-                                            {isLoading
-                                                ? 'Loading…'
-                                                : error
-                                                    ? 'Failed to load email'
-                                                    : sa?.email ?? '—'}
-                                        </code>
-                                        {error ? (
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                className="rounded-md h-7 px-2 text-[10px]"
-                                                onClick={() => refetch()}
-                                            >
-                                                Retry
-                                            </Button>
-                                        ) : (
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                className="rounded-md h-7 px-2"
-                                                disabled={!sa?.email}
-                                                onClick={() => {
-                                                    navigator.clipboard.writeText(sa?.email ?? '');
-                                                    toast({ title: 'Copied', description: sa?.email });
-                                                }}
-                                            >
-                                                <Copy className="w-3 h-3" />
-                                            </Button>
-                                        )}
-                                    </div>
-                                    {error && (
-                                        <div className="text-[10px] text-red-600">
-                                            {(error as Error).message}
-                                        </div>
+                    <div className="text-[9.5px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                        Connect
+                    </div>
+                    <h2 className="font-display text-[20px] font-semibold text-ant-ink tracking-tight mt-1">
+                        Google Analytics
+                    </h2>
+                    <p className="font-serif-display text-[12.5px] text-ant-muted italic leading-relaxed mt-2">
+                        Grant read access to our service account and paste your GA4 Property ID. No OAuth, no popups. Works for multiple properties.
+                    </p>
+                </div>
+                <div className="md:col-span-3 space-y-4">
+                    <Step
+                        num={1}
+                        title="Open GA4 property access"
+                        body="In Google Analytics, go to Admin → Property access management → Add users."
+                    />
+                    <Step
+                        num={2}
+                        title="Add our service account as Viewer"
+                        body={
+                            <div className="space-y-1.5 mt-2">
+                                <div className="flex items-center gap-2">
+                                    <code className="flex-1 px-3 py-2 rounded-lg bg-ant-line-soft border border-ant-line text-[11px] font-mono text-ant-ink truncate">
+                                        {isLoading
+                                            ? 'Loading…'
+                                            : error
+                                                ? 'Failed to load email'
+                                                : sa?.email ?? '—'}
+                                    </code>
+                                    {error ? (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="rounded-lg h-9 px-3 text-[11px] border-ant-line text-ant-ink hover:bg-ant-line-soft"
+                                            onClick={() => refetch()}
+                                        >
+                                            Retry
+                                        </Button>
+                                    ) : (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="rounded-lg h-9 w-9 p-0 border-ant-line text-ant-ink hover:bg-ant-line-soft"
+                                            disabled={!sa?.email}
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(sa?.email ?? '');
+                                                toast({ title: 'Copied', description: sa?.email });
+                                            }}
+                                        >
+                                            <Copy className="w-3.5 h-3.5" />
+                                        </Button>
                                     )}
                                 </div>
-                            }
-                        />
-                        <Step
-                            num={3}
-                            title="Paste your GA4 Property ID"
-                            body="Find it in Admin → Property Settings. Usually a 9–10 digit number."
-                        />
-                        <Button
-                            onClick={onAdd}
-                            size="sm"
-                            className="w-full h-8 rounded-md bg-brand-navy hover:bg-brand-navy/90 text-white text-[11px] font-semibold"
-                        >
-                            <Plus className="w-3 h-3 mr-1.5" />
-                            Connect a property
-                        </Button>
-                    </div>
+                                {error && (
+                                    <div className="text-[11px] text-ant-rose">
+                                        {(error as Error).message}
+                                    </div>
+                                )}
+                            </div>
+                        }
+                    />
+                    <Step
+                        num={3}
+                        title="Paste your GA4 Property ID"
+                        body="Find it in Admin → Property Settings. Usually a 9–10 digit number."
+                    />
+                    <Button
+                        onClick={onAdd}
+                        className="w-full h-10 rounded-full bg-ant-ink hover:bg-ant-ink/90 text-ant-light text-[12px] font-medium"
+                    >
+                        <Plus className="w-3.5 h-3.5 mr-2" />
+                        Connect a property
+                    </Button>
                 </div>
-            </CardContent>
-        </Card>
+            </div>
+        </div>
     );
 };
 
@@ -1055,13 +1059,13 @@ const Step: React.FC<{ num: number; title: string; body: React.ReactNode }> = ({
     title,
     body,
 }) => (
-    <div className="flex gap-2">
-        <div className="w-5 h-5 rounded-full bg-brand-navy text-white text-[10px] font-semibold flex items-center justify-center shrink-0">
-            {num}
+    <div className="flex gap-3">
+        <div className="font-display w-7 h-7 rounded-full border border-ant-line bg-ant-paper text-ant-orange text-[11px] font-semibold tabular-nums flex items-center justify-center shrink-0 tracking-[0.04em]">
+            {String(num).padStart(2, '0')}
         </div>
-        <div className="flex-1 min-w-0">
-            <div className="text-[11px] font-semibold text-brand-navy">{title}</div>
-            <div className="text-[10px] text-gray-500 mt-0.5">{body}</div>
+        <div className="flex-1 min-w-0 pt-0.5">
+            <div className="font-display text-[13px] font-semibold text-ant-ink tracking-tight">{title}</div>
+            <div className="text-[11.5px] text-ant-muted mt-0.5 leading-snug">{body}</div>
         </div>
     </div>
 );
@@ -1120,23 +1124,23 @@ const AddConnectionDialog: React.FC<{
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="rounded-3xl max-w-lg">
+            <DialogContent className="ant-surface rounded-2xl max-w-lg bg-ant-paper border-ant-line">
                 <DialogHeader>
-                    <DialogTitle className="text-xl font-black text-brand-navy">
+                    <DialogTitle className="font-display text-[22px] font-semibold text-ant-ink tracking-tight">
                         Connect a GA4 property
                     </DialogTitle>
-                    <DialogDescription className="text-sm text-slate-500">
+                    <DialogDescription className="font-serif-display text-[13px] text-ant-muted italic">
                         Make sure the service account has Viewer access first.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-2">
-                    <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 flex items-start gap-2.5">
-                        <ShieldCheck className="w-4 h-4 text-brand-navy mt-0.5 shrink-0" />
+                    <div className="rounded-xl bg-ant-light border border-ant-line p-3.5 flex items-start gap-2.5">
+                        <ShieldCheck className="w-4 h-4 text-ant-orange mt-0.5 shrink-0" strokeWidth={1.75} />
                         <div className="flex-1 min-w-0">
-                            <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                            <div className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
                                 Grant access to
                             </div>
-                            <div className="text-xs font-mono text-brand-navy truncate">
+                            <div className="text-[12px] font-mono text-ant-ink truncate mt-0.5">
                                 {sa?.email ?? 'Loading…'}
                             </div>
                         </div>
@@ -1145,70 +1149,70 @@ const AddConnectionDialog: React.FC<{
                                 navigator.clipboard.writeText(sa?.email ?? '');
                                 toast({ title: 'Copied' });
                             }}
-                            className="w-8 h-8 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 flex items-center justify-center"
+                            className="w-8 h-8 rounded-lg bg-ant-paper border border-ant-line hover:bg-ant-line-soft flex items-center justify-center"
                         >
-                            <Copy className="w-3.5 h-3.5 text-slate-600" />
+                            <Copy className="w-3.5 h-3.5 text-ant-muted" />
                         </button>
                     </div>
 
                     <div className="space-y-1.5">
-                        <Label className="text-xs font-black uppercase tracking-wider text-slate-600">
+                        <Label className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
                             GA4 Property ID
                         </Label>
                         <Input
                             placeholder="123456789"
                             value={propertyId}
                             onChange={(e) => setPropertyId(e.target.value)}
-                            className="h-11 rounded-xl font-mono"
+                            className="h-11 rounded-xl font-mono border-ant-line bg-ant-paper text-ant-ink focus-visible:ring-ant-orange"
                         />
-                        <p className="text-[11px] text-slate-400">
+                        <p className="text-[11px] text-ant-muted">
                             Numeric ID only (not the G-XXXX measurement ID).
                         </p>
                     </div>
 
                     <div className="space-y-1.5">
-                        <Label className="text-xs font-black uppercase tracking-wider text-slate-600">
+                        <Label className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
                             Display name
                         </Label>
                         <Input
                             placeholder="Main website"
                             value={displayName}
                             onChange={(e) => setDisplayName(e.target.value)}
-                            className="h-11 rounded-xl"
+                            className="h-11 rounded-xl border-ant-line bg-ant-paper text-ant-ink focus-visible:ring-ant-orange"
                         />
                     </div>
 
                     <div className="space-y-1.5">
-                        <Label className="text-xs font-black uppercase tracking-wider text-slate-600">
-                            Website URL <span className="text-slate-400 font-medium normal-case">(optional)</span>
+                        <Label className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                            Website URL <span className="text-ant-mid font-normal normal-case tracking-normal">(optional)</span>
                         </Label>
                         <div className="relative">
-                            <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ant-mid" strokeWidth={1.75} />
                             <Input
                                 placeholder="https://example.com"
                                 value={websiteUrl}
                                 onChange={(e) => setWebsiteUrl(e.target.value)}
-                                className="h-11 rounded-xl pl-9"
+                                className="h-11 rounded-xl pl-9 border-ant-line bg-ant-paper text-ant-ink focus-visible:ring-ant-orange"
                             />
                         </div>
                     </div>
 
-                    <label className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50">
+                    <label className="flex items-center gap-2.5 px-3.5 py-3 rounded-xl border border-ant-line cursor-pointer hover:bg-ant-line-soft transition">
                         <input
                             type="checkbox"
                             checked={makeDefault}
                             onChange={(e) => setMakeDefault(e.target.checked)}
-                            className="w-4 h-4 rounded accent-brand-navy"
+                            className="w-4 h-4 rounded accent-ant-orange"
                         />
-                        <span className="text-sm font-bold text-brand-navy">
+                        <span className="text-[12.5px] font-medium text-ant-ink">
                             Make this the default property
                         </span>
                     </label>
                 </div>
-                <DialogFooter>
+                <DialogFooter className="gap-2">
                     <Button
                         variant="outline"
-                        className="rounded-xl"
+                        className="rounded-full border-ant-line text-ant-ink bg-ant-paper hover:bg-ant-line-soft"
                         onClick={() => onOpenChange(false)}
                     >
                         Cancel
@@ -1216,7 +1220,7 @@ const AddConnectionDialog: React.FC<{
                     <Button
                         onClick={submit}
                         disabled={add.isPending || !propertyId.trim() || !displayName.trim()}
-                        className="rounded-xl bg-brand-navy hover:bg-slate-800 text-white font-bold"
+                        className="rounded-full bg-ant-ink hover:bg-ant-ink/90 text-ant-light font-medium"
                     >
                         {add.isPending ? (
                             <>

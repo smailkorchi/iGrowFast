@@ -59,8 +59,8 @@ const getChannelColor = (name: string): string => {
     if (n.includes('twitter') || n.includes('x')) return '#1DA1F2';
     if (n.includes('youtube')) return '#FF0000';
     if (n.includes('shopify')) return '#96BF48';
-    if (n.includes('native')) return '#6B7280';
-    return '#3b5e5e';
+    if (n.includes('native')) return '#6b6a63';
+    return '#141413';
 };
 
 interface SalesChannelsSectionProps {
@@ -163,7 +163,7 @@ export const SalesChannelsSection = ({ businessId, dateFilter }: SalesChannelsSe
             title="Sales Channels"
             description="Sources normalized via the platform map. Revenue counts only paid+delivered orders."
             icon={Radio}
-            iconColor="text-gray-400"
+            iconColor="text-ant-mid"
             loading={isLoading}
         >
             {metrics && (() => {
@@ -191,11 +191,11 @@ export const SalesChannelsSection = ({ businessId, dateFilter }: SalesChannelsSe
                         ]}
                     >
 
-                    <Card className="border border-gray-100 shadow-none rounded-xl">
+                    <Card className="border border-ant-line shadow-none rounded-xl">
                         <CardHeader className="pb-1">
                             <div className="flex items-center justify-between gap-2 flex-wrap">
-                                <CardTitle className="text-[12px] font-semibold text-brand-navy">Channel trends</CardTitle>
-                                <div className="flex items-center gap-2.5 text-[10px] text-gray-500 flex-wrap">
+                                <CardTitle className="text-[12px] font-semibold text-ant-ink">Channel trends</CardTitle>
+                                <div className="flex items-center gap-2.5 text-[10px] text-ant-muted flex-wrap">
                                     {metrics.channelNames.slice(0, 4).map((name) => (
                                         <span key={name} className="inline-flex items-center gap-1 capitalize">
                                             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: getChannelColor(name) }} />
@@ -208,10 +208,10 @@ export const SalesChannelsSection = ({ businessId, dateFilter }: SalesChannelsSe
                         <CardContent>
                             <ResponsiveContainer width="100%" height={140}>
                                 <AreaChart data={metrics.trendData} margin={{ top: 4, right: 6, bottom: 0, left: 0 }}>
-                                    <CartesianGrid strokeDasharray="2 4" stroke="#f3f4f6" vertical={false} />
-                                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
-                                    <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} width={32} />
-                                    <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #f3f4f6', boxShadow: 'none', fontSize: 11 }} />
+                                    <CartesianGrid strokeDasharray="2 4" stroke="#e8e6dc" vertical={false} />
+                                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#b0aea5' }} tickLine={false} axisLine={false} />
+                                    <YAxis tick={{ fontSize: 10, fill: '#b0aea5' }} tickLine={false} axisLine={false} width={32} />
+                                    <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e8e6dc', boxShadow: 'none', fontSize: 11 }} />
                                     {metrics.channelNames.map((name) => (
                                         <Area key={name} type="monotone" dataKey={name} stroke={getChannelColor(name)} fill={getChannelColor(name)} fillOpacity={0.08} strokeWidth={1.75} dot={false} />
                                     ))}
@@ -220,24 +220,24 @@ export const SalesChannelsSection = ({ businessId, dateFilter }: SalesChannelsSe
                         </CardContent>
                     </Card>
 
-                    <Card className="border border-gray-100 shadow-none rounded-xl">
+                    <Card className="border border-ant-line shadow-none rounded-xl">
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-[12px] font-semibold text-brand-navy">Channel Breakdown</CardTitle>
+                            <CardTitle className="text-[12px] font-semibold text-ant-ink">Channel Breakdown</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-1">
                                 {metrics.channelData.map((ch) => (
-                                    <div key={ch.name} className="flex items-center gap-2.5 px-2 py-1.5 rounded-md bg-brand-navy/[0.02] hover:bg-brand-navy/[0.04] transition-colors">
+                                    <div key={ch.name} className="flex items-center gap-2.5 px-2 py-1.5 rounded-md bg-ant-ink/[0.02] hover:bg-ant-ink/[0.04] transition-colors">
                                         <div className="w-6 h-6 rounded-md flex items-center justify-center text-white shrink-0" style={{ backgroundColor: getChannelColor(ch.name) }}>
                                             {getChannelIcon(ch.name)}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <div className="text-[11px] font-semibold text-brand-navy truncate capitalize leading-tight">{ch.name}</div>
-                                            <div className="text-[10px] text-gray-400 tabular-nums">{ch.orders} orders</div>
+                                            <div className="text-[11px] font-semibold text-ant-ink truncate capitalize leading-tight">{ch.name}</div>
+                                            <div className="text-[10px] text-ant-mid tabular-nums">{ch.orders} orders</div>
                                         </div>
                                         <div className="text-right shrink-0">
-                                            <div className="text-[12px] font-semibold text-brand-navy tabular-nums">{Math.round(ch.revenue).toLocaleString('fr-MA')} <span className="text-[9px] text-brand-navy/40">MAD</span></div>
-                                            <div className="text-[9px] text-gray-400 tabular-nums">{ch.conversionRate.toFixed(1)}% conv.</div>
+                                            <div className="text-[12px] font-semibold text-ant-ink tabular-nums">{Math.round(ch.revenue).toLocaleString('fr-MA')} <span className="text-[9px] text-ant-mid">MAD</span></div>
+                                            <div className="text-[9px] text-ant-mid tabular-nums">{ch.conversionRate.toFixed(1)}% conv.</div>
                                         </div>
                                     </div>
                                 ))}

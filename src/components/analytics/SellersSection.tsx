@@ -27,7 +27,7 @@ import {
     pureRevenueForOrder,
 } from '@/lib/analyticsDefinitions';
 
-const BAR_COLORS = ['#3b5e5e', '#7a9385', '#F97316', '#3B82F6', '#A855F7', '#14B8A6', '#EC4899', '#c93942'];
+const BAR_COLORS = ['#141413', '#d97757', '#6a9bcc', '#788c5d', '#b0aea5', '#c96356', '#2a2926', '#8d8b84'];
 
 interface SellersSectionProps {
     businessId: string;
@@ -251,60 +251,60 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
                         ]}
                     >
 
-                    <Card className="border border-gray-100 shadow-none rounded-xl">
+                    <Card className="border border-ant-line shadow-none rounded-xl">
                         <CardHeader className="pb-1">
-                            <CardTitle className="text-[12px] font-semibold text-brand-navy">Seller ranking by delivered orders</CardTitle>
+                            <CardTitle className="text-[12px] font-semibold text-ant-ink">Seller ranking by delivered orders</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <ResponsiveContainer width="100%" height={160}>
                                 <BarChart data={metrics.sellerPerformance} layout="vertical" margin={{ top: 4, right: 6, bottom: 0, left: 0 }}>
-                                    <CartesianGrid strokeDasharray="2 4" stroke="#f3f4f6" horizontal={false} />
-                                    <XAxis type="number" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
-                                    <YAxis dataKey="name" type="category" tick={{ fontSize: 10, fill: '#6b7280' }} tickLine={false} axisLine={false} width={100} />
-                                    <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #f3f4f6', boxShadow: 'none', fontSize: 11 }} />
-                                    <Bar dataKey="delivered" radius={[0, 4, 4, 0]} name="Delivered" fill="#3b5e5e" />
+                                    <CartesianGrid strokeDasharray="2 4" stroke="#e8e6dc" horizontal={false} />
+                                    <XAxis type="number" tick={{ fontSize: 10, fill: '#b0aea5' }} tickLine={false} axisLine={false} />
+                                    <YAxis dataKey="name" type="category" tick={{ fontSize: 10, fill: '#6b6a63' }} tickLine={false} axisLine={false} width={100} />
+                                    <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e8e6dc', boxShadow: 'none', fontSize: 11 }} />
+                                    <Bar dataKey="delivered" radius={[0, 4, 4, 0]} name="Delivered" fill="#141413" />
                                 </BarChart>
                             </ResponsiveContainer>
                         </CardContent>
                     </Card>
 
-                    <Card className="border border-gray-100 shadow-none rounded-xl">
+                    <Card className="border border-ant-line shadow-none rounded-xl">
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-[12px] font-semibold text-brand-navy">Performance Details</CardTitle>
+                            <CardTitle className="text-[12px] font-semibold text-ant-ink">Performance Details</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm">
                                     <thead>
-                                        <tr className="border-b border-gray-100">
-                                            <th className="text-left py-3 text-[10px] uppercase tracking-widest font-bold text-gray-400">Seller</th>
-                                            <th className="text-right py-3 text-[10px] uppercase tracking-widest font-bold text-gray-400">Orders</th>
-                                            <th className="text-right py-3 text-[10px] uppercase tracking-widest font-bold text-gray-400">Delivered</th>
-                                            <th className="text-right py-3 text-[10px] uppercase tracking-widest font-bold text-gray-400">Success</th>
-                                            <th className="text-right py-3 text-[10px] uppercase tracking-widest font-bold text-gray-400">Revenue</th>
-                                            <th className="text-right py-3 text-[10px] uppercase tracking-widest font-bold text-gray-400">Presence</th>
-                                            <th className="text-right py-3 text-[10px] uppercase tracking-widest font-bold text-gray-400">Commission</th>
+                                        <tr className="border-b border-ant-line">
+                                            <th className="text-left py-3 text-[10px] uppercase tracking-widest font-bold text-ant-mid">Seller</th>
+                                            <th className="text-right py-3 text-[10px] uppercase tracking-widest font-bold text-ant-mid">Orders</th>
+                                            <th className="text-right py-3 text-[10px] uppercase tracking-widest font-bold text-ant-mid">Delivered</th>
+                                            <th className="text-right py-3 text-[10px] uppercase tracking-widest font-bold text-ant-mid">Success</th>
+                                            <th className="text-right py-3 text-[10px] uppercase tracking-widest font-bold text-ant-mid">Revenue</th>
+                                            <th className="text-right py-3 text-[10px] uppercase tracking-widest font-bold text-ant-mid">Presence</th>
+                                            <th className="text-right py-3 text-[10px] uppercase tracking-widest font-bold text-ant-mid">Commission</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {metrics.sellerPerformance.map((s, i) => (
-                                            <tr key={i} className="border-b border-gray-50 hover:bg-brand-navy/[0.02] transition-colors">
+                                            <tr key={i} className="border-b border-ant-line hover:bg-ant-ink/[0.02] transition-colors">
                                                 <td className="py-2.5">
                                                     <div className="flex items-center gap-3">
                                                         {s.avatar_url ? (
-                                                            <img src={s.avatar_url} alt={s.name} className="w-8 h-8 rounded-xl object-cover border border-brand-navy/5 shrink-0" />
+                                                            <img src={s.avatar_url} alt={s.name} className="w-8 h-8 rounded-xl object-cover border border-ant-ink/5 shrink-0" />
                                                         ) : (
-                                                            <div className="w-8 h-8 rounded-xl bg-brand-navy/[0.06] flex items-center justify-center shrink-0">
-                                                                <span className="text-xs font-bold text-brand-navy/50">{s.name?.charAt(0)?.toUpperCase()}</span>
+                                                            <div className="w-8 h-8 rounded-xl bg-ant-ink/[0.06] flex items-center justify-center shrink-0">
+                                                                <span className="text-xs font-bold text-ant-ink/50">{s.name?.charAt(0)?.toUpperCase()}</span>
                                                             </div>
                                                         )}
                                                         <div>
-                                                            <div className="font-semibold text-brand-navy flex items-center gap-1.5">
-                                                                {i === 0 && <Trophy className="w-3.5 h-3.5 text-amber-500" />}
+                                                            <div className="font-semibold text-ant-ink flex items-center gap-1.5">
+                                                                {i === 0 && <Trophy className="w-3.5 h-3.5 text-ant-orange" />}
                                                                 {s.name}
                                                             </div>
-                                                            {!s.active && <Badge className="bg-gray-100 text-gray-500 border-0 text-[9px]">Inactive</Badge>}
-                                                            <div className="text-[10px] text-gray-400">
+                                                            {!s.active && <Badge className="bg-ant-line text-ant-muted border-0 text-[9px]">Inactive</Badge>}
+                                                            <div className="text-[10px] text-ant-mid">
                                                                 {s.commission_price} MAD/{s.commission_basis === 'per_unit' ? 'unit' : 'order'}
                                                             </div>
                                                         </div>
@@ -313,13 +313,13 @@ export const SellersSection = ({ businessId, dateFilter }: SellersSectionProps) 
                                                 <td className="py-2.5 text-right font-bold">{s.totalOrders}</td>
                                                 <td className="py-2.5 text-right">{s.delivered}</td>
                                                 <td className="py-2.5 text-right">
-                                                    <Badge className={`text-xs border-0 ${s.successRate > 40 ? 'bg-emerald-50 text-emerald-600' : s.successRate > 20 ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-500'}`}>
+                                                    <Badge className={`text-xs border-0 ${s.successRate > 40 ? 'bg-ant-green/10 text-ant-green' : s.successRate > 20 ? 'bg-ant-orange/10 text-ant-orange' : 'bg-ant-rose/10 text-ant-rose'}`}>
                                                         {s.successRate.toFixed(1)}%
                                                     </Badge>
                                                 </td>
-                                                <td className="py-2.5 text-right">{Math.round(s.revenue).toLocaleString('fr-MA')} <span className="text-[10px] text-brand-navy/40">MAD</span></td>
+                                                <td className="py-2.5 text-right">{Math.round(s.revenue).toLocaleString('fr-MA')} <span className="text-[10px] text-ant-mid">MAD</span></td>
                                                 <td className="py-2.5 text-right">{s.presences} days</td>
-                                                <td className="py-2.5 text-right text-emerald-600 font-semibold tabular-nums">{Math.round(s.commission).toLocaleString('fr-MA')} <span className="text-[10px] opacity-60">MAD</span></td>
+                                                <td className="py-2.5 text-right text-ant-green font-semibold tabular-nums">{Math.round(s.commission).toLocaleString('fr-MA')} <span className="text-[10px] opacity-60">MAD</span></td>
                                             </tr>
                                         ))}
                                     </tbody>

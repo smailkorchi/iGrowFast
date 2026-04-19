@@ -22,7 +22,7 @@ import {
     pureRevenueForOrder,
 } from '@/lib/analyticsDefinitions';
 
-const COLORS = ['#3b5e5e', '#7a9385', '#c93942', '#F97316', '#3B82F6', '#14B8A6', '#A855F7', '#EC4899'];
+const COLORS = ['#141413', '#d97757', '#8d8b84', '#6a9bcc', '#788c5d', '#c96356', '#b0aea5', '#2a2926'];
 
 interface CustomersSectionProps {
     businessId: string;
@@ -150,7 +150,7 @@ export const CustomersSection = ({ businessId, dateFilter }: CustomersSectionPro
             title="Customers"
             description="Customers keyed by phone number. New = first-ever order in this window."
             icon={Users}
-            iconColor="text-gray-400"
+            iconColor="text-ant-mid"
             loading={isLoading}
         >
             {metrics && (() => {
@@ -184,13 +184,13 @@ export const CustomersSection = ({ businessId, dateFilter }: CustomersSectionPro
                         ]}
                     >
 
-                    <Card className="border border-gray-100 shadow-none rounded-xl">
+                    <Card className="border border-ant-line shadow-none rounded-xl">
                         <CardHeader className="pb-1">
                             <div className="flex items-center justify-between gap-2 flex-wrap">
-                                <CardTitle className="text-[12px] font-semibold text-brand-navy">New vs returning</CardTitle>
-                                <div className="flex items-center gap-2.5 text-[10px] text-gray-500">
-                                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#3b5e5e]" /> New</span>
-                                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#10B981]" /> Returning</span>
+                                <CardTitle className="text-[12px] font-semibold text-ant-ink">New vs returning</CardTitle>
+                                <div className="flex items-center gap-2.5 text-[10px] text-ant-muted">
+                                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#141413]" /> New</span>
+                                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#788c5d]" /> Returning</span>
                                 </div>
                             </div>
                         </CardHeader>
@@ -199,28 +199,28 @@ export const CustomersSection = ({ businessId, dateFilter }: CustomersSectionPro
                                 <AreaChart data={metrics.trendData} margin={{ top: 4, right: 6, bottom: 0, left: 0 }}>
                                     <defs>
                                         <linearGradient id="colorNew" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#3b5e5e" stopOpacity={0.2} />
-                                            <stop offset="95%" stopColor="#3b5e5e" stopOpacity={0} />
+                                            <stop offset="5%" stopColor="#141413" stopOpacity={0.2} />
+                                            <stop offset="95%" stopColor="#141413" stopOpacity={0} />
                                         </linearGradient>
                                         <linearGradient id="colorReturning" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#10B981" stopOpacity={0.2} />
-                                            <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
+                                            <stop offset="5%" stopColor="#788c5d" stopOpacity={0.2} />
+                                            <stop offset="95%" stopColor="#788c5d" stopOpacity={0} />
                                         </linearGradient>
                                     </defs>
-                                    <CartesianGrid strokeDasharray="2 4" stroke="#f3f4f6" vertical={false} />
-                                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
-                                    <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} width={32} />
-                                    <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #f3f4f6', boxShadow: 'none', fontSize: 11 }} />
-                                    <Area type="monotone" dataKey="new" stroke="#3b5e5e" fill="url(#colorNew)" strokeWidth={1.75} name="New" stackId="1" dot={false} />
-                                    <Area type="monotone" dataKey="returning" stroke="#10B981" fill="url(#colorReturning)" strokeWidth={1.75} name="Returning" stackId="1" dot={false} />
+                                    <CartesianGrid strokeDasharray="2 4" stroke="#e8e6dc" vertical={false} />
+                                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#b0aea5' }} tickLine={false} axisLine={false} />
+                                    <YAxis tick={{ fontSize: 10, fill: '#b0aea5' }} tickLine={false} axisLine={false} width={32} />
+                                    <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e8e6dc', boxShadow: 'none', fontSize: 11 }} />
+                                    <Area type="monotone" dataKey="new" stroke="#141413" fill="url(#colorNew)" strokeWidth={1.75} name="New" stackId="1" dot={false} />
+                                    <Area type="monotone" dataKey="returning" stroke="#788c5d" fill="url(#colorReturning)" strokeWidth={1.75} name="Returning" stackId="1" dot={false} />
                                 </AreaChart>
                             </ResponsiveContainer>
                         </CardContent>
                     </Card>
 
-                    <Card className="border border-gray-100 shadow-none rounded-xl">
+                    <Card className="border border-ant-line shadow-none rounded-xl">
                         <CardHeader className="pb-1">
-                            <CardTitle className="text-[12px] font-semibold text-brand-navy">Top cities</CardTitle>
+                            <CardTitle className="text-[12px] font-semibold text-ant-ink">Top cities</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-1.5">
@@ -229,15 +229,15 @@ export const CustomersSection = ({ businessId, dateFilter }: CustomersSectionPro
                                     const pct = (row.count / max) * 100;
                                     return (
                                         <div key={row.region} className="flex items-center gap-2">
-                                            <span className="text-[10px] font-bold text-gray-400 w-5 text-right tabular-nums">{i + 1}</span>
+                                            <span className="text-[10px] font-bold text-ant-mid w-5 text-right tabular-nums">{i + 1}</span>
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center justify-between gap-2 mb-0.5">
-                                                    <span className="text-[11px] font-medium text-brand-navy truncate">{row.region}</span>
-                                                    <span className="text-[11px] font-semibold text-brand-navy/80 tabular-nums">{row.count}</span>
+                                                    <span className="text-[11px] font-medium text-ant-ink truncate">{row.region}</span>
+                                                    <span className="text-[11px] font-semibold text-ant-ink/80 tabular-nums">{row.count}</span>
                                                 </div>
-                                                <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
+                                                <div className="h-1 bg-ant-line rounded-full overflow-hidden">
                                                     <div
-                                                        className="h-full bg-brand-navy/60 rounded-full transition-all duration-500"
+                                                        className="h-full bg-ant-ink/60 rounded-full transition-all duration-500"
                                                         style={{ width: `${pct}%` }}
                                                     />
                                                 </div>
@@ -246,7 +246,7 @@ export const CustomersSection = ({ businessId, dateFilter }: CustomersSectionPro
                                     );
                                 })}
                                 {metrics.regionData.length === 0 && (
-                                    <p className="text-[11px] text-gray-400 text-center py-2">No city data yet</p>
+                                    <p className="text-[11px] text-ant-mid text-center py-2">No city data yet</p>
                                 )}
                             </div>
                         </CardContent>

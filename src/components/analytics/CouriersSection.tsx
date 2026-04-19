@@ -167,7 +167,7 @@ export const CouriersSection = ({ businessId, dateFilter }: CouriersSectionProps
             title="Couriers"
             description="In-house couriers. Delivery rate = delivered ÷ confirmed (assigned to this courier)."
             icon={Bike}
-            iconColor="text-gray-400"
+            iconColor="text-ant-mid"
             loading={isLoading}
         >
             {metrics && (() => {
@@ -198,53 +198,53 @@ export const CouriersSection = ({ businessId, dateFilter }: CouriersSectionProps
                         ]}
                     >
                         {metrics.perCourier.length > 0 && (
-                            <Card className="border border-gray-100 shadow-none rounded-xl">
+                            <Card className="border border-ant-line shadow-none rounded-xl">
                                 <CardHeader className="pb-1">
-                                    <CardTitle className="text-[12px] font-semibold text-brand-navy">Courier leaderboard</CardTitle>
+                                    <CardTitle className="text-[12px] font-semibold text-ant-ink">Courier leaderboard</CardTitle>
                                 </CardHeader>
                                 <CardContent>
                                     <div className="overflow-x-auto">
                                         <table className="w-full">
                                             <thead>
-                                                <tr className="border-b border-gray-100">
-                                                    <th className="text-left py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Courier</th>
-                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Shipments</th>
-                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Delivered</th>
-                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Returns</th>
-                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Rate</th>
-                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Pending</th>
+                                                <tr className="border-b border-ant-line">
+                                                    <th className="text-left py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid">Courier</th>
+                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid">Shipments</th>
+                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid">Delivered</th>
+                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid">Returns</th>
+                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid">Rate</th>
+                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid">Pending</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {metrics.perCourier.map((c) => {
                                                     const tone =
-                                                        c.rate >= 60 ? 'text-emerald-600' : c.rate >= 30 ? 'text-amber-600' : 'text-red-500';
+                                                        c.rate >= 60 ? 'text-ant-green' : c.rate >= 30 ? 'text-ant-orange' : 'text-ant-rose';
                                                     return (
-                                                        <tr key={c.id} className="border-b border-gray-50 hover:bg-brand-navy/[0.02] transition-colors">
+                                                        <tr key={c.id} className="border-b border-ant-line hover:bg-ant-ink/[0.02] transition-colors">
                                                             <td className="py-1.5">
                                                                 <div className="flex items-center gap-2">
                                                                     {c.avatar_url ? (
-                                                                        <img src={c.avatar_url} alt={c.name} className="w-6 h-6 rounded-full object-cover border border-brand-navy/5 shrink-0" />
+                                                                        <img src={c.avatar_url} alt={c.name} className="w-6 h-6 rounded-full object-cover border border-ant-ink/5 shrink-0" />
                                                                     ) : (
-                                                                        <div className="w-6 h-6 rounded-full bg-brand-navy/[0.04] flex items-center justify-center shrink-0">
-                                                                            <User className="w-3 h-3 text-brand-navy/20" />
+                                                                        <div className="w-6 h-6 rounded-full bg-ant-ink/[0.04] flex items-center justify-center shrink-0">
+                                                                            <User className="w-3 h-3 text-ant-line" />
                                                                         </div>
                                                                     )}
-                                                                    <span className="text-[11px] font-medium text-brand-navy truncate">{c.name || 'Unnamed'}</span>
+                                                                    <span className="text-[11px] font-medium text-ant-ink truncate">{c.name || 'Unnamed'}</span>
                                                                     {c.active === false && (
-                                                                        <span className="text-[8px] uppercase tracking-[0.14em] font-bold text-red-400">· inactive</span>
+                                                                        <span className="text-[8px] uppercase tracking-[0.14em] font-bold text-ant-rose">· inactive</span>
                                                                     )}
                                                                 </div>
                                                             </td>
                                                             <td className="py-1.5 text-right text-[11px] tabular-nums">{c.total}</td>
-                                                            <td className="py-1.5 text-right text-[11px] font-semibold text-brand-navy tabular-nums">{c.delivered}</td>
-                                                            <td className="py-1.5 text-right text-[11px] text-gray-500 tabular-nums">{c.returned}</td>
+                                                            <td className="py-1.5 text-right text-[11px] font-semibold text-ant-ink tabular-nums">{c.delivered}</td>
+                                                            <td className="py-1.5 text-right text-[11px] text-ant-muted tabular-nums">{c.returned}</td>
                                                             <td className={`py-1.5 text-right text-[11px] font-semibold tabular-nums ${tone}`}>
                                                                 {c.rate.toFixed(1)}%
                                                             </td>
-                                                            <td className="py-1.5 text-right text-[11px] text-amber-600 tabular-nums">
+                                                            <td className="py-1.5 text-right text-[11px] text-ant-orange tabular-nums">
                                                                 {Math.round(c.pendingPayment).toLocaleString('fr-MA')}
-                                                                <span className="text-[9px] text-brand-navy/40 ml-0.5">MAD</span>
+                                                                <span className="text-[9px] text-ant-mid ml-0.5">MAD</span>
                                                             </td>
                                                         </tr>
                                                     );

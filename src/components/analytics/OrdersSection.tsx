@@ -147,7 +147,7 @@ export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) =>
             title="Orders"
             description="Order volume by placement date. Confirmation includes orders with a tracking number."
             icon={ShoppingBag}
-            iconColor="text-gray-400"
+            iconColor="text-ant-mid"
             loading={isLoading}
         >
             {metrics && (() => {
@@ -180,33 +180,33 @@ export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) =>
                         ]}
                     >
 
-                    <Card className="border border-gray-100 shadow-none rounded-xl">
+                    <Card className="border border-ant-line shadow-none rounded-xl">
                         <CardHeader className="pb-1">
-                            <CardTitle className="text-[12px] font-semibold text-brand-navy">Orders over time</CardTitle>
+                            <CardTitle className="text-[12px] font-semibold text-ant-ink">Orders over time</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <ResponsiveContainer width="100%" height={140}>
                                 <AreaChart data={metrics.trendData} margin={{ top: 4, right: 6, bottom: 0, left: 0 }}>
                                     <defs>
                                         <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#3b5e5e" stopOpacity={0.2} />
-                                            <stop offset="95%" stopColor="#3b5e5e" stopOpacity={0} />
+                                            <stop offset="5%" stopColor="#141413" stopOpacity={0.2} />
+                                            <stop offset="95%" stopColor="#141413" stopOpacity={0} />
                                         </linearGradient>
                                     </defs>
-                                    <CartesianGrid strokeDasharray="2 4" stroke="#f3f4f6" vertical={false} />
-                                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
-                                    <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} width={32} />
-                                    <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #f3f4f6', boxShadow: 'none', fontSize: 11 }} />
-                                    <Area type="monotone" dataKey="orders" stroke="#3b5e5e" fill="url(#colorOrders)" strokeWidth={1.75} name="Orders" dot={false} />
+                                    <CartesianGrid strokeDasharray="2 4" stroke="#e8e6dc" vertical={false} />
+                                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#b0aea5' }} tickLine={false} axisLine={false} />
+                                    <YAxis tick={{ fontSize: 10, fill: '#b0aea5' }} tickLine={false} axisLine={false} width={32} />
+                                    <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e8e6dc', boxShadow: 'none', fontSize: 11 }} />
+                                    <Area type="monotone" dataKey="orders" stroke="#141413" fill="url(#colorOrders)" strokeWidth={1.75} name="Orders" dot={false} />
                                 </AreaChart>
                             </ResponsiveContainer>
                         </CardContent>
                     </Card>
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        <Card className="border border-gray-100 shadow-none rounded-xl">
+                        <Card className="border border-ant-line shadow-none rounded-xl">
                             <CardHeader className="pb-1">
-                                <CardTitle className="text-[12px] font-semibold text-brand-navy">Order funnel</CardTitle>
+                                <CardTitle className="text-[12px] font-semibold text-ant-ink">Order funnel</CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <div className="space-y-0">
@@ -218,24 +218,24 @@ export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) =>
                                         return (
                                             <div key={stage.stage}>
                                                 {i > 0 && convPct !== null && (
-                                                    <div className="flex items-center gap-2 pl-[92px] py-0.5 text-[9px] text-gray-400 tabular-nums">
-                                                        <span className="w-px h-2.5 bg-gray-200" aria-hidden />
+                                                    <div className="flex items-center gap-2 pl-[92px] py-0.5 text-[9px] text-ant-mid tabular-nums">
+                                                        <span className="w-px h-2.5 bg-ant-line" aria-hidden />
                                                         <span>
                                                             {convPct.toFixed(0)}% →
                                                         </span>
                                                     </div>
                                                 )}
                                                 <div className="flex items-center gap-3 py-1">
-                                                    <span className="text-[10px] uppercase tracking-[0.14em] font-bold text-gray-500 w-[80px] truncate">
+                                                    <span className="text-[10px] uppercase tracking-[0.14em] font-bold text-ant-muted w-[80px] truncate">
                                                         {stage.stage}
                                                     </span>
-                                                    <div className="flex-1 h-4 rounded-sm bg-gray-50 overflow-hidden relative">
+                                                    <div className="flex-1 h-4 rounded-sm bg-ant-line-soft overflow-hidden relative">
                                                         <div
-                                                            className="h-full bg-brand-navy/70 rounded-sm transition-[width] duration-500"
+                                                            className="h-full bg-ant-ink/70 rounded-sm transition-[width] duration-500"
                                                             style={{ width: `${Math.max(widthPct, 1)}%` }}
                                                         />
                                                     </div>
-                                                    <span className="text-[12px] font-semibold text-brand-navy tabular-nums w-12 text-right">
+                                                    <span className="text-[12px] font-semibold text-ant-ink tabular-nums w-12 text-right">
                                                         {stage.count.toLocaleString('fr-MA')}
                                                     </span>
                                                 </div>
@@ -246,9 +246,9 @@ export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) =>
                             </CardContent>
                         </Card>
 
-                        <Card className="border border-gray-100 shadow-none rounded-xl">
+                        <Card className="border border-ant-line shadow-none rounded-xl">
                             <CardHeader className="pb-2">
-                                <CardTitle className="text-[12px] font-semibold text-brand-navy flex items-center gap-2">
+                                <CardTitle className="text-[12px] font-semibold text-ant-ink flex items-center gap-2">
                                     <MapPin className="w-4 h-4" /> Top Cities
                                 </CardTitle>
                             </CardHeader>
@@ -256,15 +256,15 @@ export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) =>
                                 <div className="space-y-1.5">
                                     {metrics.topCities.map((city, i) => (
                                         <div key={city.city} className="flex items-center gap-2">
-                                            <span className="text-[10px] font-bold text-gray-400 w-4 tabular-nums text-right">{i + 1}</span>
+                                            <span className="text-[10px] font-bold text-ant-mid w-4 tabular-nums text-right">{i + 1}</span>
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex justify-between items-center mb-0.5 gap-2">
-                                                    <span className="text-[11px] font-medium text-brand-navy truncate">{city.city}</span>
-                                                    <span className="text-[11px] font-semibold text-gray-500 tabular-nums">{city.count}</span>
+                                                    <span className="text-[11px] font-medium text-ant-ink truncate">{city.city}</span>
+                                                    <span className="text-[11px] font-semibold text-ant-muted tabular-nums">{city.count}</span>
                                                 </div>
-                                                <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
+                                                <div className="h-1 bg-ant-line rounded-full overflow-hidden">
                                                     <div
-                                                        className="h-full bg-gradient-to-r from-brand-navy to-brand-blue rounded-full"
+                                                        className="h-full bg-gradient-to-r from-ant-ink to-ant-ink/70 rounded-full"
                                                         style={{ width: `${(city.count / (metrics.topCities[0]?.count || 1)) * 100}%` }}
                                                     />
                                                 </div>
@@ -272,7 +272,7 @@ export const OrdersSection = ({ businessId, dateFilter }: OrdersSectionProps) =>
                                         </div>
                                     ))}
                                     {metrics.topCities.length === 0 && (
-                                        <p className="text-[11px] text-gray-400 text-center py-2">No city data available</p>
+                                        <p className="text-[11px] text-ant-mid text-center py-2">No city data available</p>
                                     )}
                                 </div>
                             </CardContent>
