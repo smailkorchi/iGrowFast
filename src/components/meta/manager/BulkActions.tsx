@@ -49,7 +49,7 @@ export const BulkActions: React.FC<Props> = ({
     const label = objectType === 'campaign' ? 'campaign' : objectType === 'adset' ? 'ad set' : 'ad';
 
     return (
-        <div className="sticky bottom-0 z-20 bg-[#1c1e21] text-white rounded-b-lg flex items-center justify-between px-4 h-[52px]">
+        <div className="sticky bottom-0 z-20 bg-ant-ink text-white rounded-b-lg flex items-center justify-between px-4 h-[52px]">
             <span className="text-[13px] font-semibold">
                 {selectedIds.size} {label}{selectedIds.size > 1 ? 's' : ''} selected
             </span>
@@ -58,21 +58,21 @@ export const BulkActions: React.FC<Props> = ({
                 <button
                     onClick={() => bulkAction('ACTIVE')}
                     disabled={busy}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#31a24c] hover:bg-[#29903f] text-[12px] font-semibold transition disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-ant-green hover:bg-[#29903f] text-[12px] font-semibold transition disabled:opacity-50"
                 >
                     <Play className="w-3.5 h-3.5" /> Activate
                 </button>
                 <button
                     onClick={() => bulkAction('PAUSED')}
                     disabled={busy}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#606770] hover:bg-[#505860] text-[12px] font-semibold transition disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-ant-muted/25 hover:bg-ant-muted/40 text-[12px] font-semibold transition disabled:opacity-50"
                 >
                     <Pause className="w-3.5 h-3.5" /> Pause
                 </button>
                 <button
                     onClick={() => bulkAction('ARCHIVED')}
                     disabled={busy}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#606770] hover:bg-[#505860] text-[12px] font-semibold transition disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-ant-muted/25 hover:bg-ant-muted/40 text-[12px] font-semibold transition disabled:opacity-50"
                 >
                     <Archive className="w-3.5 h-3.5" /> Archive
                 </button>

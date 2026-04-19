@@ -914,7 +914,7 @@ const RankList: React.FC<{
                             )}
                         </div>
                     </div>
-                    <Icon className="w-3.5 h-3.5 text-ant-mid shrink-0" strokeWidth={1.75} />
+                    <Icon className="w-3.5 h-3.5 text-ant-mid shrink-0" />
                 </div>
                 <div className="space-y-2">
                     {rows.length === 0 ? (

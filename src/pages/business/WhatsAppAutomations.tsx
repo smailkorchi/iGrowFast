@@ -1,131 +1,79 @@
-import React, { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { useToast } from '@/components/ui/use-toast';
-import { Bot, Plus, Trash } from 'lucide-react';
+import { Bot, Sparkles } from 'lucide-react';
+import { format } from 'date-fns';
 
+/**
+ * WhatsApp Automations — coming soon placeholder.
+ *
+ * The original auto-replies CRUD implementation was intentionally removed while
+ * a richer automations engine (keyword flows, media replies, time-of-day rules,
+ * agent handoff) is designed. This page stays mounted so the sidebar entry
+ * keeps its anchor; feature work lands back here when the engine is ready.
+ */
 export default function WhatsAppAutomations() {
-    const [replies, setReplies] = useState<
-        Array<{ id: string; trigger_keyword: string; reply_message: string; active: boolean }>
-    >([]);
-    const [keyword, setKeyword] = useState('');
-    const [message, setMessage] = useState('');
-    const { toast } = useToast();
-
-    useEffect(() => {
-        fetchReplies();
-    }, []);
-
-    const fetchReplies = async () => {
-        const businessId = localStorage.getItem('activeBusinessId');
-        if (!businessId) return;
-        const { data } = await supabase
-            .from('whatsapp_auto_replies')
-            .select('*')
-            .eq('business_id', businessId);
-        if (data) setReplies(data);
-    };
-
-    const handleAdd = async () => {
-        const businessId = localStorage.getItem('activeBusinessId');
-        if (!businessId || !keyword || !message) return;
-
-        await supabase.from('whatsapp_auto_replies').insert({
-            business_id: businessId,
-            trigger_keyword: keyword,
-            reply_message: message,
-            active: true,
-        });
-
-        setKeyword('');
-        setMessage('');
-        fetchReplies();
-        toast({ title: 'Automation added' });
-    };
+    const today = format(new Date(), 'EEEE, MMMM d');
 
     return (
-        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
-            {/* Header — matches Analytics compact style */}
-            <header className="flex items-center gap-2">
-                <Bot className="w-3.5 h-3.5 text-gray-400" />
-                <div>
-                    <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">
-                        WhatsApp Automations
-                    </h1>
-                    <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">
-                        Trigger-based auto-replies
-                    </p>
-                </div>
+        <div className="ant-surface mx-auto max-w-[1440px] px-2 md:px-3 py-2 space-y-6">
+            {/* Editorial header */}
+            <header className="space-y-1.5 pt-1">
+                <span className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                    <span className="w-1 h-1 rounded-full bg-ant-orange" />
+                    {today}
+                </span>
+                <h1 className="font-display text-[30px] md:text-[34px] font-semibold text-ant-ink leading-[1.05] tracking-[-0.02em]">
+                    Automations
+                </h1>
+                <p className="font-serif-display text-[13px] text-ant-muted italic">
+                    Keyword replies, drip flows, and agent handoff — in development.
+                </p>
             </header>
 
-            {/* New auto-reply */}
-            <div className="bg-white border border-gray-100 rounded-xl p-3.5 space-y-2.5 max-w-xl">
-                <div className="flex items-center justify-between">
-                    <h3 className="text-[12px] font-semibold text-brand-navy">New auto-reply</h3>
-                </div>
-                <div className="space-y-2">
-                    <Input
-                        placeholder="Trigger keyword (e.g. price, menu)"
-                        value={keyword}
-                        onChange={(e) => setKeyword(e.target.value)}
-                        className="h-8 rounded-md text-[11px]"
-                    />
-                    <Input
-                        placeholder="Reply message"
-                        value={message}
-                        onChange={(e) => setMessage(e.target.value)}
-                        className="h-8 rounded-md text-[11px]"
-                    />
-                </div>
-                <Button
-                    size="sm"
-                    onClick={handleAdd}
-                    disabled={!keyword || !message}
-                    className="h-7 px-2.5 text-[11px] font-semibold rounded-md"
-                >
-                    <Plus className="w-3 h-3 mr-1" />
-                    Add rule
-                </Button>
-            </div>
+            <div className="h-px bg-ant-line" />
 
-            {/* Rules list */}
-            <div className="space-y-1.5 max-w-3xl">
-                {replies.map((r) => (
+            {/* Coming soon panel */}
+            <div className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                <div className="relative px-6 md:px-12 py-16 md:py-20 text-center">
                     <div
-                        key={r.id}
-                        className="bg-white border border-gray-100 rounded-xl p-2.5 flex items-center justify-between gap-2"
-                    >
-                        <div className="flex-1 min-w-0">
-                            <div className="inline-flex items-center gap-1 bg-gray-100 px-1.5 py-0.5 rounded-md text-[10px] font-mono text-brand-navy/80 mb-1">
-                                <span className="text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">
-                                    when
-                                </span>
-                                <span className="truncate">"{r.trigger_keyword}"</span>
-                            </div>
-                            <div className="text-[11px] text-gray-600 pl-2 border-l-2 border-brand-navy/30 leading-snug">
-                                {r.reply_message}
-                            </div>
-                        </div>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-md shrink-0"
-                            onClick={async () => {
-                                await supabase.from('whatsapp_auto_replies').delete().eq('id', r.id);
-                                fetchReplies();
-                            }}
-                        >
-                            <Trash className="w-3.5 h-3.5" />
-                        </Button>
+                        aria-hidden
+                        className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-ant-orange/40 to-transparent"
+                    />
+
+                    <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-ant-orange/10 ring-1 ring-ant-orange/25 mb-6">
+                        <Bot className="w-6 h-6 text-ant-orange" strokeWidth={1.5} />
                     </div>
-                ))}
-                {replies.length === 0 && (
-                    <p className="text-[11px] text-gray-400 py-4 text-center">
-                        No auto-replies configured yet.
+
+                    <span className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                        <Sparkles className="w-3 h-3 text-ant-orange" strokeWidth={1.75} />
+                        Coming soon
+                    </span>
+
+                    <h2 className="font-display text-[36px] md:text-[44px] font-semibold text-ant-ink leading-[1.02] tracking-[-0.025em] mt-3">
+                        A smarter inbox,<br className="hidden sm:inline" /> on autopilot.
+                    </h2>
+
+                    <p className="font-serif-display text-[14.5px] md:text-[15.5px] text-ant-muted italic leading-relaxed mt-4 max-w-[520px] mx-auto">
+                        Trigger replies by keyword, chain messages into flows, and hand conversations off to a teammate when a customer needs a human. We&rsquo;re building it — sit tight.
                     </p>
-                )}
+
+                    <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-2.5 max-w-[560px] mx-auto">
+                        <FeaturePill label="Keyword replies" />
+                        <FeaturePill label="Multi-step flows" />
+                        <FeaturePill label="Smart handoff" />
+                    </div>
+
+                    <p className="text-[10.5px] font-medium uppercase tracking-[0.22em] text-ant-mid mt-10">
+                        No action required · we&rsquo;ll announce it here
+                    </p>
+                </div>
             </div>
+        </div>
+    );
+}
+
+function FeaturePill({ label }: { label: string }) {
+    return (
+        <div className="rounded-full border border-ant-line bg-ant-light px-4 py-2 text-[11px] font-medium text-ant-ink">
+            {label}
         </div>
     );
 }

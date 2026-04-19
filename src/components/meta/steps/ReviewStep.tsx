@@ -95,17 +95,17 @@ export const ReviewStep: React.FC<Props> = ({ campaign, adset, ad, currency, pag
 };
 
 const ReviewCard: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-    <div className="bg-white rounded-2xl border border-[#dddfe2] shadow-[0_1px_2px_rgba(0,0,0,0.05)] overflow-hidden">
-        <div className="px-5 py-3 bg-[#f0f2f5] border-b border-[#e4e6eb]">
-            <span className="text-[12px] font-bold uppercase tracking-[0.08em] text-[#606770]">{title}</span>
+    <div className="bg-white rounded-2xl border border-ant-line shadow-[0_1px_2px_rgba(0,0,0,0.05)] overflow-hidden">
+        <div className="px-5 py-3 bg-ant-light border-b border-ant-line">
+            <span className="text-[12px] font-bold uppercase tracking-[0.08em] text-ant-muted">{title}</span>
         </div>
-        <div className="divide-y divide-[#e4e6eb]">{children}</div>
+        <div className="divide-y divide-ant-line">{children}</div>
     </div>
 );
 
 const Row: React.FC<{ label: string; value: string }> = ({ label, value }) => (
     <div className="flex items-start justify-between px-5 py-3 gap-6">
-        <span className="text-[13px] text-[#606770] shrink-0">{label}</span>
-        <span className="text-[13px] font-medium text-[#1c1e21] text-right truncate max-w-[320px]">{value || '—'}</span>
+        <span className="text-[13px] text-ant-muted shrink-0">{label}</span>
+        <span className="text-[13px] font-medium text-ant-ink text-right truncate max-w-[320px]">{value || '—'}</span>
     </div>
 );

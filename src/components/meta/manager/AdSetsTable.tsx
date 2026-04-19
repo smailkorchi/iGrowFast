@@ -57,8 +57,8 @@ export const AdSetsTable: React.FC<Props> = ({
 
     if (adsets.length === 0) {
         return (
-            <div className="bg-white border border-[#e4e6eb] rounded-lg p-10 text-center">
-                <div className="text-[13px] font-semibold text-[#606770]">
+            <div className="bg-white border border-ant-line rounded-lg p-10 text-center">
+                <div className="text-[13px] font-semibold text-ant-muted">
                     {searchQuery ? 'No ad sets match your search' : 'No ad sets found'}
                 </div>
             </div>
@@ -66,11 +66,11 @@ export const AdSetsTable: React.FC<Props> = ({
     }
 
     return (
-        <div className="bg-white border border-[#e4e6eb] rounded-lg overflow-hidden">
+        <div className="bg-white border border-ant-line rounded-lg overflow-hidden">
             <div className="overflow-x-auto">
                 <table className="w-full">
                     <thead>
-                        <tr className="bg-[#f0f2f5] text-[11px] font-semibold uppercase text-[#606770] tracking-wider">
+                        <tr className="bg-ant-light text-[11px] font-semibold uppercase text-ant-muted tracking-wider">
                             <th className="w-10 px-3 py-2">
                                 <Checkbox
                                     checked={selected.size === adsets.length && adsets.length > 0}
@@ -127,7 +127,7 @@ export const AdSetsTable: React.FC<Props> = ({
                                 <tr
                                     key={a.id}
                                     className={cn(
-                                        'border-t border-[#e4e6eb] hover:bg-[#f7f8fa] transition-colors h-[44px]',
+                                        'border-t border-ant-line hover:bg-ant-line-soft transition-colors h-[44px]',
                                         isSelected && 'bg-[#ebf5ff]'
                                     )}
                                 >
@@ -136,8 +136,8 @@ export const AdSetsTable: React.FC<Props> = ({
                                         <StatusToggle connectionId={connection.id} objectType="adset" objectId={a.id} isActive={isActive} />
                                     </td>
                                     <td className="px-3">
-                                        <div className="text-[13px] font-semibold text-[#1c1e21] truncate max-w-[260px]">{a.name}</div>
-                                        <div className="text-[11px] text-[#8a8d91]">{a.optimization_goal?.replace(/_/g, ' ').toLowerCase()}</div>
+                                        <div className="text-[13px] font-semibold text-ant-ink truncate max-w-[260px]">{a.name}</div>
+                                        <div className="text-[11px] text-ant-mid">{a.optimization_goal?.replace(/_/g, ' ').toLowerCase()}</div>
                                     </td>
                                     <td className="px-3">
                                         <span className={cn('inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold', status.bg, status.fg)}>
@@ -145,11 +145,11 @@ export const AdSetsTable: React.FC<Props> = ({
                                             {status.label}
                                         </span>
                                     </td>
-                                    <td className="px-3 text-right text-[12px] text-[#1c1e21] tabular-nums">
+                                    <td className="px-3 text-right text-[12px] text-ant-ink tabular-nums">
                                         {a.daily_budget ? `${(Number(a.daily_budget) / 100).toFixed(2)}/day` : '--'}
                                     </td>
                                     {cols.map((col) => (
-                                        <td key={col.key} className={cn('px-3 text-[12px] tabular-nums text-[#1c1e21]', col.align === 'right' ? 'text-right' : 'text-left')}>
+                                        <td key={col.key} className={cn('px-3 text-[12px] tabular-nums text-ant-ink', col.align === 'right' ? 'text-right' : 'text-left')}>
                                             {cellValue(col.key)}
                                         </td>
                                     ))}

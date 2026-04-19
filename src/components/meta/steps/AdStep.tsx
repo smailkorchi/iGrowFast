@@ -60,7 +60,7 @@ export const AdStep: React.FC<Props> = ({ data, onChange, pages }) => {
                     value={data.name}
                     onChange={(e) => set('name', e.target.value)}
                     placeholder="e.g. Summer Sale — Image A — Learn More"
-                    className="h-10 rounded-lg border-[#ccd0d5]"
+                    className="h-10 rounded-lg border-ant-line"
                 />
             </AccordionSection>
 
@@ -73,7 +73,7 @@ export const AdStep: React.FC<Props> = ({ data, onChange, pages }) => {
                     </div>
                 ) : (
                     <Select value={data.page_id} onValueChange={(v) => set('page_id', v)}>
-                        <SelectTrigger className="h-10 rounded-lg border-[#ccd0d5]">
+                        <SelectTrigger className="h-10 rounded-lg border-ant-line">
                             <SelectValue placeholder="Select a Page" />
                         </SelectTrigger>
                         <SelectContent>
@@ -99,26 +99,26 @@ export const AdStep: React.FC<Props> = ({ data, onChange, pages }) => {
                                     'w-full flex items-center gap-4 p-4 rounded-xl text-left transition-all border',
                                     active
                                         ? 'border-[#1877F2] bg-[#ebf5ff]'
-                                        : 'border-[#dddfe2] hover:bg-[#f7f8fa]',
+                                        : 'border-ant-line hover:bg-ant-line-soft',
                                     f.value === 'collection' && 'opacity-50 cursor-not-allowed'
                                 )}
                                 disabled={f.value === 'collection'}
                             >
                                 <div className={cn(
                                     'w-10 h-10 rounded-lg flex items-center justify-center shrink-0',
-                                    active ? 'bg-[#1877F2]' : 'bg-[#e4e6eb]'
+                                    active ? 'bg-[#1877F2]' : 'bg-ant-line'
                                 )}>
-                                    <Icon className={cn('w-5 h-5', active ? 'text-white' : 'text-[#606770]')} />
+                                    <Icon className={cn('w-5 h-5', active ? 'text-white' : 'text-ant-muted')} />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <div className={cn('text-[13px] font-semibold', active ? 'text-[#1877F2]' : 'text-[#1c1e21]')}>
+                                    <div className={cn('text-[13px] font-semibold', active ? 'text-[#1877F2]' : 'text-ant-ink')}>
                                         {f.label}
                                     </div>
-                                    <div className="text-[11px] text-[#8a8d91] mt-0.5">{f.desc}</div>
+                                    <div className="text-[11px] text-ant-mid mt-0.5">{f.desc}</div>
                                 </div>
                                 <div className={cn(
                                     'w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0',
-                                    active ? 'border-[#1877F2] bg-[#1877F2]' : 'border-[#ccd0d5]'
+                                    active ? 'border-[#1877F2] bg-[#1877F2]' : 'border-ant-line'
                                 )}>
                                     {active && <div className="w-2 h-2 rounded-full bg-white" />}
                                 </div>
@@ -135,13 +135,13 @@ export const AdStep: React.FC<Props> = ({ data, onChange, pages }) => {
                     <div>
                         <FieldLabel>Media</FieldLabel>
                         {!data.image_url ? (
-                            <div className="border-2 border-dashed border-[#ccd0d5] rounded-xl p-8 text-center hover:border-[#1877F2] hover:bg-[#f7f8fa] transition cursor-pointer">
-                                <Upload className="w-8 h-8 text-[#8a8d91] mx-auto mb-2" />
-                                <div className="text-[13px] font-medium text-[#1c1e21]">Add media</div>
-                                <div className="text-[11px] text-[#8a8d91] mt-1">Or paste an image URL below</div>
+                            <div className="border-2 border-dashed border-ant-line rounded-xl p-8 text-center hover:border-[#1877F2] hover:bg-ant-line-soft transition cursor-pointer">
+                                <Upload className="w-8 h-8 text-ant-mid mx-auto mb-2" />
+                                <div className="text-[13px] font-medium text-ant-ink">Add media</div>
+                                <div className="text-[11px] text-ant-mid mt-1">Or paste an image URL below</div>
                             </div>
                         ) : (
-                            <div className="relative rounded-xl overflow-hidden border border-[#dddfe2]">
+                            <div className="relative rounded-xl overflow-hidden border border-ant-line">
                                 <img
                                     src={data.image_url}
                                     alt=""
@@ -160,7 +160,7 @@ export const AdStep: React.FC<Props> = ({ data, onChange, pages }) => {
                             value={data.image_url}
                             onChange={(e) => set('image_url', e.target.value)}
                             placeholder="Paste image URL"
-                            className="h-9 rounded-lg border-[#ccd0d5] mt-2 text-[12px]"
+                            className="h-9 rounded-lg border-ant-line mt-2 text-[12px]"
                         />
                     </div>
 
@@ -175,12 +175,12 @@ export const AdStep: React.FC<Props> = ({ data, onChange, pages }) => {
                                     value={text}
                                     onChange={(e) => updateVariant('primary_texts', idx, e.target.value)}
                                     placeholder="Tell people what your ad is about..."
-                                    className="rounded-lg border-[#ccd0d5] min-h-[80px] flex-1 text-[13px]"
+                                    className="rounded-lg border-ant-line min-h-[80px] flex-1 text-[13px]"
                                 />
                                 {data.primary_texts.length > 1 && (
                                     <button
                                         onClick={() => removeVariant('primary_texts', idx)}
-                                        className="w-8 h-8 rounded-lg hover:bg-red-50 flex items-center justify-center text-[#8a8d91] hover:text-red-500 shrink-0 self-start mt-1"
+                                        className="w-8 h-8 rounded-lg hover:bg-ant-rose/10 flex items-center justify-center text-ant-mid hover:text-ant-rose shrink-0 self-start mt-1"
                                     >
                                         <X className="w-4 h-4" />
                                     </button>
@@ -207,12 +207,12 @@ export const AdStep: React.FC<Props> = ({ data, onChange, pages }) => {
                                     value={text}
                                     onChange={(e) => updateVariant('headlines', idx, e.target.value)}
                                     placeholder="e.g. Shop Now — 50% Off"
-                                    className="h-10 rounded-lg border-[#ccd0d5] flex-1"
+                                    className="h-10 rounded-lg border-ant-line flex-1"
                                 />
                                 {data.headlines.length > 1 && (
                                     <button
                                         onClick={() => removeVariant('headlines', idx)}
-                                        className="w-8 h-8 rounded-lg hover:bg-red-50 flex items-center justify-center text-[#8a8d91] hover:text-red-500 shrink-0"
+                                        className="w-8 h-8 rounded-lg hover:bg-ant-rose/10 flex items-center justify-center text-ant-mid hover:text-ant-rose shrink-0"
                                     >
                                         <X className="w-4 h-4" />
                                     </button>
@@ -236,11 +236,11 @@ export const AdStep: React.FC<Props> = ({ data, onChange, pages }) => {
                                     value={text}
                                     onChange={(e) => updateVariant('descriptions', idx, e.target.value)}
                                     placeholder="e.g. Free delivery on orders over 200 MAD"
-                                    className="h-10 rounded-lg border-[#ccd0d5] flex-1"
+                                    className="h-10 rounded-lg border-ant-line flex-1"
                                 />
                                 {data.descriptions.length > 1 && (
                                     <button onClick={() => removeVariant('descriptions', idx)}
-                                        className="w-8 h-8 rounded-lg hover:bg-red-50 flex items-center justify-center text-[#8a8d91] hover:text-red-500 shrink-0">
+                                        className="w-8 h-8 rounded-lg hover:bg-ant-rose/10 flex items-center justify-center text-ant-mid hover:text-ant-rose shrink-0">
                                         <X className="w-4 h-4" />
                                     </button>
                                 )}
@@ -265,7 +265,7 @@ export const AdStep: React.FC<Props> = ({ data, onChange, pages }) => {
                             value={data.website_url}
                             onChange={(e) => set('website_url', e.target.value)}
                             placeholder="https://yoursite.com/landing-page"
-                            className="h-10 rounded-lg border-[#ccd0d5]"
+                            className="h-10 rounded-lg border-ant-line"
                         />
                     </div>
                     <div>
@@ -274,7 +274,7 @@ export const AdStep: React.FC<Props> = ({ data, onChange, pages }) => {
                             value={data.display_link}
                             onChange={(e) => set('display_link', e.target.value)}
                             placeholder="yoursite.com"
-                            className="h-10 rounded-lg border-[#ccd0d5]"
+                            className="h-10 rounded-lg border-ant-line"
                         />
                     </div>
                 </div>
@@ -283,7 +283,7 @@ export const AdStep: React.FC<Props> = ({ data, onChange, pages }) => {
             {/* Call to action */}
             <AccordionSection title="Call to action">
                 <Select value={data.cta} onValueChange={(v) => set('cta', v)}>
-                    <SelectTrigger className="h-10 rounded-lg border-[#ccd0d5]">
+                    <SelectTrigger className="h-10 rounded-lg border-ant-line">
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -301,29 +301,29 @@ export const AdStep: React.FC<Props> = ({ data, onChange, pages }) => {
                         <div>
                             <FieldLabel>utm_source</FieldLabel>
                             <Input value={data.utm_source} onChange={(e) => set('utm_source', e.target.value)}
-                                placeholder="facebook" className="h-9 rounded-lg border-[#ccd0d5] text-[12px]" />
+                                placeholder="facebook" className="h-9 rounded-lg border-ant-line text-[12px]" />
                         </div>
                         <div>
                             <FieldLabel>utm_medium</FieldLabel>
                             <Input value={data.utm_medium} onChange={(e) => set('utm_medium', e.target.value)}
-                                placeholder="paid" className="h-9 rounded-lg border-[#ccd0d5] text-[12px]" />
+                                placeholder="paid" className="h-9 rounded-lg border-ant-line text-[12px]" />
                         </div>
                     </div>
                     <div className="grid grid-cols-3 gap-3">
                         <div>
                             <FieldLabel>utm_campaign</FieldLabel>
                             <Input value={data.utm_campaign} onChange={(e) => set('utm_campaign', e.target.value)}
-                                placeholder="summer_sale" className="h-9 rounded-lg border-[#ccd0d5] text-[12px]" />
+                                placeholder="summer_sale" className="h-9 rounded-lg border-ant-line text-[12px]" />
                         </div>
                         <div>
                             <FieldLabel>utm_content</FieldLabel>
                             <Input value={data.utm_content} onChange={(e) => set('utm_content', e.target.value)}
-                                placeholder="image_a" className="h-9 rounded-lg border-[#ccd0d5] text-[12px]" />
+                                placeholder="image_a" className="h-9 rounded-lg border-ant-line text-[12px]" />
                         </div>
                         <div>
                             <FieldLabel>utm_term</FieldLabel>
                             <Input value={data.utm_term} onChange={(e) => set('utm_term', e.target.value)}
-                                placeholder="" className="h-9 rounded-lg border-[#ccd0d5] text-[12px]" />
+                                placeholder="" className="h-9 rounded-lg border-ant-line text-[12px]" />
                         </div>
                     </div>
                 </div>

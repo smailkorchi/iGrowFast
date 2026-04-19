@@ -17,7 +17,7 @@ const TABS: { key: ManagerTab; label: string; countKey?: keyof Props['counts'] }
 ];
 
 export const ManagerTabs: React.FC<Props> = ({ value, onChange, counts }) => (
-    <div className="flex items-center border-b border-[#e4e6eb] bg-white">
+    <div className="flex items-center border-b border-ant-line bg-white">
         {TABS.map((tab) => {
             const active = value === tab.key;
             const count = tab.countKey ? counts[tab.countKey] : undefined;
@@ -29,14 +29,14 @@ export const ManagerTabs: React.FC<Props> = ({ value, onChange, counts }) => (
                         'relative px-4 h-10 text-[13px] font-semibold transition-colors whitespace-nowrap',
                         active
                             ? 'text-[#1877F2]'
-                            : 'text-[#606770] hover:text-[#1c1e21] hover:bg-[#f7f8fa]'
+                            : 'text-ant-muted hover:text-ant-ink hover:bg-ant-line-soft'
                     )}
                 >
                     {tab.label}
                     {count !== undefined && count > 0 && (
                         <span className={cn(
                             'ml-1.5 text-[11px]',
-                            active ? 'text-[#1877F2]' : 'text-[#8a8d91]'
+                            active ? 'text-[#1877F2]' : 'text-ant-mid'
                         )}>
                             ({count})
                         </span>

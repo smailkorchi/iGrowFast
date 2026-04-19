@@ -22,15 +22,15 @@ export const ColumnCustomizer: React.FC<Props> = ({ visibleColumns, onChange }) 
     return (
         <Popover>
             <PopoverTrigger asChild>
-                <button className="flex items-center gap-1.5 h-8 px-3 rounded-md border border-[#ccd0d5] bg-white text-[13px] text-[#1c1e21] hover:bg-[#f7f8fa] transition">
-                    <Columns3 className="w-3.5 h-3.5 text-[#606770]" />
+                <button className="flex items-center gap-1.5 h-8 px-3 rounded-md border border-ant-line bg-white text-[13px] text-ant-ink hover:bg-ant-line-soft transition">
+                    <Columns3 className="w-3.5 h-3.5 text-ant-muted" />
                     Columns
                 </button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-[280px] p-0">
                 {/* Presets */}
-                <div className="px-3 pt-3 pb-2 border-b border-[#e4e6eb]">
-                    <div className="text-[11px] font-semibold text-[#606770] uppercase tracking-wider mb-2">
+                <div className="px-3 pt-3 pb-2 border-b border-ant-line">
+                    <div className="text-[11px] font-semibold text-ant-muted uppercase tracking-wider mb-2">
                         Presets
                     </div>
                     <div className="flex gap-1.5">
@@ -46,7 +46,7 @@ export const ColumnCustomizer: React.FC<Props> = ({ visibleColumns, onChange }) 
                                         'px-2.5 py-1 rounded text-[11px] font-medium transition',
                                         isActive
                                             ? 'bg-[#ebf5ff] text-[#1877F2]'
-                                            : 'bg-[#f0f2f5] text-[#606770] hover:bg-[#e4e6eb]'
+                                            : 'bg-ant-light text-ant-muted hover:bg-ant-line'
                                     )}
                                 >
                                     {name}
@@ -61,13 +61,13 @@ export const ColumnCustomizer: React.FC<Props> = ({ visibleColumns, onChange }) 
                     {TABLE_COLUMNS.map((col) => (
                         <label
                             key={col.key}
-                            className="flex items-center gap-2.5 py-1 cursor-pointer hover:bg-[#f7f8fa] rounded px-1 -mx-1"
+                            className="flex items-center gap-2.5 py-1 cursor-pointer hover:bg-ant-line-soft rounded px-1 -mx-1"
                         >
                             <Checkbox
                                 checked={visibleColumns.includes(col.key)}
                                 onCheckedChange={() => toggle(col.key)}
                             />
-                            <span className="text-[12px] text-[#1c1e21]">{col.label}</span>
+                            <span className="text-[12px] text-ant-ink">{col.label}</span>
                         </label>
                     ))}
                 </div>

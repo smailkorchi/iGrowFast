@@ -46,7 +46,7 @@ export const StatusToggle: React.FC<Props> = ({
             disabled={updateStatus.isPending}
             className={cn(
                 'relative inline-flex h-[18px] w-[32px] shrink-0 cursor-pointer rounded-full transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1877F2]/40',
-                active ? 'bg-[#31a24c]' : 'bg-[#ccd0d5]',
+                active ? 'bg-ant-green' : 'bg-ant-mid/50',
                 updateStatus.isPending && 'opacity-60'
             )}
         >
@@ -57,7 +57,7 @@ export const StatusToggle: React.FC<Props> = ({
                 )}
             />
             {updateStatus.isPending && (
-                <Loader2 className="absolute -right-5 top-0.5 w-3.5 h-3.5 animate-spin text-[#8a8d91]" />
+                <Loader2 className="absolute -right-5 top-0.5 w-3.5 h-3.5 animate-spin text-ant-mid" />
             )}
         </button>
     );

@@ -31,8 +31,8 @@ export const PixelDashboard: React.FC<Props> = ({ connection, datePreset }) => {
 
     if (!connection.pixel_id) {
         return (
-            <div className="bg-[#fff8e6] border border-[#f0ad4e]/30 rounded-lg p-4 flex items-center gap-3">
-                <AlertCircle className="w-5 h-5 text-[#b8860b] shrink-0" />
+            <div className="bg-ant-orange/10 border border-[#f0ad4e]/30 rounded-lg p-4 flex items-center gap-3">
+                <AlertCircle className="w-5 h-5 text-ant-orange shrink-0" />
                 <div className="text-[13px] font-semibold text-[#856404]">
                     No Pixel linked to this connection. Edit the connection to select a Pixel.
                 </div>
@@ -80,12 +80,12 @@ export const PixelDashboard: React.FC<Props> = ({ connection, datePreset }) => {
             </div>
 
             {/* Timeseries */}
-            <div className="bg-white border border-[#e4e6eb] rounded-lg p-4">
+            <div className="bg-white border border-ant-line rounded-lg p-4">
                 <div className="mb-3">
-                    <div className="text-[13px] font-semibold text-[#1c1e21]">
+                    <div className="text-[13px] font-semibold text-ant-ink">
                         Event volume over time
                     </div>
-                    <div className="text-[11px] text-[#8a8d91]">
+                    <div className="text-[11px] text-ant-mid">
                         All pixel fires grouped by time bucket
                     </div>
                 </div>
@@ -106,22 +106,22 @@ export const PixelDashboard: React.FC<Props> = ({ connection, datePreset }) => {
                                         <stop offset="100%" stopColor="#1877F2" stopOpacity={0} />
                                     </linearGradient>
                                 </defs>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#e4e6eb" vertical={false} />
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e8e6dc" vertical={false} />
                                 <XAxis
                                     dataKey="value"
-                                    tick={{ fontSize: 11, fill: '#8a8d91' }}
+                                    tick={{ fontSize: 11, fill: '#b0aea5' }}
                                     axisLine={false}
                                     tickLine={false}
                                 />
                                 <YAxis
-                                    tick={{ fontSize: 11, fill: '#8a8d91' }}
+                                    tick={{ fontSize: 11, fill: '#b0aea5' }}
                                     axisLine={false}
                                     tickLine={false}
                                     tickFormatter={(v) => nfc.format(Number(v))}
                                 />
                                 <Tooltip
                                     contentStyle={{
-                                        border: '1px solid #e4e6eb',
+                                        border: '1px solid #e8e6dc',
                                         borderRadius: 8,
                                         boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
                                         fontSize: 12,
@@ -143,11 +143,11 @@ export const PixelDashboard: React.FC<Props> = ({ connection, datePreset }) => {
             {/* Funnel + event types */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {/* Funnel */}
-                <div className="bg-white border border-[#e4e6eb] rounded-lg p-4">
-                    <div className="text-[13px] font-semibold text-[#1c1e21] mb-1">
+                <div className="bg-white border border-ant-line rounded-lg p-4">
+                    <div className="text-[13px] font-semibold text-ant-ink mb-1">
                         Conversion funnel
                     </div>
-                    <div className="text-[11px] text-[#8a8d91] mb-4">Standard e-commerce funnel</div>
+                    <div className="text-[11px] text-ant-mid mb-4">Standard e-commerce funnel</div>
                     <div className="space-y-3">
                         {funnel.map((step, i) => {
                             const pctW = (step.count / funnelMax) * 100;
@@ -156,17 +156,17 @@ export const PixelDashboard: React.FC<Props> = ({ connection, datePreset }) => {
                             return (
                                 <div key={step.name}>
                                     <div className="flex items-center justify-between text-[12px] mb-1">
-                                        <span className="font-semibold text-[#1c1e21]">{step.name}</span>
-                                        <span className="font-semibold tabular-nums text-[#1c1e21]">
+                                        <span className="font-semibold text-ant-ink">{step.name}</span>
+                                        <span className="font-semibold tabular-nums text-ant-ink">
                                             {nf.format(step.count)}
                                             {i > 0 && (
-                                                <span className="text-[10px] font-normal text-[#8a8d91] ml-2">
+                                                <span className="text-[10px] font-normal text-ant-mid ml-2">
                                                     {rate.toFixed(1)}%
                                                 </span>
                                             )}
                                         </span>
                                     </div>
-                                    <div className="h-2 rounded-full bg-[#f0f2f5] overflow-hidden">
+                                    <div className="h-2 rounded-full bg-ant-light overflow-hidden">
                                         <div
                                             className="h-full bg-[#1877F2] rounded-full transition-all duration-500"
                                             style={{ width: `${pctW}%` }}
@@ -179,15 +179,15 @@ export const PixelDashboard: React.FC<Props> = ({ connection, datePreset }) => {
                 </div>
 
                 {/* All event types */}
-                <div className="bg-white border border-[#e4e6eb] rounded-lg p-4">
-                    <div className="text-[13px] font-semibold text-[#1c1e21] mb-1">
+                <div className="bg-white border border-ant-line rounded-lg p-4">
+                    <div className="text-[13px] font-semibold text-ant-ink mb-1">
                         All event types
                     </div>
-                    <div className="text-[11px] text-[#8a8d91] mb-4">Sorted by volume</div>
+                    <div className="text-[11px] text-ant-mid mb-4">Sorted by volume</div>
                     {eventsQ.isLoading ? (
                         <Skeleton className="h-48" />
                     ) : byType.length === 0 ? (
-                        <div className="text-[12px] text-[#8a8d91] py-10 text-center">
+                        <div className="text-[12px] text-ant-mid py-10 text-center">
                             No events in this date range
                         </div>
                     ) : (
@@ -195,10 +195,10 @@ export const PixelDashboard: React.FC<Props> = ({ connection, datePreset }) => {
                             {byType.map((e) => (
                                 <div key={e.value} className="flex items-center justify-between text-[12px]">
                                     <div className="flex items-center gap-2">
-                                        <MousePointerClick className="w-3.5 h-3.5 text-[#8a8d91]" />
-                                        <span className="font-medium text-[#1c1e21]">{e.value}</span>
+                                        <MousePointerClick className="w-3.5 h-3.5 text-ant-mid" />
+                                        <span className="font-medium text-ant-ink">{e.value}</span>
                                     </div>
-                                    <span className="font-semibold tabular-nums text-[#1c1e21]">
+                                    <span className="font-semibold tabular-nums text-ant-ink">
                                         {nfc.format(Number(e.count) || 0)}
                                     </span>
                                 </div>
@@ -217,13 +217,13 @@ const PixelKpi: React.FC<{
     value: string;
     icon: React.ComponentType<{ className?: string }>;
 }> = ({ label, value, icon: Icon }) => (
-    <div className="bg-white border border-[#e4e6eb] rounded-lg p-4">
+    <div className="bg-white border border-ant-line rounded-lg p-4">
         <div className="flex items-center gap-2 mb-2">
             <div className="w-7 h-7 rounded-lg bg-[#ebf5ff] flex items-center justify-center">
                 <Icon className="w-3.5 h-3.5 text-[#1877F2]" />
             </div>
-            <span className="text-[11px] text-[#606770]">{label}</span>
+            <span className="text-[11px] text-ant-muted">{label}</span>
         </div>
-        <div className="text-[16px] font-semibold text-[#1c1e21] truncate">{value}</div>
+        <div className="text-[16px] font-semibold text-ant-ink truncate">{value}</div>
     </div>
 );

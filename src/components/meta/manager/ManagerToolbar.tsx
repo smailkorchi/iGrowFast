@@ -41,20 +41,20 @@ export const ManagerToolbar: React.FC<Props> = ({
     const currentPreset = PRESETS.find((p) => p.key === datePreset);
 
     return (
-        <div className="flex items-center gap-2 px-4 py-2 bg-white border-b border-[#e4e6eb]">
+        <div className="flex items-center gap-2 px-4 py-2 bg-white border-b border-ant-line">
             {/* Search */}
             <div className="relative w-[240px]">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#8a8d91]" />
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" />
                 <Input
                     value={searchQuery}
                     onChange={(e) => onSearchChange(e.target.value)}
                     placeholder="Search"
-                    className="h-8 pl-8 rounded-md border-[#ccd0d5] text-[13px] placeholder:text-[#8a8d91] focus:border-[#1877F2] focus:ring-1 focus:ring-[#1877F2]/30"
+                    className="h-8 pl-8 rounded-md border-ant-line text-[13px] placeholder:text-ant-mid focus:border-[#1877F2] focus:ring-1 focus:ring-[#1877F2]/30"
                 />
             </div>
 
             {/* Filters (placeholder) */}
-            <button className="flex items-center gap-1.5 h-8 px-3 rounded-md border border-[#ccd0d5] bg-white text-[13px] text-[#606770] hover:bg-[#f7f8fa] transition">
+            <button className="flex items-center gap-1.5 h-8 px-3 rounded-md border border-ant-line bg-white text-[13px] text-ant-muted hover:bg-ant-line-soft transition">
                 <Filter className="w-3.5 h-3.5" />
                 Filters
             </button>
@@ -68,9 +68,9 @@ export const ManagerToolbar: React.FC<Props> = ({
             {/* Date range */}
             <Popover>
                 <PopoverTrigger asChild>
-                    <button className="flex items-center gap-1.5 h-8 px-3 rounded-md border border-[#ccd0d5] bg-white text-[13px] font-medium text-[#1c1e21] hover:bg-[#f7f8fa] transition">
+                    <button className="flex items-center gap-1.5 h-8 px-3 rounded-md border border-ant-line bg-white text-[13px] font-medium text-ant-ink hover:bg-ant-line-soft transition">
                         {currentPreset?.label ?? 'Date range'}
-                        <ChevronsUpDown className="w-3 h-3 text-[#8a8d91]" />
+                        <ChevronsUpDown className="w-3 h-3 text-ant-mid" />
                     </button>
                 </PopoverTrigger>
                 <PopoverContent align="start" className="w-48 p-1">
@@ -79,10 +79,10 @@ export const ManagerToolbar: React.FC<Props> = ({
                             key={p.key}
                             onClick={() => onDatePresetChange(p.key)}
                             className={cn(
-                                'w-full flex items-center justify-between px-3 py-1.5 rounded text-[12px] text-left hover:bg-[#f7f8fa]',
+                                'w-full flex items-center justify-between px-3 py-1.5 rounded text-[12px] text-left hover:bg-ant-line-soft',
                                 datePreset === p.key
                                     ? 'bg-[#ebf5ff] text-[#1877F2] font-semibold'
-                                    : 'text-[#1c1e21]'
+                                    : 'text-ant-ink'
                             )}
                         >
                             <span>{p.label}</span>

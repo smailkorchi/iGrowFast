@@ -14,15 +14,15 @@ interface Props {
 
 export const FieldLabel: React.FC<Props> = ({ children, tooltip, required }) => (
     <div className="flex items-center gap-1.5 mb-2">
-        <span className="text-[13px] font-semibold text-[#1c1e21]">
+        <span className="text-[13px] font-semibold text-ant-ink">
             {children}
             {required && <span className="text-red-500 ml-0.5">*</span>}
         </span>
         {tooltip && (
             <Tooltip delayDuration={200}>
                 <TooltipTrigger asChild>
-                    <button type="button" className="w-[14px] h-[14px] rounded-full bg-[#e4e6eb] flex items-center justify-center hover:bg-[#d8dadf] transition">
-                        <HelpCircle className="w-[10px] h-[10px] text-[#606770]" />
+                    <button type="button" className="w-[14px] h-[14px] rounded-full bg-ant-line flex items-center justify-center hover:bg-ant-line transition">
+                        <HelpCircle className="w-[10px] h-[10px] text-ant-muted" />
                     </button>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-[260px] text-xs">
@@ -34,5 +34,5 @@ export const FieldLabel: React.FC<Props> = ({ children, tooltip, required }) => 
 );
 
 export const FieldHelper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-    <p className="text-[12px] text-[#8a8d91] mt-1.5 leading-relaxed">{children}</p>
+    <p className="text-[12px] text-ant-mid mt-1.5 leading-relaxed">{children}</p>
 );

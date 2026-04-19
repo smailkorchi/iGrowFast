@@ -22,11 +22,11 @@ export const AdPreviewPanel: React.FC<Props> = ({ ad, pageName }) => {
 
     return (
         <div className="h-full flex flex-col">
-            <div className="text-[12px] font-bold uppercase tracking-[0.08em] text-[#606770] px-1 mb-3">
+            <div className="text-[12px] font-bold uppercase tracking-[0.08em] text-ant-muted px-1 mb-3">
                 Ad preview
             </div>
             <Tabs defaultValue="fb_feed" className="flex-1">
-                <TabsList className="w-full bg-[#e4e6eb] rounded-lg h-8 p-0.5">
+                <TabsList className="w-full bg-ant-line rounded-lg h-8 p-0.5">
                     <TabsTrigger value="fb_feed" className="rounded-md text-[10px] h-7 data-[state=active]:bg-white data-[state=active]:shadow-sm">
                         FB Feed
                     </TabsTrigger>
@@ -62,28 +62,28 @@ export const AdPreviewPanel: React.FC<Props> = ({ ad, pageName }) => {
 const FBFeedPreview: React.FC<{
     ad: AdData; pageName: string; text: string; headline: string; desc: string; hostname: string; ctaLabel: string;
 }> = ({ ad, pageName, text, headline, desc, hostname, ctaLabel }) => (
-    <div className="rounded-lg border border-[#dddfe2] bg-white overflow-hidden shadow-sm">
+    <div className="rounded-lg border border-ant-line bg-white overflow-hidden shadow-sm">
         <div className="flex items-center gap-2 px-3 py-2.5">
             <div className="w-9 h-9 rounded-full bg-[#1877F2] flex items-center justify-center">
                 <FaFacebook className="w-5 h-5 text-white" />
             </div>
             <div className="flex-1">
-                <div className="text-[12px] font-bold text-[#050505]">{pageName}</div>
+                <div className="text-[12px] font-bold text-ant-ink">{pageName}</div>
                 <div className="text-[10px] text-[#65676B]">Sponsored · <span className="text-[10px]">🌍</span></div>
             </div>
             <MoreHorizontal className="w-4 h-4 text-[#65676B]" />
         </div>
         <div className="px-3 pb-2">
-            <p className="text-[12px] text-[#050505] leading-relaxed line-clamp-3">{text}</p>
+            <p className="text-[12px] text-ant-ink leading-relaxed line-clamp-3">{text}</p>
         </div>
         <MediaPreview url={ad.image_url} aspect="aspect-[1.91/1]" />
-        <div className="px-3 py-2 bg-[#f0f2f5]">
+        <div className="px-3 py-2 bg-ant-light">
             <div className="text-[9px] text-[#65676B] uppercase tracking-wider truncate">{hostname}</div>
-            <div className="text-[12px] font-bold text-[#050505] truncate mt-0.5">{headline}</div>
+            <div className="text-[12px] font-bold text-ant-ink truncate mt-0.5">{headline}</div>
             <div className="text-[10px] text-[#65676B] truncate">{desc}</div>
         </div>
-        <div className="px-3 py-2 border-t border-[#e4e6eb] flex justify-end">
-            <div className="px-3 py-1.5 rounded-md bg-[#e4e6eb] text-[10px] font-bold text-[#050505]">
+        <div className="px-3 py-2 border-t border-ant-line flex justify-end">
+            <div className="px-3 py-1.5 rounded-md bg-ant-line text-[10px] font-bold text-ant-ink">
                 {ctaLabel}
             </div>
         </div>
@@ -94,7 +94,7 @@ const FBFeedPreview: React.FC<{
 const IGFeedPreview: React.FC<{
     ad: AdData; pageName: string; text: string; headline: string; ctaLabel: string;
 }> = ({ ad, pageName, text, headline, ctaLabel }) => (
-    <div className="rounded-lg border border-[#dddfe2] bg-white overflow-hidden shadow-sm">
+    <div className="rounded-lg border border-ant-line bg-white overflow-hidden shadow-sm">
         <div className="flex items-center gap-2 px-3 py-2.5">
             <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#feda75] via-[#fa7e1e] via-[#d62976] to-[#962fbf] p-[2px]">
                 <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
@@ -136,7 +136,7 @@ const IGFeedPreview: React.FC<{
 const IGStoryPreview: React.FC<{
     ad: AdData; pageName: string; ctaLabel: string;
 }> = ({ ad, pageName, ctaLabel }) => (
-    <div className="rounded-lg border border-[#dddfe2] overflow-hidden shadow-sm bg-black relative" style={{ aspectRatio: '9/16', maxHeight: 420 }}>
+    <div className="rounded-lg border border-ant-line overflow-hidden shadow-sm bg-black relative" style={{ aspectRatio: '9/16', maxHeight: 420 }}>
         {ad.image_url ? (
             <img src={ad.image_url} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
         ) : (
@@ -167,18 +167,18 @@ const IGStoryPreview: React.FC<{
 const RightColumnPreview: React.FC<{
     ad: AdData; headline: string; hostname: string;
 }> = ({ ad, headline, hostname }) => (
-    <div className="rounded-lg border border-[#dddfe2] bg-white overflow-hidden shadow-sm max-w-[254px]">
-        <div className="aspect-[254/133] bg-[#f0f2f5]">
+    <div className="rounded-lg border border-ant-line bg-white overflow-hidden shadow-sm max-w-[254px]">
+        <div className="aspect-[254/133] bg-ant-light">
             {ad.image_url ? (
                 <img src={ad.image_url} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
             ) : (
                 <div className="w-full h-full flex items-center justify-center">
-                    <Image className="w-6 h-6 text-[#8a8d91]" />
+                    <Image className="w-6 h-6 text-ant-mid" />
                 </div>
             )}
         </div>
         <div className="p-2">
-            <div className="text-[11px] font-bold text-[#050505] line-clamp-2">{headline}</div>
+            <div className="text-[11px] font-bold text-ant-ink line-clamp-2">{headline}</div>
             <div className="text-[9px] text-[#65676B] mt-0.5">{hostname}</div>
         </div>
     </div>
@@ -186,12 +186,12 @@ const RightColumnPreview: React.FC<{
 
 // ── Media placeholder ──────────────────────────────────────────────────
 const MediaPreview: React.FC<{ url: string; aspect: string }> = ({ url, aspect }) => (
-    <div className={cn(aspect, 'bg-[#f0f2f5]')}>
+    <div className={cn(aspect, 'bg-ant-light')}>
         {url ? (
             <img src={url} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
         ) : (
             <div className="w-full h-full flex items-center justify-center">
-                <Image className="w-8 h-8 text-[#8a8d91]" />
+                <Image className="w-8 h-8 text-ant-mid" />
             </div>
         )}
     </div>

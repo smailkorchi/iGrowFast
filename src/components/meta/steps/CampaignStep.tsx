@@ -47,7 +47,7 @@ export const CampaignStep: React.FC<Props> = ({ data, onChange, currency }) => {
                     value={data.name}
                     onChange={(e) => set('name', e.target.value)}
                     placeholder="e.g. Summer Sale 2026 — Conversions"
-                    className="h-10 rounded-lg border-[#ccd0d5] focus:border-[#1877F2] focus:ring-1 focus:ring-[#1877F2]/30"
+                    className="h-10 rounded-lg border-ant-line focus:border-[#1877F2] focus:ring-1 focus:ring-[#1877F2]/30"
                 />
             </AccordionSection>
 
@@ -65,7 +65,7 @@ export const CampaignStep: React.FC<Props> = ({ data, onChange, currency }) => {
                                     'w-full flex items-center gap-4 p-4 rounded-xl text-left transition-all border-2',
                                     active
                                         ? 'border-[#1877F2] bg-[#ebf5ff]'
-                                        : 'border-transparent hover:bg-[#f7f8fa]'
+                                        : 'border-transparent hover:bg-ant-line-soft'
                                 )}
                             >
                                 {/* Left border indicator */}
@@ -86,11 +86,11 @@ export const CampaignStep: React.FC<Props> = ({ data, onChange, currency }) => {
                                 <div className="flex-1 min-w-0">
                                     <div className={cn(
                                         'text-[14px] font-semibold leading-tight',
-                                        active ? 'text-[#1877F2]' : 'text-[#1c1e21]'
+                                        active ? 'text-[#1877F2]' : 'text-ant-ink'
                                     )}>
                                         {obj.label}
                                     </div>
-                                    <div className="text-[12px] text-[#606770] mt-0.5 line-clamp-2 leading-relaxed">
+                                    <div className="text-[12px] text-ant-muted mt-0.5 line-clamp-2 leading-relaxed">
                                         {obj.desc}
                                     </div>
                                 </div>
@@ -98,7 +98,7 @@ export const CampaignStep: React.FC<Props> = ({ data, onChange, currency }) => {
                                 {/* Radio indicator */}
                                 <div className={cn(
                                     'w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition',
-                                    active ? 'border-[#1877F2] bg-[#1877F2]' : 'border-[#ccd0d5]'
+                                    active ? 'border-[#1877F2] bg-[#1877F2]' : 'border-ant-line'
                                 )}>
                                     {active && <Check className="w-3 h-3 text-white" />}
                                 </div>
@@ -133,7 +133,7 @@ export const CampaignStep: React.FC<Props> = ({ data, onChange, currency }) => {
                                         )
                                     }
                                 />
-                                <span className="text-[13px] text-[#1c1e21] group-hover:text-[#1877F2] transition">
+                                <span className="text-[13px] text-ant-ink group-hover:text-[#1877F2] transition">
                                     {cat.label}
                                 </span>
                             </label>
@@ -146,10 +146,10 @@ export const CampaignStep: React.FC<Props> = ({ data, onChange, currency }) => {
             <AccordionSection title="Advantage campaign budget">
                 <div className="flex items-start justify-between gap-4">
                     <div>
-                        <div className="text-[13px] font-medium text-[#1c1e21]">
+                        <div className="text-[13px] font-medium text-ant-ink">
                             Advantage campaign budget
                         </div>
-                        <div className="text-[12px] text-[#606770] mt-0.5 leading-relaxed max-w-md">
+                        <div className="text-[12px] text-ant-muted mt-0.5 leading-relaxed max-w-md">
                             Allow Meta to distribute your campaign budget across ad sets to get
                             more results. You set one central campaign budget.
                         </div>
@@ -176,7 +176,7 @@ export const CampaignStep: React.FC<Props> = ({ data, onChange, currency }) => {
                                 value={data.budget_type}
                                 onValueChange={(v) => set('budget_type', v as 'daily' | 'lifetime')}
                             >
-                                <SelectTrigger className="h-10 rounded-lg border-[#ccd0d5] w-[160px]">
+                                <SelectTrigger className="h-10 rounded-lg border-ant-line w-[160px]">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -191,9 +191,9 @@ export const CampaignStep: React.FC<Props> = ({ data, onChange, currency }) => {
                                         set(data.budget_type === 'daily' ? 'daily_budget' : 'lifetime_budget', e.target.value)
                                     }
                                     placeholder="0.00"
-                                    className="h-10 rounded-lg border-[#ccd0d5] pr-14 font-mono"
+                                    className="h-10 rounded-lg border-ant-line pr-14 font-mono"
                                 />
-                                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] font-medium text-[#8a8d91]">
+                                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] font-medium text-ant-mid">
                                     {currency}
                                 </div>
                             </div>

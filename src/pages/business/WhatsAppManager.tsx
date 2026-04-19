@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { whatsappService } from '@/lib/api/whatsappService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Trash2, Smartphone, Phone, Loader2, QrCode, CheckCircle2, MessageSquare, ArrowRight, Users, MessageCircle, Database, AlertTriangle, Sparkles, ListChecks, ArrowLeft } from 'lucide-react';
+import { Plus, Trash2, Smartphone, Phone, Loader2, QrCode, CheckCircle2, MessageSquare, ArrowRight, Users, MessageCircle, Database, AlertTriangle, Sparkles, ListChecks, ArrowLeft, type LucideIcon } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -613,13 +613,13 @@ export default function WhatsAppManager() {
     const pct = max > 0 ? Math.round((value / max) * 100) : 0;
     return (
       <div className="space-y-1.5">
-        <div className="flex justify-between text-xs">
-          <span className="text-gray-600 font-medium">{label}</span>
-          <span className="text-gray-400 tabular-nums">{value}/{max}</span>
+        <div className="flex justify-between text-[11px]">
+          <span className="text-ant-ink font-medium">{label}</span>
+          <span className="text-ant-mid tabular-nums">{value}/{max}</span>
         </div>
-        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+        <div className="h-1.5 bg-ant-line rounded-full overflow-hidden">
           <div
-            className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all duration-500 ease-out"
+            className="h-full bg-ant-orange rounded-full transition-all duration-500 ease-out"
             style={{ width: `${pct}%` }}
           />
         </div>
@@ -627,132 +627,226 @@ export default function WhatsAppManager() {
     );
   };
 
+  // Derived summary counts for the editorial header strip
+  const connectedCount = instances.filter((i) => i.status === 'open').length;
+  const syncingCount = Object.values(syncStates).filter(
+    (s) => s.background && (s.step === 'syncing' || s.step === 'connected'),
+  ).length;
+  const pendingCount = instances.length - connectedCount;
+
   return (
-    <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
-      {/* Header — matches /analytics compact style */}
-      <header className="flex items-center gap-2">
-        <Smartphone className="w-3.5 h-3.5 text-gray-400" />
-        <div>
-          <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">WhatsApp Devices</h1>
-          <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">
-            Paired phones for auto-notifications & inbox
+    <div className="ant-surface mx-auto max-w-[1440px] px-2 md:px-3 py-2 space-y-4">
+      {/* Editorial header */}
+      <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 pt-1">
+        <div className="space-y-1.5">
+          <span className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+            <span className="w-1 h-1 rounded-full bg-ant-orange" />
+            Messaging · Devices
+          </span>
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-ant-green/10 ring-1 ring-ant-green/25 shrink-0">
+              <FaWhatsapp className="w-5 h-5 text-ant-green" />
+            </span>
+            <h1 className="font-display text-[30px] md:text-[34px] font-semibold text-ant-ink leading-[1.05] tracking-[-0.02em]">
+              WhatsApp devices
+            </h1>
+          </div>
+          <p className="font-serif-display text-[13px] text-ant-muted italic">
+            Paired phones feeding the inbox and automation layer.
           </p>
         </div>
+
+        <Button
+          onClick={openAddInstanceModal}
+          className="rounded-full h-10 px-5 bg-ant-ink hover:bg-ant-ink/90 text-ant-light text-[12px] font-medium shadow-none"
+        >
+          <Plus className="w-3.5 h-3.5 mr-1.5" />
+          Add device
+        </Button>
       </header>
 
-      {/* Instance Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
-        {/* "+" Add device tile — always first */}
-        <button
-          type="button"
-          onClick={openAddInstanceModal}
-          className="group relative min-h-[120px] rounded-xl border border-dashed border-gray-200 bg-white/40 hover:bg-white hover:border-brand-navy/40 transition flex flex-col items-center justify-center gap-1.5"
-        >
-          <div className="w-8 h-8 rounded-md bg-brand-navy/[0.04] group-hover:bg-brand-navy/[0.08] flex items-center justify-center transition-colors">
-            <Plus className="w-3.5 h-3.5 text-brand-navy/70" strokeWidth={1.75} />
-          </div>
-          <div className="text-center px-3">
-            <p className="text-[11px] font-semibold text-brand-navy">Add device</p>
-            <p className="text-[9px] text-gray-400 mt-0.5">Connect a new WhatsApp account</p>
-          </div>
-        </button>
+      {/* Summary strip */}
+      <div className="grid grid-cols-3 gap-px bg-ant-line rounded-xl overflow-hidden border border-ant-line">
+        <SummaryTile label="Total" value={instances.length} tone="ink" />
+        <SummaryTile label="Connected" value={connectedCount} tone="green" />
+        <SummaryTile
+          label={syncingCount > 0 ? 'Syncing' : 'Pending'}
+          value={syncingCount > 0 ? syncingCount : pendingCount}
+          tone={syncingCount > 0 ? 'blue' : 'orange'}
+        />
+      </div>
 
+      {/* Instance list — editorial row cards */}
+      <div className="rounded-xl border border-ant-line bg-ant-paper overflow-hidden">
         {loading ? (
-          Array.from({ length: 3 }).map((_, i) => (
-            <Card key={i} className="animate-pulse border border-gray-100 shadow-none rounded-xl bg-white">
-              <CardContent className="h-[120px]" />
-            </Card>
-          ))
+          <div className="divide-y divide-ant-line">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="h-[72px] animate-pulse bg-ant-line-soft/40" />
+            ))}
+          </div>
+        ) : instances.length === 0 ? (
+          <div className="px-6 py-16 text-center">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-ant-green/10 ring-1 ring-ant-green/20 mb-3">
+              <FaWhatsapp className="w-5 h-5 text-ant-green" />
+            </div>
+            <p className="font-display text-[16px] font-semibold text-ant-ink tracking-tight">No devices yet</p>
+            <p className="font-serif-display text-[12.5px] text-ant-muted italic mt-1 mb-5">
+              Link your first phone to start receiving messages here.
+            </p>
+            <Button
+              onClick={openAddInstanceModal}
+              className="rounded-full h-9 px-4 bg-ant-ink hover:bg-ant-ink/90 text-ant-light text-[12px] font-medium"
+            >
+              <Plus className="w-3.5 h-3.5 mr-1.5" />
+              Add the first device
+            </Button>
+          </div>
         ) : (
-          instances.map(inst => {
-            const isOpen = inst.status === 'open';
-            const instSync = syncStates[inst.instance_name];
-            const isSyncing = instSync?.background && (instSync.step === 'syncing' || instSync.step === 'connected');
-            return (
-              <Card
-                key={inst.id}
-                className={cn("relative overflow-hidden border border-gray-100 shadow-none rounded-xl bg-white transition-all", isSyncing && "cursor-pointer ring-1 ring-emerald-200")}
-                onClick={isSyncing ? () => handleReopenSyncModal(inst.instance_name) : undefined}
-              >
-                <div className={cn("absolute top-0 left-0 w-full h-[3px] transition-colors", isSyncing ? "bg-emerald-400/80 animate-pulse" : isOpen ? "bg-emerald-500/80" : "bg-amber-400/80")} />
-                <CardContent className="p-3">
-                  <div className="flex items-center gap-2">
-                    <Avatar className="h-8 w-8 border border-gray-100 shrink-0">
+          <ul className="divide-y divide-ant-line">
+            {instances.map((inst) => {
+              const isOpen = inst.status === 'open';
+              const instSync = syncStates[inst.instance_name];
+              const isSyncing = instSync?.background && (instSync.step === 'syncing' || instSync.step === 'connected');
+              const syncPct = isSyncing && instSync
+                ? Math.round(
+                      ((instSync.progress.contacts.synced + instSync.progress.chats.synced) /
+                          Math.max(instSync.progress.contacts.total + instSync.progress.chats.total, 1)) *
+                          100,
+                  )
+                : 0;
+
+              return (
+                <li
+                  key={inst.id}
+                  className={cn(
+                      'group grid grid-cols-[auto_1fr_auto_auto] items-center gap-4 px-4 md:px-5 py-3.5 transition-colors hover:bg-ant-line-soft',
+                      isSyncing && 'cursor-pointer',
+                  )}
+                  onClick={isSyncing ? () => handleReopenSyncModal(inst.instance_name) : undefined}
+                >
+                  <div className="relative shrink-0">
+                    <Avatar className="h-11 w-11 border border-ant-line">
                       <AvatarImage src={inst.profile_pic} />
-                      <AvatarFallback className="bg-brand-navy/[0.06] text-brand-navy text-[10px] font-semibold">
+                      <AvatarFallback className="bg-ant-line-soft text-ant-ink text-[11px] font-semibold">
                         {inst.instance_name.substring(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-[12px] font-semibold text-brand-navy truncate">{inst.instance_name}</h3>
-                      {inst.phone_number ? (
-                        <div className="flex items-center text-[10px] text-gray-500 mt-0.5 gap-1">
-                          <Phone className="w-2.5 h-2.5 text-gray-400" /> +{inst.phone_number}
-                        </div>
-                      ) : (
-                        <div className="text-[10px] text-gray-400 mt-0.5">Unpaired device</div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-50">
-                    <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400">Status</span>
-                    <Badge
-                      variant="outline"
+                    <span
+                      aria-hidden
                       className={cn(
-                        "rounded-md text-[9px] font-bold uppercase border px-1.5 py-0.5 h-5",
-                        isSyncing ? "bg-blue-50 text-blue-800 border-blue-100"
-                          : isOpen ? "bg-emerald-50 text-emerald-800 border-emerald-100"
-                          : "bg-amber-50 text-amber-800 border-amber-100"
+                          'absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full ring-2 ring-ant-paper',
+                          isSyncing ? 'bg-ant-blue' : isOpen ? 'bg-ant-green' : 'bg-ant-orange',
                       )}
-                    >
-                      {isSyncing && <Loader2 className="w-2.5 h-2.5 mr-1 animate-spin" />}
-                      {!isSyncing && isOpen && <CheckCircle2 className="w-2.5 h-2.5 mr-1" />}
-                      {!isSyncing && !isOpen && <Loader2 className="w-2.5 h-2.5 mr-1 animate-spin" />}
-                      {isSyncing ? 'Syncing' : isOpen ? 'Connected' : 'Pending'}
-                    </Badge>
+                    />
                   </div>
-                  {isSyncing && instSync && (
-                    <div className="mt-2 space-y-1">
-                      <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-blue-500 rounded-full transition-all duration-700"
-                          style={{
-                            width: `${Math.round(
-                              ((instSync.progress.contacts.synced + instSync.progress.chats.synced) /
-                              Math.max(instSync.progress.contacts.total + instSync.progress.chats.total, 1)) * 100
-                            )}%`,
-                          }}
-                        />
-                      </div>
-                      <p className="text-[9px] text-blue-600 truncate">{instSync.progress.status}</p>
+
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-display text-[14px] font-semibold text-ant-ink leading-tight truncate tracking-tight">
+                        {inst.instance_name}
+                      </h3>
+                      <span
+                        className={cn(
+                            'inline-flex items-center gap-1 rounded-full text-[9.5px] font-medium uppercase tracking-[0.18em] px-2 py-0.5',
+                            isSyncing
+                              ? 'bg-ant-blue/10 text-ant-blue'
+                              : isOpen
+                                ? 'bg-ant-green/10 text-ant-green'
+                                : 'bg-ant-orange/10 text-ant-orange',
+                        )}
+                      >
+                        {isSyncing ? (
+                          <>
+                            <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                            Syncing {syncPct}%
+                          </>
+                        ) : isOpen ? (
+                          <>
+                            <CheckCircle2 className="w-2.5 h-2.5" />
+                            Connected
+                          </>
+                        ) : (
+                          <>
+                            <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                            Pending
+                          </>
+                        )}
+                      </span>
                     </div>
-                  )}
-                </CardContent>
-                <div className="px-2 pb-2 flex justify-end gap-1 bg-gray-50/50 pt-2 border-t border-gray-50">
-                  {!isOpen && (
-                    <Button
-                      variant="outline" size="sm"
-                      className="flex-1 rounded-md bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-brand-navy text-[10px] font-semibold h-7"
-                      disabled={actionLoading !== null}
-                      onClick={() => fetchAndShowQR(inst.instance_name)}
-                    >
-                      {actionLoading === `qr-${inst.instance_name}` ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <QrCode className="w-3 h-3 mr-1 text-brand-navy/70" />}
-                      Scan QR
-                    </Button>
-                  )}
-                  <Button
-                    variant="ghost" size="sm"
-                    className="flex-1 rounded-md text-red-600/80 hover:text-red-700 hover:bg-red-50 text-[10px] font-semibold h-7"
-                    disabled={actionLoading !== null}
-                    onClick={() => confirmDeleteInstance(inst.id, inst.instance_name)}
+                    <div className="flex items-center gap-2 mt-1 text-[11px] text-ant-muted">
+                      {inst.phone_number ? (
+                        <span className="flex items-center gap-1 tabular-nums">
+                          <Phone className="w-2.5 h-2.5 text-ant-mid" />+{inst.phone_number}
+                        </span>
+                      ) : (
+                        <span className="font-serif-display italic text-ant-mid">Unpaired · needs scan</span>
+                      )}
+                    </div>
+                    {isSyncing && instSync && (
+                      <div className="mt-2 max-w-md">
+                        <div className="h-[3px] bg-ant-line rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-ant-blue rounded-full transition-all duration-700"
+                            style={{ width: `${syncPct}%` }}
+                          />
+                        </div>
+                        <p className="text-[10px] text-ant-blue truncate mt-1">{instSync.progress.status}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="hidden md:block text-right shrink-0">
+                    <div className="font-display text-[12px] font-semibold text-ant-ink tabular-nums leading-none tracking-tight">
+                      {new Date(inst.created_at).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                      })}
+                    </div>
+                    <div className="text-[9.5px] font-medium uppercase tracking-[0.2em] text-ant-mid mt-1">
+                      Paired
+                    </div>
+                  </div>
+
+                  <div
+                    className="flex items-center gap-1.5 shrink-0"
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    {actionLoading === `delete-${inst.instance_name}` ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Trash2 className="w-3 h-3 mr-1" />}
-                    Remove
-                  </Button>
-                </div>
-              </Card>
-            );
-          })
+                    {!isOpen && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 px-3 rounded-full border-ant-line text-ant-ink bg-ant-paper hover:bg-ant-line-soft text-[11px] font-medium"
+                        disabled={actionLoading !== null}
+                        onClick={() => fetchAndShowQR(inst.instance_name)}
+                      >
+                        {actionLoading === `qr-${inst.instance_name}` ? (
+                          <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                        ) : (
+                          <QrCode className="w-3.5 h-3.5 mr-1.5 text-ant-orange" />
+                        )}
+                        Scan QR
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-9 w-9 p-0 rounded-full text-ant-mid hover:text-ant-rose hover:bg-ant-rose/10"
+                      disabled={actionLoading !== null}
+                      onClick={() => confirmDeleteInstance(inst.id, inst.instance_name)}
+                      title="Remove device"
+                    >
+                      {actionLoading === `delete-${inst.instance_name}` ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-3.5 h-3.5" />
+                      )}
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </div>
 
@@ -775,40 +869,45 @@ export default function WhatsAppManager() {
         }}
       >
         <DialogContent className={cn(
-          "p-0 overflow-hidden bg-white/95 backdrop-blur-md shadow-2xl rounded-3xl border-0",
+          "ant-surface p-0 overflow-hidden bg-ant-paper border-ant-line rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)]",
           preQrStep === 'mode' ? "sm:max-w-3xl" : (!preQrStep && modalStep === 'scanning' ? "sm:max-w-2xl" : "sm:max-w-md")
         )}>
 
           {/* ── Pre-QR Step A: Name ─────────────────────────────────────── */}
           {preQrStep === 'name' && (
             <>
-              <div className="bg-gradient-to-r from-primary/5 to-transparent p-8 text-center border-b border-gray-100">
+              <div className="p-8 text-center border-b border-ant-line">
                 <DialogHeader>
-                  <DialogTitle className="text-2xl font-extralight text-gray-900 text-center tracking-tight">Add WhatsApp Device</DialogTitle>
-                  <DialogDescription className="text-center pt-3 font-light text-gray-500">
+                  <div className="mx-auto inline-flex items-center justify-center w-11 h-11 rounded-xl bg-ant-green/10 ring-1 ring-ant-green/25 mb-4">
+                    <FaWhatsapp className="w-5 h-5 text-ant-green" />
+                  </div>
+                  <DialogTitle className="font-display text-[22px] font-semibold text-ant-ink text-center tracking-tight">
+                    Add a WhatsApp device
+                  </DialogTitle>
+                  <DialogDescription className="font-serif-display text-center pt-2 text-[13px] text-ant-muted italic">
                     Choose a unique label to identify this device in your inbox.
                   </DialogDescription>
                 </DialogHeader>
               </div>
-              <div className="p-8 space-y-6">
+              <div className="p-7 space-y-5">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Device Name</label>
+                  <label className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Device name</label>
                   <Input
                     autoFocus
                     placeholder="e.g. Sales-Number-1"
                     value={pendingName}
                     onChange={(e) => setPendingName(e.target.value.replace(/\s+/g, '-'))}
                     onKeyDown={(e) => { if (e.key === 'Enter' && pendingName.trim()) setPreQrStep('mode'); }}
-                    className="h-12 text-base rounded-2xl bg-gray-50/50 border-gray-100 focus-visible:ring-primary/20"
+                    className="h-11 text-[13px] rounded-xl bg-ant-paper border-ant-line text-ant-ink focus-visible:ring-ant-orange focus-visible:ring-offset-0"
                   />
                 </div>
                 <Button
                   onClick={() => setPreQrStep('mode')}
                   disabled={!pendingName.trim()}
-                  className="w-full rounded-2xl h-12 font-medium shadow-sm"
+                  className="w-full rounded-full h-11 bg-ant-ink hover:bg-ant-ink/90 text-ant-light text-[12px] font-medium"
                 >
                   Continue
-                  <ArrowRight className="w-4 h-4 ml-2" />
+                  <ArrowRight className="w-3.5 h-3.5 ml-2" />
                 </Button>
               </div>
             </>
@@ -817,18 +916,20 @@ export default function WhatsAppManager() {
           {/* ── Pre-QR Step B: Import Mode ──────────────────────────────── */}
           {preQrStep === 'mode' && (
             <>
-              <div className="bg-gradient-to-r from-primary/5 to-transparent p-8 text-center border-b border-gray-100 relative">
+              <div className="p-8 text-center border-b border-ant-line relative">
                 <button
                   onClick={() => setPreQrStep('name')}
-                  className="absolute left-5 top-5 w-8 h-8 rounded-full bg-white/80 hover:bg-white border border-gray-100 flex items-center justify-center transition-colors"
+                  className="absolute left-5 top-5 w-9 h-9 rounded-full bg-ant-paper hover:bg-ant-line-soft border border-ant-line flex items-center justify-center transition-colors"
                   type="button"
                 >
-                  <ArrowLeft className="w-4 h-4 text-gray-500" />
+                  <ArrowLeft className="w-4 h-4 text-ant-ink" />
                 </button>
                 <DialogHeader>
-                  <DialogTitle className="text-2xl font-extralight text-gray-900 text-center tracking-tight">Import Strategy</DialogTitle>
-                  <DialogDescription className="text-center pt-3 font-light text-gray-500">
-                    Pick how much WhatsApp history to bring into <span className="font-medium text-gray-700">{pendingName}</span>.
+                  <DialogTitle className="font-display text-[22px] font-semibold text-ant-ink text-center tracking-tight">
+                    Import strategy
+                  </DialogTitle>
+                  <DialogDescription className="font-serif-display text-center pt-2 text-[13px] text-ant-muted italic">
+                    Pick how much WhatsApp history to bring into <span className="not-italic font-medium text-ant-ink">{pendingName}</span>.
                   </DialogDescription>
                 </DialogHeader>
               </div>
@@ -877,51 +978,51 @@ export default function WhatsAppManager() {
                       type="button"
                       onClick={() => setPendingMode(opt.key)}
                       className={cn(
-                        "relative h-full text-left rounded-3xl border bg-gradient-to-br from-white to-gray-50/40 p-5 transition-all hover:shadow-md active:scale-[0.98] flex flex-col",
+                        "relative h-full text-left rounded-2xl border p-5 transition-all active:scale-[0.98] flex flex-col",
                         selected
-                          ? "border-primary/60 ring-2 ring-primary/20 shadow-md"
-                          : "border-gray-100 shadow-sm hover:border-gray-200"
+                          ? "border-ant-orange/50 ring-2 ring-ant-orange/20 bg-ant-orange/[0.03]"
+                          : "border-ant-line bg-ant-paper hover:border-ant-ink/20"
                       )}
                     >
                       {selected && (
-                        <CheckCircle2 className="absolute top-3 right-3 w-4 h-4 text-primary" />
+                        <CheckCircle2 className="absolute top-3 right-3 w-4 h-4 text-ant-orange" />
                       )}
                       <div className={cn(
-                        "w-12 h-12 rounded-2xl flex items-center justify-center transition-colors mb-4",
-                        selected ? "bg-primary/10" : "bg-gray-50"
+                        "w-11 h-11 rounded-xl flex items-center justify-center transition-colors mb-3",
+                        selected ? "bg-ant-orange/15" : "bg-ant-line-soft"
                       )}>
-                        <Icon className={cn("w-5 h-5", selected ? "text-primary" : "text-gray-400")} strokeWidth={1.5} />
+                        <Icon className={cn("w-5 h-5", selected ? "text-ant-orange" : "text-ant-mid")} strokeWidth={1.5} />
                       </div>
-                      <h4 className="text-sm font-medium text-gray-900">{opt.title}</h4>
-                      <p className="text-xs text-gray-500 font-light mt-0.5">{opt.subtitle}</p>
-                      <ul className="mt-3 space-y-1 flex-1">
+                      <h4 className="font-display text-[14px] font-semibold text-ant-ink tracking-tight">{opt.title}</h4>
+                      <p className="font-serif-display text-[11.5px] text-ant-muted italic mt-0.5">{opt.subtitle}</p>
+                      <ul className="mt-3 space-y-1.5 flex-1">
                         {opt.bullets.map((b, i) => (
-                          <li key={i} className="text-[11px] text-gray-500 font-light flex items-start gap-1.5">
-                            <span className="text-gray-300 mt-0.5">•</span>
+                          <li key={i} className="text-[11px] text-ant-muted flex items-start gap-1.5">
+                            <span className="text-ant-orange mt-0.5">·</span>
                             <span>{b}</span>
                           </li>
                         ))}
                       </ul>
                       {opt.warning && (
-                        <div className="mt-3 flex items-start gap-1.5 text-[10px] text-amber-700/80 bg-amber-50 border border-amber-100 rounded-xl px-2.5 py-1.5">
+                        <div className="mt-3 flex items-start gap-1.5 text-[10px] text-ant-orange bg-ant-orange/10 border border-ant-orange/25 rounded-lg px-2.5 py-1.5">
                           <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
-                          <span className="font-light leading-snug">{opt.warning}</span>
+                          <span className="leading-snug">{opt.warning}</span>
                         </div>
                       )}
                     </button>
                   );
                 })}
               </div>
-              <div className="p-6 pt-2 border-t border-gray-50 bg-white/40">
+              <div className="p-6 pt-2 border-t border-ant-line">
                 <Button
                   onClick={() => pendingMode && handleConfirmAddInstance(pendingName, pendingMode)}
                   disabled={!pendingMode || actionLoading === 'create'}
-                  className="w-full rounded-2xl h-12 font-medium shadow-sm"
+                  className="w-full rounded-full h-11 bg-ant-ink hover:bg-ant-ink/90 text-ant-light text-[12px] font-medium"
                 >
                   {actionLoading === 'create' ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating QR...</>
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating QR…</>
                   ) : (
-                    <>Continue<ArrowRight className="w-4 h-4 ml-2" /></>
+                    <>Continue<ArrowRight className="w-3.5 h-3.5 ml-2" /></>
                   )}
                 </Button>
               </div>
@@ -930,24 +1031,27 @@ export default function WhatsAppManager() {
 
           {/* ── Step 1: Scanning QR ─────────────────────────────────────── */}
           {!preQrStep && modalStep === 'scanning' && (
-            <div className="relative overflow-hidden">
-              {/* Ambient gradient backdrop */}
-              <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/40 via-white to-teal-50/30 pointer-events-none" />
-              <div className="absolute -top-24 -right-24 w-64 h-64 bg-emerald-200/20 rounded-full blur-3xl pointer-events-none" />
-              <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-teal-200/20 rounded-full blur-3xl pointer-events-none" />
+            <div className="relative overflow-hidden bg-ant-paper">
+              <div
+                aria-hidden
+                className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-ant-orange/40 to-transparent"
+              />
 
               <div className="relative grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-0">
                 {/* ── Left: instructions ──────────────────────────────── */}
                 <div className="p-8 sm:pr-4 flex flex-col justify-center">
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-100 self-start mb-4">
-                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-700">Waiting for scan</span>
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-ant-green/10 border border-ant-green/25 self-start mb-4">
+                    <span className="relative inline-flex">
+                      <span className="w-1.5 h-1.5 rounded-full bg-ant-green" />
+                      <span className="absolute inset-0 w-1.5 h-1.5 rounded-full bg-ant-green animate-ping" />
+                    </span>
+                    <span className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-green">Waiting for scan</span>
                   </div>
 
-                  <h3 className="text-2xl font-extralight text-gray-900 tracking-tight leading-tight">
-                    Pair your<br />WhatsApp device
+                  <h3 className="font-display text-[26px] md:text-[30px] font-semibold text-ant-ink tracking-[-0.02em] leading-[1.05]">
+                    Pair your<br />WhatsApp device.
                   </h3>
-                  <p className="text-xs text-gray-500 font-light mt-2 mb-6 max-w-[260px]">
+                  <p className="font-serif-display text-[13px] text-ant-muted italic mt-2 mb-6 max-w-[280px]">
                     Scan the code with your phone to securely link this device.
                   </p>
 
@@ -958,10 +1062,10 @@ export default function WhatsAppManager() {
                       'Tap "Link a Device" and scan the code',
                     ].map((txt, i) => (
                       <li key={i} className="flex items-start gap-3">
-                        <div className="shrink-0 w-6 h-6 rounded-full bg-white border border-emerald-100 shadow-sm flex items-center justify-center">
-                          <span className="text-[10px] font-bold text-emerald-600">{i + 1}</span>
+                        <div className="shrink-0 w-7 h-7 rounded-full bg-ant-paper border border-ant-line flex items-center justify-center">
+                          <span className="font-display text-[11px] font-semibold text-ant-orange tabular-nums">{String(i + 1).padStart(2, '0')}</span>
                         </div>
-                        <span className="text-xs text-gray-600 font-light leading-relaxed pt-0.5">{txt}</span>
+                        <span className="text-[12px] text-ant-ink leading-relaxed pt-1">{txt}</span>
                       </li>
                     ))}
                   </ol>
@@ -969,35 +1073,28 @@ export default function WhatsAppManager() {
 
                 {/* ── Right: QR card ──────────────────────────────────── */}
                 <div className="p-8 sm:pl-4 flex items-center justify-center">
-                  <div className="relative">
-                    {/* Animated gradient ring */}
-                    <div className="absolute -inset-1 rounded-[2rem] bg-gradient-to-br from-emerald-400 via-teal-400 to-emerald-500 opacity-60 blur-md" />
-                    <div className="relative bg-white p-4 rounded-[1.75rem] shadow-2xl border border-white">
-                      {/* Corner brackets */}
-                      <div className="absolute top-2 left-2 w-5 h-5 border-t-2 border-l-2 border-emerald-500 rounded-tl-xl" />
-                      <div className="absolute top-2 right-2 w-5 h-5 border-t-2 border-r-2 border-emerald-500 rounded-tr-xl" />
-                      <div className="absolute bottom-2 left-2 w-5 h-5 border-b-2 border-l-2 border-emerald-500 rounded-bl-xl" />
-                      <div className="absolute bottom-2 right-2 w-5 h-5 border-b-2 border-r-2 border-emerald-500 rounded-br-xl" />
+                  <div className="relative bg-ant-paper p-4 rounded-2xl border border-ant-line shadow-[0_12px_40px_-20px_rgba(20,20,19,0.3)]">
+                    {/* Corner brackets */}
+                    <div className="absolute top-2 left-2 w-5 h-5 border-t-2 border-l-2 border-ant-orange rounded-tl-xl" />
+                    <div className="absolute top-2 right-2 w-5 h-5 border-t-2 border-r-2 border-ant-orange rounded-tr-xl" />
+                    <div className="absolute bottom-2 left-2 w-5 h-5 border-b-2 border-l-2 border-ant-orange rounded-bl-xl" />
+                    <div className="absolute bottom-2 right-2 w-5 h-5 border-b-2 border-r-2 border-ant-orange rounded-br-xl" />
 
-                      {qrCode ? (
-                        <div className="relative">
-                          <img src={qrCode} alt="WhatsApp QR Code" className="w-56 h-56 rounded-2xl" />
-                          {/* WhatsApp logo center overlay */}
-                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                            <div className="w-12 h-12 rounded-2xl bg-white shadow-lg border border-gray-100 flex items-center justify-center">
-                              <FaWhatsapp className="w-7 h-7 text-[#25D366]" />
-                            </div>
+                    {qrCode ? (
+                      <div className="relative">
+                        <img src={qrCode} alt="WhatsApp QR Code" className="w-56 h-56 rounded-xl" />
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <div className="w-12 h-12 rounded-xl bg-ant-paper shadow-md border border-ant-line flex items-center justify-center">
+                            <FaWhatsapp className="w-7 h-7 text-ant-green" />
                           </div>
                         </div>
-                      ) : (
-                        <div className="w-56 h-56 flex flex-col items-center justify-center bg-gradient-to-br from-gray-50 to-white rounded-2xl">
-                          <div className="relative">
-                            <Loader2 className="h-10 w-10 animate-spin text-emerald-500 mb-3" />
-                          </div>
-                          <p className="text-gray-400 font-light text-xs uppercase tracking-widest mt-2">Generating</p>
-                        </div>
-                      )}
-                    </div>
+                      </div>
+                    ) : (
+                      <div className="w-56 h-56 flex flex-col items-center justify-center bg-ant-light rounded-xl">
+                        <Loader2 className="h-9 w-9 animate-spin text-ant-orange mb-3" />
+                        <p className="text-ant-mid text-[10px] font-medium uppercase tracking-[0.22em] mt-2">Generating</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1007,24 +1104,24 @@ export default function WhatsAppManager() {
           {/* ── Step 2: Connected (brief transition) ───────────────────── */}
           {!preQrStep && modalStep === 'connected' && (
             <div className="p-10 flex flex-col items-center justify-center animate-in fade-in zoom-in-95 duration-500">
-              <div className="relative mb-6">
+              <div className="relative mb-5">
                 {ownerProfile.pic ? (
-                  <img src={ownerProfile.pic} alt="" className="w-24 h-24 rounded-full object-cover border-4 border-emerald-100 shadow-lg" />
+                  <img src={ownerProfile.pic} alt="" className="w-24 h-24 rounded-full object-cover ring-4 ring-ant-green/20" />
                 ) : (
-                  <div className="w-24 h-24 rounded-full bg-gradient-to-br from-emerald-100 to-emerald-50 flex items-center justify-center border-4 border-emerald-100 shadow-lg">
-                    <CheckCircle2 className="w-10 h-10 text-emerald-500" />
+                  <div className="w-24 h-24 rounded-full bg-ant-green/10 flex items-center justify-center ring-4 ring-ant-green/20">
+                    <CheckCircle2 className="w-10 h-10 text-ant-green" strokeWidth={1.5} />
                   </div>
                 )}
-                <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center shadow-md">
-                  <CheckCircle2 className="w-5 h-5 text-white" />
+                <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-ant-green rounded-full flex items-center justify-center ring-4 ring-ant-paper">
+                  <CheckCircle2 className="w-4 h-4 text-white" strokeWidth={2.5} />
                 </div>
               </div>
-              <h3 className="text-xl font-medium text-gray-900 mb-1">Connected</h3>
+              <h3 className="font-display text-[22px] font-semibold text-ant-ink tracking-tight mb-1">Connected</h3>
               {ownerProfile.phone && (
-                <p className="text-sm text-gray-500 font-light">+{ownerProfile.phone}</p>
+                <p className="text-[12px] text-ant-muted tabular-nums">+{ownerProfile.phone}</p>
               )}
-              <p className="text-xs text-gray-400 mt-4">Starting data sync...</p>
-              <Loader2 className="w-5 h-5 text-emerald-500 animate-spin mt-3" />
+              <p className="font-serif-display text-[12px] text-ant-muted italic mt-4">Starting data sync…</p>
+              <Loader2 className="w-4 h-4 text-ant-orange animate-spin mt-2" />
             </div>
           )}
 
@@ -1038,20 +1135,20 @@ export default function WhatsAppManager() {
             const overallPct = phases.length > 0 ? Math.round((completedCount / phases.length) * 100) : 0;
 
             return (
-            <div className="p-8 animate-in fade-in duration-300">
-              <div className="flex items-center gap-4 mb-6">
+            <div className="p-7 animate-in fade-in duration-300">
+              <div className="flex items-center gap-3 mb-5">
                 {ownerProfile.pic ? (
-                  <img src={ownerProfile.pic} alt="" className="w-14 h-14 rounded-full object-cover border-2 border-emerald-100" />
+                  <img src={ownerProfile.pic} alt="" className="w-12 h-12 rounded-full object-cover ring-2 ring-ant-line" />
                 ) : (
-                  <div className="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center border-2 border-emerald-100">
-                    <Database className="w-6 h-6 text-emerald-500" />
+                  <div className="w-12 h-12 rounded-full bg-ant-green/10 flex items-center justify-center ring-2 ring-ant-green/20">
+                    <Database className="w-5 h-5 text-ant-green" strokeWidth={1.75} />
                   </div>
                 )}
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900">{ownerProfile.name || modalInstanceName}</h3>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <Loader2 className="w-3 h-3 text-emerald-500 animate-spin" />
-                    <span className="text-xs text-emerald-600 font-medium">{syncProgress.status}</span>
+                <div className="min-w-0">
+                  <h3 className="font-display text-[16px] font-semibold text-ant-ink tracking-tight truncate">{ownerProfile.name || modalInstanceName}</h3>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <Loader2 className="w-3 h-3 text-ant-orange animate-spin" />
+                    <span className="text-[11px] text-ant-orange font-medium truncate">{syncProgress.status}</span>
                   </div>
                 </div>
               </div>
@@ -1063,19 +1160,19 @@ export default function WhatsAppManager() {
                   const status = phase?.status || 'pending';
                   const detail = phase?.progress?.detail || '';
                   return (
-                    <div key={i} className="flex items-center gap-3 text-xs">
+                    <div key={i} className="flex items-center gap-3 text-[11.5px]">
                       {status === 'completed' ? (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                        <CheckCircle2 className="w-4 h-4 text-ant-green shrink-0" strokeWidth={2} />
                       ) : status === 'running' ? (
-                        <Loader2 className="w-4 h-4 text-emerald-500 animate-spin shrink-0" />
+                        <Loader2 className="w-4 h-4 text-ant-orange animate-spin shrink-0" />
                       ) : (
-                        <div className="w-4 h-4 rounded-full border border-gray-200 shrink-0" />
+                        <div className="w-4 h-4 rounded-full border border-ant-line shrink-0" />
                       )}
-                      <span className={cn("font-medium", status === 'completed' ? 'text-gray-500' : status === 'running' ? 'text-gray-900' : 'text-gray-400')}>
+                      <span className={cn("font-medium", status === 'completed' ? 'text-ant-muted' : status === 'running' ? 'text-ant-ink' : 'text-ant-mid')}>
                         {label}
                       </span>
                       {status !== 'pending' && detail && (
-                        <span className="text-gray-400 ml-auto tabular-nums truncate max-w-[140px]">{detail}</span>
+                        <span className="text-ant-mid ml-auto tabular-nums truncate max-w-[140px]">{detail}</span>
                       )}
                     </div>
                   );
@@ -1083,14 +1180,14 @@ export default function WhatsAppManager() {
               </div>
 
               {/* Overall progress bar */}
-              <div className="pt-3 border-t border-gray-100">
-                <div className="flex justify-between text-[10px] text-gray-400 mb-1.5">
-                  <span>{completedCount}/{phases.length || 8} phases</span>
-                  <span>{overallPct}%</span>
+              <div className="pt-3 border-t border-ant-line">
+                <div className="flex justify-between text-[10px] text-ant-mid mb-1.5 uppercase tracking-[0.18em] font-medium">
+                  <span className="tabular-nums">{completedCount}/{phases.length || 8} phases</span>
+                  <span className="tabular-nums">{overallPct}%</span>
                 </div>
-                <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-2 bg-ant-line rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-teal-400 rounded-full transition-all duration-700 ease-out"
+                    className="h-full bg-ant-orange rounded-full transition-all duration-700 ease-out"
                     style={{ width: `${overallPct}%` }}
                   />
                 </div>
@@ -1099,7 +1196,7 @@ export default function WhatsAppManager() {
               <Button
                 variant="outline"
                 onClick={handleSyncInBackground}
-                className="w-full mt-4 rounded-2xl h-10 text-gray-600 border-gray-200 hover:bg-gray-100 hover:text-gray-800 font-medium text-xs"
+                className="w-full mt-4 rounded-full h-10 text-ant-ink bg-ant-paper border-ant-line hover:bg-ant-line-soft text-[11.5px] font-medium"
               >
                 Continue in background
               </Button>
@@ -1110,49 +1207,37 @@ export default function WhatsAppManager() {
           {/* ── Step 4: Complete ───────────────────────────────────────── */}
           {!preQrStep && modalStep === 'complete' && (
             <div className="p-10 flex flex-col items-center justify-center animate-in fade-in zoom-in-95 duration-500">
-              <div className="relative mb-6">
+              <div className="relative mb-5">
                 {ownerProfile.pic ? (
-                  <img src={ownerProfile.pic} alt="" className="w-24 h-24 rounded-full object-cover border-4 border-emerald-100 shadow-lg" />
+                  <img src={ownerProfile.pic} alt="" className="w-24 h-24 rounded-full object-cover ring-4 ring-ant-green/20" />
                 ) : (
-                  <div className="w-24 h-24 rounded-full bg-gradient-to-br from-emerald-100 to-emerald-50 flex items-center justify-center border-4 border-emerald-100 shadow-lg">
-                    <CheckCircle2 className="w-10 h-10 text-emerald-500" />
+                  <div className="w-24 h-24 rounded-full bg-ant-green/10 flex items-center justify-center ring-4 ring-ant-green/20">
+                    <CheckCircle2 className="w-10 h-10 text-ant-green" strokeWidth={1.5} />
                   </div>
                 )}
-                <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center shadow-md">
-                  <CheckCircle2 className="w-5 h-5 text-white" />
+                <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-ant-green rounded-full flex items-center justify-center ring-4 ring-ant-paper">
+                  <CheckCircle2 className="w-4 h-4 text-white" strokeWidth={2.5} />
                 </div>
               </div>
 
-              <h3 className="text-xl font-medium text-gray-900 mb-1">All Set</h3>
+              <h3 className="font-display text-[22px] font-semibold text-ant-ink tracking-tight mb-1">All set</h3>
               {ownerProfile.phone && (
-                <p className="text-sm text-gray-500 font-light mb-6">+{ownerProfile.phone}</p>
+                <p className="text-[12px] text-ant-muted tabular-nums mb-6">+{ownerProfile.phone}</p>
               )}
 
               {/* Stats */}
-              <div className="grid grid-cols-3 gap-4 w-full mb-8">
-                <div className="bg-gray-50 rounded-2xl p-3 text-center">
-                  <Users className="w-4 h-4 text-emerald-500 mx-auto mb-1" />
-                  <p className="text-lg font-semibold text-gray-900">{syncProgress.contacts.synced}</p>
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wider">Contacts</p>
-                </div>
-                <div className="bg-gray-50 rounded-2xl p-3 text-center">
-                  <MessageCircle className="w-4 h-4 text-emerald-500 mx-auto mb-1" />
-                  <p className="text-lg font-semibold text-gray-900">{syncProgress.chats.synced}</p>
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wider">Chats</p>
-                </div>
-                <div className="bg-gray-50 rounded-2xl p-3 text-center">
-                  <Database className="w-4 h-4 text-emerald-500 mx-auto mb-1" />
-                  <p className="text-lg font-semibold text-gray-900">{syncProgress.messages}</p>
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wider">Messages</p>
-                </div>
+              <div className="grid grid-cols-3 gap-px w-full mb-6 bg-ant-line rounded-xl overflow-hidden border border-ant-line">
+                <CompleteStat icon={Users} label="Contacts" value={syncProgress.contacts.synced} />
+                <CompleteStat icon={MessageCircle} label="Chats" value={syncProgress.chats.synced} />
+                <CompleteStat icon={Database} label="Messages" value={syncProgress.messages} />
               </div>
 
               <Button
                 onClick={() => { handleCloseModal(); navigate('/business/whatsapp/inbox'); }}
-                className="w-full rounded-2xl h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm"
+                className="w-full rounded-full h-11 bg-ant-ink hover:bg-ant-ink/90 text-ant-light text-[12px] font-medium"
               >
-                Open Inbox
-                <ArrowRight className="w-4 h-4 ml-2" />
+                Open inbox
+                <ArrowRight className="w-3.5 h-3.5 ml-2" />
               </Button>
             </div>
           )}
@@ -1160,29 +1245,17 @@ export default function WhatsAppManager() {
           {/* ── Step 5: Failed ────────────────────────────────────────── */}
           {!preQrStep && modalStep === 'failed' && (
             <div className="p-10 flex flex-col items-center justify-center animate-in fade-in zoom-in-95 duration-500">
-              <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mb-4 border-4 border-red-100">
-                <Trash2 className="w-8 h-8 text-red-500" />
+              <div className="w-16 h-16 rounded-full bg-ant-rose/10 flex items-center justify-center mb-4 ring-4 ring-ant-rose/15">
+                <AlertTriangle className="w-7 h-7 text-ant-rose" strokeWidth={1.75} />
               </div>
-              <h3 className="text-xl font-medium text-gray-900 mb-1">Sync Failed</h3>
-              <p className="text-sm text-gray-500 font-light mb-2 text-center">{syncProgress.status}</p>
+              <h3 className="font-display text-[22px] font-semibold text-ant-ink tracking-tight mb-1">Sync failed</h3>
+              <p className="font-serif-display text-[12px] text-ant-muted italic mb-4 text-center">{syncProgress.status}</p>
 
               {/* Partial stats */}
-              <div className="grid grid-cols-3 gap-4 w-full mb-6">
-                <div className="bg-gray-50 rounded-2xl p-3 text-center">
-                  <Users className="w-4 h-4 text-gray-400 mx-auto mb-1" />
-                  <p className="text-lg font-semibold text-gray-900">{syncProgress.contacts.synced}</p>
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wider">Contacts</p>
-                </div>
-                <div className="bg-gray-50 rounded-2xl p-3 text-center">
-                  <MessageCircle className="w-4 h-4 text-gray-400 mx-auto mb-1" />
-                  <p className="text-lg font-semibold text-gray-900">{syncProgress.chats.synced}</p>
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wider">Chats</p>
-                </div>
-                <div className="bg-gray-50 rounded-2xl p-3 text-center">
-                  <Database className="w-4 h-4 text-gray-400 mx-auto mb-1" />
-                  <p className="text-lg font-semibold text-gray-900">{syncProgress.messages}</p>
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wider">Messages</p>
-                </div>
+              <div className="grid grid-cols-3 gap-px w-full mb-6 bg-ant-line rounded-xl overflow-hidden border border-ant-line">
+                <CompleteStat icon={Users} label="Contacts" value={syncProgress.contacts.synced} muted />
+                <CompleteStat icon={MessageCircle} label="Chats" value={syncProgress.chats.synced} muted />
+                <CompleteStat icon={Database} label="Messages" value={syncProgress.messages} muted />
               </div>
 
               <Button
@@ -1193,9 +1266,9 @@ export default function WhatsAppManager() {
                     updateSyncState(modalInstanceName, { step: 'syncing' });
                   }
                 }}
-                className="w-full rounded-2xl h-12 bg-primary hover:bg-primary/90 text-white font-medium shadow-sm"
+                className="w-full rounded-full h-11 bg-ant-ink hover:bg-ant-ink/90 text-ant-light text-[12px] font-medium"
               >
-                Retry Sync
+                Retry sync
               </Button>
             </div>
           )}
@@ -1204,26 +1277,26 @@ export default function WhatsAppManager() {
 
       {/* ── Delete Confirmation Dialog ─────────────────────────────────── */}
       <Dialog open={!!deleteConfirm} onOpenChange={(open) => { if (!open) setDeleteConfirm(null); }}>
-        <DialogContent className="sm:max-w-[400px] p-0 overflow-hidden bg-white shadow-2xl rounded-3xl border-0">
-          <div className="p-8 flex flex-col items-center">
-            <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center mb-4">
-              <AlertTriangle className="w-7 h-7 text-red-500" />
+        <DialogContent className="ant-surface sm:max-w-[420px] p-0 overflow-hidden bg-ant-paper border-ant-line rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)]">
+          <div className="p-7 flex flex-col items-center">
+            <div className="w-12 h-12 rounded-2xl bg-ant-rose/10 ring-1 ring-ant-rose/20 flex items-center justify-center mb-4">
+              <AlertTriangle className="w-5 h-5 text-ant-rose" strokeWidth={1.75} />
             </div>
             <DialogHeader>
-              <DialogTitle className="text-xl font-medium text-gray-900 text-center">Remove {deleteConfirm?.name}?</DialogTitle>
-              <DialogDescription className="text-center pt-2 text-gray-500 font-light text-sm">
+              <DialogTitle className="font-display text-[20px] font-semibold text-ant-ink tracking-tight text-center">Remove {deleteConfirm?.name}?</DialogTitle>
+              <DialogDescription className="font-serif-display text-center pt-2 text-ant-muted italic text-[12.5px]">
                 This will permanently delete the device and all associated data. This action cannot be undone.
               </DialogDescription>
             </DialogHeader>
 
             {deleteConfirm?.loading ? (
-              <div className="flex items-center gap-2 mt-6">
-                <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
-                <span className="text-sm text-gray-400">Calculating data...</span>
+              <div className="flex items-center gap-2 mt-5">
+                <Loader2 className="w-4 h-4 animate-spin text-ant-orange" />
+                <span className="text-[12px] text-ant-muted font-serif-display italic">Calculating data…</span>
               </div>
             ) : deleteConfirm?.counts && (
-              <div className="w-full mt-6 bg-gray-50 rounded-2xl p-4 space-y-2">
-                <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">Data that will be lost</p>
+              <div className="w-full mt-5 rounded-xl border border-ant-line bg-ant-light px-4 py-3 space-y-1.5">
+                <p className="text-[9.5px] font-medium uppercase tracking-[0.22em] text-ant-mid mb-1">Data that will be lost</p>
                 {[
                   { label: 'Contacts', count: deleteConfirm.counts.contacts, icon: Users },
                   { label: 'Messages', count: deleteConfirm.counts.messages, icon: MessageCircle },
@@ -1231,22 +1304,22 @@ export default function WhatsAppManager() {
                   { label: 'Groups', count: deleteConfirm.counts.groups, icon: Users },
                   { label: 'Labels', count: deleteConfirm.counts.labels, icon: Database },
                 ].filter(i => i.count > 0).map(item => (
-                  <div key={item.label} className="flex items-center justify-between text-sm">
-                    <span className="flex items-center gap-2 text-gray-600">
-                      <item.icon className="w-3.5 h-3.5 text-gray-400" />
+                  <div key={item.label} className="flex items-center justify-between text-[11.5px]">
+                    <span className="flex items-center gap-2 text-ant-muted">
+                      <item.icon className="w-3 h-3 text-ant-mid" strokeWidth={1.75} />
                       {item.label}
                     </span>
-                    <span className="font-semibold text-gray-900 tabular-nums">{item.count.toLocaleString()}</span>
+                    <span className="font-display font-semibold text-ant-ink tabular-nums">{item.count.toLocaleString()}</span>
                   </div>
                 ))}
               </div>
             )}
 
-            <div className="flex gap-3 w-full mt-6">
+            <div className="flex gap-2 w-full mt-5">
               <Button
                 variant="outline"
                 onClick={() => setDeleteConfirm(null)}
-                className="flex-1 rounded-2xl h-10 font-medium text-xs"
+                className="flex-1 rounded-full h-10 border-ant-line bg-ant-paper text-ant-ink hover:bg-ant-line-soft font-medium text-[11.5px]"
               >
                 Cancel
               </Button>
@@ -1258,15 +1331,67 @@ export default function WhatsAppManager() {
                   setDeleteConfirm(null);
                   await handleDeleteInstance(deleteConfirm.id, deleteConfirm.name);
                 }}
-                className="flex-1 rounded-2xl h-10 font-medium text-xs bg-red-600 hover:bg-red-700"
+                className="flex-1 rounded-full h-10 font-medium text-[11.5px] bg-ant-rose hover:bg-ant-rose/90"
               >
-                {actionLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                {actionLoading ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5 mr-1.5" />}
                 Delete permanently
               </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// Completion/failure screen stat cell. Matches the summary-strip styling so
+// the three mini-stats (contacts, chats, messages) feel like a single row.
+function CompleteStat({
+  icon: Icon,
+  label,
+  value,
+  muted,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: number;
+  muted?: boolean;
+}) {
+  return (
+    <div className="bg-ant-paper px-3 py-3 text-center">
+      <Icon className={cn('w-3.5 h-3.5 mx-auto mb-1', muted ? 'text-ant-mid' : 'text-ant-green')} strokeWidth={1.75} />
+      <p className="font-display text-[17px] font-semibold text-ant-ink tabular-nums leading-none tracking-[-0.02em]">
+        {value.toLocaleString('en-US')}
+      </p>
+      <p className="text-[9.5px] font-medium text-ant-mid uppercase tracking-[0.2em] mt-1.5">{label}</p>
+    </div>
+  );
+}
+
+// Compact summary cell used in the editorial stats strip above the device list.
+function SummaryTile({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: 'ink' | 'green' | 'orange' | 'blue';
+}) {
+  const accent =
+    tone === 'green' ? 'bg-ant-green' :
+    tone === 'orange' ? 'bg-ant-orange' :
+    tone === 'blue' ? 'bg-ant-blue' :
+    'bg-ant-ink';
+  return (
+    <div className="bg-ant-paper px-4 py-3">
+      <div className="flex items-center gap-1.5">
+        <span className={cn('w-1 h-1 rounded-full', accent)} aria-hidden />
+        <span className="text-[9.5px] uppercase tracking-[0.22em] font-medium text-ant-mid">{label}</span>
+      </div>
+      <div className="font-display text-[22px] font-semibold text-ant-ink tabular-nums tracking-[-0.02em] mt-1 leading-none">
+        {value.toLocaleString('en-US')}
+      </div>
     </div>
   );
 }

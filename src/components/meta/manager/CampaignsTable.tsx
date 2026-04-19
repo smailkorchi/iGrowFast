@@ -81,11 +81,11 @@ export const CampaignsTable: React.FC<Props> = ({
 
     if (campaignsQ.error) {
         return (
-            <div className="bg-white border border-[#e4e6eb] rounded-lg p-6">
-                <div className="text-[13px] font-semibold text-[#e4405f]">
+            <div className="bg-white border border-ant-line rounded-lg p-6">
+                <div className="text-[13px] font-semibold text-ant-rose">
                     Failed to load campaigns
                 </div>
-                <div className="text-[12px] text-[#606770] mt-1">
+                <div className="text-[12px] text-ant-muted mt-1">
                     {(campaignsQ.error as Error).message}
                 </div>
             </div>
@@ -94,8 +94,8 @@ export const CampaignsTable: React.FC<Props> = ({
 
     if (campaigns.length === 0) {
         return (
-            <div className="bg-white border border-[#e4e6eb] rounded-lg p-10 text-center">
-                <div className="text-[13px] font-semibold text-[#606770]">
+            <div className="bg-white border border-ant-line rounded-lg p-10 text-center">
+                <div className="text-[13px] font-semibold text-ant-muted">
                     {searchQuery ? 'No campaigns match your search' : 'No campaigns found in this date range'}
                 </div>
             </div>
@@ -103,11 +103,11 @@ export const CampaignsTable: React.FC<Props> = ({
     }
 
     return (
-        <div className="bg-white border border-[#e4e6eb] rounded-lg overflow-hidden">
+        <div className="bg-white border border-ant-line rounded-lg overflow-hidden">
             <div className="overflow-x-auto">
                 <table className="w-full">
                     <thead>
-                        <tr className="bg-[#f0f2f5] text-[11px] font-semibold uppercase text-[#606770] tracking-wider">
+                        <tr className="bg-ant-light text-[11px] font-semibold uppercase text-ant-muted tracking-wider">
                             <th className="w-10 px-3 py-2">
                                 <Checkbox
                                     checked={selected.size === campaigns.length && campaigns.length > 0}
@@ -227,7 +227,7 @@ const CampaignRow: React.FC<{
         <>
             <tr
                 className={cn(
-                    'border-t border-[#e4e6eb] hover:bg-[#f7f8fa] transition-colors h-[44px]',
+                    'border-t border-ant-line hover:bg-ant-line-soft transition-colors h-[44px]',
                     selected && 'bg-[#ebf5ff]'
                 )}
             >
@@ -246,10 +246,10 @@ const CampaignRow: React.FC<{
                     />
                 </td>
                 <td className="px-3">
-                    <div className="text-[13px] font-semibold text-[#1c1e21] truncate max-w-[260px]">
+                    <div className="text-[13px] font-semibold text-ant-ink truncate max-w-[260px]">
                         {campaign.name}
                     </div>
-                    <div className="text-[11px] text-[#8a8d91]">
+                    <div className="text-[11px] text-ant-mid">
                         {campaign.objective?.replace('OUTCOME_', '').replace(/_/g, ' ').toLowerCase()}
                     </div>
                 </td>
@@ -278,7 +278,7 @@ const CampaignRow: React.FC<{
                     <td
                         key={col.key}
                         className={cn(
-                            'px-3 text-[12px] tabular-nums text-[#1c1e21]',
+                            'px-3 text-[12px] tabular-nums text-ant-ink',
                             col.align === 'right' ? 'text-right' : 'text-left'
                         )}
                     >
@@ -288,12 +288,12 @@ const CampaignRow: React.FC<{
                 <td className="px-2">
                     <button
                         onClick={onToggleExpand}
-                        className="w-6 h-6 flex items-center justify-center rounded hover:bg-[#e4e6eb] transition"
+                        className="w-6 h-6 flex items-center justify-center rounded hover:bg-ant-line transition"
                     >
                         {expanded ? (
-                            <ChevronDown className="w-4 h-4 text-[#606770]" />
+                            <ChevronDown className="w-4 h-4 text-ant-muted" />
                         ) : (
-                            <ChevronRight className="w-4 h-4 text-[#606770]" />
+                            <ChevronRight className="w-4 h-4 text-ant-muted" />
                         )}
                     </button>
                 </td>
@@ -355,12 +355,12 @@ const BudgetCell: React.FC<{
             }}
         >
             <PopoverTrigger asChild>
-                <button className="text-[12px] font-medium text-[#1c1e21] hover:text-[#1877F2] transition tabular-nums">
+                <button className="text-[12px] font-medium text-ant-ink hover:text-[#1877F2] transition tabular-nums">
                     {label}
                 </button>
             </PopoverTrigger>
             <PopoverContent className="w-56 p-3" align="end">
-                <div className="text-[11px] font-semibold text-[#606770] mb-2">
+                <div className="text-[11px] font-semibold text-ant-muted mb-2">
                     Daily budget ({currency})
                 </div>
                 <div className="flex items-center gap-2">
@@ -369,7 +369,7 @@ const BudgetCell: React.FC<{
                         onChange={(e) => setValue(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && submit()}
                         placeholder="0.00"
-                        className="h-8 text-[13px] font-mono border-[#ccd0d5]"
+                        className="h-8 text-[13px] font-mono border-ant-line"
                     />
                     <Button
                         size="sm"
@@ -412,7 +412,7 @@ const AdSetSubRows: React.FC<{
 
     if (isLoading) {
         return (
-            <tr className="bg-[#f7f8fa]">
+            <tr className="bg-ant-line-soft">
                 <td colSpan={colSpan} className="px-6 py-3">
                     <Skeleton className="h-10 w-full rounded" />
                 </td>
@@ -422,8 +422,8 @@ const AdSetSubRows: React.FC<{
 
     if (!adsets || adsets.length === 0) {
         return (
-            <tr className="bg-[#f7f8fa]">
-                <td colSpan={colSpan} className="px-6 py-3 text-[12px] text-[#8a8d91]">
+            <tr className="bg-ant-line-soft">
+                <td colSpan={colSpan} className="px-6 py-3 text-[12px] text-ant-mid">
                     No ad sets in this campaign
                 </td>
             </tr>
@@ -468,7 +468,7 @@ const AdSetSubRows: React.FC<{
 
                 return (
                     <React.Fragment key={a.id}>
-                        <tr className="bg-[#f7f8fa] border-t border-[#e4e6eb] hover:bg-[#f0f2f5] transition-colors h-[40px]">
+                        <tr className="bg-ant-line-soft border-t border-ant-line hover:bg-ant-light transition-colors h-[40px]">
                             <td />
                             <td className="px-2 text-center">
                                 <StatusToggle
@@ -479,10 +479,10 @@ const AdSetSubRows: React.FC<{
                                 />
                             </td>
                             <td className="px-3 pl-8">
-                                <div className="text-[12px] font-semibold text-[#1c1e21] truncate max-w-[240px]">
+                                <div className="text-[12px] font-semibold text-ant-ink truncate max-w-[240px]">
                                     {a.name}
                                 </div>
-                                <div className="text-[10px] text-[#8a8d91]">
+                                <div className="text-[10px] text-ant-mid">
                                     {a.optimization_goal?.replace(/_/g, ' ').toLowerCase()}
                                 </div>
                             </td>
@@ -495,14 +495,14 @@ const AdSetSubRows: React.FC<{
                                     {status.label}
                                 </span>
                             </td>
-                            <td className="px-3 text-right text-[11px] text-[#1c1e21] tabular-nums">
+                            <td className="px-3 text-right text-[11px] text-ant-ink tabular-nums">
                                 {a.daily_budget ? `${formatCents(a.daily_budget, currency)}/day` : '--'}
                             </td>
                             {cols.map((col) => (
                                 <td
                                     key={col.key}
                                     className={cn(
-                                        'px-3 text-[11px] tabular-nums text-[#606770]',
+                                        'px-3 text-[11px] tabular-nums text-ant-muted',
                                         col.align === 'right' ? 'text-right' : 'text-left'
                                     )}
                                 >
@@ -512,12 +512,12 @@ const AdSetSubRows: React.FC<{
                             <td className="px-2">
                                 <button
                                     onClick={() => setExpandedAds((s) => ({ ...s, [a.id]: !s[a.id] }))}
-                                    className="w-5 h-5 flex items-center justify-center rounded hover:bg-[#e4e6eb] transition"
+                                    className="w-5 h-5 flex items-center justify-center rounded hover:bg-ant-line transition"
                                 >
                                     {isExpanded ? (
-                                        <ChevronDown className="w-3.5 h-3.5 text-[#606770]" />
+                                        <ChevronDown className="w-3.5 h-3.5 text-ant-muted" />
                                     ) : (
-                                        <ChevronRight className="w-3.5 h-3.5 text-[#606770]" />
+                                        <ChevronRight className="w-3.5 h-3.5 text-ant-muted" />
                                     )}
                                 </button>
                             </td>
@@ -576,7 +576,7 @@ const AdSubRows: React.FC<{
     if (!ads || ads.length === 0) {
         return (
             <tr className="bg-[#fafafa]">
-                <td colSpan={colSpan} className="px-8 py-2 text-[11px] text-[#8a8d91]">
+                <td colSpan={colSpan} className="px-8 py-2 text-[11px] text-ant-mid">
                     No ads in this ad set
                 </td>
             </tr>
@@ -619,7 +619,7 @@ const AdSubRows: React.FC<{
                 };
 
                 return (
-                    <tr key={ad.id} className="bg-[#fafafa] border-t border-[#e4e6eb]/60 hover:bg-[#f0f2f5] transition-colors h-[36px]">
+                    <tr key={ad.id} className="bg-[#fafafa] border-t border-ant-line/60 hover:bg-ant-light transition-colors h-[36px]">
                         <td />
                         <td className="px-2 text-center">
                             <StatusToggle
@@ -630,7 +630,7 @@ const AdSubRows: React.FC<{
                             />
                         </td>
                         <td className="px-3 pl-14">
-                            <div className="text-[11px] font-medium text-[#1c1e21] truncate max-w-[220px]">
+                            <div className="text-[11px] font-medium text-ant-ink truncate max-w-[220px]">
                                 {ad.name}
                             </div>
                         </td>
@@ -643,12 +643,12 @@ const AdSubRows: React.FC<{
                                 {status.label}
                             </span>
                         </td>
-                        <td className="px-3 text-right text-[11px] text-[#8a8d91]">--</td>
+                        <td className="px-3 text-right text-[11px] text-ant-mid">--</td>
                         {cols.map((col) => (
                             <td
                                 key={col.key}
                                 className={cn(
-                                    'px-3 text-[10px] tabular-nums text-[#8a8d91]',
+                                    'px-3 text-[10px] tabular-nums text-ant-mid',
                                     col.align === 'right' ? 'text-right' : 'text-left'
                                 )}
                             >

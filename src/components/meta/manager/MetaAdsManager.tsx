@@ -80,7 +80,7 @@ export const MetaAdsManager: React.FC<Props> = ({ connection, onCreateCampaign }
     const showChart = tab === 'campaigns';
 
     return (
-        <div className="flex flex-col bg-white border border-gray-100 rounded-xl overflow-hidden">
+        <div className="flex flex-col bg-white border border-ant-line rounded-xl overflow-hidden">
             {/* Tabs */}
             <ManagerTabs
                 value={tab}
@@ -110,17 +110,17 @@ export const MetaAdsManager: React.FC<Props> = ({ connection, onCreateCampaign }
             {/* Chart (campaigns tab only) */}
             {showChart && (
                 <div className="px-2.5 pt-2.5">
-                    <div className="bg-white border border-gray-100 rounded-xl p-3">
+                    <div className="bg-white border border-ant-line rounded-xl p-3">
                         <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
                             <div>
-                                <div className="text-[12px] font-semibold text-brand-navy">
+                                <div className="text-[12px] font-semibold text-ant-ink">
                                     Spend &amp; impressions
                                 </div>
-                                <div className="text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400 mt-0.5">
+                                <div className="text-[9px] uppercase tracking-[0.14em] font-bold text-ant-mid mt-0.5">
                                     Daily account-level trend
                                 </div>
                             </div>
-                            <div className="flex items-center gap-2.5 text-[10px] text-gray-500">
+                            <div className="flex items-center gap-2.5 text-[10px] text-ant-muted">
                                 <span className="inline-flex items-center gap-1">
                                     <span className="w-2 h-2 rounded-full bg-[#1877F2]" />
                                     Spend

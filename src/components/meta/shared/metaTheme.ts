@@ -1,24 +1,35 @@
 import type React from 'react';
 
-// ── Meta Ads Manager color palette ──────────────────────────────────────
+// ── Meta Ads Manager palette ─────────────────────────────────────────────
+// The page is branded as "Meta Ads" but the surface uses Anthropic neutrals so
+// it stays cohesive with the rest of the admin dashboard. `blue`/`blueHover`
+// stay as Facebook's brand color and are reserved for Meta-specific UI (OAuth
+// button, platform icons, review/processing status dots) — the rest of the
+// surface reads ink-on-paper like every other admin page.
 export const META = {
+    // Facebook brand blue — keep only for Meta-identified elements
     blue: '#1877F2',
     blueHover: '#166fe5',
-    blueBg: '#ebf5ff',
-    text: '#1c1e21',
-    secondary: '#606770',
-    placeholder: '#8a8d91',
-    border: '#e4e6eb',
-    borderDark: '#dddfe2',
-    bg: '#f0f2f5',
-    bgHover: '#f7f8fa',
-    green: '#31a24c',
-    red: '#e4405f',
+    blueBg: 'rgba(24, 119, 242, 0.08)',
+    // Anthropic surface
+    text: '#141413',          // ant-ink
+    secondary: '#6b6a63',     // ant-muted
+    placeholder: '#b0aea5',   // ant-mid
+    border: '#e8e6dc',        // ant-line
+    borderDark: '#d8d6cc',
+    bg: '#faf9f5',            // ant-light
+    bgHover: '#f1efe8',       // ant-line-soft
+    // Semantic
+    green: '#788c5d',         // ant-green
+    red: '#c96356',           // ant-rose
+    orange: '#d97757',        // ant-orange
     white: '#ffffff',
 } as const;
 
-// CSS variable override so shadcn components (Switch, Checkbox, focus rings)
-// use Meta blue instead of DigiCom brand-navy.
+// CSS variable override so shadcn components (Switch, Checkbox, focus rings,
+// Button primary) inside the Meta surface use Meta blue. Keeps Facebook's
+// accent inside the manager while leaving the rest of the app on Anthropic's
+// orange accent.
 export const META_THEME_VARS: React.CSSProperties = {
     '--ring': '214 89% 52%',
     '--primary': '214 89% 52%',
@@ -45,25 +56,27 @@ export interface StatusStyle {
     label: string;
 }
 
+// All status tones use Anthropic's semantic palette. Paused/archived fall back
+// to the neutral ink/mid tones rather than the old Facebook gray swatches.
 export const STATUS_STYLES: Record<string, StatusStyle> = {
-    ACTIVE: { dot: 'bg-[#31a24c]', bg: 'bg-[#e6f4ea]', fg: 'text-[#1e7e34]', label: 'Active' },
-    PAUSED: { dot: 'bg-[#8a8d91]', bg: 'bg-[#f0f2f5]', fg: 'text-[#606770]', label: 'Paused' },
-    DELETED: { dot: 'bg-[#e4405f]', bg: 'bg-[#fce8ec]', fg: 'text-[#c4314b]', label: 'Deleted' },
-    ARCHIVED: { dot: 'bg-[#8a8d91]', bg: 'bg-[#f0f2f5]', fg: 'text-[#606770]', label: 'Archived' },
-    CAMPAIGN_PAUSED: { dot: 'bg-[#f0ad4e]', bg: 'bg-[#fff8e6]', fg: 'text-[#b8860b]', label: 'Campaign paused' },
-    ADSET_PAUSED: { dot: 'bg-[#f0ad4e]', bg: 'bg-[#fff8e6]', fg: 'text-[#b8860b]', label: 'Ad set paused' },
-    DISAPPROVED: { dot: 'bg-[#e4405f]', bg: 'bg-[#fce8ec]', fg: 'text-[#c4314b]', label: 'Disapproved' },
-    PENDING_REVIEW: { dot: 'bg-[#1877F2]', bg: 'bg-[#ebf5ff]', fg: 'text-[#1877F2]', label: 'In review' },
-    IN_PROCESS: { dot: 'bg-[#1877F2]', bg: 'bg-[#ebf5ff]', fg: 'text-[#1877F2]', label: 'Processing' },
-    WITH_ISSUES: { dot: 'bg-[#f0ad4e]', bg: 'bg-[#fff8e6]', fg: 'text-[#b8860b]', label: 'Issues' },
+    ACTIVE: { dot: 'bg-ant-green', bg: 'bg-ant-green/12', fg: 'text-ant-green', label: 'Active' },
+    PAUSED: { dot: 'bg-ant-mid', bg: 'bg-ant-line-soft', fg: 'text-ant-muted', label: 'Paused' },
+    DELETED: { dot: 'bg-ant-rose', bg: 'bg-ant-rose/10', fg: 'text-ant-rose', label: 'Deleted' },
+    ARCHIVED: { dot: 'bg-ant-mid', bg: 'bg-ant-line-soft', fg: 'text-ant-muted', label: 'Archived' },
+    CAMPAIGN_PAUSED: { dot: 'bg-ant-orange', bg: 'bg-ant-orange/10', fg: 'text-ant-orange', label: 'Campaign paused' },
+    ADSET_PAUSED: { dot: 'bg-ant-orange', bg: 'bg-ant-orange/10', fg: 'text-ant-orange', label: 'Ad set paused' },
+    DISAPPROVED: { dot: 'bg-ant-rose', bg: 'bg-ant-rose/10', fg: 'text-ant-rose', label: 'Disapproved' },
+    PENDING_REVIEW: { dot: 'bg-[#1877F2]', bg: 'bg-[#1877F2]/10', fg: 'text-[#1877F2]', label: 'In review' },
+    IN_PROCESS: { dot: 'bg-[#1877F2]', bg: 'bg-[#1877F2]/10', fg: 'text-[#1877F2]', label: 'Processing' },
+    WITH_ISSUES: { dot: 'bg-ant-orange', bg: 'bg-ant-orange/10', fg: 'text-ant-orange', label: 'Issues' },
 };
 
 export function getStatusStyle(status: string): StatusStyle {
     return (
         STATUS_STYLES[status] ?? {
-            dot: 'bg-[#8a8d91]',
-            bg: 'bg-[#f0f2f5]',
-            fg: 'text-[#606770]',
+            dot: 'bg-ant-mid',
+            bg: 'bg-ant-line-soft',
+            fg: 'text-ant-muted',
             label: status.replace(/_/g, ' ').toLowerCase(),
         }
     );

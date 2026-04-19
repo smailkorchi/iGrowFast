@@ -44,14 +44,14 @@ export const SummaryBar: React.FC<{ totals: Totals; isLoading: boolean }> = ({
     ];
 
     return (
-        <div className="flex items-stretch bg-white border border-[#e4e6eb] rounded-lg overflow-hidden">
+        <div className="flex items-stretch bg-white border border-ant-line rounded-lg overflow-hidden">
             {metrics.map((m, i) => (
                 <div
                     key={m.label}
-                    className={`flex-1 min-w-0 px-3 py-2.5 ${i > 0 ? 'border-l border-[#e4e6eb]' : ''}`}
+                    className={`flex-1 min-w-0 px-3 py-2.5 ${i > 0 ? 'border-l border-ant-line' : ''}`}
                 >
-                    <div className="text-[11px] text-[#606770] truncate">{m.label}</div>
-                    <div className="text-[13px] font-semibold text-[#1c1e21] tabular-nums truncate">
+                    <div className="text-[11px] text-ant-muted truncate">{m.label}</div>
+                    <div className="text-[13px] font-semibold text-ant-ink tabular-nums truncate">
                         {isLoading ? '--' : m.value}
                     </div>
                 </div>

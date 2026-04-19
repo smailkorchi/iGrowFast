@@ -225,19 +225,19 @@ export const CreateCampaignWizard: React.FC<Props> = ({
     return (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px]" style={metaTheme}>
             <div className="flex w-full h-full">
-                <div className="flex w-full max-w-[1380px] mx-auto my-3 rounded-xl overflow-hidden bg-[#f0f2f5] shadow-2xl">
+                <div className="flex w-full max-w-[1380px] mx-auto my-3 rounded-xl overflow-hidden bg-ant-light shadow-2xl">
                     {/* ── Left nav ────────────────────────────── */}
-                    <div className="w-[240px] bg-white border-r border-[#dddfe2] flex flex-col shrink-0">
-                        <div className="px-5 py-5 border-b border-[#e4e6eb]">
+                    <div className="w-[240px] bg-white border-r border-ant-line flex flex-col shrink-0">
+                        <div className="px-5 py-5 border-b border-ant-line">
                             <div className="flex items-center gap-3">
                                 <div className="w-9 h-9 rounded-lg bg-[#1877F2] flex items-center justify-center shadow-sm">
                                     <FaFacebook className="w-5 h-5 text-white" />
                                 </div>
                                 <div>
-                                    <div className="text-[11px] font-semibold uppercase tracking-wider text-[#8a8d91]">
+                                    <div className="text-[11px] font-semibold uppercase tracking-wider text-ant-mid">
                                         Create
                                     </div>
-                                    <div className="text-[14px] font-bold text-[#1c1e21]">
+                                    <div className="text-[14px] font-bold text-ant-ink">
                                         New campaign
                                     </div>
                                 </div>
@@ -257,7 +257,7 @@ export const CreateCampaignWizard: React.FC<Props> = ({
                                             active
                                                 ? 'bg-[#ebf5ff] text-[#1877F2] border-r-[3px] border-[#1877F2]'
                                                 : done
-                                                    ? 'text-[#1c1e21] hover:bg-[#f7f8fa] cursor-pointer'
+                                                    ? 'text-ant-ink hover:bg-ant-line-soft cursor-pointer'
                                                     : 'text-[#bec3c9] cursor-default'
                                         )}
                                     >
@@ -267,8 +267,8 @@ export const CreateCampaignWizard: React.FC<Props> = ({
                                                 active
                                                     ? 'bg-[#1877F2] text-white'
                                                     : done
-                                                        ? 'bg-[#31a24c] text-white'
-                                                        : 'bg-[#e4e6eb] text-[#bec3c9]'
+                                                        ? 'bg-ant-green text-white'
+                                                        : 'bg-ant-line text-[#bec3c9]'
                                             )}
                                         >
                                             {done ? <Check className="w-4 h-4" /> : s.num}
@@ -279,10 +279,10 @@ export const CreateCampaignWizard: React.FC<Props> = ({
                             })}
                         </nav>
 
-                        <div className="px-5 py-4 border-t border-[#e4e6eb]">
+                        <div className="px-5 py-4 border-t border-ant-line">
                             <button
                                 onClick={() => onOpenChange(false)}
-                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-[13px] font-medium text-[#606770] hover:bg-[#f0f2f5] transition"
+                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-[13px] font-medium text-ant-muted hover:bg-ant-light transition"
                             >
                                 <X className="w-4 h-4" />
                                 Discard
@@ -291,7 +291,7 @@ export const CreateCampaignWizard: React.FC<Props> = ({
                     </div>
 
                     {/* ── Main content ────────────────────────── */}
-                    <div className="flex-1 flex flex-col min-w-0 bg-[#f0f2f5]">
+                    <div className="flex-1 flex flex-col min-w-0 bg-ant-light">
                         <ScrollArea className="flex-1">
                             <div className="max-w-[720px] mx-auto py-6 px-4">
                                 <AnimatePresence mode="wait">
@@ -335,11 +335,11 @@ export const CreateCampaignWizard: React.FC<Props> = ({
                         </ScrollArea>
 
                         {/* Footer */}
-                        <div className="px-6 py-4 border-t border-[#dddfe2] bg-white flex items-center justify-between">
+                        <div className="px-6 py-4 border-t border-ant-line bg-white flex items-center justify-between">
                             {stepIdx > 0 ? (
                                 <Button
                                     variant="outline"
-                                    className="rounded-lg border-[#ccd0d5] text-[#1c1e21]"
+                                    className="rounded-lg border-ant-line text-ant-ink"
                                     onClick={() => setStep(STEPS[stepIdx - 1].key)}
                                 >
                                     Back
@@ -378,7 +378,7 @@ export const CreateCampaignWizard: React.FC<Props> = ({
                     </div>
 
                     {/* ── Right preview ───────────────────────── */}
-                    <div className="w-[320px] bg-white border-l border-[#dddfe2] shrink-0 hidden xl:block">
+                    <div className="w-[320px] bg-white border-l border-ant-line shrink-0 hidden xl:block">
                         <div className="p-5 h-full">
                             <AdPreviewPanel
                                 ad={ad}

@@ -21,19 +21,19 @@ export const AccordionSection: React.FC<Props> = ({
     const [open, setOpen] = useState(defaultOpen);
 
     return (
-        <div className="bg-white rounded-2xl border border-[#dddfe2] shadow-[0_1px_2px_rgba(0,0,0,0.05)] overflow-hidden">
+        <div className="bg-white rounded-2xl border border-ant-line shadow-[0_1px_2px_rgba(0,0,0,0.05)] overflow-hidden">
             <button
                 type="button"
                 onClick={() => setOpen(!open)}
-                className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-[#f7f8fa] transition-colors"
+                className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-ant-line-soft transition-colors"
             >
                 <div className="flex items-center gap-3 min-w-0">
                     <div>
-                        <div className="text-[15px] font-semibold text-[#1c1e21] leading-tight">
+                        <div className="text-[15px] font-semibold text-ant-ink leading-tight">
                             {title}
                         </div>
                         {subtitle && (
-                            <div className="text-[12px] text-[#8a8d91] mt-0.5">{subtitle}</div>
+                            <div className="text-[12px] text-ant-mid mt-0.5">{subtitle}</div>
                         )}
                     </div>
                     {badge && <div className="ml-2">{badge}</div>}
@@ -42,7 +42,7 @@ export const AccordionSection: React.FC<Props> = ({
                     animate={{ rotate: open ? 180 : 0 }}
                     transition={{ duration: 0.2, ease: 'easeInOut' }}
                 >
-                    <ChevronDown className="w-5 h-5 text-[#606770]" />
+                    <ChevronDown className="w-5 h-5 text-ant-muted" />
                 </motion.div>
             </button>
             <AnimatePresence initial={false}>
@@ -54,7 +54,7 @@ export const AccordionSection: React.FC<Props> = ({
                         transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
                         className="overflow-hidden"
                     >
-                        <div className="px-5 pb-5 pt-1 border-t border-[#e4e6eb]">
+                        <div className="px-5 pb-5 pt-1 border-t border-ant-line">
                             {children}
                         </div>
                     </motion.div>
