@@ -241,325 +241,186 @@ const Zones = () => {
     }, [zones]);
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
-            <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-                <div className="relative p-8">
-                    <div className="flex flex-col gap-6">
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                            <div>
-                                <h1 className="text-4xl font-extralight text-gray-900 mb-2">Geographic Zones</h1>
-                                <p className="text-gray-500 font-light">
-                                    Manage delivery zones and regional territories.
-                                </p>
-                            </div>
-                            {isOwner && (
-                                <Button
-                                    onClick={() => setIsAddModalOpen(true)}
-                                    className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 flex items-center gap-2 shrink-0"
-                                >
-                                    <Plus className="w-5 h-5" />
-                                    Add New Zone
-                                </Button>
-                            )}
-                        </div>
-
-                        {!isLoading && zones != null && (
-                            <div className="space-y-3">
-                                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                                    <div className="rounded-2xl border border-brand-navy/[0.08] bg-white/95 px-5 py-4 shadow-sm">
-                                    <div className="flex items-start justify-between gap-3">
-                                        <div className="min-w-0">
-                                            <p className="text-[10px] font-bold uppercase tracking-wider text-brand-navy/45">
-                                                Total zones
-                                            </p>
-                                            <p className="mt-1 text-2xl font-bold tabular-nums text-brand-navy">
-                                                {zoneCatalogStats.totalZones}
-                                            </p>
-                                            <p className="mt-0.5 text-xs text-muted-foreground">Hubs / territories</p>
-                                        </div>
-                                        <Map className="h-9 w-9 shrink-0 text-brand-navy/15" aria-hidden />
-                                    </div>
-                                    </div>
-                                    <div className="rounded-2xl border border-brand-navy/[0.08] bg-white/95 px-5 py-4 shadow-sm">
-                                    <div className="flex items-start justify-between gap-3">
-                                        <div className="min-w-0">
-                                            <p className="text-[10px] font-bold uppercase tracking-wider text-brand-navy/45">
-                                                With cities
-                                            </p>
-                                            <p className="mt-1 text-2xl font-bold tabular-nums text-brand-navy">
-                                                {zoneCatalogStats.withCities}
-                                            </p>
-                                            <p className="mt-0.5 text-xs text-muted-foreground">
-                                                At least one city assigned
-                                            </p>
-                                        </div>
-                                        <CheckCircle2 className="h-9 w-9 shrink-0 text-emerald-600/25" aria-hidden />
-                                    </div>
-                                    </div>
-                                    <div className="rounded-2xl border border-brand-navy/[0.08] bg-white/95 px-5 py-4 shadow-sm">
-                                    <div className="flex items-start justify-between gap-3">
-                                        <div className="min-w-0">
-                                            <p className="text-[10px] font-bold uppercase tracking-wider text-brand-navy/45">
-                                                Empty zones
-                                            </p>
-                                            <p className="mt-1 text-2xl font-bold tabular-nums text-brand-navy">
-                                                {zoneCatalogStats.emptyZones}
-                                            </p>
-                                            <p className="mt-0.5 text-xs text-muted-foreground">No cities linked yet</p>
-                                        </div>
-                                        <Inbox className="h-9 w-9 shrink-0 text-brand-navy/15" aria-hidden />
-                                    </div>
-                                    </div>
-                                    <div className="rounded-2xl border border-brand-navy/[0.08] bg-white/95 px-5 py-4 shadow-sm">
-                                    <div className="flex items-start justify-between gap-3">
-                                        <div className="min-w-0">
-                                            <p className="text-[10px] font-bold uppercase tracking-wider text-brand-navy/45">
-                                                City assignments
-                                            </p>
-                                            <p className="mt-1 text-2xl font-bold tabular-nums text-brand-navy">
-                                                {zoneCatalogStats.cityLinks}
-                                            </p>
-                                            <p className="mt-0.5 text-xs text-muted-foreground">
-                                                Sum of cities across hubs
-                                            </p>
-                                        </div>
-                                        <MapPin className="h-9 w-9 shrink-0 text-brand-navy/15" aria-hidden />
-                                    </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="flex flex-col xl:flex-row flex-wrap gap-3 items-stretch xl:items-center">
-                            <div className="relative group flex-1 min-w-[200px] max-w-md">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
-                                <Input
-                                    placeholder="Search zone name..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="pl-11 h-12 rounded-2xl border-gray-100 bg-white"
-                                />
-                            </div>
-                            <Select value={filterCities} onValueChange={setFilterCities}>
-                                <SelectTrigger className="h-12 rounded-2xl border-gray-100 bg-white w-full sm:w-[200px] font-semibold">
-                                    <SelectValue placeholder="Cities" />
-                                </SelectTrigger>
-                                <SelectContent className="rounded-2xl">
-                                    <SelectItem value="all" className="font-semibold">
-                                        All zones
-                                    </SelectItem>
-                                    <SelectItem value="with_cities" className="font-medium">
-                                        Has cities
-                                    </SelectItem>
-                                    <SelectItem value="empty" className="font-medium">
-                                        No cities
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <Select value={sortBy} onValueChange={(v) => setSortBy(v as 'created' | 'name')}>
-                                <SelectTrigger className="h-12 rounded-2xl border-gray-100 bg-white w-full sm:w-[200px] font-semibold">
-                                    <SelectValue placeholder="Sort" />
-                                </SelectTrigger>
-                                <SelectContent className="rounded-2xl">
-                                    <SelectItem value="created" className="font-medium">
-                                        Newest first
-                                    </SelectItem>
-                                    <SelectItem value="name" className="font-medium">
-                                        Name A–Z
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <div className="flex rounded-2xl border border-gray-100 bg-white p-1 shrink-0">
-                                <Button
-                                    type="button"
-                                    variant={viewMode === 'table' ? 'default' : 'ghost'}
-                                    size="sm"
-                                    className={cn(
-                                        'rounded-xl h-10 px-4 gap-2 font-bold',
-                                        viewMode === 'table' && 'shadow-sm'
-                                    )}
-                                    onClick={() => setViewMode('table')}
-                                >
-                                    <Table2 className="w-4 h-4" />
-                                    Table
-                                </Button>
-                                <Button
-                                    type="button"
-                                    variant={viewMode === 'grid' ? 'default' : 'ghost'}
-                                    size="sm"
-                                    className={cn(
-                                        'rounded-xl h-10 px-4 gap-2 font-bold',
-                                        viewMode === 'grid' && 'shadow-sm'
-                                    )}
-                                    onClick={() => setViewMode('grid')}
-                                >
-                                    <LayoutGrid className="w-4 h-4" />
-                                    Grid
-                                </Button>
-                            </div>
-                        </div>
-                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                            Showing {visibleZones.length} of {filteredZones.length}
-                            {zones != null && filteredZones.length !== zones.length
-                                ? ` (${zones.length} total)`
-                                : ''}
-                        </p>
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+            {/* Header */}
+            <header className="space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Geographic Zones</h1>
+                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Delivery zones and regional territories</p>
                     </div>
+                    {isOwner && (
+                        <Button
+                            onClick={() => setIsAddModalOpen(true)}
+                            className="h-8 rounded-md text-[11px] font-semibold bg-brand-navy hover:bg-brand-navy/90 text-white gap-1.5 px-3"
+                        >
+                            <Plus className="w-3.5 h-3.5" />
+                            Add Zone
+                        </Button>
+                    )}
                 </div>
+            </header>
+
+            {/* KPI Strip */}
+            {!isLoading && zones != null && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    {[
+                        { label: 'Total zones', value: zoneCatalogStats.totalZones, accent: '#3b5e5e' },
+                        { label: 'With cities', value: zoneCatalogStats.withCities, accent: '#059669' },
+                        { label: 'Empty zones', value: zoneCatalogStats.emptyZones, accent: '#d97706' },
+                        { label: 'City links', value: zoneCatalogStats.cityLinks, accent: '#3b5e5e' },
+                    ].map((kpi) => (
+                        <div key={kpi.label} className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
+                            <span className="w-[3px] self-stretch rounded-full shrink-0" style={{ background: kpi.accent }} />
+                            <div className="flex-1 min-w-0">
+                                <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{kpi.label}</p>
+                                <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{kpi.value}</p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Filters */}
+            <div className="flex flex-wrap gap-2 items-center">
+                <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                    <Input
+                        placeholder="Search zone..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-7 h-8 rounded-md border-gray-200 bg-white text-[11px] w-44"
+                    />
+                </div>
+                <Select value={filterCities} onValueChange={setFilterCities}>
+                    <SelectTrigger className="h-8 rounded-md border-gray-200 bg-white text-[11px] w-[130px]">
+                        <SelectValue placeholder="Cities" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all" className="text-[11px]">All zones</SelectItem>
+                        <SelectItem value="with_cities" className="text-[11px]">Has cities</SelectItem>
+                        <SelectItem value="empty" className="text-[11px]">No cities</SelectItem>
+                    </SelectContent>
+                </Select>
+                <Select value={sortBy} onValueChange={(v) => setSortBy(v as 'created' | 'name')}>
+                    <SelectTrigger className="h-8 rounded-md border-gray-200 bg-white text-[11px] w-[120px]">
+                        <SelectValue placeholder="Sort" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="created" className="text-[11px]">Newest first</SelectItem>
+                        <SelectItem value="name" className="text-[11px]">Name A–Z</SelectItem>
+                    </SelectContent>
+                </Select>
+                <div className="flex items-center gap-0.5 bg-gray-100 p-0.5 rounded-md ml-auto">
+                    <button
+                        onClick={() => setViewMode('table')}
+                        className={cn("h-7 px-2.5 rounded text-[10px] font-semibold flex items-center gap-1 transition-all", viewMode === 'table' ? "bg-white text-brand-navy shadow-sm" : "text-gray-500 hover:text-gray-700")}
+                    >
+                        <Table2 className="w-3 h-3" /> Table
+                    </button>
+                    <button
+                        onClick={() => setViewMode('grid')}
+                        className={cn("h-7 px-2.5 rounded text-[10px] font-semibold flex items-center gap-1 transition-all", viewMode === 'grid' ? "bg-white text-brand-navy shadow-sm" : "text-gray-500 hover:text-gray-700")}
+                    >
+                        <LayoutGrid className="w-3 h-3" /> Grid
+                    </button>
+                </div>
+                <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em]">
+                    {visibleZones.length} / {filteredZones.length}
+                </p>
             </div>
 
             {isLoading ? (
-                <div className="flex flex-col items-center justify-center py-32 space-y-4">
-                    <div className="w-12 h-12 rounded-full border-4 border-brand-navy/10 border-t-brand-navy animate-spin" />
-                    <p className="text-muted-foreground font-bold animate-pulse">Loading zones...</p>
+                <div className="flex items-center justify-center py-20">
+                    <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
                 </div>
             ) : filteredZones.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-32 space-y-4 bg-white/50 backdrop-blur-sm rounded-[40px] shadow-sm border border-brand-navy/[0.03]">
-                    <div className="w-20 h-20 bg-brand-navy/[0.04] rounded-full flex items-center justify-center">
-                        <MapPin className="w-10 h-10 text-brand-navy/20" />
-                    </div>
-                    <div className="text-center">
-                        <h3 className="text-xl font-bold text-brand-navy">No zones match</h3>
-                        <p className="text-muted-foreground">Adjust filters or add a zone</p>
-                    </div>
+                <div className="flex flex-col items-center justify-center py-10 rounded-xl border border-dashed border-gray-200 bg-white">
+                    <MapPin className="w-6 h-6 text-gray-300 mb-2" />
+                    <p className="text-[11px] font-medium text-gray-500">No zones match</p>
                 </div>
             ) : viewMode === 'table' ? (
-                <Card className="border-none shadow-sm rounded-[32px] overflow-hidden bg-white min-w-0">
-                    <CardContent className="p-0 min-w-0">
-                        <div className="max-h-[min(70vh,720px)] overflow-y-auto overflow-x-auto overscroll-x-contain">
-                            <table className="w-full min-w-[640px] table-fixed caption-bottom text-sm border-collapse">
-                                <colgroup>
-                                    {isOwner && <col style={{ width: 76 }} />}
-                                    <col />
-                                    <col style={{ width: '22%' }} />
-                                    <col style={{ width: '26%' }} />
-                                </colgroup>
-                                <thead>
-                                    <tr className="border-b border-white/15 bg-brand-navy">
-                                        {isOwner && (
-                                            <th
-                                                scope="col"
-                                                className="sticky top-0 left-0 z-30 h-12 w-[76px] min-w-[76px] max-w-[76px] whitespace-nowrap px-0 py-2 text-center align-bottom font-bold text-[9px] uppercase leading-tight tracking-wide text-brand-white bg-brand-navy shadow-[4px_0_12px_-4px_rgba(0,0,0,0.25)] border-r border-white/15"
-                                            >
-                                                Actions
-                                            </th>
-                                        )}
-                                        <th
-                                            scope="col"
-                                            className={cn(
-                                                'sticky top-0 z-20 h-12 px-3 py-2 text-left align-bottom font-bold text-brand-white bg-brand-navy',
-                                                isOwner && 'shadow-[4px_0_12px_-4px_rgba(0,0,0,0.12)]'
-                                            )}
+                <div className="rounded-xl border border-gray-100 bg-white overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full min-w-[480px] border-collapse">
+                            <thead>
+                                <tr className="border-b border-gray-100">
+                                    {isOwner && <th className="px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold w-20">Actions</th>}
+                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Zone</th>
+                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Cities</th>
+                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold hidden sm:table-cell">Created</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                                {visibleZones.map((zone) => {
+                                    const n = zoneCityCount(zone);
+                                    return (
+                                        <tr
+                                            key={zone.id}
+                                            role="button"
+                                            tabIndex={0}
+                                            onClick={() => setSelectedZoneCities(zone)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' || e.key === ' ') {
+                                                    e.preventDefault();
+                                                    setSelectedZoneCities(zone);
+                                                }
+                                            }}
+                                            className="cursor-pointer hover:bg-gray-50/50 transition-colors"
                                         >
-                                            Zone
-                                        </th>
-                                        <th
-                                            scope="col"
-                                            className="sticky top-0 z-20 h-12 px-3 py-2 text-left align-bottom font-bold text-brand-white bg-brand-navy"
-                                        >
-                                            Cities
-                                        </th>
-                                        <th
-                                            scope="col"
-                                            className="sticky top-0 z-20 h-12 px-3 py-2 text-left align-bottom font-bold text-brand-white bg-brand-navy"
-                                        >
-                                            Created
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {visibleZones.map((zone) => {
-                                        const n = zoneCityCount(zone);
-                                        return (
-                                            <tr
-                                                key={zone.id}
-                                                role="button"
-                                                tabIndex={0}
-                                                onClick={() => setSelectedZoneCities(zone)}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter' || e.key === ' ') {
-                                                        e.preventDefault();
-                                                        setSelectedZoneCities(zone);
-                                                    }
-                                                }}
-                                                className="group cursor-pointer border-b border-brand-navy/[0.04] transition-colors hover:bg-brand-navy/[0.025]"
-                                            >
-                                                {isOwner && (
-                                                    <td
-                                                        className="sticky left-0 z-10 w-[76px] min-w-[76px] max-w-[76px] whitespace-nowrap align-middle p-0 bg-white group-hover:bg-brand-navy/[0.03] border-r border-brand-navy/[0.05] shadow-[4px_0_12px_-6px_rgba(0,0,0,0.08)]"
-                                                        onClick={(e) => e.stopPropagation()}
-                                                    >
-                                                        <div className="flex h-full flex-row items-center justify-center gap-px">
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                type="button"
-                                                                onClick={() => setEditingZone(zone)}
-                                                                className="h-8 w-[34px] min-w-[34px] shrink-0 px-0 text-brand-navy/50 hover:text-brand-navy hover:bg-brand-navy/10 rounded-md"
-                                                                title="Edit"
-                                                            >
-                                                                <Pencil className="h-4 w-4" />
-                                                            </Button>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    if (
-                                                                        confirm(
-                                                                            'Are you sure you want to delete this zone?'
-                                                                        )
-                                                                    ) {
-                                                                        deleteZoneMutation.mutate(zone.id);
-                                                                    }
-                                                                }}
-                                                                className="h-8 w-[34px] min-w-[34px] shrink-0 px-0 text-brand-navy/40 hover:text-red-600 hover:bg-red-50 rounded-md"
-                                                                title="Delete"
-                                                            >
-                                                                <Trash2 className="h-4 w-4" />
-                                                            </Button>
-                                                        </div>
-                                                    </td>
-                                                )}
-                                                <td className="align-middle px-3 py-2 min-w-0">
-                                                    <span className="font-bold text-brand-navy text-sm leading-snug line-clamp-2 break-words">
-                                                        {zone.name}
-                                                    </span>
-                                                </td>
-                                                <td className="align-middle px-3 py-2 min-w-0">
-                                                    <div className="inline-flex items-center gap-1.5 rounded-lg bg-brand-navy/[0.04] px-2 py-1 text-[11px] font-bold text-brand-navy/70">
-                                                        <Building2 className="h-3.5 w-3.5 shrink-0" />
-                                                        <span>{n}</span>
+                                            {isOwner && (
+                                                <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                                                    <div className="flex items-center gap-0.5 justify-center">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            type="button"
+                                                            onClick={() => setEditingZone(zone)}
+                                                            className="h-7 w-7 p-0 rounded text-gray-400 hover:text-brand-navy hover:bg-gray-100"
+                                                        >
+                                                            <Pencil className="h-3 w-3" />
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            type="button"
+                                                            onClick={() => { if (confirm('Delete this zone?')) deleteZoneMutation.mutate(zone.id); }}
+                                                            className="h-7 w-7 p-0 rounded text-gray-400 hover:text-red-600 hover:bg-red-50"
+                                                        >
+                                                            <Trash2 className="h-3 w-3" />
+                                                        </Button>
                                                     </div>
                                                 </td>
-                                                <td className="align-middle px-3 py-2 min-w-0 text-xs font-medium text-brand-navy/60">
-                                                    {zone.created_at
-                                                        ? format(new Date(zone.created_at), 'MMM d, yyyy')
-                                                        : '—'}
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
+                                            )}
+                                            <td className="px-3 py-2">
+                                                <span className="text-[11px] font-semibold text-brand-navy">{zone.name}</span>
+                                            </td>
+                                            <td className="px-3 py-2">
+                                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-brand-navy/70 tabular-nums">
+                                                    <Building2 className="h-3 w-3 shrink-0" />
+                                                    {n}
+                                                </span>
+                                            </td>
+                                            <td className="px-3 py-2 text-[11px] text-brand-navy/60 tabular-nums hidden sm:table-cell">
+                                                {zone.created_at ? format(new Date(zone.created_at), 'MMM d, yyyy') : '—'}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                    {hasMore && (
+                        <div className="flex justify-center border-t border-gray-100 p-3">
+                            <Button variant="outline" className="h-8 rounded-md text-[11px] font-semibold" onClick={() => setVisibleLimit((x) => x + 200)}>
+                                Load more ({hiddenCount} left)
+                            </Button>
                         </div>
-                        {hasMore && (
-                            <div className="flex justify-center border-t border-brand-navy/[0.06] bg-brand-navy/[0.02] p-4">
-                                <Button
-                                    variant="outline"
-                                    className="rounded-xl font-bold"
-                                    onClick={() => setVisibleLimit((x) => x + 200)}
-                                >
-                                    Load more ({hiddenCount} left)
-                                </Button>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
+                    )}
+                </div>
             ) : (
                 <>
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                         {visibleZones.map((zone) => (
                             <ZoneCard
                                 key={zone.id}
@@ -567,21 +428,13 @@ const Zones = () => {
                                 isOwner={isOwner}
                                 onClick={() => setSelectedZoneCities(zone)}
                                 onEdit={() => setEditingZone(zone)}
-                                onDelete={() => {
-                                    if (confirm('Are you sure you want to delete this zone?')) {
-                                        deleteZoneMutation.mutate(zone.id);
-                                    }
-                                }}
+                                onDelete={() => { if (confirm('Delete this zone?')) deleteZoneMutation.mutate(zone.id); }}
                             />
                         ))}
                     </div>
                     {hasMore && (
                         <div className="flex justify-center pt-2">
-                            <Button
-                                variant="outline"
-                                className="rounded-xl font-bold"
-                                onClick={() => setVisibleLimit((x) => x + 200)}
-                            >
+                            <Button variant="outline" className="h-8 rounded-md text-[11px] font-semibold" onClick={() => setVisibleLimit((x) => x + 200)}>
                                 Load more ({hiddenCount} left)
                             </Button>
                         </div>
@@ -620,58 +473,47 @@ const Zones = () => {
 
 const ZoneCard = ({ zone, isOwner, onClick, onEdit, onDelete }: { zone: ZoneRow, isOwner: boolean, onClick: () => void, onEdit: () => void, onDelete: () => void }) => {
     return (
-        <Card
+        <div
             onClick={onClick}
-            className="group relative cursor-pointer overflow-hidden border border-brand-white/10 bg-white/50 backdrop-blur-sm hover:shadow-2xl hover:shadow-brand-navy/5 transition-all duration-300 rounded-[32px] p-6 hover:-translate-y-1"
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter') onClick(); }}
+            className="rounded-xl border border-gray-100 bg-white p-3.5 cursor-pointer hover:bg-gray-50/50 transition-colors"
         >
-            <div className="flex items-start justify-between mb-4">
-                <div className="w-12 h-12 rounded-2xl bg-brand-navy/[0.04] flex items-center justify-center text-brand-navy group-hover:bg-brand-navy group-hover:text-brand-white transition-all duration-500">
-                    <Map className="w-6 h-6" />
+            <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-2">
+                    <Map className="w-4 h-4 text-brand-navy/40 shrink-0" />
+                    <span className="text-[12px] font-semibold text-brand-navy leading-tight">{zone.name}</span>
                 </div>
                 {isOwner && (
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" className="h-10 w-10 rounded-full p-0 hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity">
-                                <MoreVertical className="h-5 w-5 text-muted-foreground" />
+                            <Button variant="ghost" className="h-7 w-7 p-0 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100">
+                                <MoreVertical className="h-3.5 w-3.5" />
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-xl">
-                            <DropdownMenuItem onClick={onEdit} className="rounded-xl p-3 cursor-pointer">
-                                <Edit2 className="w-4 h-4 mr-3" />
-                                Edit Zone
+                        <DropdownMenuContent align="end" className="rounded-lg border border-gray-200 shadow-md p-1 min-w-[120px]">
+                            <DropdownMenuItem onClick={onEdit} className="rounded px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer gap-2">
+                                <Edit2 className="w-3 h-3" /> Edit
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={onDelete} className="rounded-xl p-3 cursor-pointer text-brand-red hover:bg-brand-red/5">
-                                <Trash2 className="w-4 h-4 mr-3" />
-                                Delete Zone
+                            <DropdownMenuItem onClick={onDelete} className="rounded px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer gap-2 text-red-600 focus:text-red-600 focus:bg-red-50">
+                                <Trash2 className="w-3 h-3" /> Delete
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
                 )}
             </div>
-
-            <div className="space-y-2">
-                <h3 className="text-xl font-bold text-brand-navy group-hover:translate-x-1 transition-transform duration-300">
-                    {zone.name}
-                </h3>
-                <div className="flex items-center gap-2 text-muted-foreground">
-                    <Calendar className="w-3.5 h-3.5" />
-                    <span className="text-xs font-medium">
-                        Added {zone.created_at ? format(new Date(zone.created_at), 'MMM dd, yyyy') : 'N/A'}
-                    </span>
-                </div>
+            <div className="flex items-center justify-between">
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-brand-navy/60 tabular-nums">
+                    <Building2 className="w-3 h-3" />
+                    {zone.master_cities?.length || 0} cities
+                </span>
+                <span className="text-[10px] text-gray-400">
+                    {zone.created_at ? format(new Date(zone.created_at), 'MMM d, yyyy') : '—'}
+                </span>
             </div>
-
-            <div className="mt-6 flex items-center justify-between">
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-brand-navy/[0.04] text-brand-navy border border-brand-navy/[0.06]">
-                    <Building2 className="w-3.5 h-3.5" />
-                    <span className="text-xs font-bold leading-none">{zone.master_cities?.length || 0} Cities</span>
-                </div>
-                <div className="text-[10px] font-bold uppercase tracking-widest text-brand-navy/40 group-hover:text-brand-navy transition-colors">
-                    Territory
-                </div>
-            </div>
-        </Card>
+        </div>
     );
 };
 
@@ -704,25 +546,22 @@ const ZoneModal = ({ isOpen, onClose, onSubmit, initialData, loading, title }: Z
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="max-w-md p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden">
+            <DialogContent className="max-w-sm p-0 border border-gray-100 bg-white rounded-xl shadow-md overflow-hidden gap-0">
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)}>
-                        <DialogHeader className="p-8 pb-4">
-                            <DialogTitle className="text-2xl font-bold text-brand-navy">{title}</DialogTitle>
-                            <DialogDescription className="text-muted-foreground mt-1">
-                                Define geographical boundaries for this zone.
-                            </DialogDescription>
+                        <DialogHeader className="px-5 pt-5 pb-3 border-b border-gray-100">
+                            <DialogTitle className="text-[14px] font-semibold text-brand-navy">{title}</DialogTitle>
                         </DialogHeader>
 
-                        <div className="p-8 pt-0 space-y-6">
+                        <div className="px-5 py-4">
                             <FormField
                                 control={form.control}
                                 name="name"
                                 render={({ field }) => (
-                                    <FormItem className="space-y-2">
-                                        <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Zone Name</FormLabel>
+                                    <FormItem className="space-y-1.5">
+                                        <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Zone Name</FormLabel>
                                         <FormControl>
-                                            <Input placeholder="E.g. Northern Region" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner" />
+                                            <Input placeholder="E.g. Northern Region" {...field} className="h-9 rounded-md border-gray-200 text-sm" />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -730,21 +569,12 @@ const ZoneModal = ({ isOpen, onClose, onSubmit, initialData, loading, title }: Z
                             />
                         </div>
 
-                        <DialogFooter className="p-8 pt-0">
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                onClick={onClose}
-                                className="rounded-xl h-12 px-6 font-bold hover:bg-muted"
-                            >
+                        <DialogFooter className="px-5 py-3 border-t border-gray-100 gap-2">
+                            <Button type="button" variant="ghost" onClick={onClose} className="h-8 px-3 text-[11px] font-semibold text-gray-500">
                                 Cancel
                             </Button>
-                            <Button
-                                type="submit"
-                                disabled={loading}
-                                className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-xl h-12 px-8 font-bold shadow-lg shadow-brand-navy/20 transition-all active:scale-95"
-                            >
-                                {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                            <Button type="submit" disabled={loading} className="h-8 px-4 text-[11px] font-semibold bg-brand-navy hover:bg-brand-navy/90 text-white rounded-md gap-1.5">
+                                {loading && <Loader2 className="w-3 h-3 animate-spin" />}
                                 {initialData ? 'Save Changes' : 'Create Zone'}
                             </Button>
                         </DialogFooter>
@@ -789,85 +619,65 @@ const ZoneCitiesModal = ({ zone, isOpen, onClose, isOwner }: { zone: ZoneRow, is
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="max-w-2xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-                <DialogHeader className="p-8 pb-4 shrink-0">
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 rounded-xl bg-brand-navy flex items-center justify-center text-brand-white shadow-lg shadow-brand-navy/20">
-                            <Building2 className="w-5 h-5" />
-                        </div>
-                        <div>
-                            <DialogTitle className="text-2xl font-bold text-brand-navy">{zone?.name}</DialogTitle>
-                            <DialogDescription>Manage cities covered by this hub</DialogDescription>
-                        </div>
-                    </div>
-                    <div className="relative mt-4">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <DialogContent className="max-w-lg p-0 border border-gray-100 bg-white rounded-xl shadow-md overflow-hidden flex flex-col max-h-[90vh] gap-0">
+                <DialogHeader className="px-5 pt-5 pb-3 border-b border-gray-100 shrink-0">
+                    <DialogTitle className="text-[14px] font-semibold text-brand-navy">{zone?.name}</DialogTitle>
+                    <div className="relative mt-2">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
                         <Input
                             placeholder="Search cities..."
                             value={citySearch}
                             onChange={(e) => setCitySearch(e.target.value)}
-                            className="pl-11 h-12 bg-brand-navy/[0.04] border-none rounded-2xl focus-visible:ring-1 focus-visible:ring-brand-navy/20 transition-all font-medium"
+                            className="pl-7 h-8 rounded-md border-gray-200 text-[11px]"
                         />
                     </div>
                 </DialogHeader>
 
-                <div className="overflow-y-auto p-8 pt-4 space-y-8 flex-1">
-                    {/* Current Cities */}
-                    <div className="space-y-4">
-                        <h4 className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40 px-2">
-                            Assigned to this zone ({currentZoneCities.length})
-                        </h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="overflow-y-auto p-4 space-y-4 flex-1">
+                    <div>
+                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400 mb-2">
+                            Assigned ({currentZoneCities.length})
+                        </p>
+                        <div className="space-y-1">
                             {filteredCurrent.length > 0 ? filteredCurrent.map(city => (
-                                <div key={city.id} className="group/item flex items-center justify-between p-4 rounded-2xl bg-brand-navy/[0.03] border border-transparent hover:border-brand-navy/10 transition-all">
-                                    <span className="font-bold text-brand-navy">{city.name}</span>
+                                <div key={city.id} className="flex items-center justify-between px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-100">
+                                    <span className="text-[11px] font-semibold text-brand-navy">{city.name}</span>
                                     {isOwner && (
-                                        <Button
-                                            size="icon"
-                                            variant="ghost"
-                                            onClick={() => updateCityZoneMutation.mutate({ cityId: city.id, zoneId: null })}
-                                            className="h-8 w-8 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50"
-                                        >
-                                            <X className="w-4 h-4" />
+                                        <Button size="icon" variant="ghost" onClick={() => updateCityZoneMutation.mutate({ cityId: city.id, zoneId: null })} className="h-6 w-6 p-0 rounded text-gray-400 hover:text-red-500 hover:bg-red-50">
+                                            <X className="w-3 h-3" />
                                         </Button>
                                     )}
                                 </div>
                             )) : (
-                                <p className="text-sm text-muted-foreground px-2 pt-2 italic">No cities assigned yet.</p>
+                                <p className="text-[11px] text-gray-400 px-1 py-2">No cities assigned yet.</p>
                             )}
                         </div>
                     </div>
 
-                    {/* Available Cities */}
-                    <div className="space-y-4 pt-4">
-                        <h4 className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40 px-2">
-                            Available Cities (Unassigned)
-                        </h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400 mb-2">
+                            Unassigned
+                        </p>
+                        <div className="space-y-1">
                             {filteredAvailable.length > 0 ? filteredAvailable.map(city => (
-                                <div key={city.id} className="group/item flex items-center justify-between p-4 rounded-2xl bg-brand-white border border-brand-navy/[0.06] hover:border-brand-navy/20 transition-all">
-                                    <span className="font-bold text-brand-navy/70">{city.name}</span>
+                                <div key={city.id} className="flex items-center justify-between px-2.5 py-1.5 rounded-md border border-gray-100 bg-white">
+                                    <span className="text-[11px] font-medium text-brand-navy/70">{city.name}</span>
                                     {isOwner && (
-                                        <Button
-                                            size="icon"
-                                            variant="ghost"
-                                            onClick={() => updateCityZoneMutation.mutate({ cityId: city.id, zoneId: zone.id })}
-                                            className="h-8 w-8 rounded-lg text-muted-foreground hover:text-green-600 hover:bg-green-50"
-                                        >
-                                            <Plus className="w-4 h-4" />
+                                        <Button size="icon" variant="ghost" onClick={() => updateCityZoneMutation.mutate({ cityId: city.id, zoneId: zone.id })} className="h-6 w-6 p-0 rounded text-gray-400 hover:text-emerald-600 hover:bg-emerald-50">
+                                            <Plus className="w-3 h-3" />
                                         </Button>
                                     )}
                                 </div>
                             )) : (
-                                <p className="text-sm text-muted-foreground px-2 pt-2 italic">No unassigned cities available.</p>
+                                <p className="text-[11px] text-gray-400 px-1 py-2">No unassigned cities available.</p>
                             )}
                         </div>
                     </div>
                 </div>
 
-                <div className="p-8 pb-10 border-t border-brand-navy/[0.04] shrink-0 bg-brand-white">
-                    <Button onClick={onClose} variant="ghost" className="w-full h-12 rounded-2xl font-bold bg-brand-navy/[0.04] hover:bg-brand-navy/[0.08] text-brand-navy transition-all">
-                        Close Management
+                <div className="px-5 py-3 border-t border-gray-100 shrink-0 flex justify-end">
+                    <Button onClick={onClose} variant="ghost" className="h-8 px-3 text-[11px] font-semibold text-gray-500">
+                        Close
                     </Button>
                 </div>
             </DialogContent>

@@ -11,8 +11,6 @@ import {
     User as UserIcon,
     Loader2,
     Upload,
-    Check,
-    X,
 } from 'lucide-react';
 import {
     Card,
@@ -174,59 +172,49 @@ const OwnerUsers = () => {
     );
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
             {/* Header */}
-            <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-                <div className="relative p-8">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div>
-                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Owner Users</h1>
-                            <p className="text-gray-500 font-light">Manage accounts with owner-level access.</p>
+            <header className="space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Owner Users</h1>
+                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Accounts with owner-level platform access</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="relative">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                            <Input
+                                placeholder="Search by name, username or email..."
+                                className="pl-7 h-8 rounded-md border-gray-200 bg-white text-[11px] w-56"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
                         </div>
                         <Button
                             onClick={() => setIsModalOpen(true)}
-                            className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group"
+                            className="h-8 rounded-md text-[11px] font-semibold bg-brand-navy hover:bg-brand-navy/90 text-white gap-1.5 px-3"
                         >
-                            <Plus className="w-5 h-5 mr-3 group-hover:rotate-90 transition-transform duration-500" />
+                            <Plus className="w-3.5 h-3.5" />
                             Add Owner
                         </Button>
                     </div>
                 </div>
-            </div>
-
-            {/* Search */}
-            <Card className="border-none shadow-sm bg-white/50 backdrop-blur-sm rounded-[24px]">
-                <CardContent className="p-4">
-                    <div className="relative">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                        <Input
-                            placeholder="Search by name, username or email..."
-                            className="pl-12 bg-transparent border-none text-lg h-12 focus-visible:ring-0"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
-                    </div>
-                </CardContent>
-            </Card>
+            </header>
 
             {/* Grid */}
             {isLoading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {[1, 2, 3].map((i) => (
-                        <Card key={i} className="h-[240px] animate-pulse bg-muted rounded-[32px] border-none" />
+                        <div key={i} className="h-36 rounded-xl bg-white border border-gray-100 animate-pulse" />
                     ))}
                 </div>
             ) : filteredUsers?.length === 0 ? (
-                <div className="text-center py-20 bg-white/50 backdrop-blur-sm rounded-[32px]">
-                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-muted mb-4">
-                        <UserIcon className="w-10 h-10 text-muted-foreground" />
-                    </div>
-                    <h3 className="text-xl font-bold">No owner users found</h3>
-                    <p className="text-muted-foreground">Add a new owner account to get started.</p>
+                <div className="flex flex-col items-center justify-center py-10 rounded-xl border border-dashed border-gray-200 bg-white">
+                    <UserIcon className="w-6 h-6 text-gray-300 mb-2" />
+                    <p className="text-[11px] font-medium text-gray-500">No owner users found</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {filteredUsers?.map((user) => (
                         <OwnerUserCard
                             key={user.id}
@@ -267,81 +255,61 @@ const OwnerUsers = () => {
 };
 
 const OwnerUserCard = ({ user, onEdit, onDelete }: { user: OwnerUserRow; onEdit: () => void; onDelete: () => void }) => (
-    <Card className="group relative overflow-hidden border-none bg-white/50 backdrop-blur-sm hover:shadow-2xl transition-all duration-300 rounded-[32px]">
-        <CardHeader className="flex flex-row items-start justify-between pb-2">
-            <div className="flex items-center gap-4">
-                <Avatar className="h-14 w-14 border-2 border-brand-white shadow-sm">
+    <div className="rounded-xl border border-gray-100 bg-white p-3.5 space-y-3">
+        <div className="flex items-start justify-between">
+            <div className="flex items-center gap-2.5">
+                <Avatar className="h-8 w-8 rounded-md">
                     <AvatarImage src={user.avatar_url || ''} />
-                    <AvatarFallback className="bg-brand-navy text-brand-white text-lg font-bold">
+                    <AvatarFallback className="rounded-md bg-brand-navy text-white text-[10px] font-semibold">
                         {user.name.substring(0, 2).toUpperCase()}
                     </AvatarFallback>
                 </Avatar>
-                <div className="space-y-0.5">
-                    <CardTitle className="text-xl font-bold group-hover:text-brand-navy transition-colors">
-                        {user.name}
-                    </CardTitle>
-                    <CardDescription>
-                        <Badge
-                            variant="secondary"
-                            className="rounded-lg text-[10px] uppercase font-bold px-2 py-0.5 bg-amber-500/10 text-amber-600"
-                        >
-                            owner
-                        </Badge>
-                    </CardDescription>
+                <div className="min-w-0">
+                    <p className="text-[12px] font-semibold text-brand-navy truncate leading-tight">{user.name}</p>
+                    <Badge
+                        variant="secondary"
+                        className="rounded text-[9px] uppercase font-semibold px-1.5 py-0 h-4 bg-amber-100 text-amber-700 border-0 mt-0.5"
+                    >
+                        owner
+                    </Badge>
                 </div>
             </div>
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button
-                        variant="ghost"
-                        className="h-10 w-10 rounded-full p-0 hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                        <MoreVertical className="h-5 w-5 text-muted-foreground" />
+                    <Button variant="ghost" size="icon" className="h-7 w-7 p-0 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100">
+                        <MoreVertical className="h-3.5 w-3.5" />
                     </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-xl">
-                    <DropdownMenuItem onClick={onEdit} className="rounded-xl p-3 cursor-pointer">
-                        <Edit2 className="w-4 h-4 mr-3" />
-                        Edit Account
+                <DropdownMenuContent align="end" className="rounded-lg border border-gray-200 shadow-md p-1 min-w-[130px]">
+                    <DropdownMenuItem onClick={onEdit} className="rounded px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer gap-2">
+                        <Edit2 className="w-3 h-3" /> Edit Account
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                        onClick={onDelete}
-                        className="rounded-xl p-3 cursor-pointer text-brand-red hover:bg-brand-red/5"
-                    >
-                        <Trash2 className="w-4 h-4 mr-3" />
-                        Delete Account
+                    <DropdownMenuItem onClick={onDelete} className="rounded px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer gap-2 text-red-600 focus:text-red-600 focus:bg-red-50">
+                        <Trash2 className="w-3 h-3" /> Delete Account
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
-        </CardHeader>
-        <CardContent className="space-y-3 pt-2">
-            <div className="flex flex-col p-3 rounded-2xl bg-muted/30">
-                <span className="text-muted-foreground text-[10px] font-bold uppercase tracking-wider">Username</span>
-                <span className="font-semibold text-brand-navy truncate">@{user.username}</span>
+        </div>
+
+        <div className="space-y-1.5">
+            <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-gray-50 border border-gray-100">
+                <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400 shrink-0">@</span>
+                <span className="text-[11px] font-semibold text-brand-navy truncate">{user.username}</span>
             </div>
-            <div className="flex flex-col p-3 rounded-2xl bg-brand-navy/5 border border-brand-navy/10">
-                <div className="flex items-center gap-2 mb-1">
-                    <Mail className="w-3.5 h-3.5 text-brand-navy/60" />
-                    <span className="text-muted-foreground text-[10px] font-bold uppercase tracking-wider">Email</span>
-                </div>
-                <span className="font-medium text-brand-navy truncate">{user.email}</span>
+            <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-gray-50 border border-gray-100">
+                <Mail className="w-3 h-3 text-gray-400 shrink-0" />
+                <span className="text-[11px] font-medium text-brand-navy/70 truncate">{user.email}</span>
             </div>
-        </CardContent>
-        <CardFooter className="pt-0 pb-6 flex items-center justify-end">
-            <div className="flex items-center gap-2">
-                <div
-                    className={cn(
-                        'w-2 h-2 rounded-full',
-                        user.active ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]' : 'bg-muted'
-                    )}
-                />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                    {user.active ? 'Active' : 'Inactive'}
-                </span>
-            </div>
-        </CardFooter>
-    </Card>
+        </div>
+
+        <div className="pt-2 border-t border-gray-50 flex items-center gap-1.5">
+            <div className={cn('w-1.5 h-1.5 rounded-full shrink-0', user.active ? 'bg-emerald-500' : 'bg-gray-300')} />
+            <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400">
+                {user.active ? 'Active' : 'Inactive'}
+            </span>
+        </div>
+    </div>
 );
 
 type OwnerUserModalProps = {
@@ -424,26 +392,24 @@ const OwnerUserModal = ({ isOpen, onClose, onSubmit, initialData, loading, title
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="max-w-xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden">
+            <DialogContent className="max-w-lg p-0 border border-slate-200/60 bg-white rounded-2xl shadow-xl overflow-hidden gap-0">
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleFormSubmit)} className="flex flex-col">
-                        <DialogHeader className="p-8 pb-4 border-b border-brand-navy/5">
-                            <DialogTitle className="text-3xl font-bold text-brand-navy">{title}</DialogTitle>
-                            <DialogDescription className="text-muted-foreground mt-1">
-                                Role is locked to <span className="font-bold text-amber-600">Owner</span>.
+                        <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-100">
+                            <DialogTitle className="text-[14px] font-semibold text-brand-navy">{title}</DialogTitle>
+                            <DialogDescription className="text-[11px] text-gray-500 mt-0.5">
+                                Role is locked to <span className="font-semibold text-amber-600">Owner</span>.
                             </DialogDescription>
                         </DialogHeader>
 
-                        <div className="p-8 space-y-6">
+                        <div className="px-6 py-5 space-y-4">
                             {/* Avatar */}
-                            <div className="flex items-center gap-6">
+                            <div className="flex items-center gap-3">
                                 <div
                                     {...getRootProps()}
                                     className={cn(
-                                        'relative group flex items-center justify-center border-2 border-dashed rounded-full w-20 h-20 shrink-0 cursor-pointer transition-all overflow-hidden',
-                                        isDragActive
-                                            ? 'border-brand-blue bg-brand-blue/5'
-                                            : 'border-brand-navy/10 hover:border-brand-navy/30',
+                                        'relative group flex items-center justify-center border-2 border-dashed rounded-full w-14 h-14 shrink-0 cursor-pointer transition-colors overflow-hidden',
+                                        isDragActive ? 'border-blue-400 bg-blue-50' : 'border-slate-200 hover:border-slate-300',
                                         avatarPreview && 'border-transparent'
                                     )}
                                 >
@@ -451,36 +417,30 @@ const OwnerUserModal = ({ isOpen, onClose, onSubmit, initialData, loading, title
                                     {avatarPreview ? (
                                         <>
                                             <img src={avatarPreview} alt="" className="w-full h-full object-cover" />
-                                            <div className="absolute inset-0 bg-brand-navy/40 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <Upload className="w-5 h-5 text-white" />
+                                            <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Upload className="w-4 h-4 text-white" />
                                             </div>
                                         </>
                                     ) : (
-                                        <Upload className="w-5 h-5 text-brand-navy/30" />
+                                        <Upload className="w-4 h-4 text-slate-400" />
                                     )}
                                 </div>
                                 <div>
-                                    <p className="text-sm font-bold text-brand-navy">Profile Photo</p>
-                                    <p className="text-xs text-muted-foreground">Click or drop an image</p>
+                                    <p className="text-[11px] font-semibold text-brand-navy">Profile Photo</p>
+                                    <p className="text-[10px] text-gray-400">Click or drop an image</p>
                                 </div>
                             </div>
 
                             {/* Name & Username */}
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-3">
                                 <FormField
                                     control={form.control}
                                     name="name"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">
-                                                Full Name
-                                            </FormLabel>
+                                            <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Full Name</FormLabel>
                                             <FormControl>
-                                                <Input
-                                                    placeholder="John Doe"
-                                                    {...field}
-                                                    className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy shadow-inner"
-                                                />
+                                                <Input placeholder="John Doe" {...field} className="h-9 rounded-lg border-slate-200 text-sm" />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -491,19 +451,11 @@ const OwnerUserModal = ({ isOpen, onClose, onSubmit, initialData, loading, title
                                     name="username"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">
-                                                Username
-                                            </FormLabel>
+                                            <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Username</FormLabel>
                                             <FormControl>
                                                 <div className="relative">
-                                                    <span className="absolute left-5 top-1/2 -translate-y-1/2 text-brand-navy/30 font-black text-sm">
-                                                        @
-                                                    </span>
-                                                    <Input
-                                                        placeholder="johndoe"
-                                                        {...field}
-                                                        className="h-12 pl-10 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy shadow-inner"
-                                                    />
+                                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">@</span>
+                                                    <Input placeholder="johndoe" {...field} className="h-9 pl-7 rounded-lg border-slate-200 text-sm" />
                                                 </div>
                                             </FormControl>
                                             <FormMessage />
@@ -518,18 +470,11 @@ const OwnerUserModal = ({ isOpen, onClose, onSubmit, initialData, loading, title
                                 name="email"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">
-                                            Email Address
-                                        </FormLabel>
+                                        <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Email Address</FormLabel>
                                         <FormControl>
                                             <div className="relative">
-                                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-navy/30" />
-                                                <Input
-                                                    type="email"
-                                                    placeholder="john@example.com"
-                                                    {...field}
-                                                    className="h-12 pl-12 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy shadow-inner"
-                                                />
+                                                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                                                <Input type="email" placeholder="john@example.com" {...field} className="h-9 pl-9 rounded-lg border-slate-200 text-sm" />
                                             </div>
                                         </FormControl>
                                         <FormMessage />
@@ -538,25 +483,18 @@ const OwnerUserModal = ({ isOpen, onClose, onSubmit, initialData, loading, title
                             />
 
                             {/* Password & Active */}
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-3">
                                 <FormField
                                     control={form.control}
                                     name="password"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">
-                                                Password
-                                            </FormLabel>
+                                            <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Password</FormLabel>
                                             <FormControl>
-                                                <Input
-                                                    type="password"
-                                                    placeholder={initialData ? '••••••••' : 'Min 6 chars'}
-                                                    {...field}
-                                                    className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy shadow-inner"
-                                                />
+                                                <Input type="password" placeholder={initialData ? '••••••••' : 'Min 6 chars'} {...field} className="h-9 rounded-lg border-slate-200 text-sm" />
                                             </FormControl>
                                             {initialData && (
-                                                <FormDescription className="text-[10px] uppercase font-bold text-brand-navy/30 px-2">
+                                                <FormDescription className="text-[10px] text-gray-400">
                                                     Leave blank to keep current
                                                 </FormDescription>
                                             )}
@@ -569,18 +507,10 @@ const OwnerUserModal = ({ isOpen, onClose, onSubmit, initialData, loading, title
                                     name="active"
                                     render={({ field }) => (
                                         <FormItem className="flex flex-col justify-end">
-                                            <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70 mb-2">
-                                                Status
-                                            </FormLabel>
-                                            <div className="flex items-center gap-4 h-12 bg-brand-navy/[0.04] px-4 rounded-2xl shadow-inner">
-                                                <Switch
-                                                    checked={field.value}
-                                                    onCheckedChange={field.onChange}
-                                                    className="data-[state=checked]:bg-green-500"
-                                                />
-                                                <span className="text-xs font-black uppercase text-brand-navy tracking-tight">
-                                                    {field.value ? 'Active' : 'Disabled'}
-                                                </span>
+                                            <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Status</FormLabel>
+                                            <div className="flex items-center gap-2.5 h-9 px-3 bg-slate-50 rounded-lg border border-slate-200">
+                                                <Switch checked={field.value} onCheckedChange={field.onChange} className="data-[state=checked]:bg-emerald-500 scale-90" />
+                                                <span className="text-[11px] font-semibold text-slate-600">{field.value ? 'Active' : 'Disabled'}</span>
                                             </div>
                                         </FormItem>
                                     )}
@@ -588,21 +518,12 @@ const OwnerUserModal = ({ isOpen, onClose, onSubmit, initialData, loading, title
                             </div>
                         </div>
 
-                        <DialogFooter className="p-8 pt-4 gap-4 border-t border-brand-navy/5">
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                onClick={onClose}
-                                className="h-12 px-8 rounded-2xl font-bold text-xs uppercase tracking-widest text-muted-foreground"
-                            >
+                        <DialogFooter className="px-6 py-4 border-t border-slate-100 gap-2 sm:gap-2">
+                            <Button type="button" variant="ghost" onClick={onClose} className="h-9 px-4 text-[11px] font-semibold text-slate-500 hover:text-slate-700">
                                 Cancel
                             </Button>
-                            <Button
-                                type="submit"
-                                disabled={loading}
-                                className="h-12 px-10 rounded-2xl bg-brand-navy hover:bg-brand-navy/90 text-brand-white font-bold text-xs uppercase tracking-[0.1em] shadow-xl shadow-brand-navy/20 transition-all hover:translate-y-[-2px] active:scale-95 disabled:opacity-50"
-                            >
-                                {loading && <Loader2 className="w-4 h-4 mr-3 animate-spin" />}
+                            <Button type="submit" disabled={loading} className="h-9 px-5 bg-brand-navy hover:bg-brand-navy/90 text-white text-[11px] font-semibold rounded-md">
+                                {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                                 {initialData ? 'Update Account' : 'Create Owner'}
                             </Button>
                         </DialogFooter>

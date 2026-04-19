@@ -4,95 +4,95 @@
 
 @layer base {
   :root {
-    --background: 72 17% 86%;
-    /* #daddcc (Stone) */
-    --foreground: 180 23% 20%;
-    /* Darkened #3b5e5e for text */
+    /* Anthropic brand tokens — mapped into shadcn's HSL variables so every
+       primitive (Calendar, Popover, Tooltip, Button default, etc.) inherits
+       the new palette without having to touch each component implementation. */
+    --background: 48 35% 97%;
+    /* #faf9f5 Light */
+    --foreground: 60 4% 8%;
+    /* #141413 Dark */
 
-    --card: 72 17% 90%;
-    /* Slightly lighter stone */
-    --card-foreground: 180 23% 20%;
+    --card: 0 0% 100%;
+    /* #ffffff */
+    --card-foreground: 60 4% 8%;
 
-    --popover: 72 17% 90%;
-    --popover-foreground: 180 23% 20%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 60 4% 8%;
 
-    --primary: 180 23% 30%;
-    /* #3b5e5e (Dark Teal) */
-    --primary-foreground: 72 17% 95%;
+    --primary: 60 4% 8%;
+    /* #141413 — primary CTA is ink, accents reserved for Orange */
+    --primary-foreground: 48 35% 97%;
 
-    --secondary: 147 10% 53%;
-    /* #7a9385 (Muted Sage) */
-    --secondary-foreground: 72 17% 95%;
+    --secondary: 47 25% 89%;
+    /* #e8e6dc Light Gray */
+    --secondary-foreground: 60 4% 8%;
 
-    --muted: 72 10% 80%;
-    /* Muted stone */
-    --muted-foreground: 180 23% 30%;
+    --muted: 47 25% 89%;
+    --muted-foreground: 48 7% 50%;
 
-    --accent: 147 10% 53%;
-    /* Sage */
-    --accent-foreground: 72 17% 95%;
+    --accent: 17 60% 60%;
+    /* #d97757 Orange — primary accent */
+    --accent-foreground: 48 35% 97%;
 
-    --destructive: 356 56% 51%;
-    --destructive-foreground: 72 17% 95%;
+    --destructive: 8 52% 56%;
+    /* #c96356 rose */
+    --destructive-foreground: 48 35% 97%;
 
-    --border: 180 23% 30% / 0.15;
-    --input: 180 23% 30% / 0.15;
-    --ring: 180 23% 30%;
+    --border: 47 25% 89%;
+    /* #e8e6dc */
+    --input: 47 25% 89%;
+    --ring: 17 60% 60%;
+    /* Orange focus ring */
 
     --radius: 0.75rem;
 
-    --sidebar-background: 72 17% 86%;
-    --sidebar-foreground: 180 23% 30%;
-    --sidebar-primary: 180 23% 30%;
-    --sidebar-primary-foreground: 72 17% 95%;
-    --sidebar-accent: 147 10% 53%;
-    --sidebar-accent-foreground: 72 17% 95%;
-    --sidebar-border: 180 23% 30% / 0.1;
-    --sidebar-ring: 180 23% 30%;
+    --sidebar-background: 60 4% 8%;
+    --sidebar-foreground: 48 35% 97%;
+    --sidebar-primary: 17 60% 60%;
+    --sidebar-primary-foreground: 48 35% 97%;
+    --sidebar-accent: 60 4% 14%;
+    --sidebar-accent-foreground: 48 35% 97%;
+    --sidebar-border: 48 35% 97% / 0.08;
+    --sidebar-ring: 17 60% 60%;
   }
 
   .dark {
-    --background: 180 23% 15%;
-    /* Very dark version of #3b5e5e */
-    --foreground: 72 17% 86%;
-    /* Stone for text */
+    --background: 60 4% 8%;
+    --foreground: 48 35% 97%;
 
-    --card: 180 23% 20%;
-    --card-foreground: 72 17% 86%;
+    --card: 60 4% 12%;
+    --card-foreground: 48 35% 97%;
 
-    --popover: 180 23% 20%;
-    --popover-foreground: 72 17% 86%;
+    --popover: 60 4% 12%;
+    --popover-foreground: 48 35% 97%;
 
-    --primary: 72 17% 86%;
-    /* Stone as primary on dark */
-    --primary-foreground: 180 23% 15%;
+    --primary: 48 35% 97%;
+    --primary-foreground: 60 4% 8%;
 
-    --secondary: 147 10% 53%;
-    /* Sage */
-    --secondary-foreground: 72 17% 86%;
+    --secondary: 60 4% 16%;
+    --secondary-foreground: 48 35% 97%;
 
-    --muted: 180 23% 25%;
-    --muted-foreground: 72 10% 70%;
+    --muted: 60 4% 16%;
+    --muted-foreground: 48 7% 65%;
 
-    --accent: 147 10% 30%;
-    /* Darker sage */
-    --accent-foreground: 72 17% 86%;
+    --accent: 17 60% 60%;
+    --accent-foreground: 60 4% 8%;
 
-    --destructive: 356 56% 51%;
-    --destructive-foreground: 72 17% 86%;
+    --destructive: 8 52% 56%;
+    --destructive-foreground: 48 35% 97%;
 
-    --border: 72 17% 86% / 0.1;
-    --input: 72 17% 86% / 0.1;
-    --ring: 72 17% 86%;
+    --border: 48 35% 97% / 0.08;
+    --input: 48 35% 97% / 0.08;
+    --ring: 17 60% 60%;
 
-    --sidebar-background: 180 23% 10%;
-    --sidebar-foreground: 72 17% 86%;
-    --sidebar-primary: 72 17% 86%;
-    --sidebar-primary-foreground: 180 23% 15%;
-    --sidebar-accent: 147 10% 30%;
-    --sidebar-accent-foreground: 72 17% 86%;
-    --sidebar-border: 72 17% 86% / 0.1;
-    --sidebar-ring: 72 17% 86%;
+    --sidebar-background: 60 4% 6%;
+    --sidebar-foreground: 48 35% 97%;
+    --sidebar-primary: 17 60% 60%;
+    --sidebar-primary-foreground: 48 35% 97%;
+    --sidebar-accent: 60 4% 14%;
+    --sidebar-accent-foreground: 48 35% 97%;
+    --sidebar-border: 48 35% 97% / 0.08;
+    --sidebar-ring: 17 60% 60%;
   }
 }
 
@@ -105,6 +105,15 @@
     @apply bg-background text-foreground antialiased;
   }
 
+  /* Anthropic-branded admin surface: when a page (Dashboard etc.) toggles
+     `.ant-surface` anywhere in the tree, paint the document + overscroll gutter
+     the same Light tone so bouncing at top/bottom doesn't expose a different
+     background. Browsers paint overscroll from `html` bgcolor, so we set both. */
+  html:has(.ant-surface),
+  html:has(.ant-surface) body {
+    background-color: #faf9f5;
+  }
+
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
@@ -112,5 +121,115 @@
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+
+  /* Anthropic brand scaffolding — scoped via `.ant-surface` so the rest of the
+     app keeps the legacy palette untouched. Applied at the Dashboard root and
+     the Sidebar so both the redesign and the global nav share one aesthetic. */
+  .ant-surface {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    color: #141413;
+  }
+
+  .ant-surface h1,
+  .ant-surface h2,
+  .ant-surface .font-display {
+    font-family: 'Poppins', Arial, sans-serif;
+    letter-spacing: -0.01em;
+  }
+
+  .ant-surface .font-serif-display {
+    font-family: 'Lora', Georgia, serif;
+  }
+
+  .ant-scroll::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .ant-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .ant-scroll::-webkit-scrollbar-thumb {
+    background: #e8e6dc;
+    border-radius: 999px;
+  }
+
+  .ant-scroll::-webkit-scrollbar-thumb:hover {
+    background: #b0aea5;
+  }
+
+  /* Anthropic-themed custom date-range calendar. Scoped to .ant-calendar so the
+     default calendar used elsewhere (analytics pages) stays on its own look. */
+  .ant-calendar {
+    color: #141413;
+  }
+  .ant-calendar .rdp {
+    --rdp-accent-color: #d97757;
+    --rdp-background-color: rgba(217, 119, 87, 0.15);
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  .ant-calendar .rdp-caption_label {
+    font-family: 'Poppins', Arial, sans-serif;
+    font-weight: 600;
+    color: #141413;
+    letter-spacing: -0.01em;
+  }
+  .ant-calendar .rdp-head_cell {
+    color: #b0aea5;
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+  }
+  .ant-calendar .rdp-nav_button {
+    color: #141413;
+    border: 1px solid #e8e6dc;
+    background: transparent;
+    opacity: 1;
+    border-radius: 9999px;
+  }
+  .ant-calendar .rdp-nav_button:hover {
+    background: #f1efe8;
+    color: #141413;
+  }
+  .ant-calendar .rdp-day {
+    color: #141413;
+    font-weight: 500;
+    border-radius: 9999px;
+  }
+  .ant-calendar .rdp-day:hover:not([disabled]):not(.rdp-day_selected) {
+    background: #f1efe8;
+  }
+  .ant-calendar .rdp-day_today {
+    color: #d97757;
+    font-weight: 600;
+    box-shadow: inset 0 0 0 1px rgba(217, 119, 87, 0.45);
+  }
+  .ant-calendar .rdp-day_selected,
+  .ant-calendar .rdp-day_selected:hover,
+  .ant-calendar .rdp-day_selected:focus {
+    background: #141413;
+    color: #faf9f5;
+  }
+  .ant-calendar .rdp-day_range_middle {
+    background: rgba(217, 119, 87, 0.18);
+    color: #141413;
+    border-radius: 0;
+  }
+  .ant-calendar .rdp-day_range_start,
+  .ant-calendar .rdp-day_range_end {
+    background: #d97757;
+    color: #faf9f5;
+    border-radius: 9999px;
+  }
+  .ant-calendar .rdp-day_outside {
+    color: #b0aea5;
+    opacity: 0.6;
+  }
+  .ant-calendar .rdp-day_disabled {
+    color: #d8d6cc;
+    opacity: 0.5;
   }
 }

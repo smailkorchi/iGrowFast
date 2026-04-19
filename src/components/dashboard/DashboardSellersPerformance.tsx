@@ -456,19 +456,20 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
     if (!metrics) return null;
 
     return (
-        <Card className="border border-gray-100 shadow-none rounded-xl">
-            <CardHeader className="px-3.5 pt-2.5 pb-1.5">
+        <Card className="ant-surface border border-ant-line bg-ant-paper shadow-none rounded-xl">
+            <CardHeader className="px-4 pt-3 pb-2">
                 <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5">
-                        <Users className="w-3 h-3 text-gray-400" />
-                        <CardTitle className="text-[12px] font-semibold text-brand-navy">Sellers performance</CardTitle>
+                    <div className="flex items-center gap-2">
+                        <span className="w-1 h-1 rounded-full bg-ant-orange" />
+                        <CardTitle className="font-display text-[13px] font-semibold text-ant-ink tracking-tight">Sellers performance</CardTitle>
+                        <Users className="hidden" />
                     </div>
-                    <span className="text-[9px] text-gray-400 uppercase tracking-[0.14em] tabular-nums">
+                    <span className="text-[10px] text-ant-mid uppercase tracking-[0.18em] tabular-nums">
                         {metrics.sellerData.length} sellers · {metrics.totalInWindow.toLocaleString('fr-MA')} orders
                     </span>
                 </div>
             </CardHeader>
-            <CardContent className="px-2.5 pb-2.5 pt-0 space-y-1">
+            <CardContent className="px-3 pb-3 pt-0 space-y-1.5">
                 {metrics.sellerData.map((s) => {
                     const isExpanded = expandedSellers.has(s.id);
                     const stages: FunnelStage[] = [
@@ -477,24 +478,24 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                             label: 'Assigned',
                             count: s.assignedCount,
                             sub: `${s.assignedPercent.toFixed(1)}% of all`,
-                            accent: '#6b7280',
-                            fillClass: 'bg-gray-50',
+                            accent: '#b0aea5',
+                            fillClass: 'bg-ant-line-soft',
                         },
                         {
                             key: 'confirmed',
                             label: 'Confirmed',
                             count: s.confirmedCount,
                             ratePct: s.confirmedPercent,
-                            accent: '#3b82f6',
-                            fillClass: 'bg-blue-50/70',
+                            accent: '#6a9bcc',
+                            fillClass: 'bg-ant-blue/10',
                         },
                         {
                             key: 'delivered',
                             label: 'Delivered',
                             count: s.deliveredCount,
                             ratePct: s.deliveredPercent,
-                            accent: '#10b981',
-                            fillClass: 'bg-emerald-50/70',
+                            accent: '#788c5d',
+                            fillClass: 'bg-ant-green/10',
                         },
                     ];
 
@@ -502,8 +503,8 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                         <div
                             key={s.id}
                             className={cn(
-                                'border rounded-xl overflow-hidden transition-colors bg-white',
-                                isExpanded ? 'border-gray-200' : 'border-gray-100',
+                                'border rounded-xl overflow-hidden transition-colors bg-ant-paper',
+                                isExpanded ? 'border-ant-ink/20' : 'border-ant-line',
                             )}
                         >
                             <SellerHeaderRow
@@ -514,14 +515,14 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                             />
 
                             {isExpanded && (
-                                <div className="px-3 pb-3 pt-2 border-t border-gray-100 bg-gray-50/30 space-y-2">
+                                <div className="px-3 pb-3 pt-2 border-t border-ant-line bg-ant-light space-y-2">
                                     <div className="grid grid-cols-1 lg:grid-cols-[1.15fr,1fr] gap-2">
-                                        <section className="rounded-lg bg-white border border-gray-100 p-3 space-y-3">
+                                        <section className="rounded-lg bg-ant-paper border border-ant-line p-3 space-y-3">
                                             <header className="flex items-baseline justify-between">
-                                                <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.16em]">
+                                                <h4 className="text-[10px] font-medium text-ant-mid uppercase tracking-[0.2em]">
                                                     Funnel dropoff
                                                 </h4>
-                                                <span className="text-[10px] text-gray-400 tabular-nums">
+                                                <span className="text-[10px] text-ant-mid tabular-nums">
                                                     {(s.assignedCount - s.deliveredCount).toLocaleString('fr-MA')} / {s.assignedCount.toLocaleString('fr-MA')}
                                                 </span>
                                             </header>
@@ -532,7 +533,7 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                                                 entries={s.preConfEntries}
                                                 emptyText="All cohort orders confirmed"
                                             />
-                                            <div className="h-px bg-gray-100" />
+                                            <div className="h-px bg-ant-line" />
                                             <StatusQueuePane
                                                 title="After confirmation"
                                                 totalLost={s.confirmedCount - s.deliveredCount}
@@ -542,12 +543,12 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                                             />
                                         </section>
 
-                                        <section className="rounded-lg bg-white border border-gray-100 p-3 space-y-2">
+                                        <section className="rounded-lg bg-ant-paper border border-ant-line p-3 space-y-2">
                                             <header className="flex items-baseline justify-between">
-                                                <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.16em]">
+                                                <h4 className="text-[10px] font-medium text-ant-mid uppercase tracking-[0.2em]">
                                                     Financials
                                                 </h4>
-                                                <span className="text-[10px] text-gray-400 tabular-nums">
+                                                <span className="text-[10px] text-ant-mid tabular-nums">
                                                     on {s.deliveredCount.toLocaleString('fr-MA')} delivered
                                                 </span>
                                             </header>
@@ -562,8 +563,8 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                                         </section>
                                     </div>
 
-                                    <section className="rounded-lg bg-white border border-gray-100 px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                                        <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.16em] shrink-0">
+                                    <section className="rounded-lg bg-ant-paper border border-ant-line px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                                        <h4 className="text-[10px] font-medium text-ant-mid uppercase tracking-[0.2em] shrink-0">
                                             Sources
                                         </h4>
                                         <div className="flex-1 min-w-[200px]">
@@ -576,7 +577,7 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                     );
                 })}
                 {metrics.sellerData.length === 0 && (
-                    <p className="text-center py-8 text-gray-400 text-xs">No sellers found</p>
+                    <p className="text-center py-8 font-serif-display text-ant-muted text-xs italic">No sellers found</p>
                 )}
             </CardContent>
         </Card>
@@ -611,19 +612,19 @@ function SellerHeaderRow({
         <button
             type="button"
             onClick={onToggle}
-            className="w-full grid grid-cols-[minmax(120px,140px)_1fr_minmax(100px,120px)_14px] items-center gap-2.5 px-2.5 py-1.5 hover:bg-gray-50/50 transition-colors text-left"
+            className="w-full grid grid-cols-[minmax(120px,140px)_1fr_minmax(100px,120px)_14px] items-center gap-3 px-3 py-2 hover:bg-ant-line-soft transition-colors text-left"
         >
-            <div className="flex items-center gap-1.5 min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
                 {seller.avatar_url ? (
-                    <img src={seller.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover shrink-0" />
+                    <img src={seller.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
                 ) : (
-                    <div className="w-6 h-6 rounded-full bg-brand-navy/10 flex items-center justify-center text-[10px] font-semibold text-brand-navy shrink-0">
+                    <div className="w-7 h-7 rounded-full bg-ant-ink/5 flex items-center justify-center text-[11px] font-semibold text-ant-ink shrink-0">
                         {seller.name?.[0]}
                     </div>
                 )}
                 <div className="min-w-0">
-                    <p className="font-semibold text-brand-navy text-[11px] truncate leading-tight">{seller.name}</p>
-                    <p className="text-[8px] text-gray-400 uppercase tracking-[0.14em] mt-0.5">
+                    <p className="font-semibold text-ant-ink text-[11.5px] truncate leading-tight">{seller.name}</p>
+                    <p className="text-[9px] text-ant-mid uppercase tracking-[0.18em] mt-0.5">
                         {seller.active === false ? 'Inactive' : 'Commercial'}
                     </p>
                 </div>
@@ -633,29 +634,29 @@ function SellerHeaderRow({
                 <PerformanceFunnel stages={stages} dense />
             </div>
 
-            <div className="min-w-0 border-l border-gray-100 pl-2.5">
-                <p className="text-[8px] text-gray-400 font-bold uppercase tracking-[0.14em]">Net</p>
+            <div className="min-w-0 border-l border-ant-line pl-3">
+                <p className="text-[9px] text-ant-mid font-medium uppercase tracking-[0.2em]">Net</p>
                 <p
                     className={cn(
-                        'text-[12px] font-semibold leading-tight tabular-nums',
-                        netPositive ? 'text-emerald-600' : 'text-red-600',
+                        'font-display text-[14px] font-semibold leading-tight tabular-nums tracking-[-0.02em]',
+                        netPositive ? 'text-ant-green' : 'text-ant-rose',
                     )}
                 >
                     {Math.round(seller.netResult).toLocaleString('fr-MA')}
-                    <span className="text-[8px] text-gray-400 font-medium ml-0.5">MAD</span>
+                    <span className="text-[9px] text-ant-mid font-medium ml-0.5">MAD</span>
                 </p>
-                <p className="text-[8px] text-gray-400 mt-0.5 flex items-center gap-0.5">
+                <p className="text-[9px] text-ant-mid mt-0.5 flex items-center gap-0.5">
                     <span className="tabular-nums">{Math.round(seller.commission).toLocaleString('fr-MA')} comm</span>
                     {seller.commissionDrift && (
                         <TooltipProvider delayDuration={120}>
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <span className="inline-flex items-center text-amber-500">
-                                        <AlertTriangle className="w-2 h-2" />
+                                    <span className="inline-flex items-center text-ant-orange">
+                                        <AlertTriangle className="w-2.5 h-2.5" />
                                     </span>
                                 </TooltipTrigger>
                                 <TooltipContent className="text-[10px]">
-                                    <div className="font-bold mb-0.5">Commission drift</div>
+                                    <div className="font-semibold mb-0.5">Commission drift</div>
                                     <div>view: {Math.round(seller.commission).toLocaleString('fr-MA')} MAD</div>
                                     <div>client: {Math.round(seller.commissionClient).toLocaleString('fr-MA')} MAD</div>
                                 </TooltipContent>
@@ -667,8 +668,8 @@ function SellerHeaderRow({
 
             <ChevronDown
                 className={cn(
-                    'w-3 h-3 text-gray-300 transition-transform justify-self-end',
-                    isExpanded && 'rotate-180 text-gray-500',
+                    'w-3.5 h-3.5 text-ant-mid transition-transform justify-self-end',
+                    isExpanded && 'rotate-180 text-ant-ink',
                 )}
             />
         </button>

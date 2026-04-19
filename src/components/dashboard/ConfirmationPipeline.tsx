@@ -81,22 +81,22 @@ export const ConfirmationPipeline = ({ businessId, dateFilter }: ConfirmationPip
     const topThree = metrics.sorted.slice(0, 3);
 
     return (
-        <Card className="border border-gray-100 shadow-none rounded-xl">
-            <CardHeader className="px-3.5 pt-2.5 pb-1.5">
+        <Card className="ant-surface border border-ant-line bg-ant-paper shadow-none rounded-xl">
+            <CardHeader className="px-4 pt-3 pb-2">
                 <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5">
-                        <PhoneCall className="w-3 h-3 text-gray-400" />
-                        <CardTitle className="text-[12px] font-semibold text-brand-navy">
+                    <div className="flex items-center gap-2">
+                        <span className="w-1 h-1 rounded-full bg-ant-orange" />
+                        <CardTitle className="font-display text-[13px] font-semibold text-ant-ink tracking-tight">
                             Confirmation pipeline
                         </CardTitle>
                     </div>
-                    <span className="text-[9px] text-gray-400 uppercase tracking-[0.14em] tabular-nums">
+                    <span className="text-[10px] text-ant-mid uppercase tracking-[0.18em] tabular-nums">
                         {metrics.total.toLocaleString('fr-MA')} being confirmed
                     </span>
                 </div>
             </CardHeader>
-            <CardContent className="px-3.5 pb-3 pt-0 space-y-2.5">
-                <div className="space-y-1.5">
+            <CardContent className="px-4 pb-4 pt-0 space-y-3">
+                <div className="space-y-2">
                     <StackedProportionBar
                         segments={metrics.sorted.map((s) => ({
                             id: s.code,
@@ -107,33 +107,34 @@ export const ConfirmationPipeline = ({ businessId, dateFilter }: ConfirmationPip
                         total={metrics.total}
                         height={6}
                     />
-                    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                         {topThree.map((s) => {
                             const pct = metrics.total > 0 ? (s.count / metrics.total) * 100 : 0;
                             return (
-                                <span key={s.code} className="inline-flex items-center gap-1 text-[9px]">
+                                <span key={s.code} className="inline-flex items-center gap-1 text-[10px]">
+                                    <PhoneCall className="hidden" />
                                     <span
-                                        className="w-1 h-1 rounded-full"
+                                        className="w-1.5 h-1.5 rounded-full"
                                         style={{ backgroundColor: s.color }}
                                     />
-                                    <span className="text-gray-600 truncate max-w-[110px]">{s.label}</span>
-                                    <span className="text-gray-400 tabular-nums">
+                                    <span className="text-ant-ink truncate max-w-[110px]">{s.label}</span>
+                                    <span className="text-ant-mid tabular-nums">
                                         {pct.toFixed(0)}%
                                     </span>
                                 </span>
                             );
                         })}
                         {metrics.sorted.length > 3 && (
-                            <span className="text-[9px] text-gray-400">+{metrics.sorted.length - 3} more</span>
+                            <span className="text-[10px] text-ant-mid">+{metrics.sorted.length - 3} more</span>
                         )}
                     </div>
                 </div>
 
-                <div className="h-px bg-gray-100" />
+                <div className="h-px bg-ant-line" />
 
-                <div className="space-y-0 max-h-[180px] overflow-y-auto pr-0.5 -mr-0.5">
+                <div className="space-y-0 max-h-[200px] overflow-y-auto pr-1 ant-scroll">
                     {metrics.sorted.length === 0 ? (
-                        <p className="text-[10px] text-gray-400 italic py-2 text-center">
+                        <p className="font-serif-display text-[11px] text-ant-muted italic py-2 text-center">
                             No orders awaiting confirmation in this period
                         </p>
                     ) : (
@@ -142,17 +143,17 @@ export const ConfirmationPipeline = ({ businessId, dateFilter }: ConfirmationPip
                             return (
                                 <div
                                     key={s.code}
-                                    className="flex items-center gap-1.5 py-1 px-1.5 rounded-md hover:bg-gray-50/60 transition-colors"
+                                    className="flex items-center gap-2 py-1.5 px-2 rounded-md hover:bg-ant-line-soft transition-colors"
                                 >
                                     <span
-                                        className="w-[3px] h-3 rounded-full shrink-0"
+                                        className="w-[3px] h-3.5 rounded-full shrink-0"
                                         style={{ backgroundColor: s.color }}
                                         aria-hidden
                                     />
-                                    <span className="text-[10px] font-medium text-gray-700 flex-1 min-w-0 truncate">
+                                    <span className="text-[11px] font-medium text-ant-ink flex-1 min-w-0 truncate">
                                         {s.label}
                                     </span>
-                                    <div className="w-16 h-[3px] rounded-full bg-gray-100 overflow-hidden shrink-0">
+                                    <div className="w-20 h-[3px] rounded-full bg-ant-line overflow-hidden shrink-0">
                                         <div
                                             className="h-full rounded-full"
                                             style={{
@@ -161,10 +162,10 @@ export const ConfirmationPipeline = ({ businessId, dateFilter }: ConfirmationPip
                                             }}
                                         />
                                     </div>
-                                    <span className="text-[10px] font-semibold text-brand-navy tabular-nums w-7 text-right shrink-0">
+                                    <span className="text-[11px] font-semibold text-ant-ink tabular-nums w-8 text-right shrink-0">
                                         {s.count}
                                     </span>
-                                    <span className="text-[9px] text-gray-400 tabular-nums w-8 text-right shrink-0">
+                                    <span className="text-[10px] text-ant-mid tabular-nums w-10 text-right shrink-0">
                                         {pct.toFixed(1)}%
                                     </span>
                                 </div>

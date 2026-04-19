@@ -18,7 +18,6 @@ import {
     Infinity as InfinityIcon,
     Megaphone,
     PlayCircle,
-    GripVertical,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
@@ -26,7 +25,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import {
     Form,
@@ -167,7 +165,6 @@ const CampaignForm: React.FC = () => {
         },
     });
 
-    // Redirect non-owners away from the edit form to the preview page.
     useEffect(() => {
         if (!isEdit || !existing || !currentUserId) return;
         if (existing.created_by && existing.created_by !== currentUserId) {
@@ -180,7 +177,6 @@ const CampaignForm: React.FC = () => {
         }
     }, [existing, currentUserId, isEdit, basePath, navigate, toast]);
 
-    // Hydrate form when editing.
     useEffect(() => {
         if (!existing) return;
         const audience = (existing.audience || {}) as any;
@@ -217,7 +213,6 @@ const CampaignForm: React.FC = () => {
     const conversionType = form.watch('conversion_type') as ConversionType;
     const conversionMeta = useMemo(() => CONVERSION_TYPES.find((c) => c.value === conversionType), [conversionType]);
 
-    // Media upload
     const onDrop = useCallback(
         async (files: File[]) => {
             if (!activeBusinessId) {
@@ -234,7 +229,6 @@ const CampaignForm: React.FC = () => {
                 });
                 return;
             }
-            // Enforce single upload for single_image / video.
             const singleOnly = campaignType === 'single_image' || campaignType === 'video';
             const toUpload = singleOnly ? valid.slice(0, 1) : valid;
 
@@ -257,7 +251,6 @@ const CampaignForm: React.FC = () => {
                     });
                 }
                 if (singleOnly) {
-                    // Remove previous single media files from storage.
                     const toRemove = media.map((m) => m.path).filter(Boolean);
                     if (toRemove.length > 0) await supabase.storage.from('campaign-media').remove(toRemove);
                     setMedia(uploaded);
@@ -279,7 +272,6 @@ const CampaignForm: React.FC = () => {
         multiple: campaignType !== 'single_image' && campaignType !== 'video',
     });
 
-    // Wipe media when switching between image and video campaign types.
     useEffect(() => {
         if (media.length === 0) return;
         const wantsVideo = isVideoType(campaignType);
@@ -299,7 +291,6 @@ const CampaignForm: React.FC = () => {
     const saveMutation = useMutation({
         mutationFn: async (values: CampaignFormValues) => {
             if (!activeBusinessId) throw new Error('No business selected');
-
 
             const { data: { user } } = await supabase.auth.getUser();
 
@@ -358,604 +349,588 @@ const CampaignForm: React.FC = () => {
     if (loadingCampaign) {
         return (
             <div className="flex items-center justify-center py-32">
-                <Loader2 className="w-8 h-8 animate-spin text-brand-navy/40" />
+                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
             </div>
         );
     }
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
             {/* Header */}
-            <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-                <div className="relative p-8">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div className="flex items-start gap-4">
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => navigate(basePath)}
-                                className="h-12 w-12 rounded-2xl bg-white shadow-sm hover:bg-brand-navy hover:text-white transition-all"
-                            >
-                                <ArrowLeft className="w-5 h-5" />
-                            </Button>
-                            <div>
-                                <h1 className="text-4xl font-extralight text-gray-900 mb-2">
-                                    {isEdit ? 'Edit Campaign' : 'Create Campaign'}
-                                </h1>
-                                <p className="text-gray-500 font-light">
-                                    Configure targeting, creative, budget and conversion destination.
-                                </p>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => navigate(basePath)}
-                                className="h-12 px-6 rounded-2xl font-bold text-xs uppercase tracking-widest border-brand-navy/10"
-                            >
-                                Cancel
-                            </Button>
-                            <Button
-                                type="button"
-                                disabled={saveMutation.isPending || uploading}
-                                onClick={form.handleSubmit((v) => saveMutation.mutate(v))}
-                                className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-8 rounded-2xl font-bold text-xs uppercase tracking-widest gap-2"
-                            >
-                                {saveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                                {isEdit ? 'Update' : 'Save Campaign'}
-                            </Button>
+            <header className="space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => navigate(basePath)}
+                            className="h-8 w-8 rounded-md border border-gray-200 text-gray-500 hover:text-brand-navy shrink-0"
+                        >
+                            <ArrowLeft className="w-3.5 h-3.5" />
+                        </Button>
+                        <div>
+                            <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">
+                                {isEdit ? 'Edit Campaign' : 'Create Campaign'}
+                            </h1>
+                            <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">
+                                Configure targeting, creative, budget and conversion
+                            </p>
                         </div>
                     </div>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => navigate(basePath)}
+                            className="h-8 rounded-md text-[11px] font-semibold border-gray-200"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            type="button"
+                            disabled={saveMutation.isPending || uploading}
+                            onClick={form.handleSubmit((v) => saveMutation.mutate(v))}
+                            className="h-8 rounded-md text-[11px] font-semibold gap-1.5 px-4"
+                        >
+                            {saveMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                            {isEdit ? 'Update' : 'Save Campaign'}
+                        </Button>
+                    </div>
                 </div>
-            </div>
+            </header>
 
             <Form {...form}>
-                <form className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className="lg:col-span-2 space-y-6">
+                <form className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                    <div className="lg:col-span-2 space-y-3">
                         {/* ── Basics ── */}
-                        <Card className="border-none rounded-[28px] shadow-sm bg-white/80 backdrop-blur">
-                            <CardContent className="p-6 space-y-5">
-                                <h2 className="text-xs font-black uppercase tracking-widest text-brand-navy/50">Basics</h2>
+                        <div className="border border-gray-100 rounded-xl bg-white p-3.5 space-y-3">
+                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Basics</p>
+                            <FormField
+                                control={form.control}
+                                name="name"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-[11px] font-medium text-gray-500">Campaign name</FormLabel>
+                                        <FormControl>
+                                            <Input {...field} placeholder="E.g. Winter sale — carousel — FB" className="h-9 text-[12px] rounded-md border-gray-200" />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <FormField
                                     control={form.control}
-                                    name="name"
+                                    name="status"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Campaign name</FormLabel>
+                                            <FormLabel className="text-[11px] font-medium text-gray-500">Status</FormLabel>
+                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                <FormControl>
+                                                    <SelectTrigger className="h-9 text-[12px] rounded-md border-gray-200">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent className="rounded-xl">
+                                                    <SelectItem value="draft" className="text-[11px]">Draft</SelectItem>
+                                                    <SelectItem value="active" className="text-[11px]">Active</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="platform"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-[11px] font-medium text-gray-500">Platform</FormLabel>
+                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                <FormControl>
+                                                    <SelectTrigger className="h-9 text-[12px] rounded-md border-gray-200">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent className="rounded-xl">
+                                                    {CAMPAIGN_PLATFORMS.map((p) => (
+                                                        <SelectItem key={p} value={p} className="text-[11px] capitalize">
+                                                            <div className="flex items-center gap-2">
+                                                                <span style={{ color: getPlatformColor(p) }}>{getPlatformIcon(p)}</span>
+                                                                {p}
+                                                            </div>
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+                            <FormField
+                                control={form.control}
+                                name="objective"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-[11px] font-medium text-gray-500">Objective</FormLabel>
+                                        <Select onValueChange={field.onChange} value={field.value || ''}>
                                             <FormControl>
-                                                <Input {...field} placeholder="E.g. Winter sale — carousel — FB" className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] shadow-inner font-bold text-brand-navy" />
+                                                <SelectTrigger className="h-9 text-[12px] rounded-md border-gray-200">
+                                                    <SelectValue placeholder="Select objective" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent className="rounded-xl">
+                                                {CAMPAIGN_OBJECTIVES.map((o) => (
+                                                    <SelectItem key={o.value} value={o.value} className="text-[11px]">{o.label}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
+
+                        {/* ── Budget & Schedule ── */}
+                        <div className="border border-gray-100 rounded-xl bg-white p-3.5 space-y-3">
+                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Budget & Schedule</p>
+                            <FormField
+                                control={form.control}
+                                name="spending_type"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormControl>
+                                            <RadioGroup onValueChange={field.onChange} value={field.value} className="grid grid-cols-2 gap-2">
+                                                <label className="flex items-start gap-2.5 cursor-pointer rounded-md border border-gray-200 bg-gray-50 p-3 hover:border-brand-navy/30 transition-all has-[:checked]:border-brand-navy has-[:checked]:bg-brand-navy/[0.03]">
+                                                    <RadioGroupItem value="ongoing" className="mt-0.5" />
+                                                    <div className="space-y-0.5 flex-1">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <InfinityIcon className="w-3.5 h-3.5 text-brand-navy" />
+                                                            <span className="text-[11px] font-semibold text-brand-navy">Ongoing</span>
+                                                        </div>
+                                                        <p className="text-[10px] text-gray-400">No end date. Set a daily budget.</p>
+                                                    </div>
+                                                </label>
+                                                <label className="flex items-start gap-2.5 cursor-pointer rounded-md border border-gray-200 bg-gray-50 p-3 hover:border-brand-navy/30 transition-all has-[:checked]:border-brand-navy has-[:checked]:bg-brand-navy/[0.03]">
+                                                    <RadioGroupItem value="date_limited" className="mt-0.5" />
+                                                    <div className="space-y-0.5 flex-1">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <CalendarIcon className="w-3.5 h-3.5 text-brand-navy" />
+                                                            <span className="text-[11px] font-semibold text-brand-navy">Date limited</span>
+                                                        </div>
+                                                        <p className="text-[10px] text-gray-400">Fixed period. Set a total ad spend.</p>
+                                                    </div>
+                                                </label>
+                                            </RadioGroup>
+                                        </FormControl>
+                                    </FormItem>
+                                )}
+                            />
+
+                            {spendingType === 'ongoing' ? (
+                                <FormField
+                                    control={form.control}
+                                    name="daily_budget"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-[11px] font-medium text-gray-500">Daily budget</FormLabel>
+                                            <FormControl>
+                                                <div className="relative">
+                                                    <Input type="number" {...field} onChange={(e) => field.onChange(Number(e.target.value))} className="h-9 text-[12px] rounded-md border-gray-200 pr-12" />
+                                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] font-semibold">{form.watch('currency')}</span>
+                                                </div>
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
                                     )}
                                 />
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            ) : (
+                                <div className="space-y-3">
                                     <FormField
                                         control={form.control}
-                                        name="status"
+                                        name="total_budget"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Status</FormLabel>
-                                                <Select onValueChange={field.onChange} value={field.value}>
-                                                    <FormControl>
-                                                        <SelectTrigger className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] font-bold text-brand-navy">
-                                                            <SelectValue />
-                                                        </SelectTrigger>
-                                                    </FormControl>
-                                                    <SelectContent className="rounded-2xl">
-                                                        <SelectItem value="draft">Draft</SelectItem>
-                                                        <SelectItem value="active">Active</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="platform"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Platform</FormLabel>
-                                                <Select onValueChange={field.onChange} value={field.value}>
-                                                    <FormControl>
-                                                        <SelectTrigger className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] font-bold text-brand-navy">
-                                                            <SelectValue />
-                                                        </SelectTrigger>
-                                                    </FormControl>
-                                                    <SelectContent className="rounded-2xl">
-                                                        {CAMPAIGN_PLATFORMS.map((p) => (
-                                                            <SelectItem key={p} value={p} className="capitalize">
-                                                                <div className="flex items-center gap-2">
-                                                                    <span style={{ color: getPlatformColor(p) }}>{getPlatformIcon(p)}</span>
-                                                                    {p}
-                                                                </div>
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
+                                                <FormLabel className="text-[11px] font-medium text-gray-500">Total ad spend</FormLabel>
+                                                <FormControl>
+                                                    <div className="relative">
+                                                        <Input type="number" {...field} onChange={(e) => field.onChange(Number(e.target.value))} className="h-9 text-[12px] rounded-md border-gray-200 pr-12" />
+                                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] font-semibold">{form.watch('currency')}</span>
+                                                    </div>
+                                                </FormControl>
                                                 <FormMessage />
                                             </FormItem>
                                         )}
                                     />
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <FormField
+                                            control={form.control}
+                                            name="start_date"
+                                            render={({ field }) => (
+                                                <FormItem className="flex flex-col">
+                                                    <FormLabel className="text-[11px] font-medium text-gray-500">Start date</FormLabel>
+                                                    <Popover>
+                                                        <PopoverTrigger asChild>
+                                                            <FormControl>
+                                                                <Button
+                                                                    variant="outline"
+                                                                    className={cn(
+                                                                        'h-9 rounded-md border-gray-200 text-left text-[12px] font-medium text-brand-navy justify-between',
+                                                                        !field.value && 'text-gray-400'
+                                                                    )}
+                                                                >
+                                                                    {field.value ? format(field.value, 'PPP') : <span>Pick a date</span>}
+                                                                    <CalendarIcon className="h-3.5 w-3.5 opacity-50" />
+                                                                </Button>
+                                                            </FormControl>
+                                                        </PopoverTrigger>
+                                                        <PopoverContent className="w-auto p-0 rounded-xl overflow-hidden shadow-md border-gray-100" align="start">
+                                                            <CalendarComponent mode="single" selected={field.value ?? undefined} onSelect={(d) => field.onChange(d ?? null)} initialFocus />
+                                                        </PopoverContent>
+                                                    </Popover>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control}
+                                            name="end_date"
+                                            render={({ field }) => (
+                                                <FormItem className="flex flex-col">
+                                                    <FormLabel className="text-[11px] font-medium text-gray-500">End date</FormLabel>
+                                                    <Popover>
+                                                        <PopoverTrigger asChild>
+                                                            <FormControl>
+                                                                <Button
+                                                                    variant="outline"
+                                                                    className={cn(
+                                                                        'h-9 rounded-md border-gray-200 text-left text-[12px] font-medium text-brand-navy justify-between',
+                                                                        !field.value && 'text-gray-400'
+                                                                    )}
+                                                                >
+                                                                    {field.value ? format(field.value, 'PPP') : <span>Pick a date</span>}
+                                                                    <CalendarIcon className="h-3.5 w-3.5 opacity-50" />
+                                                                </Button>
+                                                            </FormControl>
+                                                        </PopoverTrigger>
+                                                        <PopoverContent className="w-auto p-0 rounded-xl overflow-hidden shadow-md border-gray-100" align="start">
+                                                            <CalendarComponent mode="single" selected={field.value ?? undefined} onSelect={(d) => field.onChange(d ?? null)} initialFocus />
+                                                        </PopoverContent>
+                                                    </Popover>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
                                 </div>
+                            )}
+                        </div>
+
+                        {/* ── Creative ── */}
+                        <div className="border border-gray-100 rounded-xl bg-white p-3.5 space-y-3">
+                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Creative</p>
+                            <FormField
+                                control={form.control}
+                                name="campaign_type"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-[11px] font-medium text-gray-500">Campaign type</FormLabel>
+                                        <FormControl>
+                                            <RadioGroup onValueChange={field.onChange} value={field.value} className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                                                {CAMPAIGN_TYPES.map((t) => {
+                                                    const Icon = t.icon;
+                                                    return (
+                                                        <label
+                                                            key={t.value}
+                                                            className="flex flex-col items-center gap-1.5 cursor-pointer rounded-md border border-gray-200 bg-gray-50 p-3 hover:border-brand-navy/30 transition-all has-[:checked]:border-brand-navy has-[:checked]:bg-brand-navy/[0.03]"
+                                                        >
+                                                            <RadioGroupItem value={t.value} className="sr-only" />
+                                                            <Icon className="w-4 h-4 text-brand-navy" />
+                                                            <span className="text-[10px] font-semibold text-brand-navy text-center leading-tight">{t.label}</span>
+                                                        </label>
+                                                    );
+                                                })}
+                                            </RadioGroup>
+                                        </FormControl>
+                                    </FormItem>
+                                )}
+                            />
+
+                            {/* Dropzone */}
+                            <div>
+                                <p className="text-[11px] font-medium text-gray-500 mb-1.5">
+                                    Media ({isVideoType(campaignType) ? 'videos' : 'images'})
+                                </p>
+                                <div
+                                    {...getRootProps()}
+                                    className={cn(
+                                        'border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all',
+                                        isDragActive ? 'border-brand-navy bg-brand-navy/[0.03]' : 'border-gray-200 hover:border-gray-300 bg-gray-50'
+                                    )}
+                                >
+                                    <input {...getInputProps()} />
+                                    {uploading ? (
+                                        <div className="flex flex-col items-center gap-2 py-2">
+                                            <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                                            <p className="text-[11px] text-gray-400">Uploading...</p>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col items-center gap-2">
+                                            <Upload className="w-5 h-5 text-gray-400" />
+                                            <div>
+                                                <p className="text-[12px] font-semibold text-brand-navy">
+                                                    {isDragActive ? 'Drop here...' : 'Drop files or click to upload'}
+                                                </p>
+                                                <p className="text-[10px] text-gray-400 mt-0.5">
+                                                    {isVideoType(campaignType) ? 'MP4, MOV, WebM' : 'PNG, JPG, WebP'} · Max 50 MB each
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {media.length > 0 && (
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2.5">
+                                        {media.map((m, i) => (
+                                            <div key={m.path} className="relative group/media rounded-md overflow-hidden border border-gray-200 bg-gray-50">
+                                                <div className="aspect-square bg-black/5 flex items-center justify-center">
+                                                    {m.type === 'video' ? (
+                                                        <>
+                                                            <video src={m.url} className="w-full h-full object-cover" muted playsInline />
+                                                            <PlayCircle className="absolute inset-0 m-auto w-8 h-8 text-white/80" />
+                                                        </>
+                                                    ) : (
+                                                        <img src={m.url} alt="" className="w-full h-full object-cover" />
+                                                    )}
+                                                </div>
+                                                <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur text-[9px] font-semibold text-white flex items-center gap-1">
+                                                    {m.type === 'video' ? <VideoIcon className="w-2 h-2" /> : <ImageIcon className="w-2 h-2" />}
+                                                    {i + 1}
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeMedia(i)}
+                                                    className="absolute top-1.5 right-1.5 w-6 h-6 rounded-md bg-white/90 flex items-center justify-center shadow opacity-0 group-hover/media:opacity-100 transition-opacity hover:bg-red-500 hover:text-white"
+                                                >
+                                                    <X className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            <FormField
+                                control={form.control}
+                                name="primary_text"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-[11px] font-medium text-gray-500">Primary text</FormLabel>
+                                        <FormControl>
+                                            <Textarea {...field} placeholder="The main copy shown above the media..." className="min-h-[90px] text-[12px] rounded-md border-gray-200 resize-none" />
+                                        </FormControl>
+                                    </FormItem>
+                                )}
+                            />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <FormField
                                     control={form.control}
-                                    name="objective"
+                                    name="headline"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Objective</FormLabel>
+                                            <FormLabel className="text-[11px] font-medium text-gray-500">Headline</FormLabel>
+                                            <FormControl>
+                                                <Input {...field} placeholder="Bold short headline" className="h-9 text-[12px] rounded-md border-gray-200" />
+                                            </FormControl>
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="cta_label"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-[11px] font-medium text-gray-500">Call-to-action</FormLabel>
                                             <Select onValueChange={field.onChange} value={field.value || ''}>
                                                 <FormControl>
-                                                    <SelectTrigger className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] font-bold text-brand-navy">
-                                                        <SelectValue placeholder="Select objective" />
+                                                    <SelectTrigger className="h-9 text-[12px] rounded-md border-gray-200">
+                                                        <SelectValue placeholder="Select a CTA" />
                                                     </SelectTrigger>
                                                 </FormControl>
-                                                <SelectContent className="rounded-2xl">
-                                                    {CAMPAIGN_OBJECTIVES.map((o) => (
-                                                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                                                <SelectContent className="rounded-xl">
+                                                    {DEFAULT_CTA_LABELS.map((c) => (
+                                                        <SelectItem key={c} value={c} className="text-[11px]">{c}</SelectItem>
                                                     ))}
                                                 </SelectContent>
                                             </Select>
                                         </FormItem>
                                     )}
                                 />
-                            </CardContent>
-                        </Card>
-
-                        {/* ── Budget & Schedule ── */}
-                        <Card className="border-none rounded-[28px] shadow-sm bg-white/80 backdrop-blur">
-                            <CardContent className="p-6 space-y-5">
-                                <h2 className="text-xs font-black uppercase tracking-widest text-brand-navy/50">Budget & Schedule</h2>
-                                <FormField
-                                    control={form.control}
-                                    name="spending_type"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormControl>
-                                                <RadioGroup onValueChange={field.onChange} value={field.value} className="grid grid-cols-2 gap-3">
-                                                    <label className="flex items-start gap-3 cursor-pointer rounded-2xl border-2 border-brand-navy/5 bg-brand-navy/[0.02] p-4 hover:border-brand-navy/20 transition-all has-[:checked]:border-brand-navy has-[:checked]:bg-brand-navy/[0.05]">
-                                                        <RadioGroupItem value="ongoing" className="mt-0.5" />
-                                                        <div className="space-y-0.5 flex-1">
-                                                            <div className="flex items-center gap-2">
-                                                                <InfinityIcon className="w-4 h-4 text-brand-navy" />
-                                                                <span className="text-xs font-bold text-brand-navy">Ongoing</span>
-                                                            </div>
-                                                            <p className="text-[10px] text-muted-foreground leading-snug">No end date. Set a daily budget.</p>
-                                                        </div>
-                                                    </label>
-                                                    <label className="flex items-start gap-3 cursor-pointer rounded-2xl border-2 border-brand-navy/5 bg-brand-navy/[0.02] p-4 hover:border-brand-navy/20 transition-all has-[:checked]:border-brand-navy has-[:checked]:bg-brand-navy/[0.05]">
-                                                        <RadioGroupItem value="date_limited" className="mt-0.5" />
-                                                        <div className="space-y-0.5 flex-1">
-                                                            <div className="flex items-center gap-2">
-                                                                <CalendarIcon className="w-4 h-4 text-brand-navy" />
-                                                                <span className="text-xs font-bold text-brand-navy">Date limited</span>
-                                                            </div>
-                                                            <p className="text-[10px] text-muted-foreground leading-snug">Fixed period. Set a total ad spend.</p>
-                                                        </div>
-                                                    </label>
-                                                </RadioGroup>
-                                            </FormControl>
-                                        </FormItem>
-                                    )}
-                                />
-
-                                {spendingType === 'ongoing' ? (
-                                    <FormField
-                                        control={form.control}
-                                        name="daily_budget"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Daily budget</FormLabel>
-                                                <FormControl>
-                                                    <div className="relative">
-                                                        <Input type="number" {...field} onChange={(e) => field.onChange(Number(e.target.value))} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] shadow-inner font-bold text-brand-navy pr-14" />
-                                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-brand-navy/30 text-xs font-bold">{form.watch('currency')}</span>
-                                                    </div>
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                ) : (
-                                    <div className="space-y-5">
-                                        <FormField
-                                            control={form.control}
-                                            name="total_budget"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Total ad spend</FormLabel>
-                                                    <FormControl>
-                                                        <div className="relative">
-                                                            <Input type="number" {...field} onChange={(e) => field.onChange(Number(e.target.value))} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] shadow-inner font-bold text-brand-navy pr-14" />
-                                                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-brand-navy/30 text-xs font-bold">{form.watch('currency')}</span>
-                                                        </div>
-                                                    </FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <div className="grid grid-cols-2 gap-5">
-                                            <FormField
-                                                control={form.control}
-                                                name="start_date"
-                                                render={({ field }) => (
-                                                    <FormItem className="flex flex-col">
-                                                        <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Start date</FormLabel>
-                                                        <Popover>
-                                                            <PopoverTrigger asChild>
-                                                                <FormControl>
-                                                                    <Button
-                                                                        variant="outline"
-                                                                        className={cn(
-                                                                            'h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-left font-bold text-brand-navy shadow-inner',
-                                                                            !field.value && 'text-muted-foreground'
-                                                                        )}
-                                                                    >
-                                                                        {field.value ? format(field.value, 'PPP') : <span>Pick a date</span>}
-                                                                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                                                    </Button>
-                                                                </FormControl>
-                                                            </PopoverTrigger>
-                                                            <PopoverContent className="w-auto p-0 rounded-3xl overflow-hidden shadow-2xl border-none" align="start">
-                                                                <CalendarComponent mode="single" selected={field.value ?? undefined} onSelect={(d) => field.onChange(d ?? null)} initialFocus />
-                                                            </PopoverContent>
-                                                        </Popover>
-                                                        <FormMessage />
-                                                    </FormItem>
-                                                )}
-                                            />
-                                            <FormField
-                                                control={form.control}
-                                                name="end_date"
-                                                render={({ field }) => (
-                                                    <FormItem className="flex flex-col">
-                                                        <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">End date</FormLabel>
-                                                        <Popover>
-                                                            <PopoverTrigger asChild>
-                                                                <FormControl>
-                                                                    <Button
-                                                                        variant="outline"
-                                                                        className={cn(
-                                                                            'h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-left font-bold text-brand-navy shadow-inner',
-                                                                            !field.value && 'text-muted-foreground'
-                                                                        )}
-                                                                    >
-                                                                        {field.value ? format(field.value, 'PPP') : <span>Pick a date</span>}
-                                                                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                                                    </Button>
-                                                                </FormControl>
-                                                            </PopoverTrigger>
-                                                            <PopoverContent className="w-auto p-0 rounded-3xl overflow-hidden shadow-2xl border-none" align="start">
-                                                                <CalendarComponent mode="single" selected={field.value ?? undefined} onSelect={(d) => field.onChange(d ?? null)} initialFocus />
-                                                            </PopoverContent>
-                                                        </Popover>
-                                                        <FormMessage />
-                                                    </FormItem>
-                                                )}
-                                            />
-                                        </div>
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
-
-                        {/* ── Creative ── */}
-                        <Card className="border-none rounded-[28px] shadow-sm bg-white/80 backdrop-blur">
-                            <CardContent className="p-6 space-y-5">
-                                <h2 className="text-xs font-black uppercase tracking-widest text-brand-navy/50">Creative</h2>
-                                <FormField
-                                    control={form.control}
-                                    name="campaign_type"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Campaign type</FormLabel>
-                                            <FormControl>
-                                                <RadioGroup onValueChange={field.onChange} value={field.value} className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                                                    {CAMPAIGN_TYPES.map((t) => {
-                                                        const Icon = t.icon;
-                                                        return (
-                                                            <label
-                                                                key={t.value}
-                                                                className="flex flex-col items-center gap-2 cursor-pointer rounded-2xl border-2 border-brand-navy/5 bg-brand-navy/[0.02] p-4 hover:border-brand-navy/20 transition-all has-[:checked]:border-brand-navy has-[:checked]:bg-brand-navy/[0.05]"
-                                                            >
-                                                                <RadioGroupItem value={t.value} className="sr-only" />
-                                                                <Icon className="w-5 h-5 text-brand-navy" />
-                                                                <span className="text-[11px] font-bold text-brand-navy text-center leading-tight">{t.label}</span>
-                                                            </label>
-                                                        );
-                                                    })}
-                                                </RadioGroup>
-                                            </FormControl>
-                                        </FormItem>
-                                    )}
-                                />
-
-                                {/* Dropzone */}
-                                <div>
-                                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 mb-2">
-                                        Media ({isVideoType(campaignType) ? 'videos' : 'images'})
-                                    </p>
-                                    <div
-                                        {...getRootProps()}
-                                        className={cn(
-                                            'relative border-2 border-dashed rounded-3xl p-8 text-center cursor-pointer transition-all duration-300',
-                                            isDragActive ? 'border-brand-navy bg-brand-navy/[0.04] scale-[0.99]' : 'border-brand-navy/15 hover:border-brand-navy/30 bg-brand-navy/[0.02]'
-                                        )}
-                                    >
-                                        <input {...getInputProps()} />
-                                        {uploading ? (
-                                            <div className="flex flex-col items-center gap-3 py-4">
-                                                <Loader2 className="w-8 h-8 animate-spin text-brand-navy/40" />
-                                                <p className="text-xs font-bold text-brand-navy/60">Uploading…</p>
-                                            </div>
-                                        ) : (
-                                            <div className="flex flex-col items-center gap-3">
-                                                <div className="w-12 h-12 rounded-2xl bg-brand-navy/5 flex items-center justify-center">
-                                                    <Upload className="w-5 h-5 text-brand-navy/60" />
-                                                </div>
-                                                <div>
-                                                    <p className="text-sm font-bold text-brand-navy">
-                                                        {isDragActive ? 'Drop here…' : 'Drop files or click to upload'}
-                                                    </p>
-                                                    <p className="text-[10px] text-muted-foreground mt-1">
-                                                        {isVideoType(campaignType) ? 'MP4, MOV, WebM' : 'PNG, JPG, WebP'} · Max 50 MB each
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Media list */}
-                                    {media.length > 0 && (
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4">
-                                            {media.map((m, i) => (
-                                                <div key={m.path} className="relative group/media rounded-2xl overflow-hidden border border-brand-navy/5 bg-brand-navy/[0.03]">
-                                                    <div className="aspect-square bg-black/5 flex items-center justify-center">
-                                                        {m.type === 'video' ? (
-                                                            <>
-                                                                <video src={m.url} className="w-full h-full object-cover" muted playsInline />
-                                                                <PlayCircle className="absolute inset-0 m-auto w-10 h-10 text-white/80" />
-                                                            </>
-                                                        ) : (
-                                                            <img src={m.url} alt="" className="w-full h-full object-cover" />
-                                                        )}
-                                                    </div>
-                                                    <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur text-[9px] font-black text-white uppercase flex items-center gap-1">
-                                                        {m.type === 'video' ? <VideoIcon className="w-2.5 h-2.5" /> : <ImageIcon className="w-2.5 h-2.5" />}
-                                                        {i + 1}
-                                                    </div>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => removeMedia(i)}
-                                                        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/90 backdrop-blur flex items-center justify-center shadow-md opacity-0 group-hover/media:opacity-100 transition-opacity hover:bg-red-500 hover:text-white"
-                                                    >
-                                                        <X className="w-3.5 h-3.5" />
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-
-                                <FormField
-                                    control={form.control}
-                                    name="primary_text"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Primary text</FormLabel>
-                                            <FormControl>
-                                                <Textarea {...field} placeholder="The main copy shown above the media…" className="min-h-[100px] rounded-2xl border-none bg-brand-navy/[0.04] shadow-inner font-medium text-brand-navy resize-none" />
-                                            </FormControl>
-                                        </FormItem>
-                                    )}
-                                />
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                    <FormField
-                                        control={form.control}
-                                        name="headline"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Headline</FormLabel>
-                                                <FormControl>
-                                                    <Input {...field} placeholder="Bold short headline" className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] shadow-inner font-bold text-brand-navy" />
-                                                </FormControl>
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="cta_label"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Call-to-action</FormLabel>
-                                                <Select onValueChange={field.onChange} value={field.value || ''}>
-                                                    <FormControl>
-                                                        <SelectTrigger className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] font-bold text-brand-navy">
-                                                            <SelectValue placeholder="Select a CTA" />
-                                                        </SelectTrigger>
-                                                    </FormControl>
-                                                    <SelectContent className="rounded-2xl">
-                                                        {DEFAULT_CTA_LABELS.map((c) => (
-                                                            <SelectItem key={c} value={c}>{c}</SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </FormItem>
-                                        )}
-                                    />
-                                </div>
-                            </CardContent>
-                        </Card>
+                            </div>
+                        </div>
 
                         {/* ── Conversion ── */}
-                        <Card className="border-none rounded-[28px] shadow-sm bg-white/80 backdrop-blur">
-                            <CardContent className="p-6 space-y-5">
-                                <h2 className="text-xs font-black uppercase tracking-widest text-brand-navy/50">Conversion</h2>
-                                <FormField
-                                    control={form.control}
-                                    name="conversion_type"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Conversion type</FormLabel>
-                                            <FormControl>
-                                                <RadioGroup onValueChange={field.onChange} value={field.value} className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                                    {CONVERSION_TYPES.map((c) => {
-                                                        const Icon = c.icon;
-                                                        return (
-                                                            <label
-                                                                key={c.value}
-                                                                className="flex flex-col items-center gap-2 cursor-pointer rounded-2xl border-2 border-brand-navy/5 bg-brand-navy/[0.02] p-4 hover:border-brand-navy/20 transition-all has-[:checked]:border-brand-navy has-[:checked]:bg-brand-navy/[0.05]"
-                                                            >
-                                                                <RadioGroupItem value={c.value} className="sr-only" />
-                                                                <Icon className="w-5 h-5 text-brand-navy" />
-                                                                <span className="text-[11px] font-bold text-brand-navy text-center leading-tight">{c.label}</span>
-                                                            </label>
-                                                        );
-                                                    })}
-                                                </RadioGroup>
-                                            </FormControl>
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="conversion_content"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">{conversionMeta?.contentLabel || 'Conversion content'}</FormLabel>
-                                            <FormControl>
-                                                <Input {...field} placeholder={conversionMeta?.placeholder || ''} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] shadow-inner font-bold text-brand-navy" />
-                                            </FormControl>
-                                            <FormDescription className="text-[10px]">
-                                                {conversionType === 'whatsapp'
-                                                    ? 'Full international number, digits only. Include country code.'
-                                                    : 'Paste the full URL where traffic will be sent.'}
-                                            </FormDescription>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="pixel_id"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Pixel ID (optional)</FormLabel>
-                                            <FormControl>
-                                                <Input {...field} placeholder="Meta / TikTok pixel identifier" className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] shadow-inner font-medium text-brand-navy" />
-                                            </FormControl>
-                                        </FormItem>
-                                    )}
-                                />
-                            </CardContent>
-                        </Card>
-
-                        {/* ── Audience ── */}
-                        <Card className="border-none rounded-[28px] shadow-sm bg-white/80 backdrop-blur">
-                            <CardContent className="p-6 space-y-5">
-                                <h2 className="text-xs font-black uppercase tracking-widest text-brand-navy/50">Audience</h2>
-                                <div className="grid grid-cols-2 gap-5">
-                                    <FormField
-                                        control={form.control}
-                                        name="audience_age_min"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Age min</FormLabel>
-                                                <FormControl>
-                                                    <Input type="number" {...field} value={field.value ?? ''} onChange={(e) => field.onChange(e.target.value === '' ? null : Number(e.target.value))} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] shadow-inner font-bold text-brand-navy" />
-                                                </FormControl>
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="audience_age_max"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Age max</FormLabel>
-                                                <FormControl>
-                                                    <Input type="number" {...field} value={field.value ?? ''} onChange={(e) => field.onChange(e.target.value === '' ? null : Number(e.target.value))} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] shadow-inner font-bold text-brand-navy" />
-                                                </FormControl>
-                                            </FormItem>
-                                        )}
-                                    />
-                                </div>
-                                <FormField
-                                    control={form.control}
-                                    name="audience_genders"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Genders</FormLabel>
-                                            <div className="flex gap-2">
-                                                {GENDERS.map((g) => {
-                                                    const checked = field.value.includes(g);
+                        <div className="border border-gray-100 rounded-xl bg-white p-3.5 space-y-3">
+                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Conversion</p>
+                            <FormField
+                                control={form.control}
+                                name="conversion_type"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-[11px] font-medium text-gray-500">Conversion type</FormLabel>
+                                        <FormControl>
+                                            <RadioGroup onValueChange={field.onChange} value={field.value} className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                                {CONVERSION_TYPES.map((c) => {
+                                                    const Icon = c.icon;
                                                     return (
-                                                        <button
-                                                            key={g}
-                                                            type="button"
-                                                            onClick={() => {
-                                                                const next = checked ? field.value.filter((x) => x !== g) : [...field.value, g];
-                                                                field.onChange(next);
-                                                            }}
-                                                            className={cn(
-                                                                'flex-1 h-11 rounded-2xl border-2 text-xs font-bold uppercase capitalize transition-all',
-                                                                checked ? 'border-brand-navy bg-brand-navy text-white' : 'border-brand-navy/5 bg-brand-navy/[0.02] text-brand-navy/60 hover:border-brand-navy/20'
-                                                            )}
+                                                        <label
+                                                            key={c.value}
+                                                            className="flex flex-col items-center gap-1.5 cursor-pointer rounded-md border border-gray-200 bg-gray-50 p-3 hover:border-brand-navy/30 transition-all has-[:checked]:border-brand-navy has-[:checked]:bg-brand-navy/[0.03]"
                                                         >
-                                                            {g}
-                                                        </button>
+                                                            <RadioGroupItem value={c.value} className="sr-only" />
+                                                            <Icon className="w-4 h-4 text-brand-navy" />
+                                                            <span className="text-[10px] font-semibold text-brand-navy text-center leading-tight">{c.label}</span>
+                                                        </label>
                                                     );
                                                 })}
-                                            </div>
-                                        </FormItem>
-                                    )}
-                                />
+                                            </RadioGroup>
+                                        </FormControl>
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="conversion_content"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-[11px] font-medium text-gray-500">{conversionMeta?.contentLabel || 'Conversion content'}</FormLabel>
+                                        <FormControl>
+                                            <Input {...field} placeholder={conversionMeta?.placeholder || ''} className="h-9 text-[12px] rounded-md border-gray-200" />
+                                        </FormControl>
+                                        <FormDescription className="text-[10px]">
+                                            {conversionType === 'whatsapp'
+                                                ? 'Full international number, digits only. Include country code.'
+                                                : 'Paste the full URL where traffic will be sent.'}
+                                        </FormDescription>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="pixel_id"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-[11px] font-medium text-gray-500">Pixel ID (optional)</FormLabel>
+                                        <FormControl>
+                                            <Input {...field} placeholder="Meta / TikTok pixel identifier" className="h-9 text-[12px] rounded-md border-gray-200" />
+                                        </FormControl>
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
+
+                        {/* ── Audience ── */}
+                        <div className="border border-gray-100 rounded-xl bg-white p-3.5 space-y-3">
+                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Audience</p>
+                            <div className="grid grid-cols-2 gap-3">
                                 <FormField
                                     control={form.control}
-                                    name="audience_countries"
+                                    name="audience_age_min"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Countries</FormLabel>
+                                            <FormLabel className="text-[11px] font-medium text-gray-500">Age min</FormLabel>
                                             <FormControl>
-                                                <Input {...field} placeholder="Comma-separated, e.g. Morocco, France" className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] shadow-inner font-medium text-brand-navy" />
+                                                <Input type="number" {...field} value={field.value ?? ''} onChange={(e) => field.onChange(e.target.value === '' ? null : Number(e.target.value))} className="h-9 text-[12px] rounded-md border-gray-200" />
                                             </FormControl>
                                         </FormItem>
                                     )}
                                 />
                                 <FormField
                                     control={form.control}
-                                    name="audience_interests"
+                                    name="audience_age_max"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Interests</FormLabel>
+                                            <FormLabel className="text-[11px] font-medium text-gray-500">Age max</FormLabel>
                                             <FormControl>
-                                                <Input {...field} placeholder="Comma-separated, e.g. Fashion, Beauty" className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] shadow-inner font-medium text-brand-navy" />
+                                                <Input type="number" {...field} value={field.value ?? ''} onChange={(e) => field.onChange(e.target.value === '' ? null : Number(e.target.value))} className="h-9 text-[12px] rounded-md border-gray-200" />
                                             </FormControl>
                                         </FormItem>
                                     )}
                                 />
-                                <FormField
-                                    control={form.control}
-                                    name="notes"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Internal notes</FormLabel>
-                                            <FormControl>
-                                                <Textarea {...field} placeholder="Reminders, references, hypotheses…" className="min-h-[80px] rounded-2xl border-none bg-brand-navy/[0.04] shadow-inner font-medium text-brand-navy resize-none" />
-                                            </FormControl>
-                                        </FormItem>
-                                    )}
-                                />
-                            </CardContent>
-                        </Card>
+                            </div>
+                            <FormField
+                                control={form.control}
+                                name="audience_genders"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-[11px] font-medium text-gray-500">Genders</FormLabel>
+                                        <div className="flex gap-2">
+                                            {GENDERS.map((g) => {
+                                                const checked = field.value.includes(g);
+                                                return (
+                                                    <button
+                                                        key={g}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const next = checked ? field.value.filter((x) => x !== g) : [...field.value, g];
+                                                            field.onChange(next);
+                                                        }}
+                                                        className={cn(
+                                                            'flex-1 h-8 rounded-md border text-[11px] font-semibold uppercase capitalize transition-all',
+                                                            checked ? 'border-brand-navy bg-brand-navy text-white' : 'border-gray-200 bg-gray-50 text-brand-navy/60 hover:border-gray-300'
+                                                        )}
+                                                    >
+                                                        {g}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="audience_countries"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-[11px] font-medium text-gray-500">Countries</FormLabel>
+                                        <FormControl>
+                                            <Input {...field} placeholder="Comma-separated, e.g. Morocco, France" className="h-9 text-[12px] rounded-md border-gray-200" />
+                                        </FormControl>
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="audience_interests"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-[11px] font-medium text-gray-500">Interests</FormLabel>
+                                        <FormControl>
+                                            <Input {...field} placeholder="Comma-separated, e.g. Fashion, Beauty" className="h-9 text-[12px] rounded-md border-gray-200" />
+                                        </FormControl>
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="notes"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-[11px] font-medium text-gray-500">Internal notes</FormLabel>
+                                        <FormControl>
+                                            <Textarea {...field} placeholder="Reminders, references, hypotheses..." className="min-h-[70px] text-[12px] rounded-md border-gray-200 resize-none" />
+                                        </FormControl>
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
                     </div>
 
                     {/* ── Live preview column ── */}
                     <div className="lg:col-span-1">
-                        <div className="sticky top-6 space-y-4">
-                            <h2 className="text-xs font-black uppercase tracking-widest text-brand-navy/50 px-2">Live preview</h2>
+                        <div className="sticky top-4 space-y-2.5">
+                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Live preview</p>
                             <PreviewCard
                                 platform={form.watch('platform')}
                                 primaryText={form.watch('primary_text')}
@@ -972,7 +947,7 @@ const CampaignForm: React.FC = () => {
     );
 };
 
-// ── Simple preview card for the right column ──
+// ── Live preview card ─────────────────────────────────────────────────────────
 const PreviewCard: React.FC<{
     platform: string;
     primaryText?: string;
@@ -983,22 +958,22 @@ const PreviewCard: React.FC<{
 }> = ({ platform, primaryText, headline, ctaLabel, conversionContent, media }) => {
     const first = media[0];
     return (
-        <div className="rounded-[28px] overflow-hidden bg-white border border-brand-navy/[0.06] shadow-[0_8px_30px_-12px_rgba(15,23,42,0.08)]">
-            <div className="flex items-center gap-3 p-4 pb-3">
-                <div className="w-10 h-10 rounded-full bg-brand-navy/10 flex items-center justify-center">
-                    <Megaphone className="w-4 h-4 text-brand-navy" />
+        <div className="rounded-xl border border-gray-100 bg-white overflow-hidden">
+            <div className="flex items-center gap-2.5 px-3 py-2.5">
+                <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                    <Megaphone className="w-3.5 h-3.5 text-brand-navy" />
                 </div>
                 <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-bold text-brand-navy truncate leading-tight">Your business</p>
-                    <p className="text-[10px] text-muted-foreground">Sponsored · <span className="inline-flex items-center gap-1" style={{ color: getPlatformColor(platform) }}>{getPlatformIcon(platform, 'w-2.5 h-2.5')}</span></p>
+                    <p className="text-[12px] font-semibold text-brand-navy truncate leading-tight">Your business</p>
+                    <p className="text-[9px] text-gray-400">Sponsored · <span className="inline-flex items-center gap-1" style={{ color: getPlatformColor(platform) }}>{getPlatformIcon(platform, 'w-2.5 h-2.5')}</span></p>
                 </div>
             </div>
             {primaryText && (
-                <div className="px-4 pb-3">
-                    <p className="text-[13px] text-brand-navy/80 whitespace-pre-wrap break-words">{primaryText}</p>
+                <div className="px-3 pb-2">
+                    <p className="text-[11px] text-brand-navy/80 whitespace-pre-wrap break-words">{primaryText}</p>
                 </div>
             )}
-            <div className="relative w-full aspect-square bg-brand-navy/[0.05] flex items-center justify-center">
+            <div className="relative w-full aspect-square bg-gray-50 flex items-center justify-center">
                 {first ? (
                     first.type === 'video' ? (
                         <video src={first.url} className="w-full h-full object-cover" muted autoPlay loop playsInline />
@@ -1006,24 +981,24 @@ const PreviewCard: React.FC<{
                         <img src={first.url} className="w-full h-full object-cover" alt="" />
                     )
                 ) : (
-                    <div className="text-brand-navy/20 flex flex-col items-center gap-2">
-                        <ImageIcon className="w-10 h-10" />
-                        <span className="text-[10px] font-bold uppercase">No media yet</span>
+                    <div className="text-gray-300 flex flex-col items-center gap-2">
+                        <ImageIcon className="w-8 h-8" />
+                        <span className="text-[9px] uppercase tracking-[0.18em]">No media yet</span>
                     </div>
                 )}
             </div>
             {(headline || ctaLabel) && (
-                <div className="flex items-center justify-between gap-3 px-4 py-3 bg-brand-navy/[0.02] border-t border-brand-navy/5">
+                <div className="flex items-center justify-between gap-2 px-3 py-2 bg-gray-50 border-t border-gray-100">
                     <div className="min-w-0 flex-1">
                         {conversionContent && (
-                            <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground truncate">
+                            <p className="text-[9px] uppercase tracking-[0.12em] text-gray-400 truncate">
                                 {conversionContent.replace(/^https?:\/\//, '').split('/')[0]}
                             </p>
                         )}
-                        {headline && <p className="text-[13px] font-bold text-brand-navy leading-tight truncate">{headline}</p>}
+                        {headline && <p className="text-[11px] font-semibold text-brand-navy leading-tight truncate">{headline}</p>}
                     </div>
                     {ctaLabel && (
-                        <div className="shrink-0 h-8 px-3 rounded-xl bg-brand-navy/[0.06] text-brand-navy text-[10px] font-black uppercase tracking-wider flex items-center">
+                        <div className="shrink-0 h-7 px-2.5 rounded-md bg-brand-navy text-white text-[10px] font-semibold flex items-center">
                             {ctaLabel}
                         </div>
                     )}

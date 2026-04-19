@@ -64,10 +64,10 @@ type PlanRow = {
 const errorMessage = (err: unknown): string =>
     err instanceof Error ? err.message : String(err);
 
-const TYPE_META: Record<string, { icon: React.ComponentType<{ className?: string }>; color: string }> = {
-    monthly: { icon: Clock, color: 'text-blue-600 bg-blue-50' },
-    yearly: { icon: Calendar, color: 'text-amber-600 bg-amber-50' },
-    lifetime: { icon: InfinityIcon, color: 'text-emerald-600 bg-emerald-50' },
+const TYPE_ACCENT: Record<string, string> = {
+    monthly: '#3b82f6',
+    yearly: '#d97706',
+    lifetime: '#059669',
 };
 
 const Plans = () => {
@@ -152,50 +152,46 @@ const Plans = () => {
     const openDelete = (plan: PlanRow) => { setSelected(plan); setIsDeleteOpen(true); };
 
     return (
-        <div className="space-y-6">
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
             {/* Header */}
-            <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-                <div className="relative p-8">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div>
-                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Plans</h1>
-                            <p className="text-gray-500 font-light">Manage pricing, promotions and plan details.</p>
+            <header className="space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Plans</h1>
+                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Manage pricing, promotions and plan details</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="relative">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                            <Input
+                                placeholder="Search plans..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-7 h-8 rounded-md border-gray-200 bg-white text-[11px] w-44"
+                            />
                         </div>
-                        <div className="flex flex-col sm:flex-row gap-3 items-center">
-                            <div className="relative group sm:w-80">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
-                                <Input
-                                    placeholder="Search plans..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="pl-11 h-12 rounded-2xl border-gray-100 bg-white"
-                                />
-                            </div>
-                            <Button
-                                onClick={() => { setSelected(null); setIsModalOpen(true); }}
-                                className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 flex items-center gap-2 w-full sm:w-auto"
-                            >
-                                <Plus className="w-5 h-5" /> New Plan
-                            </Button>
-                        </div>
+                        <Button
+                            onClick={() => { setSelected(null); setIsModalOpen(true); }}
+                            className="h-8 rounded-md text-[11px] font-semibold bg-brand-navy hover:bg-brand-navy/90 text-white gap-1.5 px-3"
+                        >
+                            <Plus className="w-3.5 h-3.5" /> New Plan
+                        </Button>
                     </div>
                 </div>
-            </div>
+            </header>
 
             {/* Content */}
             {isLoading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {[1, 2, 3].map(i => <Skeleton key={i} className="h-56 rounded-xl" />)}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {[1, 2, 3].map(i => <Skeleton key={i} className="h-40 rounded-xl" />)}
                 </div>
             ) : filtered.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 rounded-xl border border-dashed border-slate-200 bg-slate-50/50">
-                    <CreditCard className="w-10 h-10 text-slate-300 mb-3" />
-                    <p className="text-sm font-medium text-slate-500">No plans yet</p>
-                    <p className="text-xs text-slate-400 mt-1">Create your first plan to get started.</p>
+                <div className="flex flex-col items-center justify-center py-10 rounded-xl border border-dashed border-gray-200 bg-white">
+                    <CreditCard className="w-6 h-6 text-gray-300 mb-2" />
+                    <p className="text-[11px] font-medium text-gray-500">No plans yet</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {filtered.map(plan => (
                         <PlanCard key={plan.id} plan={plan} onEdit={() => openEdit(plan)} onDelete={() => openDelete(plan)} />
                     ))}
@@ -213,28 +209,28 @@ const Plans = () => {
 
             {/* Delete Dialog */}
             <Dialog open={isDeleteOpen} onOpenChange={(v) => !v && setIsDeleteOpen(false)}>
-                <DialogContent className="max-w-sm border border-slate-200/60 bg-white rounded-2xl shadow-xl gap-0 p-0">
+                <DialogContent className="max-w-sm border border-slate-200/60 bg-white rounded-xl shadow-xl gap-0 p-0">
                     <div className="px-6 pt-6 pb-4 border-b border-slate-100">
                         <div className="flex items-center gap-3">
                             <div className="w-9 h-9 bg-red-50 rounded-lg flex items-center justify-center text-red-500">
                                 <AlertTriangle className="w-4 h-4" />
                             </div>
-                            <DialogTitle className="text-lg font-semibold text-slate-900">Delete Plan</DialogTitle>
+                            <DialogTitle className="text-[14px] font-semibold text-slate-900">Delete Plan</DialogTitle>
                         </div>
                     </div>
                     <div className="px-6 py-5">
-                        <p className="text-sm text-slate-600">
+                        <p className="text-[12px] text-slate-600">
                             Permanently delete <span className="font-semibold text-slate-900">"{selected?.name}"</span>? Businesses using this plan will be unlinked.
                         </p>
                     </div>
                     <DialogFooter className="px-6 py-4 border-t border-slate-100 gap-2 sm:gap-2">
-                        <Button variant="ghost" onClick={() => setIsDeleteOpen(false)} className="h-9 text-sm text-slate-500">Cancel</Button>
+                        <Button variant="ghost" onClick={() => setIsDeleteOpen(false)} className="h-8 text-[11px] font-semibold text-slate-500">Cancel</Button>
                         <Button
                             onClick={() => selected && deleteMutation.mutate(selected.id)}
                             disabled={deleteMutation.isPending}
-                            className="h-9 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg gap-2"
+                            className="h-8 bg-red-600 hover:bg-red-700 text-white text-[11px] font-semibold rounded-md gap-2"
                         >
-                            {deleteMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                            {deleteMutation.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
                             Delete
                         </Button>
                     </DialogFooter>
@@ -247,86 +243,82 @@ const Plans = () => {
 // --- Plan Card ---
 
 const PlanCard = ({ plan, onEdit, onDelete }: { plan: PlanRow; onEdit: () => void; onDelete: () => void }) => {
-    const meta = TYPE_META[plan.license_type] || TYPE_META.monthly;
-    const Icon = meta.icon;
+    const accent = TYPE_ACCENT[plan.license_type] || TYPE_ACCENT.monthly;
     const features: string[] = Array.isArray(plan.features) ? plan.features : [];
     const hasPromo = plan.promotion_active && plan.promotion_label;
     const hasDiscount = plan.old_price && plan.old_price > plan.price;
 
     return (
-        <Card className="group border border-slate-200/60 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+        <div className="rounded-xl border border-gray-100 bg-white p-3.5 space-y-3 relative overflow-hidden">
             {hasPromo && (
                 <div className="absolute top-3 right-3 z-10">
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-500 text-white text-[10px] font-semibold uppercase tracking-wide">
-                        <Tag className="w-3 h-3" /> {plan.promotion_label}
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-rose-500 text-white uppercase tracking-wide">
+                        <Tag className="w-2.5 h-2.5" /> {plan.promotion_label}
                     </span>
                 </div>
             )}
-            <CardContent className="p-5 space-y-4">
-                <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className={cn('w-9 h-9 rounded-lg flex items-center justify-center', meta.color)}>
-                            <Icon className="w-4 h-4" />
-                        </div>
-                        <div>
-                            <h3 className="text-sm font-semibold text-slate-900">{plan.name}</h3>
-                            <span className="text-xs text-slate-400 capitalize">{plan.license_type}</span>
-                        </div>
-                    </div>
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100">
-                                <MoreVertical className="h-4 w-4" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="rounded-lg border border-slate-200 shadow-lg p-1 min-w-[130px]">
-                            <DropdownMenuItem onClick={onEdit} className="rounded-md px-2.5 py-1.5 text-xs font-medium cursor-pointer gap-2">
-                                <Edit2 className="w-3.5 h-3.5" /> Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={onDelete} className="rounded-md px-2.5 py-1.5 text-xs font-medium cursor-pointer gap-2 text-red-600 focus:text-red-600 focus:bg-red-50">
-                                <Trash2 className="w-3.5 h-3.5" /> Delete
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                </div>
 
-                {/* Price */}
-                <div className="flex items-baseline gap-2">
-                    <span className="text-2xl font-bold text-slate-900">{plan.price.toLocaleString()}</span>
-                    <span className="text-sm text-slate-400">{plan.currency}</span>
-                    {hasDiscount && (
-                        <span className="text-sm text-slate-400 line-through ml-1">{plan.old_price.toLocaleString()}</span>
+            <div className="flex items-start justify-between">
+                <div className="flex items-start gap-2.5">
+                    <span className="w-[3px] self-stretch rounded-full shrink-0 mt-0.5" style={{ background: accent }} />
+                    <div className="min-w-0">
+                        <p className="text-[12px] font-semibold text-brand-navy leading-tight">{plan.name}</p>
+                        <span className="text-[9px] text-gray-400 uppercase tracking-[0.14em] capitalize">{plan.license_type}</span>
+                    </div>
+                </div>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 p-0 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 shrink-0">
+                            <MoreVertical className="h-3.5 w-3.5" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="rounded-lg border border-gray-200 shadow-md p-1 min-w-[130px]">
+                        <DropdownMenuItem onClick={onEdit} className="rounded px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer gap-2">
+                            <Edit2 className="w-3 h-3" /> Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={onDelete} className="rounded px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer gap-2 text-red-600 focus:text-red-600 focus:bg-red-50">
+                            <Trash2 className="w-3 h-3" /> Delete
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </div>
+
+            {/* Price */}
+            <div className="flex items-baseline gap-1.5">
+                <span className="text-[18px] font-semibold tabular-nums text-brand-navy">{plan.price.toLocaleString()}</span>
+                <span className="text-[11px] text-gray-400">{plan.currency}</span>
+                {hasDiscount && (
+                    <span className="text-[11px] text-gray-400 line-through">{plan.old_price.toLocaleString()}</span>
+                )}
+            </div>
+
+            {plan.description && (
+                <p className="text-[10px] text-gray-500 leading-relaxed">{plan.description}</p>
+            )}
+
+            {features.length > 0 && (
+                <ul className="space-y-1">
+                    {features.slice(0, 4).map((f, i) => (
+                        <li key={i} className="flex items-center gap-2 text-[10px] text-gray-600">
+                            <div className="w-1 h-1 rounded-full bg-gray-300 shrink-0" />
+                            {f}
+                        </li>
+                    ))}
+                    {features.length > 4 && (
+                        <li className="text-[10px] text-gray-400">+{features.length - 4} more</li>
                     )}
+                </ul>
+            )}
+
+            <div className="pt-2.5 border-t border-gray-50 flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                    <div className={cn('w-1.5 h-1.5 rounded-full', plan.active ? 'bg-emerald-500' : 'bg-gray-300')} />
+                    <span className="text-[9px] text-gray-500">{plan.active ? 'Active' : 'Inactive'}</span>
                 </div>
-
-                {plan.description && (
-                    <p className="text-xs text-slate-500 leading-relaxed">{plan.description}</p>
-                )}
-
-                {features.length > 0 && (
-                    <ul className="space-y-1">
-                        {features.slice(0, 4).map((f, i) => (
-                            <li key={i} className="flex items-center gap-2 text-xs text-slate-600">
-                                <div className="w-1 h-1 rounded-full bg-slate-300 shrink-0" />
-                                {f}
-                            </li>
-                        ))}
-                        {features.length > 4 && (
-                            <li className="text-xs text-slate-400">+{features.length - 4} more</li>
-                        )}
-                    </ul>
-                )}
-
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                        <div className={cn('w-1.5 h-1.5 rounded-full', plan.active ? 'bg-emerald-500' : 'bg-slate-300')} />
-                        <span className="text-xs text-slate-500">{plan.active ? 'Active' : 'Inactive'}</span>
-                    </div>
-                    <span className="text-[11px] text-slate-400">Order: {plan.sort_order}</span>
-                </div>
-            </CardContent>
-        </Card>
+                <span className="text-[9px] text-gray-400 tabular-nums">Order: {plan.sort_order}</span>
+            </div>
+        </div>
     );
 };
 
@@ -391,9 +383,9 @@ const PlanModal = ({ isOpen, onClose, onSubmit, initialData, loading }: {
 
     return (
         <Dialog open={isOpen} onOpenChange={(v) => !v && onClose()}>
-            <DialogContent className="max-w-lg p-0 border border-slate-200/60 bg-white rounded-2xl shadow-xl overflow-hidden max-h-[90vh] overflow-y-auto gap-0">
+            <DialogContent className="max-w-lg p-0 border border-slate-200/60 bg-white rounded-xl shadow-xl overflow-hidden max-h-[90vh] overflow-y-auto gap-0">
                 <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-100">
-                    <DialogTitle className="text-lg font-semibold text-slate-900">
+                    <DialogTitle className="text-[14px] font-semibold text-brand-navy">
                         {isEditing ? 'Edit Plan' : 'New Plan'}
                     </DialogTitle>
                 </DialogHeader>
@@ -407,7 +399,7 @@ const PlanModal = ({ isOpen, onClose, onSubmit, initialData, loading }: {
                                 <FormItem>
                                     <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Plan Name</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="e.g. Pro Monthly" {...field} className="h-10 rounded-lg border-slate-200 text-sm" />
+                                        <Input placeholder="e.g. Pro Monthly" {...field} className="h-9 rounded-md border-slate-200 text-[11px]" />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -426,11 +418,11 @@ const PlanModal = ({ isOpen, onClose, onSubmit, initialData, loading }: {
                                                     type="button"
                                                     onClick={() => field.onChange(opt.value)}
                                                     className={cn(
-                                                        'flex items-center justify-center gap-2 h-10 rounded-lg border text-sm font-medium transition-all',
+                                                        'flex items-center justify-center gap-1.5 h-8 rounded-md border text-[11px] font-semibold transition-all',
                                                         sel ? 'border-brand-navy bg-brand-navy/[0.03] text-brand-navy' : 'border-slate-200 text-slate-500 hover:border-slate-300'
                                                     )}
                                                 >
-                                                    <opt.icon className="w-4 h-4" />
+                                                    <opt.icon className="w-3.5 h-3.5" />
                                                     {opt.label}
                                                 </button>
                                             );
@@ -446,7 +438,7 @@ const PlanModal = ({ isOpen, onClose, onSubmit, initialData, loading }: {
                                     <FormItem>
                                         <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Price</FormLabel>
                                         <FormControl>
-                                            <Input type="number" step="0.01" {...field} className="h-10 rounded-lg border-slate-200 text-sm" />
+                                            <Input type="number" step="0.01" {...field} className="h-9 rounded-md border-slate-200 text-[11px]" />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -455,7 +447,7 @@ const PlanModal = ({ isOpen, onClose, onSubmit, initialData, loading }: {
                                     <FormItem>
                                         <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Old Price</FormLabel>
                                         <FormControl>
-                                            <Input type="number" step="0.01" placeholder="Optional" {...field} value={field.value ?? ''} className="h-10 rounded-lg border-slate-200 text-sm" />
+                                            <Input type="number" step="0.01" placeholder="Optional" {...field} value={field.value ?? ''} className="h-9 rounded-md border-slate-200 text-[11px]" />
                                         </FormControl>
                                     </FormItem>
                                 )} />
@@ -463,7 +455,7 @@ const PlanModal = ({ isOpen, onClose, onSubmit, initialData, loading }: {
                                     <FormItem>
                                         <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Currency</FormLabel>
                                         <FormControl>
-                                            <Input {...field} className="h-10 rounded-lg border-slate-200 text-sm" />
+                                            <Input {...field} className="h-9 rounded-md border-slate-200 text-[11px]" />
                                         </FormControl>
                                     </FormItem>
                                 )} />
@@ -474,7 +466,7 @@ const PlanModal = ({ isOpen, onClose, onSubmit, initialData, loading }: {
                                 <FormItem>
                                     <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Description</FormLabel>
                                     <FormControl>
-                                        <Textarea placeholder="Short description..." {...field} value={field.value ?? ''} className="rounded-lg border-slate-200 text-sm min-h-[72px] resize-none" />
+                                        <Textarea placeholder="Short description..." {...field} value={field.value ?? ''} className="rounded-md border-slate-200 text-[11px] min-h-[64px] resize-none" />
                                     </FormControl>
                                 </FormItem>
                             )} />
@@ -486,25 +478,25 @@ const PlanModal = ({ isOpen, onClose, onSubmit, initialData, loading }: {
                                     <button
                                         type="button"
                                         onClick={() => append({ value: '' })}
-                                        className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                                        className="text-[11px] text-blue-600 hover:text-blue-700 font-semibold"
                                     >
                                         + Add
                                     </button>
                                 </div>
                                 {fields.length === 0 && (
-                                    <p className="text-xs text-slate-400 py-2">No features added.</p>
+                                    <p className="text-[11px] text-slate-400 py-1">No features added.</p>
                                 )}
                                 <div className="space-y-1.5">
                                     {fields.map((f, idx) => (
                                         <div key={f.id} className="flex items-center gap-2">
-                                            <GripVertical className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+                                            <GripVertical className="w-3 h-3 text-slate-300 shrink-0" />
                                             <Input
                                                 placeholder="Feature description..."
                                                 {...form.register(`features.${idx}.value`)}
-                                                className="h-8 rounded-md border-slate-200 text-xs flex-1"
+                                                className="h-8 rounded-md border-slate-200 text-[11px] flex-1"
                                             />
                                             <button type="button" onClick={() => remove(idx)} className="text-slate-400 hover:text-red-500 shrink-0">
-                                                <X className="w-3.5 h-3.5" />
+                                                <X className="w-3 h-3" />
                                             </button>
                                         </div>
                                     ))}
@@ -512,7 +504,7 @@ const PlanModal = ({ isOpen, onClose, onSubmit, initialData, loading }: {
                             </div>
 
                             {/* Promotion */}
-                            <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 space-y-3">
+                            <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-3.5 space-y-3">
                                 <div className="flex items-center justify-between">
                                     <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Promotion</label>
                                     <FormField control={form.control} name="promotion_active" render={({ field }) => (
@@ -521,7 +513,7 @@ const PlanModal = ({ isOpen, onClose, onSubmit, initialData, loading }: {
                                 </div>
                                 <FormField control={form.control} name="promotion_label" render={({ field }) => (
                                     <FormControl>
-                                        <Input placeholder='e.g. "30% OFF"' {...field} value={field.value ?? ''} className="h-9 rounded-lg border-slate-200 text-sm bg-white" />
+                                        <Input placeholder='e.g. "30% OFF"' {...field} value={field.value ?? ''} className="h-8 rounded-md border-slate-200 text-[11px] bg-white" />
                                     </FormControl>
                                 )} />
                             </div>
@@ -531,9 +523,9 @@ const PlanModal = ({ isOpen, onClose, onSubmit, initialData, loading }: {
                                 <FormField control={form.control} name="active" render={({ field }) => (
                                     <FormItem>
                                         <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Status</FormLabel>
-                                        <div className="flex items-center gap-2.5 h-10 px-3 bg-slate-50 rounded-lg border border-slate-200">
+                                        <div className="flex items-center gap-2.5 h-9 px-3 bg-slate-50 rounded-md border border-slate-200">
                                             <Switch checked={field.value} onCheckedChange={field.onChange} className="data-[state=checked]:bg-emerald-500 scale-90" />
-                                            <span className="text-xs font-medium text-slate-600">{field.value ? 'Active' : 'Inactive'}</span>
+                                            <span className="text-[11px] font-semibold text-slate-600">{field.value ? 'Active' : 'Inactive'}</span>
                                         </div>
                                     </FormItem>
                                 )} />
@@ -541,7 +533,7 @@ const PlanModal = ({ isOpen, onClose, onSubmit, initialData, loading }: {
                                     <FormItem>
                                         <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Sort Order</FormLabel>
                                         <FormControl>
-                                            <Input type="number" {...field} className="h-10 rounded-lg border-slate-200 text-sm" />
+                                            <Input type="number" {...field} className="h-9 rounded-md border-slate-200 text-[11px]" />
                                         </FormControl>
                                     </FormItem>
                                 )} />
@@ -549,11 +541,11 @@ const PlanModal = ({ isOpen, onClose, onSubmit, initialData, loading }: {
                         </div>
 
                         <DialogFooter className="px-6 py-4 border-t border-slate-100 gap-2 sm:gap-2">
-                            <Button type="button" variant="ghost" onClick={onClose} className="h-9 px-4 text-sm text-slate-500">
+                            <Button type="button" variant="ghost" onClick={onClose} className="h-8 px-3 text-[11px] font-semibold text-slate-500">
                                 Cancel
                             </Button>
-                            <Button type="submit" disabled={loading} className="h-9 px-5 bg-brand-navy hover:bg-brand-navy/90 text-white text-sm font-medium rounded-lg">
-                                {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                            <Button type="submit" disabled={loading} className="h-8 px-4 text-[11px] font-semibold bg-brand-navy hover:bg-brand-navy/90 text-white rounded-md">
+                                {loading && <Loader2 className="w-3 h-3 mr-2 animate-spin" />}
                                 {isEditing ? 'Save Changes' : 'Create Plan'}
                             </Button>
                         </DialogFooter>

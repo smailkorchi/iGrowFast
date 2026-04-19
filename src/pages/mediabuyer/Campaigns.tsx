@@ -30,7 +30,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
     DropdownMenu,
@@ -69,7 +68,6 @@ import { useCurrentUserId } from '@/hooks/useCurrentUserId';
 import { useCampaignBasePath } from '@/hooks/useCampaignBasePath';
 import { format } from 'date-fns';
 
-// ── Ad-mock card (Facebook/Instagram-style preview) ──────────────────────
 type CampaignAction = 'preview' | 'manage' | 'toggle' | 'edit' | 'delete';
 
 type CreatorInfo = {
@@ -79,6 +77,7 @@ type CreatorInfo = {
     role: string | null;
 } | null;
 
+// ── Ad-mock card (Facebook/Instagram-style preview) ───────────────────────────
 const AdMockCard: React.FC<{
     campaign: Campaign;
     businessName: string;
@@ -96,38 +95,27 @@ const AdMockCard: React.FC<{
     const isActive = campaign.status === 'active';
 
     return (
-        <div
-            className={cn(
-                'group/card relative rounded-[28px] overflow-hidden bg-white border border-brand-navy/[0.06] shadow-[0_8px_30px_-12px_rgba(15,23,42,0.08)] transition-all duration-500',
-                'hover:shadow-[0_20px_60px_-20px_rgba(15,23,42,0.25)] hover:-translate-y-1 hover:border-brand-navy/10',
-            )}
-        >
-            {/* ── Mock Ad Header (profile + sponsored + menu) ── */}
-            <div className="flex items-center gap-3 p-4 pb-3">
-                <div className="w-10 h-10 rounded-full overflow-hidden bg-brand-navy/[0.05] flex items-center justify-center shrink-0 border border-brand-navy/5">
+        <div className="rounded-xl border border-gray-100 bg-white overflow-hidden hover:shadow-sm transition-shadow">
+            {/* Mock Ad Header */}
+            <div className="flex items-center gap-2.5 px-3 py-2.5">
+                <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center shrink-0">
                     {businessLogo ? (
                         <img src={businessLogo} alt="" className="w-full h-full object-cover" />
                     ) : (
-                        <span className="text-[11px] font-black text-brand-navy">
+                        <span className="text-[10px] font-semibold text-brand-navy">
                             {(businessName || 'DG').substring(0, 2).toUpperCase()}
                         </span>
                     )}
                 </div>
                 <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-bold text-brand-navy truncate leading-tight">{businessName || 'Your business'}</p>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="text-[10px] text-muted-foreground font-medium">Sponsored</span>
-                        <span className="text-[10px] text-muted-foreground">·</span>
-                        <div className="w-2.5 h-2.5 rounded-full bg-brand-navy/10 flex items-center justify-center">
-                            <div className="w-1 h-1 rounded-full bg-brand-navy/40" />
-                        </div>
-                    </div>
+                    <p className="text-[12px] font-semibold text-brand-navy truncate leading-tight">{businessName || 'Your business'}</p>
+                    <p className="text-[9px] text-gray-400">Sponsored</p>
                 </div>
                 <div className="flex items-center gap-1">
                     <Badge
                         className={cn(
-                            'rounded-full text-[9px] uppercase font-black tracking-wider px-2.5 py-0.5 border-none',
-                            isActive ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600'
+                            'h-5 px-1.5 text-[9px] rounded-md border-none font-semibold',
+                            isActive ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
                         )}
                     >
                         {campaign.status}
@@ -137,39 +125,39 @@ const AdMockCard: React.FC<{
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 rounded-full text-brand-navy/40 hover:text-brand-navy hover:bg-brand-navy/5"
+                                className="h-8 w-8 rounded-md text-gray-400 hover:text-brand-navy hover:bg-gray-50"
                                 onClick={(e) => e.stopPropagation()}
                             >
-                                <MoreVertical className="w-4 h-4" />
+                                <MoreVertical className="w-3.5 h-3.5" />
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-1">
-                            <DropdownMenuItem onClick={() => onActions('preview')} className="rounded-xl p-2.5 text-xs font-bold cursor-pointer">
-                                <Eye className="w-4 h-4 mr-2" /> Preview
+                        <DropdownMenuContent align="end" className="rounded-xl border-gray-100 shadow-md p-1">
+                            <DropdownMenuItem onClick={() => onActions('preview')} className="rounded-md text-[11px] font-semibold cursor-pointer">
+                                <Eye className="w-3.5 h-3.5 mr-2" /> Preview
                             </DropdownMenuItem>
                             {canEdit && (
                                 <>
-                                    <DropdownMenuItem onClick={() => onActions('manage')} className="rounded-xl p-2.5 text-xs font-bold cursor-pointer">
-                                        <ListChecks className="w-4 h-4 mr-2" /> Manage data
+                                    <DropdownMenuItem onClick={() => onActions('manage')} className="rounded-md text-[11px] font-semibold cursor-pointer">
+                                        <ListChecks className="w-3.5 h-3.5 mr-2" /> Manage data
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => onActions('toggle')} className="rounded-xl p-2.5 text-xs font-bold cursor-pointer">
-                                        {isActive ? <PowerOff className="w-4 h-4 mr-2" /> : <Power className="w-4 h-4 mr-2" />}
+                                    <DropdownMenuItem onClick={() => onActions('toggle')} className="rounded-md text-[11px] font-semibold cursor-pointer">
+                                        {isActive ? <PowerOff className="w-3.5 h-3.5 mr-2" /> : <Power className="w-3.5 h-3.5 mr-2" />}
                                         {isActive ? 'Deactivate' : 'Activate'}
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => onActions('edit')} className="rounded-xl p-2.5 text-xs font-bold cursor-pointer">
-                                        <Edit2 className="w-4 h-4 mr-2" /> Edit
+                                    <DropdownMenuItem onClick={() => onActions('edit')} className="rounded-md text-[11px] font-semibold cursor-pointer">
+                                        <Edit2 className="w-3.5 h-3.5 mr-2" /> Edit
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem
                                         onClick={() => onActions('delete')}
-                                        className="rounded-xl p-2.5 text-xs font-bold cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700"
+                                        className="rounded-md text-[11px] font-semibold cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700"
                                     >
-                                        <Trash2 className="w-4 h-4 mr-2" /> Delete
+                                        <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete
                                     </DropdownMenuItem>
                                 </>
                             )}
                             {!canEdit && (
-                                <DropdownMenuItem disabled className="rounded-xl p-2.5 text-[10px] font-bold text-brand-navy/40 uppercase tracking-wider">
+                                <DropdownMenuItem disabled className="rounded-md text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
                                     <Lock className="w-3 h-3 mr-2" /> Read only
                                 </DropdownMenuItem>
                             )}
@@ -178,44 +166,39 @@ const AdMockCard: React.FC<{
                 </div>
             </div>
 
-            {/* ── Created by strip (admin view only) ── */}
+            {/* Created by strip */}
             {showCreator && (
-                <div className="px-4 pb-2 flex items-center gap-2">
-                    <span className="text-[9px] font-black uppercase tracking-widest text-brand-navy/30">Created by</span>
-                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-brand-navy/[0.04]">
-                        <div className="w-4 h-4 rounded-full bg-brand-navy/10 flex items-center justify-center overflow-hidden">
+                <div className="px-3 pb-2 flex items-center gap-1.5">
+                    <span className="text-[9px] uppercase tracking-[0.18em] text-gray-400">By</span>
+                    <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-gray-50">
+                        <div className="w-3.5 h-3.5 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
                             {creator?.avatar_url ? (
                                 <img src={creator.avatar_url} alt="" className="w-full h-full object-cover" />
                             ) : (
-                                <UserIcon className="w-2.5 h-2.5 text-brand-navy/50" />
+                                <UserIcon className="w-2 h-2 text-gray-400" />
                             )}
                         </div>
-                        <span className="text-[10px] font-bold text-brand-navy/70 truncate max-w-[140px]">
-                            {creator?.name || (campaign.created_by ? 'Unknown' : 'Admin (legacy)')}
+                        <span className="text-[10px] font-medium text-brand-navy/70 truncate max-w-[120px]">
+                            {creator?.name || (campaign.created_by ? 'Unknown' : 'Admin')}
                         </span>
-                        {creator?.role && (
-                            <span className="text-[8px] font-black uppercase tracking-widest text-brand-navy/40">
-                                {creator.role.replace(/_/g, ' ')}
-                            </span>
-                        )}
                     </div>
                 </div>
             )}
 
-            {/* ── Primary text ── */}
+            {/* Primary text */}
             {campaign.primary_text && (
-                <div className="px-4 pb-3">
-                    <p className="text-[13px] leading-snug text-brand-navy/80 line-clamp-2 whitespace-pre-wrap break-words">
+                <div className="px-3 pb-2">
+                    <p className="text-[11px] leading-snug text-brand-navy/80 line-clamp-2 whitespace-pre-wrap break-words">
                         {campaign.primary_text}
                     </p>
                 </div>
             )}
 
-            {/* ── Media area ── */}
+            {/* Media area */}
             <button
                 type="button"
                 onClick={onClick}
-                className="relative w-full aspect-square bg-gradient-to-br from-brand-navy/[0.04] to-brand-navy/[0.08] overflow-hidden block"
+                className="relative w-full aspect-square bg-gray-50 overflow-hidden block"
             >
                 {current ? (
                     current.type === 'video' ? (
@@ -232,37 +215,34 @@ const AdMockCard: React.FC<{
                         <img src={current.url} alt="" className="w-full h-full object-cover" />
                     )
                 ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-brand-navy/20">
-                        <Megaphone className="w-12 h-12" />
-                        <span className="text-xs font-bold uppercase tracking-wider">No media</span>
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-gray-300">
+                        <Megaphone className="w-10 h-10" />
+                        <span className="text-[9px] uppercase tracking-[0.18em]">No media</span>
                     </div>
                 )}
 
                 {current?.type === 'video' && (
-                    <div className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/50 backdrop-blur flex items-center justify-center">
-                        <PlayCircle className="w-5 h-5 text-white" />
+                    <div className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 backdrop-blur flex items-center justify-center">
+                        <PlayCircle className="w-4 h-4 text-white" />
                     </div>
                 )}
 
-                {/* Platform badge overlay */}
-                <div
-                    className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full backdrop-blur-md shadow-lg"
-                    style={{ backgroundColor: `${getPlatformColor(campaign.platform)}E6` }}
-                >
-                    <span className="text-white">{getPlatformIcon(campaign.platform, 'w-3 h-3')}</span>
-                    <span className="text-[9px] font-black uppercase tracking-wider text-white">{campaign.platform.replace(/ ads$/i, '')}</span>
+                {/* Platform badge */}
+                <div className="absolute top-2 left-2 flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-sm">
+                    <span className="text-white">{getPlatformIcon(campaign.platform, 'w-2.5 h-2.5')}</span>
+                    <span className="text-[9px] uppercase tracking-[0.12em] text-white font-semibold">{campaign.platform.replace(/ ads$/i, '')}</span>
                 </div>
 
                 {/* Carousel dots */}
                 {hasMultiple && (
                     <>
-                        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+                        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
                             {media.map((_, i) => (
                                 <div
                                     key={i}
                                     className={cn(
-                                        'w-1.5 h-1.5 rounded-full transition-all',
-                                        i === mediaIdx ? 'bg-white w-4' : 'bg-white/50'
+                                        'h-1 rounded-full transition-all',
+                                        i === mediaIdx ? 'bg-white w-3' : 'bg-white/50 w-1'
                                     )}
                                 />
                             ))}
@@ -270,32 +250,32 @@ const AdMockCard: React.FC<{
                         <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); setMediaIdx((i) => (i === 0 ? media.length - 1 : i - 1)); }}
-                            className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/80 backdrop-blur-md flex items-center justify-center shadow-md opacity-0 group-hover/card:opacity-100 transition-opacity"
+                            className="absolute left-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/80 backdrop-blur flex items-center justify-center shadow"
                         >
-                            <ChevronLeft className="w-4 h-4 text-brand-navy" />
+                            <ChevronLeft className="w-3.5 h-3.5 text-brand-navy" />
                         </button>
                         <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); setMediaIdx((i) => (i === media.length - 1 ? 0 : i + 1)); }}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/80 backdrop-blur-md flex items-center justify-center shadow-md opacity-0 group-hover/card:opacity-100 transition-opacity"
+                            className="absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/80 backdrop-blur flex items-center justify-center shadow"
                         >
-                            <ChevronRight className="w-4 h-4 text-brand-navy" />
+                            <ChevronRight className="w-3.5 h-3.5 text-brand-navy" />
                         </button>
                     </>
                 )}
             </button>
 
-            {/* ── Headline + CTA strip (mimics FB ad footer) ── */}
+            {/* Headline + CTA */}
             {(campaign.headline || campaign.cta_label) && (
-                <div className="flex items-center justify-between gap-3 px-4 py-3 bg-brand-navy/[0.02] border-y border-brand-navy/5">
+                <div className="flex items-center justify-between gap-2 px-3 py-2 bg-gray-50 border-t border-gray-100">
                     <div className="min-w-0 flex-1">
                         {campaign.conversion_content && (
-                            <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground truncate">
+                            <p className="text-[9px] uppercase tracking-[0.12em] text-gray-400 truncate">
                                 {campaign.conversion_content.replace(/^https?:\/\//, '').split('/')[0]}
                             </p>
                         )}
                         {campaign.headline && (
-                            <p className="text-[13px] font-bold text-brand-navy leading-tight truncate">
+                            <p className="text-[11px] font-semibold text-brand-navy leading-tight truncate">
                                 {campaign.headline}
                             </p>
                         )}
@@ -305,7 +285,7 @@ const AdMockCard: React.FC<{
                             type="button"
                             size="sm"
                             onClick={onClick}
-                            className="shrink-0 h-8 px-3 rounded-xl bg-brand-navy/[0.06] hover:bg-brand-navy hover:text-white text-brand-navy text-[10px] font-black uppercase tracking-wider border-none shadow-none"
+                            className="shrink-0 h-7 px-2.5 rounded-md bg-brand-navy text-white text-[10px] font-semibold shadow-none border-none"
                         >
                             {campaign.cta_label}
                         </Button>
@@ -313,35 +293,33 @@ const AdMockCard: React.FC<{
                 </div>
             )}
 
-            {/* ── Meta engagement row (purely decorative) ── */}
-            <div className="flex items-center justify-between px-4 py-2.5 text-brand-navy/30">
-                <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-1"><ThumbsUp className="w-3.5 h-3.5" /><span className="text-[10px] font-bold">Like</span></div>
-                    <div className="flex items-center gap-1"><MessageCircle className="w-3.5 h-3.5" /><span className="text-[10px] font-bold">Comment</span></div>
-                    <div className="flex items-center gap-1"><Share2 className="w-3.5 h-3.5" /><span className="text-[10px] font-bold">Share</span></div>
-                </div>
+            {/* Engagement row */}
+            <div className="flex items-center gap-3 px-3 py-2 text-gray-400">
+                <div className="flex items-center gap-1"><ThumbsUp className="w-3 h-3" /><span className="text-[9px]">Like</span></div>
+                <div className="flex items-center gap-1"><MessageCircle className="w-3 h-3" /><span className="text-[9px]">Comment</span></div>
+                <div className="flex items-center gap-1"><Share2 className="w-3 h-3" /><span className="text-[9px]">Share</span></div>
             </div>
 
-            {/* ── Footer strip — budget + dates ── */}
-            <div className="px-4 py-3 bg-brand-navy text-white flex items-center justify-between gap-2 text-[10px] font-bold">
-                <div className="flex items-center gap-1.5">
+            {/* Budget footer */}
+            <div className="px-3 py-2 bg-brand-navy text-white flex items-center justify-between text-[10px] font-semibold">
+                <span className="flex items-center gap-1">
                     {campaign.spending_type === 'ongoing' ? (
                         <><InfinityIcon className="w-3 h-3" /> Ongoing</>
                     ) : (
                         <><CalendarIcon className="w-3 h-3" /> Date-limited</>
                     )}
-                </div>
-                <div className="tabular-nums">
+                </span>
+                <span className="tabular-nums">
                     {campaign.spending_type === 'ongoing'
                         ? `${campaign.daily_budget ?? 0} ${campaign.currency}/d`
-                        : `${campaign.total_budget ?? 0} ${campaign.currency} total`}
-                </div>
+                        : `${campaign.total_budget ?? 0} ${campaign.currency}`}
+                </span>
             </div>
         </div>
     );
 };
 
-// ── List row variant ─────────────────────────────────────────────────────
+// ── List row ──────────────────────────────────────────────────────────────────
 const CampaignRow: React.FC<{
     campaign: Campaign;
     canEdit: boolean;
@@ -355,56 +333,55 @@ const CampaignRow: React.FC<{
     const isActive = campaign.status === 'active';
 
     return (
-        <Card className="border-none bg-white/90 backdrop-blur-sm rounded-[24px] overflow-hidden shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 group/row">
-            <CardContent className="p-4 flex items-center gap-4">
+        <div className="border border-gray-100 rounded-xl bg-white hover:bg-gray-50 transition-colors">
+            <div className="px-3 py-2 flex items-center gap-3">
                 <button
                     type="button"
                     onClick={onClick}
-                    className="relative h-20 w-20 rounded-2xl overflow-hidden bg-brand-navy/[0.05] shrink-0"
+                    className="relative h-14 w-14 rounded-md overflow-hidden bg-gray-100 shrink-0"
                 >
                     {thumb ? (
                         thumb.type === 'video' ? (
                             <>
                                 <video src={thumb.url} className="w-full h-full object-cover" muted playsInline />
                                 <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                                    <PlayCircle className="w-6 h-6 text-white" />
+                                    <PlayCircle className="w-5 h-5 text-white" />
                                 </div>
                             </>
                         ) : (
                             <img src={thumb.url} alt="" className="w-full h-full object-cover" />
                         )
                     ) : (
-                        <div className="w-full h-full flex items-center justify-center text-brand-navy/20">
-                            <Megaphone className="w-6 h-6" />
+                        <div className="w-full h-full flex items-center justify-center text-gray-300">
+                            <Megaphone className="w-5 h-5" />
                         </div>
                     )}
                     <div
-                        className="absolute top-1 left-1 w-5 h-5 rounded-full flex items-center justify-center shadow"
+                        className="absolute top-0.5 left-0.5 w-4 h-4 rounded-sm flex items-center justify-center"
                         style={{ backgroundColor: getPlatformColor(campaign.platform) }}
                     >
-                        <span className="text-white">{getPlatformIcon(campaign.platform, 'w-2.5 h-2.5')}</span>
+                        <span className="text-white">{getPlatformIcon(campaign.platform, 'w-2 h-2')}</span>
                     </div>
                 </button>
 
                 <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-base font-bold text-brand-navy truncate">{campaign.name}</h3>
+                    <div className="flex items-center gap-2 mb-0.5">
+                        <h3 className="text-[12px] font-semibold text-brand-navy truncate">{campaign.name}</h3>
                         <Badge
                             className={cn(
-                                'rounded-full text-[9px] uppercase font-black tracking-wider px-2 py-0.5 border-none shrink-0',
-                                isActive ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600'
+                                'h-5 px-1.5 text-[9px] rounded-md border-none font-semibold shrink-0',
+                                isActive ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
                             )}
                         >
                             {campaign.status}
                         </Badge>
                     </div>
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground font-medium">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-gray-400 tabular-nums">
                         <span className="capitalize">{campaign.platform}</span>
-                        <span className="flex items-center gap-1">
-                            {campaign.spending_type === 'ongoing' ? <InfinityIcon className="w-3 h-3" /> : <CalendarIcon className="w-3 h-3" />}
+                        <span>
                             {campaign.spending_type === 'ongoing' ? 'Ongoing' : 'Date-limited'}
                         </span>
-                        <span className="tabular-nums font-bold text-brand-navy">
+                        <span className="font-semibold text-brand-navy/80">
                             {campaign.spending_type === 'ongoing'
                                 ? `${campaign.daily_budget ?? 0} ${campaign.currency}/day`
                                 : `${campaign.total_budget ?? 0} ${campaign.currency}`}
@@ -413,16 +390,10 @@ const CampaignRow: React.FC<{
                             <span>{format(new Date(campaign.start_date), 'dd MMM yyyy')}{campaign.end_date ? ` → ${format(new Date(campaign.end_date), 'dd MMM yyyy')}` : ''}</span>
                         )}
                         {showCreator && (
-                            <span className="flex items-center gap-1 pl-2 border-l border-brand-navy/10">
-                                <div className="w-3.5 h-3.5 rounded-full bg-brand-navy/10 flex items-center justify-center overflow-hidden">
-                                    {creator?.avatar_url ? (
-                                        <img src={creator.avatar_url} alt="" className="w-full h-full object-cover" />
-                                    ) : (
-                                        <UserIcon className="w-2 h-2 text-brand-navy/50" />
-                                    )}
-                                </div>
-                                <span className="text-[10px] font-bold text-brand-navy/60">
-                                    {creator?.name || (campaign.created_by ? 'Unknown' : 'Admin (legacy)')}
+                            <span className="flex items-center gap-1 pl-2 border-l border-gray-200">
+                                <UserIcon className="w-2.5 h-2.5 text-gray-400" />
+                                <span className="text-[9px] text-brand-navy/60">
+                                    {creator?.name || (campaign.created_by ? 'Unknown' : 'Admin')}
                                 </span>
                             </span>
                         )}
@@ -430,33 +401,33 @@ const CampaignRow: React.FC<{
                 </div>
 
                 <div className="flex items-center gap-1 shrink-0">
-                    <Button variant="ghost" size="icon" onClick={() => onActions('preview')} className="h-9 w-9 rounded-xl text-brand-navy/50 hover:text-brand-navy hover:bg-brand-navy/5" title="Preview">
-                        <Eye className="w-4 h-4" />
+                    <Button variant="ghost" size="icon" onClick={() => onActions('preview')} className="h-8 w-8 rounded-md text-gray-400 hover:text-brand-navy hover:bg-gray-100" title="Preview">
+                        <Eye className="w-3.5 h-3.5" />
                     </Button>
                     {canEdit ? (
                         <>
-                            <Button variant="ghost" size="icon" onClick={() => onActions('manage')} className="h-9 w-9 rounded-xl text-brand-navy/50 hover:text-brand-navy hover:bg-brand-navy/5" title="Manage data">
-                                <ListChecks className="w-4 h-4" />
+                            <Button variant="ghost" size="icon" onClick={() => onActions('manage')} className="h-8 w-8 rounded-md text-gray-400 hover:text-brand-navy hover:bg-gray-100" title="Manage data">
+                                <ListChecks className="w-3.5 h-3.5" />
                             </Button>
-                            <Button variant="ghost" size="icon" onClick={() => onActions('toggle')} className="h-9 w-9 rounded-xl text-brand-navy/50 hover:text-brand-navy hover:bg-brand-navy/5" title={isActive ? 'Deactivate' : 'Activate'}>
-                                {isActive ? <PowerOff className="w-4 h-4" /> : <Power className="w-4 h-4" />}
+                            <Button variant="ghost" size="icon" onClick={() => onActions('toggle')} className="h-8 w-8 rounded-md text-gray-400 hover:text-brand-navy hover:bg-gray-100" title={isActive ? 'Deactivate' : 'Activate'}>
+                                {isActive ? <PowerOff className="w-3.5 h-3.5" /> : <Power className="w-3.5 h-3.5" />}
                             </Button>
-                            <Button variant="ghost" size="icon" onClick={() => onActions('edit')} className="h-9 w-9 rounded-xl text-brand-navy/50 hover:text-brand-navy hover:bg-brand-navy/5" title="Edit">
-                                <Edit2 className="w-4 h-4" />
+                            <Button variant="ghost" size="icon" onClick={() => onActions('edit')} className="h-8 w-8 rounded-md text-gray-400 hover:text-brand-navy hover:bg-gray-100" title="Edit">
+                                <Edit2 className="w-3.5 h-3.5" />
                             </Button>
-                            <Button variant="ghost" size="icon" onClick={() => onActions('delete')} className="h-9 w-9 rounded-xl text-red-500/60 hover:text-red-600 hover:bg-red-50" title="Delete">
-                                <Trash2 className="w-4 h-4" />
+                            <Button variant="ghost" size="icon" onClick={() => onActions('delete')} className="h-8 w-8 rounded-md text-red-400 hover:text-red-600 hover:bg-red-50" title="Delete">
+                                <Trash2 className="w-3.5 h-3.5" />
                             </Button>
                         </>
                     ) : (
-                        <div className="flex items-center gap-1.5 px-2.5 h-9 rounded-xl bg-brand-navy/[0.04] text-brand-navy/50" title="You can only edit campaigns you created">
+                        <div className="flex items-center gap-1 px-2 h-8 rounded-md bg-gray-50 text-gray-400">
                             <Lock className="w-3 h-3" />
-                            <span className="text-[9px] font-black uppercase tracking-wider">Read only</span>
+                            <span className="text-[9px] uppercase tracking-[0.18em]">Read only</span>
                         </div>
                     )}
                 </div>
-            </CardContent>
-        </Card>
+            </div>
+        </div>
     );
 };
 
@@ -468,7 +439,6 @@ const Campaigns = () => {
     const activeBusinessId = localStorage.getItem('activeBusinessId');
     const currentUserId = useCurrentUserId();
     const basePath = useCampaignBasePath();
-    // Creator badge only shows in admin view — redundant noise under /mediabuyer.
     const isAdminView = !location.pathname.startsWith('/mediabuyer');
 
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -506,8 +476,6 @@ const Campaigns = () => {
         enabled: !!activeBusinessId,
     });
 
-    // Creators lookup — only loaded when the page is rendered in admin view,
-    // since media buyers only see their own rows and don't need the badge.
     const { data: creators = [] } = useQuery({
         queryKey: ['campaigns-creators', activeBusinessId],
         queryFn: async () => {
@@ -553,7 +521,6 @@ const Campaigns = () => {
             if (!currentUserId || campaign.created_by !== currentUserId) {
                 throw new Error('You can only delete campaigns you created');
             }
-            // Best-effort cleanup of media files in storage.
             const paths = (campaign.media || []).map((m) => m.path).filter(Boolean);
             if (paths.length > 0) {
                 await supabase.storage.from('campaign-media').remove(paths);
@@ -609,152 +576,138 @@ const Campaigns = () => {
     };
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
             {/* Header */}
-            <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-                <div className="relative p-8">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div>
-                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Campaigns</h1>
-                            <p className="text-gray-500 font-light">Create, monitor and manage your advertising campaigns.</p>
-                        </div>
-                        <div className="flex flex-col sm:flex-row gap-3 items-center">
-                            <div className="flex bg-white/80 p-1 rounded-2xl border border-gray-100 shadow-sm">
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => setViewMode('grid')}
-                                    className={cn(
-                                        'rounded-xl w-10 h-10 transition-all',
-                                        viewMode === 'grid' ? 'bg-white shadow-xl text-primary font-bold' : 'text-gray-400 hover:text-primary'
-                                    )}
-                                >
-                                    <LayoutGrid className="w-5 h-5" />
-                                </Button>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => setViewMode('list')}
-                                    className={cn(
-                                        'rounded-xl w-10 h-10 transition-all',
-                                        viewMode === 'list' ? 'bg-white shadow-xl text-primary font-bold' : 'text-gray-400 hover:text-primary'
-                                    )}
-                                >
-                                    <ListIcon className="w-5 h-5" />
-                                </Button>
-                            </div>
-                            <div className="relative group sm:w-80">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
-                                <Input
-                                    placeholder="Search by name, headline, platform..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="pl-11 h-12 rounded-2xl border-gray-100 bg-white"
-                                />
-                            </div>
+            <header className="space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Campaigns</h1>
+                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Advertising campaigns</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="flex items-center border border-gray-100 rounded-md overflow-hidden">
                             <Button
-                                onClick={() => navigate(`${basePath}/new`)}
-                                className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group flex items-center gap-2 w-full sm:w-auto"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setViewMode('grid')}
+                                className={cn(
+                                    'h-8 w-8 rounded-none',
+                                    viewMode === 'grid' ? 'bg-gray-100 text-brand-navy' : 'text-gray-400'
+                                )}
                             >
-                                <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-500" />
-                                Create Campaign
+                                <LayoutGrid className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setViewMode('list')}
+                                className={cn(
+                                    'h-8 w-8 rounded-none',
+                                    viewMode === 'list' ? 'bg-gray-100 text-brand-navy' : 'text-gray-400'
+                                )}
+                            >
+                                <ListIcon className="w-3.5 h-3.5" />
                             </Button>
                         </div>
+                        <div className="relative">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                            <Input
+                                placeholder="Search campaigns..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-8 h-8 rounded-md text-[11px] w-52 border-gray-200"
+                            />
+                        </div>
+                        <Button
+                            onClick={() => navigate(`${basePath}/new`)}
+                            className="h-8 rounded-md text-[11px] font-semibold gap-1.5 px-3"
+                        >
+                            <Plus className="w-3.5 h-3.5" />
+                            Create
+                        </Button>
                     </div>
-
-                    {/* Stats strip */}
-                    {isLoading ? (
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-4 pt-6">
-                            {Array.from({ length: 4 }).map((_, i) => (
-                                <Skeleton key={i} className="h-24 rounded-3xl bg-white/60" />
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 pt-6">
-                            {[
-                                { label: 'Total', value: stats.total, tone: 'bg-brand-navy/10 text-brand-navy' },
-                                { label: 'Active', value: stats.active, tone: 'bg-emerald-500/10 text-emerald-600' },
-                                { label: 'Draft', value: stats.draft, tone: 'bg-amber-500/10 text-amber-600' },
-                                { label: 'Ongoing', value: stats.ongoing, tone: 'bg-primary/10 text-primary' },
-                            ].map((s) => (
-                                <div key={s.label} className="rounded-3xl border border-gray-100/80 bg-white/90 p-5 shadow-sm backdrop-blur-sm">
-                                    <div className="flex items-start justify-between gap-3">
-                                        <div className="space-y-1">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{s.label}</p>
-                                            <p className="text-2xl font-black tabular-nums text-gray-900 tracking-tight">{s.value}</p>
-                                        </div>
-                                        <div className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl', s.tone)}>
-                                            <Megaphone className="h-5 w-5" />
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
                 </div>
-            </div>
+            </header>
+
+            {/* KPI tiles */}
+            {isLoading ? (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                        <Skeleton key={i} className="h-16 rounded-xl" />
+                    ))}
+                </div>
+            ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[
+                        { label: 'Total', value: stats.total, accent: '#3b5e5e' },
+                        { label: 'Active', value: stats.active, accent: '#059669' },
+                        { label: 'Draft', value: stats.draft, accent: '#d97706' },
+                        { label: 'Ongoing', value: stats.ongoing, accent: '#9ca3af' },
+                    ].map((s) => (
+                        <div key={s.label} className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
+                            <span className="w-[3px] self-stretch rounded-full" style={{ background: s.accent }} />
+                            <div className="flex-1 min-w-0">
+                                <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{s.label}</p>
+                                <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{s.value}</p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
 
             {/* Filters */}
-            <Card className="border-none shadow-sm bg-white/50 backdrop-blur-sm rounded-[24px]">
-                <CardContent className="p-4 flex flex-wrap items-center gap-3">
-                    <Select value={statusFilter} onValueChange={(v: any) => setStatusFilter(v)}>
-                        <SelectTrigger className="w-[160px] h-11 rounded-2xl border-gray-100 bg-white font-bold text-brand-navy">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-2xl">
-                            <SelectItem value="all">All statuses</SelectItem>
-                            <SelectItem value="active">Active</SelectItem>
-                            <SelectItem value="draft">Draft</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    <Select value={platformFilter} onValueChange={setPlatformFilter}>
-                        <SelectTrigger className="w-[200px] h-11 rounded-2xl border-gray-100 bg-white font-bold text-brand-navy">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-2xl">
-                            <SelectItem value="all">All platforms</SelectItem>
-                            {CAMPAIGN_PLATFORMS.map((p) => (
-                                <SelectItem key={p} value={p} className="capitalize">
-                                    {p}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                    <span className="text-xs text-muted-foreground font-bold ml-auto">
-                        {filtered.length} / {campaigns?.length ?? 0} campaigns
-                    </span>
-                </CardContent>
-            </Card>
+            <div className="border border-gray-100 rounded-xl bg-white p-3 flex flex-wrap items-center gap-2">
+                <Select value={statusFilter} onValueChange={(v: any) => setStatusFilter(v)}>
+                    <SelectTrigger className="w-[140px] h-8 rounded-md border-gray-200 text-[11px] font-semibold text-brand-navy">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                        <SelectItem value="all" className="text-[11px]">All statuses</SelectItem>
+                        <SelectItem value="active" className="text-[11px]">Active</SelectItem>
+                        <SelectItem value="draft" className="text-[11px]">Draft</SelectItem>
+                    </SelectContent>
+                </Select>
+                <Select value={platformFilter} onValueChange={setPlatformFilter}>
+                    <SelectTrigger className="w-[180px] h-8 rounded-md border-gray-200 text-[11px] font-semibold text-brand-navy">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                        <SelectItem value="all" className="text-[11px]">All platforms</SelectItem>
+                        {CAMPAIGN_PLATFORMS.map((p) => (
+                            <SelectItem key={p} value={p} className="text-[11px] capitalize">
+                                {p}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+                <span className="text-[10px] text-gray-400 ml-auto tabular-nums">
+                    {filtered.length} / {campaigns?.length ?? 0}
+                </span>
+            </div>
 
             {/* Content */}
             {isLoading ? (
-                <div className={cn('grid gap-6', viewMode === 'grid' ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'grid-cols-1')}>
+                <div className={cn('grid gap-3', viewMode === 'grid' ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'grid-cols-1')}>
                     {Array.from({ length: 6 }).map((_, i) => (
-                        <Skeleton key={i} className={viewMode === 'grid' ? 'h-[560px] rounded-[28px]' : 'h-28 rounded-[24px]'} />
+                        <Skeleton key={i} className={viewMode === 'grid' ? 'h-[480px] rounded-xl' : 'h-16 rounded-xl'} />
                     ))}
                 </div>
             ) : filtered.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-32 space-y-6 bg-white/50 backdrop-blur-sm rounded-[40px] shadow-sm border border-brand-navy/[0.03]">
-                    <div className="w-24 h-24 bg-brand-navy/[0.04] rounded-full flex items-center justify-center">
-                        <Megaphone className="w-12 h-12 text-brand-navy/20" />
-                    </div>
-                    <div className="text-center space-y-2">
-                        <h3 className="text-2xl font-bold text-brand-navy">No campaigns yet</h3>
-                        <p className="text-muted-foreground max-w-xs mx-auto">
-                            Launch your first advertising campaign and start tracking performance across platforms.
-                        </p>
+                <div className="flex flex-col items-center justify-center py-20 space-y-4 border border-gray-100 rounded-xl bg-white">
+                    <Megaphone className="w-10 h-10 text-gray-200" />
+                    <div className="text-center space-y-1">
+                        <p className="text-[13px] font-semibold text-brand-navy">No campaigns</p>
+                        <p className="text-[11px] text-gray-400 max-w-xs">Launch your first advertising campaign to start tracking performance.</p>
                     </div>
                     <Button
                         onClick={() => navigate(`${basePath}/new`)}
-                        variant="outline"
-                        className="rounded-xl border-brand-navy/10 font-bold hover:bg-brand-navy hover:text-brand-white transition-all"
+                        className="h-8 rounded-md text-[11px] font-semibold px-4"
                     >
-                        Create First Campaign
+                        Create Campaign
                     </Button>
                 </div>
             ) : viewMode === 'grid' ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                     {filtered.map((c) => (
                         <AdMockCard
                             key={c.id}
@@ -770,7 +723,7 @@ const Campaigns = () => {
                     ))}
                 </div>
             ) : (
-                <div className="grid grid-cols-1 gap-4">
+                <div className="space-y-1.5">
                     {filtered.map((c) => (
                         <CampaignRow
                             key={c.id}
@@ -786,21 +739,21 @@ const Campaigns = () => {
             )}
 
             <AlertDialog open={!!toDelete} onOpenChange={(open) => !open && setToDelete(null)}>
-                <AlertDialogContent className="rounded-[32px] border-none shadow-2xl">
+                <AlertDialogContent className="rounded-xl border-gray-100 shadow-md">
                     <AlertDialogHeader>
-                        <AlertDialogTitle className="text-2xl font-bold text-brand-navy">Delete campaign?</AlertDialogTitle>
-                        <AlertDialogDescription className="text-muted-foreground">
-                            This will permanently delete <span className="font-bold text-brand-navy">{toDelete?.name}</span> and all its uploaded media. This action cannot be undone.
+                        <AlertDialogTitle className="text-[15px] font-semibold text-brand-navy">Delete campaign?</AlertDialogTitle>
+                        <AlertDialogDescription className="text-[12px] text-gray-500">
+                            This will permanently delete <span className="font-semibold text-brand-navy">{toDelete?.name}</span> and all its uploaded media. This action cannot be undone.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel className="rounded-xl font-bold">Cancel</AlertDialogCancel>
+                        <AlertDialogCancel className="h-8 rounded-md text-[11px] font-semibold">Cancel</AlertDialogCancel>
                         <AlertDialogAction
                             onClick={() => toDelete && deleteMutation.mutate(toDelete)}
                             disabled={deleteMutation.isPending}
-                            className="rounded-xl font-bold bg-red-600 hover:bg-red-700"
+                            className="h-8 rounded-md text-[11px] font-semibold bg-red-600 hover:bg-red-700"
                         >
-                            {deleteMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                            {deleteMutation.isPending && <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
                             Delete
                         </AlertDialogAction>
                     </AlertDialogFooter>

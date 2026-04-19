@@ -22,9 +22,9 @@ interface PerformanceFunnelProps {
 }
 
 function rateToneClass(pct: number): string {
-  if (pct >= 50) return 'text-emerald-700';
-  if (pct >= 25) return 'text-amber-700';
-  return 'text-red-600';
+  if (pct >= 50) return 'text-ant-green';
+  if (pct >= 25) return 'text-ant-orange';
+  return 'text-ant-rose';
 }
 
 /**
@@ -39,7 +39,7 @@ export function PerformanceFunnel({ stages, dense, className }: PerformanceFunne
   return (
     <div
       className={cn(
-        'flex overflow-hidden rounded-md border border-gray-100 bg-white divide-x divide-gray-100',
+        'flex overflow-hidden rounded-md border border-ant-line bg-ant-paper divide-x divide-ant-line',
         className,
       )}
     >
@@ -61,15 +61,15 @@ export function PerformanceFunnel({ stages, dense, className }: PerformanceFunne
             <div className="relative z-10 flex items-baseline justify-between gap-1.5">
               <span
                 className={cn(
-                  'font-bold uppercase tracking-[0.14em]',
-                  dense ? 'text-[8px]' : 'text-[9px]',
+                  'font-medium uppercase tracking-[0.18em]',
+                  dense ? 'text-[8.5px]' : 'text-[9.5px]',
                 )}
                 style={{ color: stage.accent }}
               >
                 {stage.label}
               </span>
               {stage.ratePct !== undefined && (
-                <span className={cn('text-[8px] font-bold tabular-nums', rateToneClass(stage.ratePct))}>
+                <span className={cn('text-[9px] font-semibold tabular-nums', rateToneClass(stage.ratePct))}>
                   {stage.ratePct.toFixed(1)}%
                 </span>
               )}
@@ -77,14 +77,14 @@ export function PerformanceFunnel({ stages, dense, className }: PerformanceFunne
             <div className="relative z-10 mt-0.5 flex items-baseline gap-1">
               <span
                 className={cn(
-                  'font-semibold text-brand-navy tabular-nums leading-none',
-                  dense ? 'text-[12px]' : 'text-[15px]',
+                  'font-display font-semibold text-ant-ink tabular-nums leading-none tracking-[-0.02em]',
+                  dense ? 'text-[13px]' : 'text-[16px]',
                 )}
               >
                 {stage.count.toLocaleString('fr-MA')}
               </span>
               {stage.sub && (
-                <span className="text-[8px] text-gray-400 truncate">{stage.sub}</span>
+                <span className="text-[9px] text-ant-mid truncate">{stage.sub}</span>
               )}
             </div>
           </div>

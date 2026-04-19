@@ -284,29 +284,29 @@ function StatusPillsRibbon({
     };
 
     return (
-        <div className="bg-white/60 backdrop-blur-md rounded-2xl shadow-sm border border-brand-navy/5 p-3 animate-in fade-in slide-in-from-top-1 duration-300">
+        <div className="bg-white border border-gray-100 rounded-xl p-2.5">
             <div className="flex items-start gap-2">
                 <div
                     ref={containerRef}
                     className={cn(
-                        "flex flex-wrap items-center gap-2 flex-1 min-w-0 transition-[max-height] duration-300 ease-in-out",
-                        !expanded && "max-h-[40px] overflow-hidden"
+                        "flex flex-wrap items-center gap-1.5 flex-1 min-w-0 transition-[max-height] duration-300 ease-in-out",
+                        !expanded && "max-h-[36px] overflow-hidden"
                     )}
                 >
                     <button
                         type="button"
                         onClick={() => setSelectedSet(new Set())}
                         className={cn(
-                            "shrink-0 inline-flex items-center gap-2 h-9 px-4 rounded-full text-[11px] font-black uppercase tracking-widest transition-all",
+                            "shrink-0 inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[11px] font-semibold transition-all",
                             allActive
-                                ? "bg-brand-navy text-white shadow-md shadow-brand-navy/20"
-                                : "bg-brand-navy/[0.04] text-brand-navy/60 hover:bg-brand-navy/[0.08] hover:text-brand-navy"
+                                ? "bg-brand-navy text-white"
+                                : "bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-brand-navy"
                         )}
                     >
                         All
                         <span
                             className={cn(
-                                "min-w-[20px] h-[18px] flex items-center justify-center px-1.5 rounded-full text-[10px] font-black",
+                                "min-w-[18px] h-4 flex items-center justify-center px-1 rounded text-[9px] font-bold",
                                 allActive ? "bg-white/25 text-white" : "bg-brand-navy/10 text-brand-navy/70"
                             )}
                         >
@@ -321,27 +321,27 @@ function StatusPillsRibbon({
                                 type="button"
                                 onClick={() => togglePill(bucket.id)}
                                 className={cn(
-                                    "shrink-0 inline-flex items-center gap-2 h-9 px-4 rounded-full text-[11px] font-black uppercase tracking-widest transition-all border border-transparent",
+                                    "shrink-0 inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[11px] font-semibold transition-all",
                                     isActive ? "text-white" : "hover:brightness-95"
                                 )}
                                 style={
                                     isActive
-                                        ? { backgroundColor: bucket.color, boxShadow: `0 8px 20px -8px ${bucket.color}80` }
+                                        ? { backgroundColor: bucket.color }
                                         : { backgroundColor: `${bucket.color}14`, color: bucket.color }
                                 }
                             >
                                 {bucket.icon ? (
-                                    <DynamicIcon name={bucket.icon} className="w-3.5 h-3.5 shrink-0" style={{ color: isActive ? '#ffffff' : bucket.color }} />
+                                    <DynamicIcon name={bucket.icon} className="w-3 h-3 shrink-0" style={{ color: isActive ? '#ffffff' : bucket.color }} />
                                 ) : (
                                     <span
-                                        className="w-2 h-2 rounded-full shrink-0"
+                                        className="w-1.5 h-1.5 rounded-full shrink-0"
                                         style={{ backgroundColor: isActive ? '#ffffff' : bucket.color }}
                                     />
                                 )}
                                 <span className="truncate max-w-[160px]">{bucket.label}</span>
                                 <span
                                     className={cn(
-                                        "min-w-[20px] h-[18px] flex items-center justify-center px-1.5 rounded-full text-[10px] font-black",
+                                        "min-w-[18px] h-4 flex items-center justify-center px-1 rounded text-[9px] font-bold",
                                         isActive ? "bg-white/25 text-white" : ""
                                     )}
                                     style={!isActive ? { backgroundColor: '#ffffff', color: bucket.color } : undefined}
@@ -357,9 +357,9 @@ function StatusPillsRibbon({
                         type="button"
                         onClick={() => setExpanded((v) => !v)}
                         aria-label={expanded ? 'Collapse' : 'Expand'}
-                        className="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-full bg-brand-navy/[0.04] text-brand-navy/60 hover:bg-brand-navy/[0.08] hover:text-brand-navy transition-all"
+                        className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-brand-navy transition-all"
                     >
-                        <ChevronDown className={cn("w-4 h-4 transition-transform duration-300", expanded && "rotate-180")} />
+                        <ChevronDown className={cn("w-3.5 h-3.5 transition-transform duration-300", expanded && "rotate-180")} />
                     </button>
                 )}
             </div>
@@ -2149,111 +2149,80 @@ const Orders = () => {
     };
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
-            {/* Header Section */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div className="space-y-2">
-                    <div className="flex items-center gap-3">
-                        <div className="p-3 bg-brand-navy rounded-2xl shadow-lg shadow-brand-navy/20">
-                            <ShoppingCart className="w-6 h-6 text-brand-white" />
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+            {/* Header */}
+            <header className="space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Order Pipeline</h1>
+                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Manage your sales flow &amp; delivery tracking</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <WebhookHealthIndicator activeBusinessId={activeBusinessId} />
+                        <div className="relative">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                            <Input
+                                placeholder="Search orders…"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-7 h-8 w-56 rounded-md border-gray-200 bg-white text-[11px]"
+                            />
                         </div>
-                        <h1 className="text-4xl font-black tracking-tight text-brand-navy">Order Pipeline</h1>
+                        <Button
+                            onClick={() => {
+                                form.reset({
+                                    name: '',
+                                    phone: '',
+                                    city_id: '',
+                                    address: '',
+                                    source_name: '',
+                                    shipping_cost: 0,
+                                    include_delivery_in_total: false,
+                                    replace: false,
+                                    note: '',
+                                    delivery_note: '',
+                                    delivery_type: 'Home Delivery',
+                                    order_status_id: defaultNewOrderStatusId,
+                                    items: [{ product_id: '', quantity: 1, unit_price: 0, accessories: [] }],
+                                    courier_id: null,
+                                    company_id: null,
+                                    history_comment: '',
+                                    _reportedDate: '',
+                                    coliaty_old_tracking: '',
+                                    ameex_old_tracking: ''
+                                });
+                                setIsAddModalOpen(true);
+                            }}
+                            className="bg-brand-navy hover:bg-brand-navy/90 text-white h-8 px-3 rounded-md text-[11px] font-semibold gap-1.5 shrink-0"
+                        >
+                            <PlusCircle className="w-3.5 h-3.5" />
+                            New Order
+                        </Button>
                     </div>
-                    <p className="text-muted-foreground text-lg font-medium">Streamline your sales flow and delivery tracking.</p>
-                    <WebhookHealthIndicator activeBusinessId={activeBusinessId} className="mt-2" />
                 </div>
+            </header>
 
-                <div className="flex flex-col sm:flex-row gap-3 items-center">
-                    <div className="relative group sm:w-80">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground transition-colors group-focus-within:text-brand-navy" />
-                        <Input
-                            placeholder="Search any order detail (tracking, Coliaty, products, notes…)"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-11 h-12 bg-white/50 border-none shadow-sm rounded-2xl focus-visible:ring-1 focus-visible:ring-brand-navy/20 transition-all font-medium"
-                        />
+            {/* Seller Performance KPIs */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {[
+                    { label: 'Delivery Rate', value: `${sellerStats.deliveryRate.toFixed(0)}%`, sub: `${sellerStats.totalDelivered} delivered`, accent: '#059669' },
+                    { label: 'Confirm Rate', value: `${sellerStats.confirmRate.toFixed(0)}%`, sub: 'Success rate', accent: '#3b5e5e' },
+                    { label: 'Unpaid Commission', value: `${new Intl.NumberFormat('fr-FR').format(Math.round(sellerStats.unpaidCommission))} MAD`, sub: `${sellerStats.commissionRate} MAD / ${sellerStats.commissionBasis === 'per_unit' ? 'unit' : 'order'}`, accent: '#d97706' },
+                    { label: 'My Orders', value: new Intl.NumberFormat('fr-FR').format(filteredOrders.length), sub: 'Current view', accent: '#9ca3af' },
+                ].map((s, i) => (
+                    <div key={i} className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
+                        <span className="w-[3px] self-stretch rounded-full" style={{ background: s.accent }} />
+                        <div className="flex-1 min-w-0">
+                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400 truncate">{s.label}</p>
+                            <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1 truncate">{s.value}</p>
+                            <p className="text-[9px] text-gray-400 mt-0.5 truncate">{s.sub}</p>
+                        </div>
                     </div>
-                    <Button
-                        onClick={() => {
-                            form.reset({
-                                name: '',
-                                phone: '',
-                                city_id: '',
-                                address: '',
-                                source_name: '',
-                                shipping_cost: 0,
-                                include_delivery_in_total: false,
-                                replace: false,
-                                note: '',
-                                delivery_note: '',
-                                delivery_type: 'Home Delivery',
-                                order_status_id: defaultNewOrderStatusId,
-                                items: [{ product_id: '', quantity: 1, unit_price: 0, accessories: [] }],
-                                courier_id: null,
-                                company_id: null,
-                                history_comment: '',
-                                _reportedDate: '',
-                                coliaty_old_tracking: '',
-                                ameex_old_tracking: ''
-                            });
-                            setIsAddModalOpen(true);
-                        }}
-                        className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-12 px-6 font-bold shadow-lg shadow-brand-navy/10 transition-all active:scale-95 flex items-center gap-2 w-full sm:w-auto"
-                    >
-                        <PlusCircle className="w-5 h-5" />
-                        New Order
-                    </Button>
-                </div>
+                ))}
             </div>
 
-            {/* Seller Performance Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card className="border-none bg-emerald-50/50 rounded-[32px] p-6 relative overflow-hidden flex flex-col justify-between min-h-[140px]">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600/60 mb-2">Delivery Rate</p>
-                    <div className="flex items-baseline gap-2">
-                        <h3 className="text-3xl lg:text-4xl xl:text-5xl font-black text-brand-navy tracking-tight">
-                            {sellerStats.deliveryRate.toFixed(0)}
-                        </h3>
-                        <span className="text-2xl font-bold text-emerald-600">%</span>
-                    </div>
-                    <p className="text-[10px] text-gray-400 mt-2">{sellerStats.totalDelivered} delivered</p>
-                </Card>
-                <Card className="border-none bg-blue-50/50 rounded-[32px] p-6 relative overflow-hidden flex flex-col justify-between min-h-[140px]">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-blue-600/60 mb-2">Confirm Rate</p>
-                    <div className="flex items-baseline gap-2">
-                        <h3 className="text-3xl lg:text-4xl xl:text-5xl font-black text-brand-navy tracking-tight">
-                            {sellerStats.confirmRate.toFixed(0)}
-                        </h3>
-                        <span className="text-2xl font-bold text-blue-600">%</span>
-                    </div>
-                    <p className="text-[10px] text-gray-400 mt-2">Your success rate</p>
-                </Card>
-                <div className="bg-brand-navy rounded-[32px] p-6 text-brand-white shadow-2xl shadow-brand-navy/30 relative overflow-hidden group flex flex-col justify-between min-h-[140px]">
-                    <div className="relative z-10 flex flex-col h-full justify-between">
-                        <span className="text-[10px] font-black uppercase text-brand-white/60 tracking-widest mb-2 block">Unpaid Commission</span>
-                        <div className="flex items-baseline gap-1.5 w-full">
-                            <span className="text-3xl lg:text-4xl xl:text-5xl font-black tracking-tight truncate">
-                                {new Intl.NumberFormat('fr-FR').format(Math.round(sellerStats.unpaidCommission))}
-                            </span>
-                            <span className="text-lg font-bold opacity-60 shrink-0">MAD</span>
-                        </div>
-                        <p className="text-[10px] text-white/60 mt-2">
-                            {sellerStats.commissionRate} MAD per {sellerStats.commissionBasis === 'per_unit' ? 'unit' : 'order'} (unpaid accrual)
-                        </p>
-                    </div>
-                    <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-brand-white/5 rounded-full blur-2xl group-hover:bg-brand-white/10 transition-colors duration-500" />
-                </div>
-                <Card className="border-none bg-purple-50/50 rounded-[32px] p-6 relative overflow-hidden flex flex-col justify-between min-h-[140px]">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-purple-600/60 mb-2">My Orders</p>
-                    <h3 className="text-3xl lg:text-4xl xl:text-5xl font-black text-brand-navy tracking-tight truncate w-full">
-                        {new Intl.NumberFormat('fr-FR').format(filteredOrders.length)}
-                    </h3>
-                    <p className="text-[10px] text-gray-400 mt-2">Current view</p>
-                </Card>
-            </div>
-
-            {/* Tabs View */}
-            <div className="flex bg-white/50 backdrop-blur-md p-1.5 rounded-2xl shadow-sm border border-brand-navy/5 w-full overflow-x-auto hide-scrollbar snap-x">
+            {/* Pipeline Tabs */}
+            <div className="flex flex-wrap gap-1 bg-white border border-gray-100 rounded-xl p-1 w-full overflow-x-auto">
                 {[
                     { id: 'all', label: 'All', count: tabCounts.all, icon: LayoutGrid },
                     { id: 'new', label: 'Nouveau', count: tabCounts.new, icon: Package },
@@ -2263,28 +2232,30 @@ const Orders = () => {
                 ].map((tab) => {
                     const Icon = tab.icon;
                     const isActive = activeTab === tab.id;
+                    const isReportedNow = tab.id === 'reported' && (tabCounts as any).reportedNow;
+                    const isReportedToday = tab.id === 'reported' && (tabCounts as any).reportedToday;
                     return (
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id as any)}
                             className={cn(
-                                "flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-[11px] md:text-xs font-black uppercase tracking-widest transition-all snap-start whitespace-nowrap",
+                                "flex items-center gap-1.5 px-3 h-7 rounded-lg text-[11px] font-semibold transition-all whitespace-nowrap",
                                 isActive
-                                    ? "bg-brand-navy text-white shadow-md shadow-brand-navy/10 transform scale-100"
-                                    : (tab.id === 'reported' && (tabCounts as any).reportedNow)
-                                        ? "bg-red-600 text-brand-white animate-pulse shadow-lg shadow-red-500/20"
-                                        : (tab.id === 'reported' && (tabCounts as any).reportedToday)
-                                            ? "bg-amber-500 text-brand-white shadow-lg shadow-amber-500/20"
-                                            : "text-brand-navy/60 hover:text-brand-navy hover:bg-brand-navy/5"
+                                    ? "bg-brand-navy text-white"
+                                    : isReportedNow
+                                        ? "bg-red-600 text-white animate-pulse"
+                                        : isReportedToday
+                                            ? "bg-amber-500 text-white"
+                                            : "text-gray-500 hover:text-brand-navy hover:bg-gray-50"
                             )}
                         >
-                            <Icon className={cn("w-4 h-4", isActive ? "opacity-100" : "opacity-50")} />
+                            <Icon className="w-3 h-3" />
                             <span>{tab.label}</span>
                             <Badge
                                 variant="secondary"
                                 className={cn(
-                                    "ml-1 font-bold",
-                                    isActive ? "bg-white/20 text-white" : "bg-brand-navy/5 text-brand-navy/60"
+                                    "text-[9px] font-bold px-1 py-0 h-4",
+                                    isActive ? "bg-white/20 text-white" : "bg-gray-100 text-gray-500"
                                 )}
                             >
                                 {tab.count}
@@ -2311,52 +2282,42 @@ const Orders = () => {
                 );
             })()}
 
-            {/* Filters Toolbar (admin parity; seller-scoped city/provider/product; no Confirmed By / Assigned To) */}
-            <div className="space-y-4 pb-4">
-                <div className="flex flex-col xl:flex-row gap-4 items-start xl:items-center justify-between">
-                    <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
-                        <div className="flex bg-white p-1 rounded-xl shadow-sm border border-brand-navy/5 shrink-0">
-                            <Button
-                                variant="ghost"
-                                size="sm"
+            {/* Filters Toolbar */}
+            <div className="space-y-2">
+                <div className="flex flex-col xl:flex-row gap-2 items-start xl:items-center justify-between">
+                    <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto">
+                        <div className="flex border border-gray-200 rounded-md overflow-hidden shrink-0">
+                            <button
                                 onClick={() => setViewMode('grid')}
-                                className={cn(
-                                    "h-8 w-8 p-0 rounded-lg transition-all duration-300",
-                                    viewMode === 'grid' ? "bg-brand-navy text-brand-white shadow-lg" : "text-brand-navy/30 hover:text-brand-navy hover:bg-brand-navy/5"
-                                )}
+                                className={cn("h-8 w-8 flex items-center justify-center transition-colors",
+                                    viewMode === 'grid' ? "bg-brand-navy text-white" : "bg-white text-gray-400 hover:text-brand-navy hover:bg-gray-50")}
                             >
-                                <LayoutGrid className="w-4 h-4" />
-                            </Button>
-                            <Button
-                                variant="ghost"
-                                size="sm"
+                                <LayoutGrid className="w-3.5 h-3.5" />
+                            </button>
+                            <button
                                 onClick={() => setViewMode('list')}
-                                className={cn(
-                                    "h-8 w-8 p-0 rounded-lg transition-all duration-300",
-                                    viewMode === 'list' ? "bg-brand-navy text-brand-white shadow-lg" : "text-brand-navy/30 hover:text-brand-navy hover:bg-brand-navy/5"
-                                )}
+                                className={cn("h-8 w-8 flex items-center justify-center border-l border-gray-200 transition-colors",
+                                    viewMode === 'list' ? "bg-brand-navy text-white" : "bg-white text-gray-400 hover:text-brand-navy hover:bg-gray-50")}
                             >
-                                <List className="w-4 h-4" />
-                            </Button>
+                                <List className="w-3.5 h-3.5" />
+                            </button>
                         </div>
 
                         <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
                             onClick={() => setShowAllFilters(!showAllFilters)}
                             className={cn(
-                                "h-9 px-4 rounded-2xl gap-2 text-xs font-bold transition-all duration-300",
-                                showAllFilters
-                                    ? "bg-brand-navy text-brand-white shadow-xl shadow-brand-navy/20"
-                                    : "bg-white text-brand-navy/60 border border-brand-navy/[0.06] hover:border-brand-navy/10 hover:text-brand-navy shadow-sm"
+                                "h-8 px-3 rounded-md gap-1.5 text-[11px] font-semibold border-gray-200 transition-all",
+                                showAllFilters ? "bg-brand-navy text-white border-brand-navy" : "bg-white text-gray-500"
                             )}
                         >
-                            <Filter className="w-3.5 h-3.5" />
+                            <Filter className="w-3 h-3" />
                             Filters
                             {activeFilterCount > 0 && (
                                 <span className={cn(
-                                    "ml-0.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full text-[10px] font-black leading-none",
-                                    showAllFilters ? "bg-brand-white/25 text-brand-white" : "bg-brand-navy text-brand-white"
+                                    "ml-0.5 min-w-[16px] h-4 flex items-center justify-center rounded text-[9px] font-bold leading-none px-1",
+                                    showAllFilters ? "bg-white/25 text-white" : "bg-brand-navy text-white"
                                 )}>
                                     {activeFilterCount}
                                 </span>
@@ -2364,87 +2325,87 @@ const Orders = () => {
                         </Button>
 
                         {activeFilterCount > 0 && (
-                            <div className="flex flex-wrap items-center gap-1.5 animate-in fade-in duration-300">
+                            <div className="flex flex-wrap items-center gap-1.5">
                                 {filterTimeRange !== 'all' && (
-                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-bold border border-blue-100">
+                                    <span className="inline-flex items-center gap-1 h-6 px-2 rounded-md bg-gray-100 text-gray-600 text-[10px] font-semibold">
                                         <Clock className="w-3 h-3" />
                                         {filterTimeRange === 'custom' && filterCustomRange?.from
                                             ? `${format(filterCustomRange.from, 'dd/MM')}–${filterCustomRange.to ? format(filterCustomRange.to, 'dd/MM') : '...'}`
                                             : filterTimeRange.replace(/([A-Z])/g, ' $1').trim()}
-                                        <button type="button" onClick={() => { setFilterTimeRange('all'); setFilterCustomRange(undefined); setShowCalendar(false); }} className="ml-0.5 hover:bg-blue-100 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
+                                        <button type="button" onClick={() => { setFilterTimeRange('all'); setFilterCustomRange(undefined); setShowCalendar(false); }} className="ml-0.5 hover:text-red-500 transition-colors"><X className="w-2.5 h-2.5" /></button>
                                     </span>
                                 )}
                                 {filterStatus !== 'all' && (
-                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-purple-50 text-purple-700 text-[10px] font-bold border border-purple-100">
+                                    <span className="inline-flex items-center gap-1 h-6 px-2 rounded-md bg-gray-100 text-gray-600 text-[10px] font-semibold">
                                         <ShieldCheck className="w-3 h-3" />
                                         {orderStatuses?.find((s: any) => s.id === filterStatus)?.label || 'Status'}
-                                        <button type="button" onClick={() => setFilterStatus('all')} className="ml-0.5 hover:bg-purple-100 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
+                                        <button type="button" onClick={() => setFilterStatus('all')} className="ml-0.5 hover:text-red-500 transition-colors"><X className="w-2.5 h-2.5" /></button>
                                     </span>
                                 )}
                                 {filterPackageStatus !== 'all' && (
-                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-orange-50 text-orange-700 text-[10px] font-bold border border-orange-100">
+                                    <span className="inline-flex items-center gap-1 h-6 px-2 rounded-md bg-gray-100 text-gray-600 text-[10px] font-semibold">
                                         <Package className="w-3 h-3" />
                                         {packageStatuses?.find((s: any) => s.id === filterPackageStatus)?.label || 'Package'}
-                                        <button type="button" onClick={() => setFilterPackageStatus('all')} className="ml-0.5 hover:bg-orange-100 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
+                                        <button type="button" onClick={() => setFilterPackageStatus('all')} className="ml-0.5 hover:text-red-500 transition-colors"><X className="w-2.5 h-2.5" /></button>
                                     </span>
                                 )}
                                 {filterCity !== 'all' && (
-                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-100">
+                                    <span className="inline-flex items-center gap-1 h-6 px-2 rounded-md bg-gray-100 text-gray-600 text-[10px] font-semibold">
                                         <MapPin className="w-3 h-3" />
                                         {sellerFilterCities.find((c) => c.id === filterCity)?.name || cities?.find((c: any) => c.id === filterCity)?.name || 'City'}
-                                        <button type="button" onClick={() => setFilterCity('all')} className="ml-0.5 hover:bg-emerald-100 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
+                                        <button type="button" onClick={() => setFilterCity('all')} className="ml-0.5 hover:text-red-500 transition-colors"><X className="w-2.5 h-2.5" /></button>
                                     </span>
                                 )}
                                 {filterProduct !== 'all' && (
-                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-pink-50 text-pink-700 text-[10px] font-bold border border-pink-100 max-w-[200px]">
+                                    <span className="inline-flex items-center gap-1 h-6 px-2 rounded-md bg-gray-100 text-gray-600 text-[10px] font-semibold max-w-[200px]">
                                         <ShoppingBag className="w-3 h-3 shrink-0" />
                                         <span className="truncate">{productNameLabel((products as any[])?.find((p: any) => p.id === filterProduct))}</span>
-                                        <button type="button" onClick={() => setFilterProduct('all')} className="ml-0.5 hover:bg-pink-100 rounded-full p-0.5 transition-colors shrink-0"><X className="w-2.5 h-2.5" /></button>
+                                        <button type="button" onClick={() => setFilterProduct('all')} className="ml-0.5 hover:text-red-500 transition-colors shrink-0"><X className="w-2.5 h-2.5" /></button>
                                     </span>
                                 )}
                                 {filterCustomerName && (
-                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold border border-slate-200 max-w-[180px]">
+                                    <span className="inline-flex items-center gap-1 h-6 px-2 rounded-md bg-gray-100 text-gray-600 text-[10px] font-semibold max-w-[180px]">
                                         <User className="w-3 h-3 shrink-0" />
                                         <span className="truncate">&quot;{filterCustomerName}&quot;</span>
-                                        <button type="button" onClick={() => setFilterCustomerName('')} className="ml-0.5 hover:bg-slate-200 rounded-full p-0.5 transition-colors shrink-0"><X className="w-2.5 h-2.5" /></button>
+                                        <button type="button" onClick={() => setFilterCustomerName('')} className="ml-0.5 hover:text-red-500 transition-colors shrink-0"><X className="w-2.5 h-2.5" /></button>
                                     </span>
                                 )}
                                 {filterPhone && (
-                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold border border-slate-200">
+                                    <span className="inline-flex items-center gap-1 h-6 px-2 rounded-md bg-gray-100 text-gray-600 text-[10px] font-semibold">
                                         <Phone className="w-3 h-3" />
                                         {filterPhone}
-                                        <button type="button" onClick={() => setFilterPhone('')} className="ml-0.5 hover:bg-slate-200 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
+                                        <button type="button" onClick={() => setFilterPhone('')} className="ml-0.5 hover:text-red-500 transition-colors"><X className="w-2.5 h-2.5" /></button>
                                     </span>
                                 )}
                                 {filterTracking.trim() && (
-                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold border border-slate-200 max-w-[220px]">
+                                    <span className="inline-flex items-center gap-1 h-6 px-2 rounded-md bg-gray-100 text-gray-600 text-[10px] font-semibold max-w-[220px]">
                                         <Hash className="w-3 h-3 shrink-0" />
                                         <span className="truncate">{filterTracking.trim()}</span>
-                                        <button type="button" onClick={() => setFilterTracking('')} className="ml-0.5 hover:bg-slate-200 rounded-full p-0.5 transition-colors shrink-0"><X className="w-2.5 h-2.5" /></button>
+                                        <button type="button" onClick={() => setFilterTracking('')} className="ml-0.5 hover:text-red-500 transition-colors shrink-0"><X className="w-2.5 h-2.5" /></button>
                                     </span>
                                 )}
                                 {filterSource !== 'all' && (
-                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-cyan-50 text-cyan-700 text-[10px] font-bold border border-cyan-100 capitalize">
+                                    <span className="inline-flex items-center gap-1 h-6 px-2 rounded-md bg-gray-100 text-gray-600 text-[10px] font-semibold capitalize">
                                         <ExternalLink className="w-3 h-3" />
                                         {filterSource}
-                                        <button type="button" onClick={() => setFilterSource('all')} className="ml-0.5 hover:bg-cyan-100 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
+                                        <button type="button" onClick={() => setFilterSource('all')} className="ml-0.5 hover:text-red-500 transition-colors"><X className="w-2.5 h-2.5" /></button>
                                     </span>
                                 )}
                                 {filterProvider !== 'all' && (
-                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-amber-50 text-amber-700 text-[10px] font-bold border border-amber-100 max-w-[200px]">
+                                    <span className="inline-flex items-center gap-1 h-6 px-2 rounded-md bg-gray-100 text-gray-600 text-[10px] font-semibold max-w-[200px]">
                                         <Truck className="w-3 h-3 shrink-0" />
                                         <span className="truncate">{sellerFilterProviders.find((p) => p.id === filterProvider)?.name || allProviders.find((p: any) => p.id === filterProvider)?.name || 'Service'}</span>
-                                        <button type="button" onClick={() => setFilterProvider('all')} className="ml-0.5 hover:bg-amber-100 rounded-full p-0.5 transition-colors shrink-0"><X className="w-2.5 h-2.5" /></button>
+                                        <button type="button" onClick={() => setFilterProvider('all')} className="ml-0.5 hover:text-red-500 transition-colors shrink-0"><X className="w-2.5 h-2.5" /></button>
                                     </span>
                                 )}
                                 {filterExchange !== 'all' && (
-                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-red-50 text-red-700 text-[10px] font-bold border border-red-100">
+                                    <span className="inline-flex items-center gap-1 h-6 px-2 rounded-md bg-gray-100 text-gray-600 text-[10px] font-semibold">
                                         <RefreshCcw className="w-3 h-3" />
                                         {filterExchange === 'yes' ? 'Exchange: Yes' : 'Exchange: No'}
-                                        <button type="button" onClick={() => setFilterExchange('all')} className="ml-0.5 hover:bg-red-100 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
+                                        <button type="button" onClick={() => setFilterExchange('all')} className="ml-0.5 hover:text-red-500 transition-colors"><X className="w-2.5 h-2.5" /></button>
                                     </span>
                                 )}
-                                <button type="button" onClick={clearAllFilters} className="h-7 px-2 rounded-full text-[10px] font-bold text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors">
+                                <button type="button" onClick={clearAllFilters} className="h-6 px-2 rounded-md text-[10px] font-semibold text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors">
                                     Clear all
                                 </button>
                             </div>
@@ -2452,45 +2413,38 @@ const Orders = () => {
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                        <div className="h-7 px-3 rounded-full bg-brand-navy/[0.04] flex items-center">
-                            <span className="text-[11px] font-bold text-brand-navy/60">
-                                {filteredOrders.length} <span className="text-brand-navy/30 font-medium">records</span>
-                            </span>
-                        </div>
+                        <span className="text-[11px] font-semibold text-brand-navy/60">
+                            {filteredOrders.length} <span className="text-gray-400 font-normal">records</span>
+                        </span>
                     </div>
                 </div>
 
                 {showAllFilters && (
-                    <div className="bg-white/80 backdrop-blur-xl rounded-[28px] border border-brand-navy/[0.04] shadow-xl shadow-brand-navy/[0.03] overflow-hidden animate-in slide-in-from-top-2 fade-in duration-400">
-                        <div className="p-5 border-b border-brand-navy/[0.04]">
-                            <div className="flex items-center gap-2 mb-3.5">
-                                <div className="w-6 h-6 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                                    <Calendar className="w-3.5 h-3.5 text-blue-500" />
-                                </div>
-                                <span className="text-[11px] font-black uppercase tracking-widest text-brand-navy/40">Date &amp; Time</span>
-                            </div>
-                            <div className="flex flex-wrap items-end gap-4">
-                                <div className="space-y-1.5 min-w-[140px]">
-                                    <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider">Filter By</span>
+                    <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
+                        <div className="p-3.5 border-b border-gray-100">
+                            <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 mb-2.5">Date &amp; Time</p>
+                            <div className="flex flex-wrap items-end gap-3">
+                                <div className="space-y-1 min-w-[140px]">
+                                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.12em]">Filter By</span>
                                     <Select value={filterDateField} onValueChange={setFilterDateField}>
-                                        <SelectTrigger className="h-10 rounded-xl border-brand-navy/[0.06] bg-brand-navy/[0.02] text-xs font-bold text-brand-navy hover:border-brand-navy/10 transition-colors">
+                                        <SelectTrigger className="h-8 rounded-md border-gray-200 text-[11px]">
                                             <SelectValue />
                                         </SelectTrigger>
-                                        <SelectContent className="rounded-2xl border-none shadow-2xl shadow-brand-navy/10">
-                                            <SelectItem value="date" className="text-xs font-bold rounded-xl">Order Date</SelectItem>
-                                            <SelectItem value="created_at" className="text-xs font-bold rounded-xl">Created Date</SelectItem>
-                                            <SelectItem value="updated_at" className="text-xs font-bold rounded-xl">Updated Date</SelectItem>
-                                            <SelectItem value="assignment_date" className="text-xs font-bold rounded-xl">Assigned Date</SelectItem>
-                                            <SelectItem value="confirmation_date" className="text-xs font-bold rounded-xl">Confirmed Date</SelectItem>
-                                            <SelectItem value="annulation_date" className="text-xs font-bold rounded-xl">Cancelled Date</SelectItem>
-                                            <SelectItem value="date_livraison" className="text-xs font-bold rounded-xl">Delivered Date</SelectItem>
-                                            <SelectItem value="reported_date" className="text-xs font-bold rounded-xl">Reported Date</SelectItem>
+                                        <SelectContent>
+                                            <SelectItem value="date" className="text-[11px]">Order Date</SelectItem>
+                                            <SelectItem value="created_at" className="text-[11px]">Created Date</SelectItem>
+                                            <SelectItem value="updated_at" className="text-[11px]">Updated Date</SelectItem>
+                                            <SelectItem value="assignment_date" className="text-[11px]">Assigned Date</SelectItem>
+                                            <SelectItem value="confirmation_date" className="text-[11px]">Confirmed Date</SelectItem>
+                                            <SelectItem value="annulation_date" className="text-[11px]">Cancelled Date</SelectItem>
+                                            <SelectItem value="date_livraison" className="text-[11px]">Delivered Date</SelectItem>
+                                            <SelectItem value="reported_date" className="text-[11px]">Reported Date</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div className="space-y-1.5">
-                                    <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider">Range</span>
-                                    <div className="flex flex-wrap gap-1.5">
+                                <div className="space-y-1">
+                                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.12em]">Range</span>
+                                    <div className="flex flex-wrap gap-1">
                                         {([
                                             { v: 'all', l: 'All' },
                                             { v: 'today', l: 'Today' },
@@ -2506,10 +2460,10 @@ const Orders = () => {
                                                 type="button"
                                                 onClick={() => { setFilterTimeRange(opt.v); if (opt.v !== 'custom') setShowCalendar(false); else setShowCalendar(true); }}
                                                 className={cn(
-                                                    "h-10 px-3.5 rounded-xl text-[11px] font-bold transition-all duration-200 border",
+                                                    "h-8 px-2.5 rounded-md text-[11px] font-semibold transition-all border",
                                                     filterTimeRange === opt.v
-                                                        ? "bg-brand-navy text-brand-white border-brand-navy shadow-lg shadow-brand-navy/20"
-                                                        : "bg-brand-navy/[0.02] text-brand-navy/50 border-brand-navy/[0.06] hover:border-brand-navy/10 hover:text-brand-navy/70 hover:bg-brand-navy/[0.04]"
+                                                        ? "bg-brand-navy text-white border-brand-navy"
+                                                        : "bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-brand-navy"
                                                 )}
                                             >
                                                 {opt.l}
@@ -2518,12 +2472,12 @@ const Orders = () => {
                                     </div>
                                 </div>
                                 {filterTimeRange === 'custom' && (
-                                    <div className="space-y-1.5">
-                                        <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider">Pick Dates</span>
+                                    <div className="space-y-1">
+                                        <span className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.12em]">Pick Dates</span>
                                         <Popover open={showCalendar} onOpenChange={setShowCalendar}>
                                             <PopoverTrigger asChild>
-                                                <Button variant="outline" className="h-10 rounded-xl border-brand-navy/[0.06] bg-brand-navy/[0.02] text-xs font-bold text-brand-navy gap-2 px-4 hover:border-brand-navy/10">
-                                                    <Calendar className="w-3.5 h-3.5 text-blue-500" />
+                                                <Button variant="outline" className="h-8 rounded-md border-gray-200 text-[11px] font-semibold text-brand-navy gap-1.5 px-3">
+                                                    <Calendar className="w-3 h-3" />
                                                     {filterCustomRange?.from ? (
                                                         filterCustomRange.to ? (
                                                             <>{format(filterCustomRange.from, 'MMM dd')} — {format(filterCustomRange.to, 'MMM dd, yyyy')}</>
@@ -2531,7 +2485,7 @@ const Orders = () => {
                                                     ) : 'Select range...'}
                                                 </Button>
                                             </PopoverTrigger>
-                                            <PopoverContent className="w-auto p-0 rounded-[24px] border-none shadow-2xl shadow-brand-navy/10" align="start">
+                                            <PopoverContent className="w-auto p-0 rounded-xl border border-gray-100 shadow-none" align="start">
                                                 <CalendarComponent
                                                     mode="range"
                                                     selected={calendarRange}
@@ -2541,7 +2495,7 @@ const Orders = () => {
                                                     modifiers={calendarPreviewRange ? { preview: calendarPreviewRange } : undefined}
                                                     modifiersClassNames={{ preview: 'bg-accent text-accent-foreground' }}
                                                     numberOfMonths={2}
-                                                    className="rounded-[24px] p-4"
+                                                    className="rounded-xl p-3"
                                                 />
                                             </PopoverContent>
                                         </Popover>
@@ -2550,64 +2504,54 @@ const Orders = () => {
                             </div>
                         </div>
 
-                        <div className="p-5 border-b border-brand-navy/[0.04]">
-                            <div className="flex items-center gap-2 mb-3.5">
-                                <div className="w-6 h-6 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                                    <Search className="w-3.5 h-3.5 text-emerald-500" />
-                                </div>
-                                <span className="text-[11px] font-black uppercase tracking-widest text-brand-navy/40">Customer Search</span>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-3">
-                                <div className="relative group">
-                                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-navy/20 group-focus-within:text-brand-navy/50 transition-colors" />
+                        <div className="p-3.5 border-b border-gray-100">
+                            <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 mb-2.5">Customer Search</p>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <div className="relative">
+                                    <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
                                     <Input
                                         placeholder="Customer name..."
                                         value={filterCustomerName}
                                         onChange={(e) => setFilterCustomerName(e.target.value)}
-                                        className="h-10 w-[200px] pl-9 rounded-xl border-brand-navy/[0.06] bg-brand-navy/[0.02] text-xs font-medium hover:border-brand-navy/10 focus-visible:ring-1 focus-visible:ring-brand-navy/10"
+                                        className="h-8 w-[180px] pl-7 rounded-md border-gray-200 text-[11px]"
                                     />
                                 </div>
-                                <div className="relative group">
-                                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-navy/20 group-focus-within:text-brand-navy/50 transition-colors" />
+                                <div className="relative">
+                                    <Phone className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
                                     <Input
                                         placeholder="Phone number..."
                                         value={filterPhone}
                                         onChange={(e) => setFilterPhone(e.target.value)}
-                                        className="h-10 w-[180px] pl-9 rounded-xl border-brand-navy/[0.06] bg-brand-navy/[0.02] text-xs font-medium hover:border-brand-navy/10 focus-visible:ring-1 focus-visible:ring-brand-navy/10"
+                                        className="h-8 w-[160px] pl-7 rounded-md border-gray-200 text-[11px]"
                                     />
                                 </div>
-                                <div className="relative group">
-                                    <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-navy/20 group-focus-within:text-brand-navy/50 transition-colors" />
+                                <div className="relative">
+                                    <Hash className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
                                     <Input
                                         placeholder="Tracking number..."
                                         value={filterTracking}
                                         onChange={(e) => setFilterTracking(e.target.value)}
-                                        className="h-10 w-[200px] pl-9 rounded-xl border-brand-navy/[0.06] bg-brand-navy/[0.02] text-xs font-medium hover:border-brand-navy/10 focus-visible:ring-1 focus-visible:ring-brand-navy/10"
+                                        className="h-8 w-[180px] pl-7 rounded-md border-gray-200 text-[11px]"
                                     />
                                 </div>
                             </div>
                         </div>
 
-                        <div className="p-5">
-                            <div className="flex items-center gap-2 mb-3.5">
-                                <div className="w-6 h-6 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                                    <Filter className="w-3.5 h-3.5 text-purple-500" />
-                                </div>
-                                <span className="text-[11px] font-black uppercase tracking-widest text-brand-navy/40">Filters</span>
-                            </div>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                                <div className="space-y-1.5">
-                                    <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider flex items-center gap-1">
-                                        <ShieldCheck className="w-3 h-3" /> Status
+                        <div className="p-3.5">
+                            <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 mb-2.5">Filters</p>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                                <div className="space-y-1">
+                                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.12em] flex items-center gap-1">
+                                        <ShieldCheck className="w-2.5 h-2.5" /> Status
                                     </span>
                                     <Select value={filterStatus} onValueChange={setFilterStatus}>
-                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterStatus !== 'all' ? "border-purple-200 bg-purple-50/50 text-purple-700" : "border-brand-navy/[0.06] bg-brand-navy/[0.02] text-brand-navy")}>
+                                        <SelectTrigger className="h-8 rounded-md border-gray-200 text-[11px]">
                                             <SelectValue placeholder="All" />
                                         </SelectTrigger>
-                                        <SelectContent className="rounded-2xl border-none shadow-2xl shadow-brand-navy/10 max-h-[300px]">
-                                            <SelectItem value="all" className="font-bold text-xs rounded-xl">All Statuses</SelectItem>
+                                        <SelectContent className="max-h-[300px]">
+                                            <SelectItem value="all" className="text-[11px]">All Statuses</SelectItem>
                                             {orderStatuses?.map((s: any) => (
-                                                <SelectItem key={s.id} value={s.id} className="font-bold text-xs rounded-xl">
+                                                <SelectItem key={s.id} value={s.id} className="text-[11px]">
                                                     <div className="flex items-center gap-2">
                                                         <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
                                                         {s.label}
@@ -2618,18 +2562,18 @@ const Orders = () => {
                                     </Select>
                                 </div>
 
-                                <div className="space-y-1.5">
-                                    <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider flex items-center gap-1">
-                                        <Package className="w-3 h-3" /> Package
+                                <div className="space-y-1">
+                                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.12em] flex items-center gap-1">
+                                        <Package className="w-2.5 h-2.5" /> Package
                                     </span>
                                     <Select value={filterPackageStatus} onValueChange={setFilterPackageStatus}>
-                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterPackageStatus !== 'all' ? "border-orange-200 bg-orange-50/50 text-orange-700" : "border-brand-navy/[0.06] bg-brand-navy/[0.02] text-brand-navy")}>
+                                        <SelectTrigger className="h-8 rounded-md border-gray-200 text-[11px]">
                                             <SelectValue placeholder="All" />
                                         </SelectTrigger>
-                                        <SelectContent className="rounded-2xl border-none shadow-2xl shadow-brand-navy/10 max-h-[300px]">
-                                            <SelectItem value="all" className="font-bold text-xs rounded-xl">All Packages</SelectItem>
+                                        <SelectContent className="max-h-[300px]">
+                                            <SelectItem value="all" className="text-[11px]">All Packages</SelectItem>
                                             {packageStatuses?.map((s: any) => (
-                                                <SelectItem key={s.id} value={s.id} className="font-bold text-xs rounded-xl">
+                                                <SelectItem key={s.id} value={s.id} className="text-[11px]">
                                                     <div className="flex items-center gap-2">
                                                         <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
                                                         {s.label}
@@ -2640,71 +2584,71 @@ const Orders = () => {
                                     </Select>
                                 </div>
 
-                                <div className="space-y-1.5">
-                                    <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider flex items-center gap-1">
-                                        <MapPin className="w-3 h-3" /> City
+                                <div className="space-y-1">
+                                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.12em] flex items-center gap-1">
+                                        <MapPin className="w-2.5 h-2.5" /> City
                                     </span>
                                     <Select value={filterCity} onValueChange={setFilterCity}>
-                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterCity !== 'all' ? "border-emerald-200 bg-emerald-50/50 text-emerald-700" : "border-brand-navy/[0.06] bg-brand-navy/[0.02] text-brand-navy")}>
+                                        <SelectTrigger className="h-8 rounded-md border-gray-200 text-[11px]">
                                             <SelectValue placeholder="All" />
                                         </SelectTrigger>
-                                        <SelectContent className="rounded-2xl border-none shadow-2xl shadow-brand-navy/10 max-h-[300px]">
-                                            <SelectItem value="all" className="font-bold text-xs rounded-xl">All Cities</SelectItem>
+                                        <SelectContent className="max-h-[300px]">
+                                            <SelectItem value="all" className="text-[11px]">All Cities</SelectItem>
                                             {sellerFilterCities.map((c) => (
-                                                <SelectItem key={c.id} value={c.id} className="font-bold text-xs rounded-xl">{c.name}</SelectItem>
+                                                <SelectItem key={c.id} value={c.id} className="text-[11px]">{c.name}</SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
                                 </div>
 
-                                <div className="space-y-1.5">
-                                    <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider flex items-center gap-1">
-                                        <ShoppingBag className="w-3 h-3" /> Product
+                                <div className="space-y-1">
+                                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.12em] flex items-center gap-1">
+                                        <ShoppingBag className="w-2.5 h-2.5" /> Product
                                     </span>
                                     <Select value={filterProduct} onValueChange={setFilterProduct}>
-                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterProduct !== 'all' ? "border-pink-200 bg-pink-50/50 text-pink-700" : "border-brand-navy/[0.06] bg-brand-navy/[0.02] text-brand-navy")}>
+                                        <SelectTrigger className="h-8 rounded-md border-gray-200 text-[11px]">
                                             <SelectValue placeholder="All" />
                                         </SelectTrigger>
-                                        <SelectContent className="rounded-2xl border-none shadow-2xl shadow-brand-navy/10 max-h-[300px]">
-                                            <SelectItem value="all" className="font-bold text-xs rounded-xl">All Products</SelectItem>
+                                        <SelectContent className="max-h-[300px]">
+                                            <SelectItem value="all" className="text-[11px]">All Products</SelectItem>
                                             {(products as any[])?.map((p: any) => (
-                                                <SelectItem key={p.id} value={p.id} className="font-bold text-xs rounded-xl">{productNameLabel(p)}</SelectItem>
+                                                <SelectItem key={p.id} value={p.id} className="text-[11px]">{productNameLabel(p)}</SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
                                 </div>
 
-                                <div className="space-y-1.5">
-                                    <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider flex items-center gap-1">
-                                        <ExternalLink className="w-3 h-3" /> Source
+                                <div className="space-y-1">
+                                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.12em] flex items-center gap-1">
+                                        <ExternalLink className="w-2.5 h-2.5" /> Source
                                     </span>
                                     <Select value={filterSource} onValueChange={setFilterSource}>
-                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterSource !== 'all' ? "border-cyan-200 bg-cyan-50/50 text-cyan-700" : "border-brand-navy/[0.06] bg-brand-navy/[0.02] text-brand-navy")}>
+                                        <SelectTrigger className="h-8 rounded-md border-gray-200 text-[11px]">
                                             <SelectValue placeholder="All" />
                                         </SelectTrigger>
-                                        <SelectContent className="rounded-2xl border-none shadow-2xl shadow-brand-navy/10">
-                                            <SelectItem value="all" className="font-bold text-xs rounded-xl">All Sources</SelectItem>
+                                        <SelectContent>
+                                            <SelectItem value="all" className="text-[11px]">All Sources</SelectItem>
                                             {SALES_SOURCES.map((s) => (
-                                                <SelectItem key={s} value={s} className="font-bold text-xs capitalize rounded-xl">{s}</SelectItem>
+                                                <SelectItem key={s} value={s} className="text-[11px] capitalize">{s}</SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
                                 </div>
 
-                                <div className="space-y-1.5">
-                                    <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider flex items-center gap-1">
-                                        <Truck className="w-3 h-3" /> Delivery
+                                <div className="space-y-1">
+                                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.12em] flex items-center gap-1">
+                                        <Truck className="w-2.5 h-2.5" /> Delivery
                                     </span>
                                     <Select value={filterProvider} onValueChange={setFilterProvider}>
-                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterProvider !== 'all' ? "border-amber-200 bg-amber-50/50 text-amber-700" : "border-brand-navy/[0.06] bg-brand-navy/[0.02] text-brand-navy")}>
+                                        <SelectTrigger className="h-8 rounded-md border-gray-200 text-[11px]">
                                             <SelectValue placeholder="All" />
                                         </SelectTrigger>
-                                        <SelectContent className="rounded-2xl border-none shadow-2xl shadow-brand-navy/10 max-h-[300px]">
-                                            <SelectItem value="all" className="font-bold text-xs rounded-xl">All Services</SelectItem>
+                                        <SelectContent className="max-h-[300px]">
+                                            <SelectItem value="all" className="text-[11px]">All Services</SelectItem>
                                             {sellerFilterProviders.map((p) => (
-                                                <SelectItem key={`${p.type}-${p.id}`} value={p.id} className="font-bold text-xs rounded-xl">
+                                                <SelectItem key={`${p.type}-${p.id}`} value={p.id} className="text-[11px]">
                                                     <div className="flex items-center gap-2">
-                                                        {p.type === 'courier' ? <Truck className="w-3 h-3 text-orange-500" /> : <Building2 className="w-3 h-3 text-blue-500" />}
+                                                        {p.type === 'courier' ? <Truck className="w-3 h-3 text-amber-600" /> : <Building2 className="w-3 h-3 text-brand-navy/50" />}
                                                         {p.name}
                                                     </div>
                                                 </SelectItem>
@@ -2713,18 +2657,18 @@ const Orders = () => {
                                     </Select>
                                 </div>
 
-                                <div className="space-y-1.5">
-                                    <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider flex items-center gap-1">
-                                        <RefreshCcw className="w-3 h-3" /> Exchange
+                                <div className="space-y-1">
+                                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.12em] flex items-center gap-1">
+                                        <RefreshCcw className="w-2.5 h-2.5" /> Exchange
                                     </span>
                                     <Select value={filterExchange} onValueChange={setFilterExchange}>
-                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterExchange !== 'all' ? "border-red-200 bg-red-50/50 text-red-700" : "border-brand-navy/[0.06] bg-brand-navy/[0.02] text-brand-navy")}>
+                                        <SelectTrigger className="h-8 rounded-md border-gray-200 text-[11px]">
                                             <SelectValue placeholder="All" />
                                         </SelectTrigger>
-                                        <SelectContent className="rounded-2xl border-none shadow-2xl shadow-brand-navy/10">
-                                            <SelectItem value="all" className="font-bold text-xs rounded-xl">All Orders</SelectItem>
-                                            <SelectItem value="yes" className="font-bold text-xs rounded-xl">Yes (Exchange)</SelectItem>
-                                            <SelectItem value="no" className="font-bold text-xs rounded-xl">No (Normal)</SelectItem>
+                                        <SelectContent>
+                                            <SelectItem value="all" className="text-[11px]">All Orders</SelectItem>
+                                            <SelectItem value="yes" className="text-[11px]">Yes (Exchange)</SelectItem>
+                                            <SelectItem value="no" className="text-[11px]">No (Normal)</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -2736,24 +2680,22 @@ const Orders = () => {
 
             {/* Content Section */}
             {isLoading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {Array.from({ length: 6 }).map((_, i) => (
-                        <Skeleton key={i} className="h-64 w-full rounded-[32px]" />
+                        <Skeleton key={i} className="h-48 w-full rounded-xl" />
                     ))}
                 </div>
             ) : filteredOrders.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-32 space-y-6 bg-brand-white rounded-[40px] shadow-sm border border-brand-navy/[0.03]">
-                    <div className="w-24 h-24 bg-brand-navy/[0.04] rounded-full flex items-center justify-center">
-                        <ShoppingCart className="w-12 h-12 text-brand-navy/20" />
-                    </div>
-                    <div className="text-center space-y-2">
-                        <h3 className="text-2xl font-bold text-brand-navy">No orders found</h3>
-                        <p className="text-muted-foreground max-w-xs mx-auto">Start by adding your first customer order to track its progress.</p>
-                    </div>
-                </div>
+                <Card className="border border-gray-100 shadow-none rounded-xl">
+                    <CardContent className="p-8 text-center">
+                        <ShoppingCart className="w-8 h-8 text-gray-300 mx-auto mb-2.5" />
+                        <h3 className="text-[13px] font-semibold text-brand-navy">No orders found</h3>
+                        <p className="text-[11px] text-gray-400 mt-0.5">Start by adding your first customer order.</p>
+                    </CardContent>
+                </Card>
             ) : (
                 viewMode === 'grid' ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pb-20">
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                         {filteredOrders.map((order) => {
                             const allParcels = [...(order.parcels || []), ...(order.courier_parcels || [])].filter((p: any) => p.tracking_code);
                             const latestParcel = allParcels.sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())?.[0];
@@ -2764,13 +2706,10 @@ const Orders = () => {
                             return (
                                 <div
                                     key={order.id}
-                                    className={cn(
-                                        "group relative bg-white rounded-2xl border transition-all duration-300 hover:shadow-lg cursor-default",
-                                        "border-brand-navy/[0.06] shadow-sm hover:border-brand-navy/10"
-                                    )}
+                                    className="group relative bg-white rounded-xl border border-gray-100 transition-colors hover:bg-gray-50/50 cursor-default"
                                 >
                                     {/* Top accent line */}
-                                    <div className="h-[3px] rounded-t-2xl" style={{ backgroundColor: order.status?.color || '#cbd5e1' }} />
+                                    <div className="h-[3px] rounded-t-xl" style={{ backgroundColor: order.status?.color || '#cbd5e1' }} />
 
                                     <div className="p-4 space-y-3">
                                         {/* Row 1: Status + Package */}
@@ -2813,7 +2752,7 @@ const Orders = () => {
                                                         <MoreVertical className="w-4 h-4" />
                                                     </button>
                                                 </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end" className="rounded-xl border-none shadow-2xl p-1.5 min-w-[160px]">
+                                                <DropdownMenuContent align="end" className="rounded-xl border border-gray-100 shadow-none p-1.5 min-w-[160px]">
                                                     <DropdownMenuItem onClick={() => { setSelectedOrder(order); setIsViewModalOpen(true); }} className="rounded-lg px-3 py-2 cursor-pointer gap-2.5 text-xs font-bold">
                                                         <Eye className="w-3.5 h-3.5" /> View Details
                                                     </DropdownMenuItem>
@@ -2884,7 +2823,7 @@ const Orders = () => {
                                                     ) : order.courier?.avatar_url ? (
                                                         <img src={order.courier.avatar_url} alt="" className="w-4 h-4 rounded-full object-cover" />
                                                     ) : (
-                                                        <span className="w-4 h-4 rounded-full bg-brand-navy/10 flex items-center justify-center text-[8px] font-black text-brand-navy/60">
+                                                        <span className="w-4 h-4 rounded-full bg-brand-navy/10 flex items-center justify-center text-[8px] font-semibold text-brand-navy/60">
                                                             {(order.company?.name || order.courier?.name || '?').slice(0, 1).toUpperCase()}
                                                         </span>
                                                     )}
@@ -2895,9 +2834,9 @@ const Orders = () => {
 
                                         {/* Row 4: Tracking code */}
                                         {trackingCode && (
-                                            <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-indigo-50/60 border border-indigo-100/60">
-                                                <Package className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                                                <span className="text-[11px] font-mono font-bold text-indigo-700 truncate">{trackingCode}</span>
+                                            <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-gray-50 border border-gray-100">
+                                                <Package className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                                                <span className="text-[11px] font-mono font-semibold text-brand-navy/70 truncate">{trackingCode}</span>
                                             </div>
                                         )}
 
@@ -2917,12 +2856,12 @@ const Orders = () => {
                                         )}
 
                                         {/* Row 6: Footer — Price + View */}
-                                        <div className="flex items-center justify-between pt-2 border-t border-brand-navy/[0.04] gap-2">
+                                        <div className="flex items-center justify-between pt-2 border-t border-gray-100 gap-2">
                                             <div className="flex items-baseline gap-1 min-w-0">
-                                                <span className="text-xl font-black text-brand-navy tabular-nums">
+                                                <span className="text-[15px] font-semibold text-brand-navy tabular-nums">
                                                     {new Intl.NumberFormat('fr-FR').format(order.raw_price || 0)}
                                                 </span>
-                                                <span className="text-[10px] font-bold text-brand-navy/35 uppercase">DH</span>
+                                                <span className="text-[10px] font-semibold text-gray-400 uppercase">DH</span>
                                             </div>
                                             <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
                                                 <button
@@ -3017,7 +2956,7 @@ const Orders = () => {
                     }
                 }}
             >
-                <DialogContent className="w-[min(96vw,1180px)] max-w-[1180px] p-0 gap-0 border-none bg-brand-white rounded-[28px] shadow-2xl overflow-hidden flex flex-col h-[min(92dvh,820px)] max-h-[92dvh]">
+                <DialogContent className="w-[min(96vw,1180px)] max-w-[1180px] p-0 gap-0 border-none bg-brand-white rounded-xl border border-gray-100 overflow-hidden flex flex-col h-[min(92dvh,820px)] max-h-[92dvh]">
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit((v) => {
                             const targetStatusId = v.order_status_id;
@@ -3110,7 +3049,7 @@ const Orders = () => {
                             if (isEditModalOpen) updateOrderMutation.mutate(v); else createOrderMutation.mutate(v);
                         })} className="flex flex-col h-full overflow-hidden">
                             <DialogHeader className="px-5 py-3 pr-12 shrink-0 border-b border-brand-navy/[0.08] bg-brand-navy/[0.02]">
-                                <DialogTitle className="text-lg sm:text-xl font-black text-brand-navy tracking-tight leading-tight">
+                                <DialogTitle className="text-[15px] font-semibold text-brand-navy tracking-tight leading-tight">
                                     {isEditModalOpen ? 'Update order' : 'New order'}
                                 </DialogTitle>
                                 <DialogDescription className="text-muted-foreground text-xs sm:text-sm mt-0.5 leading-snug">
@@ -3123,7 +3062,7 @@ const Orders = () => {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 shrink-0">
                                     {/* Column 1: Customer Data */}
                                     <div className="space-y-3.5">
-                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-brand-navy/45 border-b border-brand-navy/[0.08] pb-2 flex items-center gap-2">
+                                        <h4 className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 border-b border-gray-100 pb-2 flex items-center gap-2">
                                             <User className="w-3 h-3" /> Customer
                                         </h4>
                                         <FormField
@@ -3131,7 +3070,7 @@ const Orders = () => {
                                             name="name"
                                             render={({ field }) => (
                                                 <FormItem className="space-y-2">
-                                                    <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Full Name</FormLabel>
+                                                    <FormLabel className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Full Name</FormLabel>
                                                     <FormControl>
                                                         <Input placeholder="Client Name" {...field} className="h-10 rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
                                                     </FormControl>
@@ -3155,7 +3094,7 @@ const Orders = () => {
                                                             : '';
                                                 return (
                                                 <FormItem className="space-y-2">
-                                                    <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Contact Number</FormLabel>
+                                                    <FormLabel className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Contact Number</FormLabel>
                                                     <div className="relative">
                                                         <FormControl>
                                                             <Input
@@ -3214,7 +3153,7 @@ const Orders = () => {
                                             name="city_id"
                                             render={({ field }) => (
                                                 <FormItem className="flex flex-col space-y-2">
-                                                    <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Target City</FormLabel>
+                                                    <FormLabel className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Target City</FormLabel>
                                                     <Popover open={citySearchOpen} onOpenChange={setCitySearchOpen}>
                                                         <PopoverTrigger asChild>
                                                             <FormControl>
@@ -3281,7 +3220,7 @@ const Orders = () => {
                                             name="address"
                                             render={({ field }) => (
                                                 <FormItem className="space-y-2">
-                                                    <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Full Address</FormLabel>
+                                                    <FormLabel className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Full Address</FormLabel>
                                                     <FormControl>
                                                         <Textarea placeholder="Street, building, floor…" {...field} className="min-h-[72px] rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner resize-y p-3 leading-relaxed" />
                                                     </FormControl>
@@ -3293,7 +3232,7 @@ const Orders = () => {
 
                                     {/* Column 2: Logistics & Status */}
                                     <div className="space-y-3.5">
-                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-brand-navy/45 border-b border-brand-navy/[0.08] pb-2 flex items-center gap-2">
+                                        <h4 className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 border-b border-gray-100 pb-2 flex items-center gap-2">
                                             <Truck className="w-3 h-3" /> Logistics
                                         </h4>
                                         <FormField
@@ -3301,7 +3240,7 @@ const Orders = () => {
                                             name="source_name"
                                             render={({ field }) => (
                                                 <FormItem className="space-y-2">
-                                                    <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Sales Channel</FormLabel>
+                                                    <FormLabel className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Sales Channel</FormLabel>
                                                     <Select onValueChange={field.onChange} value={field.value} disabled={isEditModalOpen}>
                                                         <FormControl>
                                                             <SelectTrigger className="h-10 rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy shadow-inner">
@@ -3325,7 +3264,7 @@ const Orders = () => {
                                                     name="courier_id"
                                                     render={({ field }) => (
                                                         <FormItem className="space-y-2 animate-in fade-in slide-in-from-top-1 duration-300">
-                                                            <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Shipping Provider</FormLabel>
+                                                            <FormLabel className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Shipping Provider</FormLabel>
                                                             <Select
                                                                 onValueChange={(val) => {
                                                                     const provider = availableProviders.find(p => p.id === val);
@@ -3356,7 +3295,7 @@ const Orders = () => {
                                                                                     p.avatar_url ? (
                                                                                         <img src={p.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
                                                                                     ) : (
-                                                                                        <span className="w-5 h-5 rounded-full bg-brand-navy/10 flex items-center justify-center text-[9px] font-black text-brand-navy/60">
+                                                                                        <span className="w-5 h-5 rounded-full bg-gray-100 flex items-center justify-center text-[9px] font-semibold text-brand-navy/60">
                                                                                             {(p.name || '?').slice(0, 1).toUpperCase()}
                                                                                         </span>
                                                                                     )
@@ -3364,7 +3303,7 @@ const Orders = () => {
                                                                                     p.logo_url ? (
                                                                                         <img src={p.logo_url} alt="" className="w-5 h-5 rounded-full object-contain bg-white border border-brand-navy/[0.06]" />
                                                                                     ) : (
-                                                                                        <span className="w-5 h-5 rounded-full bg-brand-navy/10 flex items-center justify-center text-[9px] font-black text-brand-navy/60">
+                                                                                        <span className="w-5 h-5 rounded-full bg-gray-100 flex items-center justify-center text-[9px] font-semibold text-brand-navy/60">
                                                                                             {(p.name || '?').slice(0, 1).toUpperCase()}
                                                                                         </span>
                                                                                     )
@@ -3385,7 +3324,7 @@ const Orders = () => {
                                                 name="shipping_cost"
                                                 render={({ field }) => (
                                                     <FormItem className="space-y-2">
-                                                        <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Shipping Fee</FormLabel>
+                                                        <FormLabel className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Shipping Fee</FormLabel>
                                                         <FormControl>
                                                             <div className="relative">
                                                                 <Input
@@ -3423,7 +3362,7 @@ const Orders = () => {
                                             name="order_status_id"
                                             render={({ field }) => (
                                                 <FormItem className="flex flex-col space-y-2">
-                                                    <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Pipeline Stage</FormLabel>
+                                                    <FormLabel className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Pipeline Stage</FormLabel>
                                                     <Popover open={statusSearchOpen} onOpenChange={setStatusSearchOpen}>
                                                         <PopoverTrigger asChild>
                                                             <FormControl>
@@ -3531,7 +3470,7 @@ const Orders = () => {
                                                 name="history_comment"
                                                 render={({ field }) => (
                                                     <FormItem className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
-                                                        <FormLabel className="text-[10px] font-black uppercase tracking-wider text-brand-navy/60 flex items-center gap-1">
+                                                        <FormLabel className="text-[9px] font-bold uppercase tracking-[0.18em] text-brand-navy/60 flex items-center gap-1">
                                                             <MessageSquare className="w-3 h-3 text-brand-navy/40" /> Status change reason (required)
                                                         </FormLabel>
                                                         <FormControl>
@@ -3583,7 +3522,7 @@ const Orders = () => {
                                                     name="coliaty_old_tracking"
                                                     render={({ field }) => (
                                                         <FormItem className="space-y-2 rounded-xl border border-amber-200/80 bg-amber-50/40 p-3">
-                                                            <FormLabel className="text-[10px] font-black uppercase tracking-wider text-brand-navy">
+                                                            <FormLabel className="text-[9px] font-bold uppercase tracking-[0.18em] text-brand-navy">
                                                                 Previous parcel tracking (Coliaty)
                                                             </FormLabel>
                                                             <p className="text-[10px] text-muted-foreground leading-snug">
@@ -3609,7 +3548,7 @@ const Orders = () => {
                                                     name="ameex_old_tracking"
                                                     render={({ field }) => (
                                                         <FormItem className="space-y-2 rounded-xl border border-amber-200/80 bg-amber-50/40 p-3">
-                                                            <FormLabel className="text-[10px] font-black uppercase tracking-wider text-brand-navy">
+                                                            <FormLabel className="text-[9px] font-bold uppercase tracking-[0.18em] text-brand-navy">
                                                                 Previous parcel tracking (AMEEX)
                                                             </FormLabel>
                                                             <p className="text-[10px] text-muted-foreground leading-snug">
@@ -3633,7 +3572,7 @@ const Orders = () => {
 
                                 <section className="rounded-xl border border-brand-navy/[0.08] bg-brand-navy/[0.02] p-3 sm:p-4 space-y-3 shrink-0">
                                     <div className="space-y-0.5">
-                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-brand-navy/50 flex items-center gap-2">
+                                        <h4 className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 flex items-center gap-2">
                                             <MessageSquare className="w-3 h-3 text-brand-navy/45" /> Notes
                                         </h4>
                                         <p className="text-[10px] text-muted-foreground leading-snug">
@@ -3646,7 +3585,7 @@ const Orders = () => {
                                             name="note"
                                             render={({ field }) => (
                                                 <FormItem className="space-y-2">
-                                                    <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Order Note (Internal)</FormLabel>
+                                                    <FormLabel className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Order Note (Internal)</FormLabel>
                                                     <FormControl>
                                                         <Textarea placeholder="Packaging, gifts…" {...field} className="min-h-[64px] rounded-xl border-none bg-white/90 text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner resize-y p-3 leading-relaxed" />
                                                     </FormControl>
@@ -3658,7 +3597,7 @@ const Orders = () => {
                                             name="delivery_note"
                                             render={({ field }) => (
                                                 <FormItem className="space-y-2">
-                                                    <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Courier Note (Public)</FormLabel>
+                                                    <FormLabel className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Courier Note (Public)</FormLabel>
                                                     <FormControl>
                                                         <Textarea placeholder="Courier instructions…" {...field} className="min-h-[64px] rounded-xl border-none bg-white/90 text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner resize-y p-3 leading-relaxed" />
                                                     </FormControl>
@@ -3676,7 +3615,7 @@ const Orders = () => {
                                                 <ShoppingBag className="w-4 h-4 text-brand-navy" />
                                             </div>
                                             <div className="min-w-0">
-                                                <h4 className="text-[10px] font-black uppercase tracking-widest text-brand-navy leading-tight">Order lines</h4>
+                                                <h4 className="text-[9px] font-bold uppercase tracking-[0.18em] text-brand-navy leading-tight">Order lines</h4>
                                                 <p className="text-[9px] text-brand-navy/45 font-medium truncate">Scroll here only</p>
                                             </div>
                                         </div>
@@ -3685,7 +3624,7 @@ const Orders = () => {
                                             variant="outline"
                                             size="sm"
                                             onClick={() => append({ product_id: '', quantity: 1, unit_price: 0, accessories: [] })}
-                                            className="text-[9px] font-black uppercase text-brand-navy border-brand-navy/15 bg-white h-8 px-2.5 gap-1 rounded-lg shrink-0"
+                                            className="text-[9px] font-semibold uppercase text-brand-navy border-brand-navy/15 bg-white h-8 px-2.5 gap-1 rounded-lg shrink-0"
                                         >
                                             <Plus className="w-3.5 h-3.5" /> Line
                                         </Button>
@@ -3699,7 +3638,7 @@ const Orders = () => {
                                             return (
                                                 <div key={field.id} className="rounded-2xl border border-brand-navy/10 bg-white p-3 shadow-sm space-y-3 animate-in slide-in-from-left-2 duration-200">
                                                     <div className="flex items-center justify-between gap-2">
-                                                        <span className="text-[9px] font-black uppercase tracking-wider text-brand-navy/35 tabular-nums">Line {index + 1}</span>
+                                                        <span className="text-[9px] font-semibold uppercase tracking-wider text-brand-navy/35 tabular-nums">Line {index + 1}</span>
                                                         <Button
                                                             type="button"
                                                             variant="ghost"
@@ -3777,7 +3716,7 @@ const Orders = () => {
                                                             name={`items.${index}.unit_price`}
                                                             render={({ field }) => (
                                                                 <FormItem className="space-y-1">
-                                                                    <FormLabel className="text-[8px] uppercase font-black text-brand-navy/45">Unit</FormLabel>
+                                                                    <FormLabel className="text-[8px] uppercase font-semibold text-brand-navy/45">Unit</FormLabel>
                                                                     <Input type="number" {...field} disabled={!hasProduct} className="h-9 rounded-lg border border-brand-navy/10 bg-brand-navy/[0.03] text-sm font-bold text-brand-navy text-center px-1" />
                                                                 </FormItem>
                                                             )}
@@ -3787,19 +3726,19 @@ const Orders = () => {
                                                             name={`items.${index}.quantity`}
                                                             render={({ field }) => (
                                                                 <FormItem className="space-y-1">
-                                                                    <FormLabel className="text-[8px] uppercase font-black text-brand-navy/45">Qty</FormLabel>
+                                                                    <FormLabel className="text-[8px] uppercase font-semibold text-brand-navy/45">Qty</FormLabel>
                                                                     <Input type="number" {...field} disabled={!hasProduct} className="h-9 rounded-lg border border-brand-navy/10 bg-brand-navy/[0.03] text-sm font-bold text-brand-navy text-center px-1" />
                                                                 </FormItem>
                                                             )}
                                                         />
                                                         <div className="rounded-lg bg-brand-navy/[0.08] px-1.5 py-1 flex flex-col justify-center items-center text-center">
-                                                            <span className="text-[7px] font-black uppercase text-brand-navy/50 leading-none">Total</span>
-                                                            <span className="text-xs font-black text-brand-navy tabular-nums leading-tight">{productSubtotal.toFixed(2)} <span className="text-[9px] font-bold text-brand-navy/65">DH</span></span>
+                                                            <span className="text-[7px] font-semibold uppercase text-brand-navy/50 leading-none">Total</span>
+                                                            <span className="text-[12px] font-semibold text-brand-navy tabular-nums leading-tight">{productSubtotal.toFixed(2)} <span className="text-[9px] font-bold text-brand-navy/65">DH</span></span>
                                                         </div>
                                                     </div>
 
                                                     <div className="rounded-xl bg-brand-navy/[0.04] border border-brand-navy/[0.07] p-2.5 space-y-2">
-                                                        <p className="text-[9px] font-black uppercase tracking-wider text-brand-navy/35">Add-ons</p>
+                                                        <p className="text-[9px] font-semibold uppercase tracking-wider text-brand-navy/35">Add-ons</p>
                                                         {(form.watch(`items.${index}.accessories`) || []).map((acc: any, accIdx: number) => {
                                                             const hasAccessory = !!form.watch(`items.${index}.accessories.${accIdx}.accessory_id`) && form.watch(`items.${index}.accessories.${accIdx}.accessory_id`) !== 'none';
 
@@ -3811,7 +3750,7 @@ const Orders = () => {
                                                                             name={`items.${index}.accessories.${accIdx}.accessory_id`}
                                                                             render={({ field }) => (
                                                                                 <FormItem className="space-y-1 flex-1 min-w-0">
-                                                                                    <FormLabel className="text-[8px] uppercase font-black text-brand-navy/45 flex items-center gap-1"><Puzzle className="w-3 h-3 opacity-60" /> Item</FormLabel>
+                                                                                    <FormLabel className="text-[8px] uppercase font-semibold text-brand-navy/45 flex items-center gap-1"><Puzzle className="w-3 h-3 opacity-60" /> Item</FormLabel>
                                                                                     <Select
                                                                                         onValueChange={(val) => {
                                                                                             field.onChange(val);
@@ -3893,7 +3832,7 @@ const Orders = () => {
                                                                         name={`items.${index}.accessories.${accIdx}.accessory_quantity`}
                                                                         render={({ field }) => (
                                                                             <FormItem className="space-y-1 max-w-[140px]">
-                                                                                <FormLabel className="text-[8px] uppercase font-black text-brand-navy/40">Qty</FormLabel>
+                                                                                <FormLabel className="text-[8px] uppercase font-semibold text-brand-navy/40">Qty</FormLabel>
                                                                                 <Input type="number" {...field} disabled={!hasAccessory} className="h-9 rounded-lg border border-brand-navy/10 bg-white text-sm font-bold text-brand-navy text-center px-1" />
                                                                             </FormItem>
                                                                         )}
@@ -3910,7 +3849,7 @@ const Orders = () => {
                                                                 current.push({ accessory_id: 'none', accessory_quantity: 0, accessory_unit_price: 0 });
                                                                 form.setValue(`items.${index}.accessories`, current);
                                                             }}
-                                                            className="text-[9px] font-black uppercase text-brand-navy border-brand-navy/15 h-7 rounded-lg gap-1 w-full bg-white/80"
+                                                            className="text-[9px] font-semibold uppercase text-brand-navy border-brand-navy/15 h-7 rounded-lg gap-1 w-full bg-white/80"
                                                         >
                                                             <Plus className="w-3 h-3" /> Add add-on
                                                         </Button>
@@ -3929,8 +3868,8 @@ const Orders = () => {
                                         <DollarSign className="w-4 h-4" />
                                     </div>
                                     <div className="min-w-0">
-                                        <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/70 leading-none">Total</p>
-                                        <p className="text-lg sm:text-xl font-black text-brand-navy tabular-nums leading-tight truncate">
+                                        <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 leading-none">Total</p>
+                                        <p className="text-[15px] font-semibold text-brand-navy tabular-nums leading-tight truncate">
                                             {(form.watch('items').reduce((acc, item) => acc + (item.quantity * item.unit_price), 0) + (form.watch('include_delivery_in_total') !== false ? Number(form.watch('shipping_cost') || 0) : 0)).toFixed(2)} DH
                                         </p>
                                     </div>
@@ -3971,17 +3910,14 @@ const Orders = () => {
 
             {/* View Modal */}
             <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
-                <DialogContent className="max-w-4xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden flex flex-col h-[90vh] md:h-auto md:max-h-[90vh]">
+                <DialogContent className="max-w-4xl p-0 border border-gray-100 bg-white rounded-xl overflow-hidden flex flex-col h-[90vh] md:h-auto md:max-h-[90vh]">
                     {selectedOrder && (
                         <div className="flex flex-col h-full overflow-hidden">
-                            <div className="p-10 pb-0 flex flex-col md:flex-row justify-between items-start gap-6 shrink-0">
-                                <div className="space-y-4">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-16 h-16 rounded-[28px] bg-brand-navy flex items-center justify-center text-brand-white shadow-2xl shadow-brand-navy/20">
-                                            <ShoppingCart className="w-8 h-8" />
-                                        </div>
+                            <div className="p-5 pb-0 flex flex-col md:flex-row justify-between items-start gap-4 shrink-0">
+                                <div className="space-y-2">
+                                    <div className="flex items-center gap-3">
                                         <div>
-                                            <h2 className="text-4xl font-black text-brand-navy tracking-tight">{selectedOrder.name}</h2>
+                                            <h2 className="text-[15px] font-semibold text-brand-navy tracking-tight">{selectedOrder.name}</h2>
                                             <div className="flex items-center gap-4 text-muted-foreground font-bold text-sm tracking-wide">
                                                 <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4" /> {format(new Date(selectedOrder.date || selectedOrder.created_at), 'MMMM dd, yyyy')}</span>
                                                 <span className="flex items-center gap-1.5">{selectedOrder.phone}<OrderPhoneQuickActions phone={selectedOrder.phone} className="h-7 w-7" /></span>
@@ -3995,7 +3931,7 @@ const Orders = () => {
                                             ) : (
                                                 <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: selectedOrder.status?.color }} />
                                             )}
-                                            <span className="text-xs font-black uppercase tracking-widest" style={{ color: selectedOrder.status?.color }}>
+                                            <span className="text-[9px] font-bold uppercase tracking-[0.18em]" style={{ color: selectedOrder.status?.color }}>
                                                 {selectedOrder.status?.label || 'DRAFT'}
                                             </span>
                                         </div>
@@ -4013,7 +3949,7 @@ const Orders = () => {
                                                     ) : (
                                                         <Truck className="w-4 h-4" style={{ color: pkgColor || undefined }} />
                                                     )}
-                                                    <span className="text-xs font-black uppercase tracking-widest" style={{ color: pkgColor || 'rgba(0,31,63,0.45)' }}>
+                                                    <span className="text-[9px] font-bold uppercase tracking-[0.18em]" style={{ color: pkgColor || 'rgba(0,31,63,0.45)' }}>
                                                         {pkgLabel}
                                                     </span>
                                                 </div>
@@ -4023,104 +3959,96 @@ const Orders = () => {
                                             {selectedOrder.source_name}
                                         </Badge>
                                         {selectedOrder.replace && (
-                                            <Badge className="bg-red-500 text-white font-black uppercase tracking-widest px-4 py-2 rounded-xl text-[10px]">
+                                            <Badge className="bg-red-500 text-white font-semibold uppercase tracking-wider px-2.5 py-0.5 rounded text-[9px]">
                                                 Exchange
                                             </Badge>
                                         )}
                                         {orderParcel?.tracking_code && (
-                                            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-50 border border-indigo-100">
-                                                <Package className="w-4 h-4 text-indigo-500" />
-                                                <span className="text-xs font-black uppercase tracking-widest text-indigo-600">
+                                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-gray-50 border border-gray-100">
+                                                <Package className="w-3 h-3 text-brand-navy/40" />
+                                                <span className="text-[9px] font-semibold uppercase tracking-wider text-brand-navy/60">
                                                     {orderParcel.tracking_code}
                                                 </span>
                                             </div>
                                         )}
                                     </div>
                                 </div>
-                                <div className="p-8 pb-10 flex items-center justify-between border-b-2 border-brand-navy/5 bg-gradient-to-br from-brand-navy/[0.02] to-transparent">
-                                    <div className="space-y-1">
-                                        <p className="text-sm font-black text-brand-navy/40 uppercase tracking-widest">Total Order Value</p>
-                                        <h3 className="text-4xl font-black text-brand-navy">{selectedOrder.raw_price || 0} <span className="text-lg">DH</span></h3>
+                                <div className="px-5 py-3 flex items-center justify-between border-b border-gray-100 bg-gray-50/50">
+                                    <div className="space-y-0.5">
+                                        <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Total Order Value</p>
+                                        <p className="text-[18px] font-semibold text-brand-navy tabular-nums">{selectedOrder.raw_price || 0} <span className="text-[11px] text-gray-400">DH</span></p>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="overflow-y-auto p-10 space-y-10 flex-1 custom-scrollbar">
+                            <div className="overflow-y-auto p-5 space-y-5 flex-1 custom-scrollbar">
                                 {/* Customer Insights in Preview */}
                                 <CustomerInsights phone={selectedOrder.phone || ''} />
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                     {/* Logistics Info */}
-                                    <div className="space-y-6">
-                                        <div className="flex items-center gap-3 border-b border-brand-navy/[0.05] pb-3">
-                                            <Truck className="w-6 h-6 text-brand-navy/20" />
-                                            <h4 className="text-lg font-black text-brand-navy uppercase tracking-widest">Delivery Details</h4>
+                                    <div className="space-y-3">
+                                        <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
+                                            <Truck className="w-3.5 h-3.5 text-brand-navy/30" />
+                                            <h4 className="text-[11px] font-semibold text-brand-navy uppercase tracking-wider">Delivery Details</h4>
                                         </div>
-                                        <div className="space-y-6">
-                                            <div className="flex items-start gap-4">
-                                                <div className="w-10 h-10 rounded-2xl bg-orange-50 flex items-center justify-center text-orange-500 shrink-0 shadow-sm shadow-orange-500/10">
-                                                    <MapPinned className="w-5 h-5" />
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <p className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest leading-none">Destination</p>
-                                                    <p className="text-lg font-bold text-brand-navy leading-tight">{selectedOrder.city?.name}</p>
-                                                    <p className="text-sm font-medium text-muted-foreground italic">"{selectedOrder.address}"</p>
+                                        <div className="space-y-3">
+                                            <div className="flex items-start gap-3">
+                                                <MapPinned className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
+                                                <div className="space-y-0.5">
+                                                    <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 leading-none">Destination</p>
+                                                    <p className="text-[12px] font-semibold text-brand-navy leading-tight">{selectedOrder.city?.name}</p>
+                                                    <p className="text-[11px] text-gray-400 italic">"{selectedOrder.address}"</p>
                                                 </div>
                                             </div>
-                                            <div className="flex items-start gap-4">
-                                                <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-500 shrink-0 shadow-sm shadow-blue-500/10">
-                                                    <ShoppingCart className="w-5 h-5" />
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <p className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest leading-none">Shipping Configuration</p>
-                                                    <p className="text-lg font-bold text-brand-navy leading-tight">{selectedOrder.delivery_type || 'Standard Delivery'}</p>
-                                                    <p className="text-sm font-bold text-emerald-600 uppercase tracking-widest">{selectedOrder.shipping_cost === 0 ? 'Free Shipping' : `Paid: ${selectedOrder.shipping_cost} DH`}</p>
+                                            <div className="flex items-start gap-3">
+                                                <ShoppingCart className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
+                                                <div className="space-y-0.5">
+                                                    <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 leading-none">Shipping Configuration</p>
+                                                    <p className="text-[12px] font-semibold text-brand-navy leading-tight">{selectedOrder.delivery_type || 'Standard Delivery'}</p>
+                                                    <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wider">{selectedOrder.shipping_cost === 0 ? 'Free Shipping' : `Paid: ${selectedOrder.shipping_cost} DH`}</p>
                                                 </div>
                                             </div>
                                             {(selectedOrder.courier || selectedOrder.company) && (
-                                                <div className="flex items-start gap-4">
-                                                    <div className="w-10 h-10 rounded-2xl bg-brand-navy/5 flex items-center justify-center text-brand-navy/40 shrink-0 shadow-sm overflow-hidden">
+                                                <div className="flex items-start gap-3">
+                                                    <div className="w-7 h-7 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0 overflow-hidden">
                                                         {selectedOrder.company?.logo_url ? (
                                                             <img src={selectedOrder.company.logo_url} alt={selectedOrder.company.name} className="w-full h-full object-contain" />
                                                         ) : selectedOrder.courier?.avatar_url ? (
                                                             <img src={selectedOrder.courier.avatar_url} alt={selectedOrder.courier.name} className="w-full h-full object-cover" />
                                                         ) : (
-                                                            selectedOrder.courier ? <Truck className="w-5 h-5 text-orange-500" /> : <Building2 className="w-5 h-5 text-blue-500" />
+                                                            selectedOrder.courier ? <Truck className="w-3.5 h-3.5 text-gray-400" /> : <Building2 className="w-3.5 h-3.5 text-gray-400" />
                                                         )}
                                                     </div>
-                                                    <div className="space-y-1">
-                                                        <p className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest leading-none">Assigned Provider</p>
-                                                        <p className="text-lg font-bold text-brand-navy leading-tight">
+                                                    <div className="space-y-0.5">
+                                                        <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 leading-none">Assigned Provider</p>
+                                                        <p className="text-[12px] font-semibold text-brand-navy leading-tight">
                                                             {selectedOrder.courier?.name || selectedOrder.company?.name}
                                                         </p>
-                                                        <Badge variant="outline" className="h-5 px-2 text-[8px] font-black uppercase tracking-tighter bg-brand-navy/[0.03] text-brand-navy/40 border-none">
+                                                        <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider">
                                                             {selectedOrder.courier ? 'Independent Courier' : 'Delivery Company'}
-                                                        </Badge>
+                                                        </span>
                                                     </div>
                                                 </div>
                                             )}
                                             {String(selectedOrder.coliaty_old_tracking || '').trim() && (
-                                                <div className="flex items-start gap-4">
-                                                    <div className="w-10 h-10 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-600 shrink-0 shadow-sm shadow-amber-500/10">
-                                                        <RefreshCcw className="w-5 h-5" />
-                                                    </div>
-                                                    <div className="space-y-1 min-w-0">
-                                                        <p className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest leading-none">
+                                                <div className="flex items-start gap-3">
+                                                    <RefreshCcw className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                                                    <div className="space-y-0.5 min-w-0">
+                                                        <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 leading-none">
                                                             Previous parcel tracking (Coliaty)
                                                         </p>
-                                                        <p className="text-sm font-mono font-bold text-brand-navy break-all">
+                                                        <p className="text-[11px] font-mono font-semibold text-brand-navy break-all">
                                                             {String(selectedOrder.coliaty_old_tracking).trim()}
                                                         </p>
                                                     </div>
                                                 </div>
                                             )}
                                             {String(selectedOrder.ameex_old_tracking || '').trim() && (
-                                                <div className="flex items-start gap-4">
-                                                    <div className="w-10 h-10 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-600 shrink-0 shadow-sm shadow-amber-500/10">
-                                                        <RefreshCcw className="w-5 h-5" />
-                                                    </div>
-                                                    <div className="space-y-1 min-w-0">
-                                                        <p className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest leading-none">
+                                                <div className="flex items-start gap-3">
+                                                    <RefreshCcw className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                                                    <div className="space-y-0.5 min-w-0">
+                                                        <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 leading-none">
                                                             Previous parcel tracking (AMEEX)
                                                         </p>
                                                         <p className="text-sm font-mono font-bold text-brand-navy break-all">
@@ -4133,34 +4061,34 @@ const Orders = () => {
                                     </div>
 
                                     {/* Internal Notes */}
-                                    <div className="space-y-6">
-                                        <div className="flex items-center gap-3 border-b border-brand-navy/[0.05] pb-3">
-                                            <MessageSquare className="w-6 h-6 text-brand-navy/20" />
-                                            <h4 className="text-lg font-black text-brand-navy uppercase tracking-widest">Client & Note Info</h4>
+                                    <div className="space-y-3">
+                                        <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
+                                            <MessageSquare className="w-3.5 h-3.5 text-brand-navy/30" />
+                                            <h4 className="text-[11px] font-semibold text-brand-navy uppercase tracking-wider">Client & Note Info</h4>
                                         </div>
-                                        <div className="space-y-4">
-                                            <div className="p-6 rounded-[28px] bg-brand-navy/[0.02] border border-brand-navy/[0.05] space-y-2">
-                                                <p className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest">Internal Instruction</p>
-                                                <p className="text-sm font-medium text-brand-navy">{selectedOrder.note || 'No internal notes provided.'}</p>
+                                        <div className="space-y-2">
+                                            <div className="p-3 rounded-xl bg-gray-50 border border-gray-100 space-y-1">
+                                                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Internal Instruction</p>
+                                                <p className="text-[11px] text-brand-navy">{selectedOrder.note || 'No internal notes provided.'}</p>
                                             </div>
-                                            <div className="p-6 rounded-[28px] bg-brand-navy/[0.04] border border-brand-navy/[0.05] space-y-2">
-                                                <p className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest text-brand-navy/40 text-blue-600">Public Delivery Note</p>
-                                                <p className="text-sm font-bold text-brand-navy italic">"{selectedOrder.delivery_note || 'No special delivery instructions.'}"</p>
+                                            <div className="p-3 rounded-xl bg-gray-50 border border-gray-100 space-y-1">
+                                                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Public Delivery Note</p>
+                                                <p className="text-[11px] font-medium text-brand-navy italic">"{selectedOrder.delivery_note || 'No special delivery instructions.'}"</p>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                <Separator className="bg-brand-navy/[0.05]" />
+                                <Separator className="bg-gray-100" />
 
                                 {/* Order Items Table */}
-                                <div className="space-y-6 pb-6">
+                                <div className="space-y-3 pb-3">
                                     <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <Package className="w-6 h-6 text-brand-navy/20" />
-                                            <h4 className="text-xl font-black text-brand-navy uppercase tracking-[0.15em]">Cart Items</h4>
+                                        <div className="flex items-center gap-2">
+                                            <Package className="w-3.5 h-3.5 text-brand-navy/30" />
+                                            <h4 className="text-[11px] font-semibold text-brand-navy uppercase tracking-wider">Cart Items</h4>
                                         </div>
-                                        <Badge variant="outline" className="text-xs font-black border-brand-navy/10 tracking-widest rounded-xl px-4 py-1.5 h-auto">
+                                        <Badge variant="outline" className="text-[9px] font-semibold border-gray-200 tracking-wider rounded px-2 py-0.5 h-auto">
                                             {selectedOrder.items?.length || 0} Unique SKU(s)
                                         </Badge>
                                     </div>
@@ -4187,38 +4115,36 @@ const Orders = () => {
                                                 return (
                                                     <div
                                                         key={item.id}
-                                                        className="group p-6 rounded-[32px] bg-brand-navy/[0.01] border border-brand-navy/[0.03] flex flex-col gap-4 animate-in slide-in-from-bottom-2 duration-300"
+                                                        className="group p-3 rounded-xl border border-gray-100 flex flex-col gap-3"
                                                     >
                                                         {/* Product Info */}
                                                         {item.product && (
-                                                            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                                                                <div className="flex items-center gap-5 flex-1 w-full md:w-auto">
-                                                                    <div className="w-16 h-16 rounded-[20px] bg-brand-navy/5 flex items-center justify-center overflow-hidden shrink-0">
+                                                            <div className="flex flex-col md:flex-row justify-between items-center gap-3">
+                                                                <div className="flex items-center gap-3 flex-1 w-full md:w-auto">
+                                                                    <div className="w-10 h-10 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center overflow-hidden shrink-0">
                                                                         {item.product?.image_url ? (
                                                                             <img src={item.product?.image_url} alt="" className="w-full h-full object-cover" />
                                                                         ) : (
-                                                                            <Package className="w-8 h-8 text-brand-navy/20" />
+                                                                            <Package className="w-4 h-4 text-gray-400" />
                                                                         )}
                                                                     </div>
                                                                     <div>
-                                                                        <h5 className="text-lg font-black text-brand-navy leading-none mb-1 group-hover:text-blue-600 transition-colors uppercase">{item.product?.name}</h5>
-                                                                        <div className="flex items-center gap-3">
-                                                                            <p className="text-[10px] font-bold text-muted-foreground/60 tracking-widest bg-brand-navy/5 px-2 py-0.5 rounded-md inline-block">{item.product?.code}</p>
-                                                                        </div>
+                                                                        <h5 className="text-[12px] font-semibold text-brand-navy leading-none mb-0.5">{item.product?.name}</h5>
+                                                                        <span className="text-[9px] font-semibold text-gray-400 tracking-wider bg-gray-100 px-1.5 py-0.5 rounded">{item.product?.code}</span>
                                                                     </div>
                                                                 </div>
-                                                                <div className="flex items-center justify-between md:justify-end w-full md:w-auto gap-8  md:gap-12 text-right">
+                                                                <div className="flex items-center justify-end w-full md:w-auto gap-5 text-right">
                                                                     <div>
-                                                                        <p className="text-[10px] font-black uppercase text-muted-foreground/40 tracking-widest mb-1">Unit Price</p>
-                                                                        <p className="text-lg font-black text-brand-navy">{item.unit_price} DH</p>
+                                                                        <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 mb-0.5">Unit Price</p>
+                                                                        <p className="text-[12px] font-semibold text-brand-navy tabular-nums">{item.unit_price} DH</p>
                                                                     </div>
                                                                     <div>
-                                                                        <p className="text-[10px] font-black uppercase text-muted-foreground/40 tracking-widest mb-1">Qty</p>
-                                                                        <p className="text-lg font-black text-brand-navy">x{item.quantity}</p>
+                                                                        <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 mb-0.5">Qty</p>
+                                                                        <p className="text-[12px] font-semibold text-brand-navy tabular-nums">x{item.quantity}</p>
                                                                     </div>
-                                                                    <div className="min-w-[80px] md:min-w-[100px]">
-                                                                        <p className="text-[10px] font-black uppercase text-muted-foreground/40 tracking-widest mb-1">Subtotal</p>
-                                                                        <p className="text-xl font-black text-brand-navy">{prodTotal} DH</p>
+                                                                    <div>
+                                                                        <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 mb-0.5">Subtotal</p>
+                                                                        <p className="text-[12px] font-semibold text-brand-navy tabular-nums">{prodTotal} DH</p>
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -4226,36 +4152,36 @@ const Orders = () => {
 
                                                         {/* Accessory Info List */}
                                                         {item.accessoriesList && item.accessoriesList.length > 0 && item.accessoriesList.map((accItem: any, idx: number) => (
-                                                                <div key={accItem.id || idx} className="flex flex-col md:flex-row justify-between items-center gap-4 pt-4 border-t border-brand-navy/[0.04]">
-                                                                    <div className="flex items-center gap-5 flex-1 w-full md:w-auto">
-                                                                        <div className="w-12 h-12 rounded-[16px] bg-brand-navy/5 flex items-center justify-center overflow-hidden shrink-0 md:ml-4">
+                                                                <div key={accItem.id || idx} className="flex flex-col md:flex-row justify-between items-center gap-3 pt-2 border-t border-gray-100">
+                                                                    <div className="flex items-center gap-3 flex-1 w-full md:w-auto">
+                                                                        <div className="w-8 h-8 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center overflow-hidden shrink-0 md:ml-3">
                                                                             {accItem.accessory?.image_url ? (
                                                                                 <img src={accItem.accessory?.image_url} alt="" className="w-full h-full object-cover" />
                                                                             ) : (
-                                                                                <Puzzle className="w-5 h-5 text-brand-navy/20" />
+                                                                                <Puzzle className="w-3.5 h-3.5 text-gray-400" />
                                                                             )}
                                                                         </div>
                                                                         <div>
-                                                                            <h5 className="text-sm font-black text-brand-navy/70 leading-none mb-1 uppercase flex items-center gap-2">
-                                                                                <Puzzle className="w-3 h-3" /> {accItem.accessory?.name}
+                                                                            <h5 className="text-[11px] font-semibold text-brand-navy/70 leading-none mb-0.5 flex items-center gap-1.5">
+                                                                                <Puzzle className="w-2.5 h-2.5" /> {accItem.accessory?.name}
                                                                             </h5>
-                                                                            <p className="text-[10px] font-bold text-muted-foreground/60 tracking-widest bg-brand-navy/5 px-2 py-0.5 rounded-md inline-block">{accItem.accessory?.code}</p>
+                                                                            <span className="text-[9px] font-semibold text-gray-400 tracking-wider bg-gray-100 px-1.5 py-0.5 rounded">{accItem.accessory?.code}</span>
                                                                         </div>
                                                                     </div>
                                                                     <div className="flex items-center justify-end w-full md:w-auto text-right">
                                                                         <div>
-                                                                            <p className="text-[10px] font-black uppercase text-muted-foreground/40 tracking-widest mb-1">Qty</p>
-                                                                            <p className="text-sm font-black text-brand-navy/80">x{accItem.accessory_quantity}</p>
+                                                                            <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 mb-0.5">Qty</p>
+                                                                            <p className="text-[11px] font-semibold text-brand-navy/80 tabular-nums">x{accItem.accessory_quantity}</p>
                                                                         </div>
                                                                     </div>
                                                                 </div>
                                                             ))}
 
                                                         {item.product && (
-                                                            <div className="pt-3 border-t border-brand-navy/[0.04] flex justify-end">
-                                                                <div className="bg-emerald-50 text-emerald-700 px-4 py-2 rounded-2xl flex items-center gap-4">
-                                                                    <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Row Subtotal</span>
-                                                                    <span className="text-xl font-black">{prodTotal} DH</span>
+                                                            <div className="pt-2 border-t border-gray-100 flex justify-end">
+                                                                <div className="bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-lg flex items-center gap-3">
+                                                                    <span className="text-[9px] font-bold uppercase tracking-[0.18em] opacity-60">Row Subtotal</span>
+                                                                    <span className="text-[13px] font-semibold tabular-nums">{prodTotal} DH</span>
                                                                 </div>
                                                             </div>
                                                         )}
@@ -4267,19 +4193,19 @@ const Orders = () => {
                                 </div>
 
                                 {/* Parcel Info (no API call — use Track Order button for full timeline) */}
-                                <div className="space-y-4 pb-6">
-                                    <div className="flex items-center gap-3">
-                                        <Truck className="w-6 h-6 text-brand-navy/20" />
-                                        <h4 className="text-xl font-black text-brand-navy uppercase tracking-[0.15em]">Suivi du Colis</h4>
+                                <div className="space-y-3 pb-3">
+                                    <div className="flex items-center gap-2">
+                                        <Truck className="w-3.5 h-3.5 text-brand-navy/30" />
+                                        <h4 className="text-[11px] font-semibold text-brand-navy uppercase tracking-wider">Suivi du Colis</h4>
                                     </div>
 
                                     {isParcelLoading ? (
-                                        <div className="flex items-center justify-center py-6">
-                                            <Loader2 className="w-6 h-6 text-brand-navy animate-spin" />
+                                        <div className="flex items-center justify-center py-4">
+                                            <Loader2 className="w-4 h-4 text-brand-navy animate-spin" />
                                         </div>
                                     ) : !orderParcel ? (
-                                        <div className="text-center p-6 bg-brand-navy/[0.02] rounded-2xl border border-brand-navy/[0.05]">
-                                            <p className="text-sm font-bold text-muted-foreground">Aucun colis créé pour cette commande.</p>
+                                        <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-100">
+                                            <p className="text-[11px] text-gray-400">Aucun colis créé pour cette commande.</p>
                                         </div>
                                     ) : (() => {
                                         const pkgMatch = matchPkgColor(orderParcel.status_label || '', orderParcel.status_label || '');
@@ -4287,16 +4213,16 @@ const Orders = () => {
                                         const pIcon = pkgMatch.icon;
                                         return (
                                         <div className="flex items-center justify-between p-4 bg-brand-navy/[0.02] rounded-2xl border border-brand-navy/[0.05]">
-                                            <div className="flex items-center gap-3 min-w-0">
-                                                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-white" style={{ backgroundColor: pColor }}>
-                                                    {pIcon ? <DynamicIcon name={pIcon} className="w-4 h-4" /> : <div className="w-2.5 h-2.5 rounded-full bg-white" />}
+                                            <div className="flex items-center gap-2.5 min-w-0">
+                                                <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-white" style={{ backgroundColor: pColor }}>
+                                                    {pIcon ? <DynamicIcon name={pIcon} className="w-3.5 h-3.5" /> : <div className="w-2 h-2 rounded-full bg-white" />}
                                                 </div>
                                                 <div className="min-w-0">
-                                                    <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md" style={{ color: pColor, backgroundColor: `${pColor}15` }}>
+                                                    <span className="text-[9px] font-bold uppercase tracking-[0.18em] px-1.5 py-0.5 rounded" style={{ color: pColor, backgroundColor: `${pColor}15` }}>
                                                         {orderParcel.status_label || 'En attente'}
                                                     </span>
                                                     {orderParcel.tracking_code && (
-                                                        <p className="text-[10px] font-mono font-bold text-muted-foreground/50 truncate mt-1">{orderParcel.tracking_code}</p>
+                                                        <p className="text-[10px] font-mono text-gray-400 truncate mt-0.5">{orderParcel.tracking_code}</p>
                                                     )}
                                                 </div>
                                             </div>
@@ -4305,9 +4231,9 @@ const Orders = () => {
                                                     variant="ghost"
                                                     size="sm"
                                                     onClick={() => { setParcelTrackingOrderId(selectedOrder.id); setParcelTrackingOpen(true); }}
-                                                    className="text-xs font-bold text-brand-navy hover:bg-brand-navy/5 hover:text-brand-navy gap-2 rounded-xl h-9 px-4 shrink-0"
+                                                    className="text-[11px] font-semibold text-brand-navy hover:bg-gray-50 gap-1.5 rounded-md h-8 px-3 shrink-0"
                                                 >
-                                                    <Truck className="w-3.5 h-3.5" />
+                                                    <Truck className="w-3 h-3" />
                                                     Suivre
                                                 </Button>
                                             )}
@@ -4316,21 +4242,19 @@ const Orders = () => {
                                     })()}
                                 </div>
 
-                                <Separator className="bg-brand-navy/[0.05]" />
+                                <Separator className="bg-gray-100" />
 
                                 {/* Status History Timeline */}
-                                <div className="space-y-6 pb-6">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <ShieldCheck className="w-6 h-6 text-brand-navy/20" />
-                                            <h4 className="text-xl font-black text-brand-navy uppercase tracking-[0.15em]">Status History</h4>
-                                        </div>
+                                <div className="space-y-3 pb-3">
+                                    <div className="flex items-center gap-2">
+                                        <ShieldCheck className="w-3.5 h-3.5 text-brand-navy/30" />
+                                        <h4 className="text-[11px] font-semibold text-brand-navy uppercase tracking-wider">Status History</h4>
                                     </div>
 
-                                    <div className="px-4">
+                                    <div className="px-2">
                                         {selectedOrder.history && selectedOrder.history.length > 0 ? (
-                                            <div className="relative pl-10">
-                                                <div className="absolute left-[15px] top-4 bottom-4 w-0.5 bg-gradient-to-b from-slate-200 via-slate-200 to-brand-navy/30" />
+                                            <div className="relative pl-8">
+                                                <div className="absolute left-[11px] top-4 bottom-4 w-0.5 bg-gray-200" />
                                                 <div className="space-y-0">
                                                 {[...selectedOrder.history].sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).map((record: any, idx: number, arr: any[]) => {
                                                     const color = record.status?.color || '#94a3b8';
@@ -4341,36 +4265,36 @@ const Orders = () => {
                                                     const reportedText = reportedMatch?.[1] || (postponed && selectedOrder.reported_date ? format(new Date(selectedOrder.reported_date), 'dd/MM/yyyy HH:mm') : null);
                                                     const cleanedComment = postponed ? (record.comment || '').replace(/\[Reporté pour:.*?\]/, '').trim() : record.comment || '';
                                                     return (
-                                                        <div key={record.id} className="relative pb-6 last:pb-0 group">
-                                                            <div className={`absolute -left-10 top-0 w-8 h-8 rounded-full border-[3px] border-white shadow-sm flex items-center justify-center z-10 transition-all group-hover:scale-110 ${isLast ? 'ring-2 ring-offset-2' : ''}`} style={{ backgroundColor: isLast ? color : '#f8fafc', color: isLast ? '#ffffff' : color, ['--tw-ring-color' as any]: isLast ? `${color}40` : undefined }}>
-                                                                {ordIcon ? <DynamicIcon name={ordIcon} className="w-3.5 h-3.5" /> : <div className="w-2 h-2 rounded-full" style={{ backgroundColor: isLast ? '#ffffff' : color }} />}
+                                                        <div key={record.id} className="relative pb-4 last:pb-0 group">
+                                                            <div className={`absolute -left-8 top-0 w-6 h-6 rounded-full border-2 border-white flex items-center justify-center z-10 ${isLast ? 'ring-1 ring-offset-1' : ''}`} style={{ backgroundColor: isLast ? color : '#f3f4f6', color: isLast ? '#ffffff' : color, ['--tw-ring-color' as any]: isLast ? `${color}40` : undefined }}>
+                                                                {ordIcon ? <DynamicIcon name={ordIcon} className="w-2.5 h-2.5" /> : <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: isLast ? '#ffffff' : color }} />}
                                                             </div>
-                                                            <div className="space-y-1.5">
-                                                                <div className="flex items-center gap-2 flex-wrap">
-                                                                    <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg" style={{ color, backgroundColor: `${color}15` }}>{record.status?.label || 'Inconnu'}</span>
+                                                            <div className="space-y-1">
+                                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                                    <span className="text-[9px] font-bold uppercase tracking-[0.18em] px-1.5 py-0.5 rounded" style={{ color, backgroundColor: `${color}15` }}>{record.status?.label || 'Inconnu'}</span>
                                                                 </div>
-                                                                {record.created_at && <p className="text-[10px] font-bold text-muted-foreground/50">{format(new Date(record.created_at), 'dd/MM/yyyy HH:mm')}</p>}
-                                                                <div className="flex items-center gap-2">
+                                                                {record.created_at && <p className="text-[10px] text-gray-400">{format(new Date(record.created_at), 'dd/MM/yyyy HH:mm')}</p>}
+                                                                <div className="flex items-center gap-1.5">
                                                                     {record.user ? (
-                                                                        <Avatar className="w-5 h-5 border bg-white">
+                                                                        <Avatar className="w-4 h-4 border bg-white">
                                                                             <AvatarImage src={record.user.avatar_url} />
-                                                                            <AvatarFallback className="text-[9px] font-bold bg-brand-navy/5 text-brand-navy">{record.user.name?.[0] || '?'}</AvatarFallback>
+                                                                            <AvatarFallback className="text-[8px] font-semibold bg-gray-100 text-brand-navy">{record.user.name?.[0] || '?'}</AvatarFallback>
                                                                         </Avatar>
                                                                     ) : (
-                                                                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-brand-navy/10 to-brand-navy/20 flex items-center justify-center">
-                                                                            <DynamicIcon name="TbRobot" className="w-3 h-3 text-brand-navy/60" />
+                                                                        <div className="w-4 h-4 rounded-full bg-gray-100 flex items-center justify-center">
+                                                                            <DynamicIcon name="TbRobot" className="w-2.5 h-2.5 text-brand-navy/60" />
                                                                         </div>
                                                                     )}
-                                                                    <span className="text-[11px] font-bold text-brand-navy/70 truncate max-w-[200px]">{record.user?.name || 'Système'}</span>
+                                                                    <span className="text-[10px] font-semibold text-brand-navy/60 truncate max-w-[200px]">{record.user?.name || 'Système'}</span>
                                                                 </div>
                                                                 {postponed && reportedText && (
-                                                                    <div className="flex flex-col gap-1 p-3 bg-amber-50 rounded-xl border border-amber-100">
-                                                                        <div className="flex items-center gap-2"><Calendar className="w-3 h-3 text-amber-600" /><span className="text-[10px] font-black uppercase text-amber-700">Rappel programmé</span></div>
-                                                                        <p className="text-xs font-bold text-amber-900">{reportedText}</p>
-                                                                        {cleanedComment && <p className="text-[11px] font-medium text-amber-800 italic mt-1 border-t border-amber-500/10 pt-1">"{cleanedComment}"</p>}
+                                                                    <div className="flex flex-col gap-1 p-2.5 bg-amber-50 rounded-lg border border-amber-100">
+                                                                        <div className="flex items-center gap-1.5"><Calendar className="w-2.5 h-2.5 text-amber-600" /><span className="text-[9px] font-bold uppercase tracking-[0.18em] text-amber-700">Rappel programmé</span></div>
+                                                                        <p className="text-[10px] font-semibold text-amber-900">{reportedText}</p>
+                                                                        {cleanedComment && <p className="text-[10px] text-amber-800 italic mt-1 border-t border-amber-500/10 pt-1">"{cleanedComment}"</p>}
                                                                     </div>
                                                                 )}
-                                                                {!postponed && record.comment && <p className="text-[11px] font-medium text-muted-foreground leading-relaxed italic">"{record.comment}"</p>}
+                                                                {!postponed && record.comment && <p className="text-[10px] text-gray-400 leading-relaxed italic">"{record.comment}"</p>}
                                                             </div>
                                                         </div>
                                                     );
@@ -4378,8 +4302,8 @@ const Orders = () => {
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="text-center p-8 bg-brand-navy/[0.02] rounded-3xl border border-brand-navy/[0.05]">
-                                                <p className="text-sm font-bold text-muted-foreground">No tracking history available yet.</p>
+                                            <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-100">
+                                                <p className="text-[11px] text-gray-400">No tracking history available yet.</p>
                                             </div>
                                         )}
                                     </div>
@@ -4389,14 +4313,14 @@ const Orders = () => {
                             <DialogFooter className="p-8 pb-10 flex gap-4 bg-brand-white border-t border-brand-navy/[0.03]">
                                 <Button
                                     onClick={() => handleEdit(selectedOrder)}
-                                    className="flex-1 bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-3xl h-16 text-lg font-black shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-3"
+                                    className="flex-1 bg-brand-navy hover:bg-brand-navy/90 text-white h-9 rounded-md text-[11px] font-semibold gap-2 flex items-center justify-center"
                                 >
-                                    <Edit2 className="w-6 h-6" /> Edit Sales Order
+                                    <Edit2 className="w-3.5 h-3.5" /> Edit Sales Order
                                 </Button>
                                 <Button
                                     onClick={() => setIsViewModalOpen(false)}
                                     variant="ghost"
-                                    className="rounded-3xl h-16 px-10 font-bold text-brand-navy hover:bg-muted"
+                                    className="h-9 rounded-md px-4 text-[11px] font-semibold text-brand-navy hover:bg-muted"
                                 >
                                     Done
                                 </Button>
@@ -4413,44 +4337,44 @@ const Orders = () => {
                     if (!v) dismissReportedModal(reportedStatusRevertRef.current !== null);
                 }}
             >
-                <DialogContent className="max-w-[min(100vw-2rem,40rem)] p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden flex flex-col">
+                <DialogContent className="max-w-[min(100vw-2rem,40rem)] p-0 border border-gray-100 bg-white rounded-xl overflow-hidden flex flex-col">
                     <DialogHeader className="p-6 sm:p-8 pb-4 shrink-0 border-b border-brand-navy/[0.05]">
-                        <DialogTitle className="text-2xl font-black text-brand-navy">Reported Action</DialogTitle>
+                        <DialogTitle className="text-[15px] font-semibold text-brand-navy">Reported Action</DialogTitle>
                         <DialogDescription className="text-sm font-bold text-muted-foreground">
                             Please provide the scheduled date and time.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="p-6 sm:p-8 flex flex-col md:flex-row gap-6 md:gap-8 md:items-start">
                         <div className="space-y-2 flex flex-col shrink-0 md:max-w-[min(100%,280px)]">
-                            <label className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Date</label>
+                            <label className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Date</label>
                             <CalendarComponent
                                 mode="single"
                                 selected={reportedData.date}
                                 onSelect={(d) => setReportedData(prev => ({ ...prev, date: d }))}
                                 initialFocus
-                                className="rounded-2xl border-none shadow-inner bg-brand-navy/[0.02] w-full p-2"
+                                className="rounded-xl border border-gray-100 bg-gray-50 w-full p-2"
                             />
                         </div>
                         <div className="flex flex-col gap-4 flex-1 min-w-0 min-h-0">
                             <div className="space-y-2">
-                                <label className="text-[10px] flex font-black uppercase tracking-wider text-muted-foreground/70">Time</label>
+                                <label className="text-[9px] flex font-bold uppercase tracking-[0.18em] text-gray-400">Time</label>
                                 <div className="relative">
-                                    <Clock className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-brand-navy/30 pointer-events-none" />
+                                    <Clock className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                                     <Input
                                         type="time"
                                         value={reportedData.time}
                                         onChange={(e) => setReportedData(prev => ({ ...prev, time: e.target.value }))}
-                                        className="h-14 pl-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner w-full"
+                                        className="h-8 pl-9 rounded-md border-gray-200 bg-gray-50 text-[11px] w-full"
                                     />
                                 </div>
                             </div>
                             <div className="space-y-2 flex flex-col flex-1 min-h-[120px]">
-                                <label className="text-[10px] flex font-black uppercase tracking-wider text-muted-foreground/70">Comment (Optional)</label>
+                                <label className="text-[9px] flex font-bold uppercase tracking-[0.18em] text-gray-400">Comment (Optional)</label>
                                 <Textarea
                                     value={reportedData.comment}
                                     onChange={(e) => setReportedData(prev => ({ ...prev, comment: e.target.value }))}
                                     placeholder="Add a note why it was reported..."
-                                    className="resize-none rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner flex-1 min-h-[120px] md:min-h-[200px]"
+                                    className="resize-none rounded-xl border-gray-200 bg-gray-50 text-[11px] flex-1 min-h-[120px] md:min-h-[200px]"
                                 />
                             </div>
                         </div>
@@ -4459,7 +4383,7 @@ const Orders = () => {
                         <Button
                             variant="ghost"
                             onClick={() => dismissReportedModal(true)}
-                            className="h-12 rounded-2xl font-bold uppercase tracking-widest text-[10px]"
+                            className="h-8 rounded-md text-[11px] font-semibold"
                         >
                             Cancel
                         </Button>
@@ -4470,7 +4394,7 @@ const Orders = () => {
                                     pendingReportedAction(reportedData.date, reportedData.time, reportedData.comment);
                                 }
                             }}
-                            className="bg-brand-navy text-white hover:bg-brand-navy/90 h-12 rounded-2xl font-bold px-8 shadow-xl shadow-brand-navy/20"
+                            className="bg-brand-navy text-white hover:bg-brand-navy/90 h-8 rounded-md text-[11px] font-semibold px-4"
                         >
                             Confirm Action
                         </Button>

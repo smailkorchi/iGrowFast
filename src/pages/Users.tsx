@@ -88,6 +88,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import { useForm } from 'react-hook-form';
@@ -310,59 +311,43 @@ const Users = () => {
     );
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
-            <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-                <div className="relative p-8">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div>
-                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Team Members</h1>
-                            <p className="text-gray-500 font-light">Manage your team roles, permissions, and account access.</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <Button
-                                onClick={() => setIsAddModalOpen(true)}
-                                className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group"
-                            >
-                                <Plus className="w-5 h-5 mr-3 group-hover:rotate-90 transition-transform duration-500" />
-                                Add New User
-                            </Button>
-                        </div>
-                    </div>
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+            {/* Header */}
+            <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                    <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Team Members</h1>
+                    <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Roles, permissions &amp; account access</p>
                 </div>
-            </div>
+                <Button
+                    onClick={() => setIsAddModalOpen(true)}
+                    className="bg-brand-navy hover:bg-brand-navy/90 text-white h-8 px-3 rounded-md text-[11px] font-semibold gap-1.5 shrink-0"
+                >
+                    <Plus className="w-3.5 h-3.5" />
+                    Add User
+                </Button>
+            </header>
 
-            <Card className="border-none shadow-sm bg-white/50 backdrop-blur-sm rounded-[24px]">
-                <CardContent className="p-4">
-                    <div className="relative">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                        <Input
-                            placeholder="Search by name, username or email..."
-                            className="pl-12 bg-transparent border-none text-lg h-12 focus-visible:ring-0"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
-                    </div>
-                </CardContent>
-            </Card>
+            {/* Search */}
+            <div className="relative w-full sm:w-72">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                <Input
+                    placeholder="Search by name, username or email..."
+                    className="pl-7 h-8 rounded-md border-gray-200 bg-white text-[11px]"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                />
+            </div>
 
             <div>
                 {isLoading ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
-                        {Array.from({ length: 6 }).map((_, i) => (
-                            <Card key={i} className="h-[280px] animate-pulse bg-muted rounded-[32px] border-none" />
-                        ))}
-                    </div>
+                    <div className="space-y-2">{[1,2,3,4].map(i => <Skeleton key={i} className="h-10 rounded-lg" />)}</div>
                 ) : filteredUsers?.length === 0 ? (
-                    <div className="col-span-full text-center py-20 bg-white/50 backdrop-blur-sm rounded-[32px] mt-6">
-                        <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-muted mb-4">
-                            <UserIcon className="w-10 h-10 text-muted-foreground" />
-                        </div>
-                        <h3 className="text-xl font-bold">No users found</h3>
-                        <p className="text-muted-foreground">Try adjusting your search or add a new user.</p>
+                    <div className="border border-dashed border-gray-200 rounded-xl py-8 text-center">
+                        <p className="text-[14px] font-semibold text-brand-navy">No users found</p>
+                        <p className="text-[11px] text-gray-400 mt-1">Try adjusting your search or add a new user.</p>
                     </div>
                 ) : (
-                    <div className="space-y-10 mt-6">
+                    <div className="space-y-4">
                         {['super admin', 'admin', 'commercial', 'courier', 'mediabuyer', 'others'].map(roleGroup => {
                             const groupUsers = filteredUsers?.filter(u => {
                                 const r = (u.role || '').toLowerCase();
@@ -384,13 +369,13 @@ const Users = () => {
                                             roleGroup === 'mediabuyer' ? 'Media Buyers' : 'Others';
 
                             return (
-                                <div key={roleGroup} className="space-y-4">
-                                    <div className="flex items-center gap-3">
-                                        <h3 className="text-2xl font-black text-brand-navy">{title}</h3>
-                                        <Badge variant="secondary" className="bg-brand-navy/10 text-brand-navy rounded-full px-2 py-0.5">{groupUsers.length}</Badge>
+                                <div key={roleGroup} className="space-y-2">
+                                    <div className="flex items-center gap-2">
+                                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{title}</p>
+                                        <span className="h-5 px-1.5 bg-gray-100 rounded text-[9px] font-bold text-gray-500 inline-flex items-center">{groupUsers.length}</span>
                                     </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                        {groupUsers.map((user) => (
+                                    <div className="rounded-xl border border-gray-100 bg-white overflow-hidden">
+                                        {groupUsers.map((user, idx) => (
                                             <UserCard
                                                 key={user.id}
                                                 user={user}
@@ -401,6 +386,7 @@ const Users = () => {
                                                         deleteUserMutation.mutate(user.id);
                                                     }
                                                 }}
+                                                isLast={idx === groupUsers.length - 1}
                                             />
                                         ))}
                                     </div>
@@ -435,120 +421,58 @@ const Users = () => {
     );
 };
 
-const UserCard = ({ user, hasWhatsApp, onEdit, onDelete }: { user: any, hasWhatsApp?: boolean, onEdit: () => void, onDelete: () => void }) => {
+const UserCard = ({ user, hasWhatsApp, onEdit, onDelete, isLast }: { user: any, hasWhatsApp?: boolean, onEdit: () => void, onDelete: () => void, isLast?: boolean }) => {
+    const roleColor = user.role === 'super admin' ? 'bg-red-50 text-red-600' :
+        user.role === 'admin' ? 'bg-brand-navy/10 text-brand-navy' :
+        user.role === 'commercial' ? 'bg-amber-50 text-amber-600' :
+        user.role === 'courier' ? 'bg-emerald-50 text-emerald-600' :
+        'bg-gray-100 text-gray-500';
+
     return (
-        <Card className="group relative overflow-hidden border-none bg-white/50 backdrop-blur-sm hover:shadow-2xl transition-all duration-300 rounded-[32px]">
-            {hasWhatsApp && (
-                <div
-                    className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-[#25D366]/10 border border-[#25D366]/20 flex items-center justify-center shadow-sm"
-                    title="WhatsApp inbox access enabled"
-                >
-                    <FaWhatsapp className="w-4 h-4 text-[#25D366]" />
+        <div className={cn("flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 transition-colors group", !isLast && "border-b border-gray-100")}>
+            <Avatar className="h-7 w-7 shrink-0">
+                <AvatarImage src={user.avatar_url || ''} />
+                <AvatarFallback className="bg-brand-navy/10 text-brand-navy text-[10px] font-bold">
+                    {user.name.substring(0, 2).toUpperCase()}
+                </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-[12px] font-semibold text-brand-navy truncate">{user.name}</p>
+                    {hasWhatsApp && <FaWhatsapp className="w-3 h-3 text-[#25D366] shrink-0" title="WhatsApp access" />}
                 </div>
-            )}
-            <CardHeader className="flex flex-row items-start justify-between pb-2">
-                <div className="flex items-center gap-4">
-                    <Avatar className="h-14 w-14 border-2 border-brand-white shadow-sm">
-                        <AvatarImage src={user.avatar_url || ''} />
-                        <AvatarFallback className="bg-brand-navy text-brand-white text-lg font-bold">
-                            {user.name.substring(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                    </Avatar>
-                    <div className="space-y-0.5">
-                        <CardTitle className="text-xl font-bold group-hover:text-brand-navy transition-colors">{user.name}</CardTitle>
-                        {/* Using a div instead of CardDescription because CardDescription
-                            renders a <p> and Badge renders a <div>, which is invalid DOM nesting. */}
-                        <div className="flex items-center text-sm font-medium text-muted-foreground">
-                            <Badge variant="secondary" className={cn(
-                                "rounded-lg text-[10px] uppercase font-bold px-2 py-0.5",
-                                user.role === 'super admin' ? "bg-brand-red/10 text-brand-red" :
-                                    user.role === 'admin' ? "bg-brand-navy/10 text-brand-navy" :
-                                        user.role === 'commercial' ? "bg-brand-blue/10 text-brand-blue" :
-                                            "bg-emerald-500/10 text-emerald-600"
-                            )}>
-                                {user.role}
-                            </Badge>
-                        </div>
-                    </div>
-                </div>
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-10 w-10 rounded-full p-0 hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity">
-                            <MoreVertical className="h-5 w-5 text-muted-foreground" />
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-xl">
-                        <DropdownMenuItem onClick={onEdit} className="rounded-xl p-3 cursor-pointer">
-                            <Edit2 className="w-4 h-4 mr-3" />
-                            Edit Profile
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={onDelete} className="rounded-xl p-3 cursor-pointer text-brand-red hover:bg-brand-red/5">
-                            <Trash2 className="w-4 h-4 mr-3" />
-                            Delete User
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-            </CardHeader>
-            <CardContent className="space-y-4 pt-2">
-                <div className={cn("grid gap-2 text-sm", user.role === 'commercial' ? "grid-cols-2" : "grid-cols-1")}>
-                    <div className="flex flex-col p-3 rounded-2xl bg-muted/30">
-                        <span className="text-muted-foreground text-[10px] font-bold uppercase tracking-wider">Username</span>
-                        <span className="font-semibold text-brand-navy truncate">@{user.username}</span>
-                    </div>
-                    {user.role === 'commercial' && (
-                        <div className="flex flex-col p-3 rounded-2xl bg-muted/30">
-                            <span className="text-muted-foreground text-[10px] font-bold uppercase tracking-wider">Assignment</span>
-                            <span className="font-semibold text-brand-navy">{user.assignment}</span>
-                        </div>
-                    )}
-                </div>
+                <p className="text-[10px] text-gray-500 truncate">@{user.username} · {user.email}</p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+                <span className={cn("h-5 px-1.5 rounded text-[9px] font-bold uppercase tracking-[0.08em] inline-flex items-center", roleColor)}>
+                    {user.role}
+                </span>
                 {user.role === 'commercial' && (
-                    <div className="flex flex-col p-3 rounded-2xl bg-brand-blue/5 border border-brand-blue/10">
-                        <div className="flex items-center gap-2 mb-1">
-                            <Tag className="w-3.5 h-3.5 text-brand-blue/60" />
-                            <span className="text-muted-foreground text-[10px] font-bold uppercase tracking-wider">Commission Price</span>
-                        </div>
-                        <span className="font-semibold text-brand-blue">
-                            {user.commission_price || 0} DH
-                            <span className="text-[10px] font-bold text-brand-blue/70 ml-1">
-                                {normalizeCommissionBasis(user.commission_basis) === 'per_unit' ? '/ unit' : '/ order'}
-                            </span>
-                        </span>
-                    </div>
-                )}
-                <div className="flex flex-col p-3 rounded-2xl bg-brand-navy/5 border border-brand-navy/10">
-                    <div className="flex items-center gap-2 mb-1">
-                        <Mail className="w-3.5 h-3.5 text-brand-navy/60" />
-                        <span className="text-muted-foreground text-[10px] font-bold uppercase tracking-wider">Email Address</span>
-                    </div>
-                    <span className="font-medium text-brand-navy truncate">{user.email}</span>
-                </div>
-            </CardContent>
-            <CardFooter className="pt-0 pb-6 flex items-center justify-between">
-                <div className="flex -space-x-2">
-                    {user.products && (Array.isArray(user.products) ? user.products : []).slice(0, 3).map((p: string, i: number) => (
-                        <div key={i} className="w-8 h-8 rounded-full bg-brand-white border-2 border-brand-navy/10 flex items-center justify-center shadow-sm">
-                            <Package className="w-4 h-4 text-brand-navy/60" />
-                        </div>
-                    ))}
-                    {(user.products?.length > 3) && (
-                        <div className="w-8 h-8 rounded-full bg-muted border-2 border-brand-white flex items-center justify-center text-[10px] font-bold">
-                            +{user.products.length - 3}
-                        </div>
-                    )}
-                </div>
-                <div className="flex items-center gap-2">
-                    <div className={cn(
-                        "w-2 h-2 rounded-full",
-                        user.active ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]" : "bg-muted"
-                    )} />
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                        {user.active ? 'Active' : 'Inactive'}
+                    <span className="text-[10px] text-gray-400 tabular-nums">
+                        {user.commission_price || 0} DH/{normalizeCommissionBasis(user.commission_basis) === 'per_unit' ? 'unit' : 'order'}
                     </span>
-                </div>
-            </CardFooter>
-        </Card>
+                )}
+                <div className={cn("w-1.5 h-1.5 rounded-full shrink-0", user.active ? "bg-emerald-500" : "bg-gray-300")} title={user.active ? 'Active' : 'Inactive'} />
+            </div>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="h-7 w-7 p-0 rounded-md opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                        <MoreVertical className="h-3.5 w-3.5 text-gray-400" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="rounded-xl border border-gray-100 shadow-md">
+                    <DropdownMenuItem onClick={onEdit} className="rounded-lg cursor-pointer text-[11px]">
+                        <Edit2 className="w-3.5 h-3.5 mr-2" />
+                        Edit Profile
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={onDelete} className="rounded-lg cursor-pointer text-[11px] text-red-500 focus:text-red-600">
+                        <Trash2 className="w-3.5 h-3.5 mr-2" />
+                        Delete User
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+        </div>
     );
 };
 
@@ -733,7 +657,7 @@ const UserModal = ({
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="max-w-3xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
+            <DialogContent className="max-w-3xl p-0 border border-gray-100 rounded-xl shadow-none overflow-hidden max-h-[92vh] flex flex-col">
                 <Form {...form}>
                     <form
                         onSubmit={form.handleSubmit(handleFormSubmit, (errors) => {
@@ -746,32 +670,32 @@ const UserModal = ({
                         })}
                         className="flex flex-col flex-1 min-h-0 overflow-hidden"
                     >
-                        {/* ── Compact Header ───────────────────────────────────────── */}
-                        <DialogHeader className="px-8 pt-8 pb-5 border-b border-brand-navy/5">
-                            <div className="flex items-start gap-5">
+                        {/* ── Header ───────────────────────────────────────── */}
+                        <DialogHeader className="px-4 pt-4 pb-3 border-b border-gray-100">
+                            <div className="flex items-center gap-3">
                                 <div
                                     {...getRootProps()}
                                     className={cn(
-                                        "relative group flex-shrink-0 flex items-center justify-center border-2 border-dashed rounded-3xl transition-all duration-300 cursor-pointer overflow-hidden w-20 h-20",
-                                        isDragActive ? "border-brand-blue bg-brand-blue/5 scale-95" : "border-brand-navy/15 hover:border-brand-navy/40 bg-brand-navy/[0.02]",
-                                        avatarPreview ? "border-solid border-brand-navy/10" : ""
+                                        "relative group flex-shrink-0 flex items-center justify-center border-2 border-dashed rounded-xl transition-all cursor-pointer overflow-hidden w-14 h-14",
+                                        isDragActive ? "border-brand-navy/40 scale-95" : "border-gray-200 hover:border-brand-navy/30 bg-gray-50",
+                                        avatarPreview ? "border-solid border-gray-200" : ""
                                     )}
                                 >
                                     <input {...getInputProps()} />
                                     {avatarPreview ? (
                                         <>
                                             <img src={avatarPreview} alt="" className="w-full h-full object-cover" />
-                                            <div className="absolute inset-0 bg-brand-navy/50 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <Upload className="w-4 h-4 text-white" />
+                                            <div className="absolute inset-0 bg-brand-navy/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Upload className="w-3.5 h-3.5 text-white" />
                                             </div>
                                         </>
                                     ) : (
-                                        <Upload className="w-5 h-5 text-brand-navy/30" />
+                                        <Upload className="w-4 h-4 text-gray-400" />
                                     )}
                                 </div>
-                                <div className="flex-1 min-w-0 pt-1">
-                                    <DialogTitle className="text-2xl font-bold text-brand-navy leading-tight">{title}</DialogTitle>
-                                    <DialogDescription className="text-muted-foreground mt-1 text-sm">
+                                <div className="flex-1 min-w-0">
+                                    <DialogTitle className="text-[13px] font-semibold text-brand-navy">{title}</DialogTitle>
+                                    <DialogDescription className="text-[10px] text-gray-400 mt-0.5">
                                         {form.watch('role') === 'super admin' ? 'Highest privilege account.'
                                             : form.watch('role') === 'admin' ? 'Configure modules this admin can access.'
                                             : form.watch('role') === 'mediabuyer' ? 'Configure media buyer payment structure.'
@@ -783,47 +707,32 @@ const UserModal = ({
 
                         {/* ── Tabs ──────────────────────────────────────────────────── */}
                         <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                            <div className="px-8 pt-5">
-                                <TabsList className="bg-brand-navy/[0.04] p-1 rounded-2xl h-auto inline-flex gap-1">
-                                    <TabsTrigger
-                                        value="identity"
-                                        className="rounded-xl px-4 py-2 text-[11px] font-bold uppercase tracking-wider data-[state=active]:bg-brand-white data-[state=active]:text-brand-navy data-[state=active]:shadow-sm text-brand-navy/50 transition-all"
-                                    >
-                                        <UserIcon className="w-3.5 h-3.5 mr-1.5" />
+                            <div className="px-4 pt-3">
+                                <TabsList className="h-8">
+                                    <TabsTrigger value="identity" className="text-[11px] h-6 px-3 gap-1.5">
+                                        <UserIcon className="w-3 h-3" />
                                         Identity
                                     </TabsTrigger>
                                     {form.watch('role') === 'admin' && (
-                                        <TabsTrigger
-                                            value="permissions"
-                                            className="rounded-xl px-4 py-2 text-[11px] font-bold uppercase tracking-wider data-[state=active]:bg-brand-white data-[state=active]:text-brand-navy data-[state=active]:shadow-sm text-brand-navy/50 transition-all"
-                                        >
-                                            <Shield className="w-3.5 h-3.5 mr-1.5" />
+                                        <TabsTrigger value="permissions" className="text-[11px] h-6 px-3 gap-1.5">
+                                            <Shield className="w-3 h-3" />
                                             Page Access
                                         </TabsTrigger>
                                     )}
                                     {form.watch('role') === 'mediabuyer' && (
-                                        <TabsTrigger
-                                            value="payment"
-                                            className="rounded-xl px-4 py-2 text-[11px] font-bold uppercase tracking-wider data-[state=active]:bg-brand-white data-[state=active]:text-brand-navy data-[state=active]:shadow-sm text-brand-navy/50 transition-all"
-                                        >
-                                            <DollarSign className="w-3.5 h-3.5 mr-1.5" />
+                                        <TabsTrigger value="payment" className="text-[11px] h-6 px-3 gap-1.5">
+                                            <DollarSign className="w-3 h-3" />
                                             Payment
                                         </TabsTrigger>
                                     )}
                                     {form.watch('role') === 'commercial' && (
                                         <>
-                                            <TabsTrigger
-                                                value="performance"
-                                                className="rounded-xl px-4 py-2 text-[11px] font-bold uppercase tracking-wider data-[state=active]:bg-brand-white data-[state=active]:text-brand-navy data-[state=active]:shadow-sm text-brand-navy/50 transition-all"
-                                            >
-                                                <BarChart2 className="w-3.5 h-3.5 mr-1.5" />
+                                            <TabsTrigger value="performance" className="text-[11px] h-6 px-3 gap-1.5">
+                                                <BarChart2 className="w-3 h-3" />
                                                 Performance
                                             </TabsTrigger>
-                                            <TabsTrigger
-                                                value="whatsapp"
-                                                className="rounded-xl px-4 py-2 text-[11px] font-bold uppercase tracking-wider data-[state=active]:bg-brand-white data-[state=active]:text-brand-navy data-[state=active]:shadow-sm text-brand-navy/50 transition-all"
-                                            >
-                                                <FaWhatsapp className="w-3.5 h-3.5 mr-1.5 text-[#25D366]" />
+                                            <TabsTrigger value="whatsapp" className="text-[11px] h-6 px-3 gap-1.5">
+                                                <FaWhatsapp className="w-3 h-3 text-[#25D366]" />
                                                 WhatsApp
                                             </TabsTrigger>
                                         </>
@@ -1357,21 +1266,21 @@ const UserModal = ({
                             </div>
                         </Tabs>
 
-                        <DialogFooter className="p-8 pb-8 pt-4 gap-4 bg-brand-white border-t border-brand-navy/5">
+                        <DialogFooter className="px-4 py-3 border-t border-gray-100 gap-2">
                             <Button
                                 type="button"
                                 variant="ghost"
                                 onClick={onClose}
-                                className="h-12 px-8 rounded-2xl font-bold text-xs uppercase tracking-widest text-muted-foreground hover:bg-muted/50 hover:text-brand-navy transition-all"
+                                className="h-8 px-3 rounded-md text-[11px] font-semibold text-brand-navy hover:bg-gray-100"
                             >
                                 Discard
                             </Button>
                             <Button
                                 type="submit"
                                 disabled={loading}
-                                className="h-12 px-10 rounded-2xl bg-brand-navy hover:bg-brand-navy/90 text-brand-white font-bold text-xs uppercase tracking-[0.1em] shadow-xl shadow-brand-navy/20 transition-all hover:translate-y-[-2px] active:scale-95 disabled:opacity-50"
+                                className="h-8 px-4 rounded-md bg-brand-navy hover:bg-brand-navy/90 text-white text-[11px] font-semibold gap-1.5"
                             >
-                                {loading && <Loader2 className="w-4 h-4 mr-3 animate-spin" />}
+                                {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                                 {initialData ? 'Update Account' : 'Create User'}
                             </Button>
                         </DialogFooter>

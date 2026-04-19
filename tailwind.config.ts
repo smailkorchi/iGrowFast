@@ -58,13 +58,36 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
-        // Brand Colors
+        // Brand Colors (legacy — preserved so non-dashboard pages keep working)
         brand: {
           white: "#daddcc",
           navy: "#3b5e5e",
           red: "#c93942",
           blue: "#7a9385",
-        }
+        },
+        // Anthropic brand tokens — used by Dashboard + Sidebar redesign
+        ant: {
+          ink: "#141413",
+          "ink-soft": "#2a2926",
+          light: "#faf9f5",
+          paper: "#ffffff",
+          line: "#e8e6dc",
+          "line-soft": "#f1efe8",
+          mid: "#b0aea5",
+          muted: "#6b6a63",
+          orange: "#d97757",
+          "orange-soft": "#f4d9c9",
+          blue: "#6a9bcc",
+          "blue-soft": "#d7e3f1",
+          green: "#788c5d",
+          "green-soft": "#dbe3cb",
+          rose: "#c96356",
+        },
+      },
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        display: ['Poppins', 'Arial', 'sans-serif'],
+        serif: ['Lora', 'Georgia', 'serif'],
       },
       borderRadius: {
         lg: "var(--radius)",

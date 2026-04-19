@@ -83,44 +83,13 @@ const TABS: Array<{
     label: string;
     icon: typeof CheckCircle2;
     accent: string;
-    /** Returns true if this parcel belongs in the tab. */
     match: (status: PackageStatus | null) => boolean;
 }> = [
-    {
-        key: 'all',
-        label: 'Tout',
-        icon: Layers,
-        accent: '#2d6d6c',
-        match: () => true,
-    },
-    {
-        key: 'nouveau',
-        label: 'Nouveau',
-        icon: Package,
-        accent: '#3b82f6',
-        match: (s) => (s?.category || '') === 'new',
-    },
-    {
-        key: 'suivi',
-        label: 'Suivi',
-        icon: AlertCircle,
-        accent: '#f59e0b',
-        match: (s) => !!s?.recheck && (s?.category || '') !== 'postponed',
-    },
-    {
-        key: 'reported',
-        label: 'Reporté',
-        icon: Clock,
-        accent: '#b45309',
-        match: (s) => (s?.category || '') === 'postponed',
-    },
-    {
-        key: 'livre',
-        label: 'Livré',
-        icon: CheckCircle2,
-        accent: '#16a34a',
-        match: (s) => (s?.category || '') === 'delivered',
-    },
+    { key: 'all', label: 'Tout', icon: Layers, accent: '#3b5e5e', match: () => true },
+    { key: 'nouveau', label: 'Nouveau', icon: Package, accent: '#3b5e5e', match: (s) => (s?.category || '') === 'new' },
+    { key: 'suivi', label: 'Suivi', icon: AlertCircle, accent: '#d97706', match: (s) => !!s?.recheck && (s?.category || '') !== 'postponed' },
+    { key: 'reported', label: 'Reporté', icon: Clock, accent: '#d97706', match: (s) => (s?.category || '') === 'postponed' },
+    { key: 'livre', label: 'Livré', icon: CheckCircle2, accent: '#059669', match: (s) => (s?.category || '') === 'delivered' },
 ];
 
 // ── Component ──────────────────────────────────────────────────────────────
@@ -153,7 +122,7 @@ const CourierOrders = () => {
     const courierId = meRow?.id;
     const businessId = meRow?.['DigiCom Business'];
 
-    // Package statuses (for the picker + tab counts color)
+    // Package statuses
     const { data: packageStatuses = [] } = useQuery<PackageStatus[]>({
         queryKey: ['courier-package-statuses', businessId],
         queryFn: async () => {
@@ -222,10 +191,6 @@ const CourierOrders = () => {
         enabled: !!courierId && !!businessId,
     });
 
-    // Deep-link: when we arrive with ?tracking=CR-XXX (from the dashboard scan
-    // or any other entry point), auto-filter to that parcel and open its sheet.
-    // We wait until rows are actually loaded so the match can succeed, then
-    // strip the param from the URL so hitting refresh doesn't re-trigger.
     useEffect(() => {
         const tracking = searchParams.get('tracking');
         if (!tracking) return;
@@ -248,7 +213,6 @@ const CourierOrders = () => {
             });
         }
 
-        // Strip the param so refresh / back navigation doesn't re-fire the effect
         const next = new URLSearchParams(searchParams);
         next.delete('tracking');
         setSearchParams(next, { replace: true });
@@ -263,14 +227,6 @@ const CourierOrders = () => {
         return c;
     }, [rows]);
 
-    // Build a flat, lowercased search index per row once so every subsequent
-    // keystroke just does a substring match. Covers:
-    //   customer (name / phone / address / city),
-    //   parcel   (id / reference / tracking / status label),
-    //   delivery note (id / reference),
-    //   order    (id / price / date / public delivery note),
-    //   products (name / code / quantity),
-    //   phone digits normalized (0612 345 678 matches 0612345678).
     const searchableRows = useMemo(() => {
         const normalizeDigits = (v: string) => v.replace(/\D/g, '');
         return rows.map((r) => {
@@ -304,8 +260,6 @@ const CourierOrders = () => {
         });
     }, [rows]);
 
-    // Filter rows for the active tab + fuzzy-ish substring match across every
-    // indexed field. Multi-word queries are treated as AND tokens.
     const filteredRows = useMemo(() => {
         const tab = TABS.find((t) => t.key === activeTab);
         if (!tab) return [];
@@ -321,18 +275,10 @@ const CourierOrders = () => {
     }, [searchableRows, activeTab, searchQuery]);
 
     // ── Scan handler ───────────────────────────────────────────────────────
-    // When a QR is successfully decoded we verify the tracking code exists in
-    // the LOCAL row set, which is already server-side scoped to
-    //   courier_id = me.id AND "DigiCom Business" = me.business
-    // so a QR from another courier / business / organization can never match.
-    // This is the rock-solid security boundary: no server round-trip needed,
-    // no PII in the QR, and the match is cryptographically impossible across
-    // business silos because tracking codes are scoped and random.
     const handleScannedCode = (code: string) => {
         const normalized = code.trim().toUpperCase();
         setIsScannerOpen(false);
 
-        // Lookup in locally fetched, scoped rows
         const match = rows.find(
             (r) => (r.parcel_tracking_code || '').toUpperCase() === normalized,
         );
@@ -343,15 +289,12 @@ const CourierOrders = () => {
                 description: `Le QR « ${normalized} » ne correspond à aucun colis de vos bons de livraison.`,
                 variant: 'destructive',
             });
-            // Clear the search so the list isn't misleading
             setSearchQuery('');
             return;
         }
 
-        // Filter the list to just this parcel and jump to "Tout" so it's visible
         setActiveTab('all');
         setSearchQuery(normalized);
-        // Auto-open the detail sheet for the matched parcel
         setSelectedRow(match);
         toast({
             title: 'Colis trouvé',
@@ -399,41 +342,45 @@ const CourierOrders = () => {
 
     // ── Render ─────────────────────────────────────────────────────────────
     return (
-        <div className="space-y-5 md:space-y-6 animate-in fade-in duration-300">
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
             {/* Header */}
-            <div className="space-y-1">
-                <h1 className="text-2xl md:text-3xl font-black text-brand-navy tracking-tight">
-                    Mes Commandes
-                </h1>
-                <p className="text-xs md:text-sm text-brand-navy/50 font-medium">
-                    Colis confiés via vos bons de livraison.
-                </p>
-            </div>
+            <header className="space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Mes Commandes</h1>
+                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">
+                            Colis confiés via vos bons de livraison
+                        </p>
+                    </div>
+                </div>
+            </header>
 
             {/* Search + scan */}
-            <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-navy/30" />
-                <Input
-                    type="search"
-                    placeholder="Rechercher : nom, téléphone, ville, tracking, BL, produit…"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="h-12 pl-11 pr-14 rounded-2xl border-brand-navy/10 bg-white text-sm font-medium shadow-sm focus-visible:ring-1 focus-visible:ring-brand-navy/20"
-                    aria-label="Search orders"
-                />
-                <button
-                    type="button"
+            <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                    <Input
+                        type="search"
+                        placeholder="Rechercher : nom, téléphone, ville, tracking…"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="h-8 pl-8 pr-4 rounded-md border-gray-200 bg-white text-[11px]"
+                        aria-label="Search orders"
+                    />
+                </div>
+                <Button
+                    size="icon"
                     onClick={() => setIsScannerOpen(true)}
                     aria-label="Scanner le QR d'un colis"
-                    className="absolute right-1.5 top-1/2 -translate-y-1/2 h-9 w-9 rounded-xl bg-brand-navy text-white flex items-center justify-center shadow-sm hover:bg-brand-navy/90 active:scale-95 transition-all"
+                    className="h-8 w-8 p-0 rounded-md bg-brand-navy hover:bg-brand-navy/90 text-white shrink-0"
                 >
-                    <QrCode className="w-4 h-4" />
-                </button>
+                    <QrCode className="w-3.5 h-3.5" />
+                </Button>
             </div>
 
-            {/* Tabs (horizontally scrollable on mobile, wrap on md+) */}
-            <div className="-mx-4 px-4 overflow-x-auto no-scrollbar">
-                <div className="flex gap-2 min-w-min md:flex-wrap">
+            {/* Tab filter chips */}
+            <div className="-mx-3 md:-mx-5 px-3 md:px-5 overflow-x-auto">
+                <div className="flex gap-1.5 min-w-min pb-0.5">
                     {TABS.map((t) => {
                         const isActive = activeTab === t.key;
                         const count = counts[t.key];
@@ -443,20 +390,19 @@ const CourierOrders = () => {
                                 key={t.key}
                                 onClick={() => setActiveTab(t.key)}
                                 className={cn(
-                                    'shrink-0 h-12 px-4 rounded-2xl flex items-center gap-2 text-xs font-black uppercase tracking-wider transition-all',
+                                    'shrink-0 h-8 px-3 rounded-md flex items-center gap-1.5 text-[11px] font-semibold transition-all',
                                     isActive
-                                        ? 'text-white shadow-lg'
-                                        : 'bg-white text-brand-navy/55 hover:text-brand-navy border border-brand-navy/[0.06]',
+                                        ? 'bg-brand-navy text-white'
+                                        : 'bg-white text-gray-500 hover:text-brand-navy border border-gray-100',
                                 )}
-                                style={isActive ? { backgroundColor: t.accent } : undefined}
                                 aria-pressed={isActive}
                             >
-                                <Icon className="w-4 h-4 shrink-0" />
+                                <Icon className="w-3 h-3 shrink-0" />
                                 <span>{t.label}</span>
                                 <span
                                     className={cn(
-                                        'ml-1 px-2 py-0.5 rounded-full text-[10px] font-black tabular-nums',
-                                        isActive ? 'bg-white/20 text-white' : 'bg-brand-navy/[0.06] text-brand-navy/60',
+                                        'px-1.5 py-0.5 rounded text-[9px] font-semibold tabular-nums',
+                                        isActive ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500',
                                     )}
                                 >
                                     {count}
@@ -469,33 +415,80 @@ const CourierOrders = () => {
 
             {/* Content */}
             {isLoading ? (
-                <div className="flex flex-col items-center justify-center py-20 gap-3">
-                    <Loader2 className="w-8 h-8 text-brand-navy/40 animate-spin" />
-                    <p className="text-xs font-bold text-brand-navy/40 uppercase tracking-widest">
-                        Chargement…
-                    </p>
+                <div className="flex flex-col items-center justify-center py-16 gap-3">
+                    <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
+                    <p className="text-[11px] text-gray-400 uppercase tracking-widest">Chargement…</p>
                 </div>
             ) : filteredRows.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
-                    <div className="w-16 h-16 rounded-full bg-brand-navy/[0.04] flex items-center justify-center">
-                        <SearchX className="w-7 h-7 text-brand-navy/30" />
-                    </div>
+                <div className="rounded-xl border border-dashed border-gray-200 bg-white py-10 flex flex-col items-center gap-3 text-center">
+                    <SearchX className="w-6 h-6 text-gray-400" />
                     <div className="space-y-1">
-                        <p className="text-sm font-bold text-brand-navy">Aucun colis dans cet onglet</p>
-                        <p className="text-xs text-brand-navy/40 font-medium">
+                        <p className="text-[12px] font-semibold text-brand-navy">Aucun colis dans cet onglet</p>
+                        <p className="text-[11px] text-gray-400 max-w-xs">
                             Les commandes apparaissent ici une fois confiées dans un bon de livraison finalisé.
                         </p>
                     </div>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
-                    {filteredRows.map((row) => (
-                        <CourierOrderCard
-                            key={row.parcel_id}
-                            row={row}
-                            onOpen={() => setSelectedRow(row)}
-                        />
-                    ))}
+                <div className="rounded-xl border border-gray-100 bg-white overflow-hidden">
+                    <table className="w-full">
+                        <thead>
+                            <tr className="border-b border-gray-100">
+                                <th className="text-left px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-gray-400">Client</th>
+                                <th className="text-left px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-gray-400 hidden sm:table-cell">Ville</th>
+                                <th className="text-left px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-gray-400">Statut</th>
+                                <th className="text-right px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-gray-400">Prix</th>
+                                <th className="px-3 py-2"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filteredRows.map((row) => {
+                                const { order, parcel_status, parcel_tracking_code } = row;
+                                const color = parcel_status?.color || '#9ca3af';
+                                const label = parcel_status?.label || 'Nouveau';
+                                return (
+                                    <tr
+                                        key={row.parcel_id}
+                                        className="border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer"
+                                        onClick={() => setSelectedRow(row)}
+                                    >
+                                        <td className="px-3 py-2">
+                                            <p className="text-[11px] font-semibold text-brand-navy/80">{order.name || 'Client'}</p>
+                                            <p className="text-[9px] text-gray-400 mt-0.5">{order.phone || '—'}</p>
+                                            {parcel_tracking_code && (
+                                                <div className="flex items-center gap-1 mt-0.5">
+                                                    <Hash className="w-2.5 h-2.5 text-gray-400" />
+                                                    <span className="text-[9px] font-mono text-gray-400">{parcel_tracking_code}</span>
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td className="px-3 py-2 hidden sm:table-cell">
+                                            {order.city?.name ? (
+                                                <span className="flex items-center gap-1 text-[11px] text-brand-navy/80">
+                                                    <MapPin className="w-3 h-3 text-gray-400" />
+                                                    {order.city.name}
+                                                </span>
+                                            ) : <span className="text-[11px] text-gray-400">—</span>}
+                                        </td>
+                                        <td className="px-3 py-2">
+                                            <span
+                                                className="inline-flex items-center h-5 px-1.5 rounded text-[9px] font-semibold"
+                                                style={{ backgroundColor: `${color}15`, color }}
+                                            >
+                                                {label}
+                                            </span>
+                                        </td>
+                                        <td className="text-right px-3 py-2 text-[11px] font-semibold tabular-nums text-brand-navy/80">
+                                            {new Intl.NumberFormat('fr-FR').format(order.price || 0)} DH
+                                        </td>
+                                        <td className="px-3 py-2">
+                                            <ChevronRight className="w-3.5 h-3.5 text-gray-300 ml-auto" />
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
                 </div>
             )}
 
@@ -523,118 +516,6 @@ const CourierOrders = () => {
 
 export default CourierOrders;
 
-// ── Card ───────────────────────────────────────────────────────────────────
-function CourierOrderCard({ row, onOpen }: { row: CourierOrderRow; onOpen: () => void }) {
-    const { order, parcel_status, parcel_tracking_code } = row;
-    const color = parcel_status?.color || '#94a3b8';
-    const label = parcel_status?.label || 'Nouveau';
-    const itemCount = (order.items || []).reduce((sum, i) => sum + (i.quantity || 0), 0);
-    const phoneE164 = (order.phone || '').replace(/\D/g, '');
-
-    return (
-        <button
-            type="button"
-            onClick={onOpen}
-            className="group relative w-full text-left bg-white rounded-2xl border border-brand-navy/[0.06] shadow-sm hover:shadow-lg hover:border-brand-navy/15 transition-all duration-300 active:scale-[0.99] overflow-hidden"
-        >
-            {/* Top accent */}
-            <div className="h-[3px] w-full" style={{ backgroundColor: color }} />
-
-            <div className="p-4 space-y-3">
-                {/* Status + price row */}
-                <div className="flex items-center justify-between gap-2">
-                    <span
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider"
-                        style={{ backgroundColor: `${color}15`, color }}
-                    >
-                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
-                        {label}
-                    </span>
-                    <div className="flex items-baseline gap-1">
-                        <span className="text-lg font-black text-brand-navy tabular-nums">
-                            {new Intl.NumberFormat('fr-FR').format(order.price || 0)}
-                        </span>
-                        <span className="text-[10px] font-bold text-brand-navy/35">DH</span>
-                    </div>
-                </div>
-
-                {/* Customer */}
-                <div className="space-y-1">
-                    <p className="text-sm font-bold text-brand-navy leading-tight truncate">
-                        {order.name || 'Client'}
-                    </p>
-                    <p className="text-[11px] text-brand-navy/45 font-medium tracking-wide">
-                        {order.phone || '—'}
-                    </p>
-                </div>
-
-                {/* City + tracking */}
-                <div className="flex flex-wrap items-center gap-1.5">
-                    {order.city?.name && (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-brand-navy/[0.04] text-[10px] font-bold text-brand-navy/60">
-                            <MapPin className="w-3 h-3 text-brand-navy/30" />
-                            {order.city.name}
-                        </span>
-                    )}
-                    {itemCount > 0 && (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-brand-navy/[0.04] text-[10px] font-bold text-brand-navy/60">
-                            <Package className="w-3 h-3 text-brand-navy/30" />
-                            {itemCount} article{itemCount > 1 ? 's' : ''}
-                        </span>
-                    )}
-                </div>
-
-                {parcel_tracking_code && (
-                    <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-indigo-50/60 border border-indigo-100/60">
-                        <Hash className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                        <span className="text-[11px] font-mono font-bold text-indigo-700 truncate">
-                            {parcel_tracking_code}
-                        </span>
-                    </div>
-                )}
-
-                {/* Footer actions */}
-                <div className="flex items-center gap-2 pt-2 border-t border-brand-navy/[0.04]">
-                    <a
-                        href={phoneE164 ? `tel:${phoneE164}` : undefined}
-                        onClick={(e) => e.stopPropagation()}
-                        className={cn(
-                            'flex-1 h-11 rounded-xl flex items-center justify-center gap-1.5 text-[11px] font-black uppercase tracking-wider transition-all',
-                            phoneE164
-                                ? 'bg-brand-navy/[0.05] text-brand-navy hover:bg-brand-navy hover:text-white'
-                                : 'bg-brand-navy/[0.03] text-brand-navy/30 pointer-events-none',
-                        )}
-                    >
-                        <PhoneCall className="w-3.5 h-3.5" />
-                        Appeler
-                    </a>
-                    <a
-                        href={phoneE164 ? `https://wa.me/${phoneE164.startsWith('212') ? phoneE164 : '212' + phoneE164.replace(/^0/, '')}` : undefined}
-                        target="_blank"
-                        rel="noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className={cn(
-                            'flex-1 h-11 rounded-xl flex items-center justify-center gap-1.5 text-[11px] font-black uppercase tracking-wider transition-all',
-                            phoneE164
-                                ? 'bg-brand-navy/[0.05] text-brand-navy hover:bg-emerald-500 hover:text-white'
-                                : 'bg-brand-navy/[0.03] text-brand-navy/30 pointer-events-none',
-                        )}
-                    >
-                        <MessageCircle className="w-3.5 h-3.5" />
-                        WhatsApp
-                    </a>
-                    <span
-                        className="h-11 w-11 rounded-xl flex items-center justify-center bg-brand-navy text-white shrink-0"
-                        aria-hidden="true"
-                    >
-                        <ChevronRight className="w-4 h-4" />
-                    </span>
-                </div>
-            </div>
-        </button>
-    );
-}
-
 // ── Detail / status sheet ──────────────────────────────────────────────────
 function CourierOrderSheet({
     row,
@@ -659,7 +540,7 @@ function CourierOrderSheet({
     if (!row) return null;
 
     const { order, parcel_status, parcel_tracking_code, parcel_reference, note_reference } = row;
-    const color = parcel_status?.color || '#94a3b8';
+    const color = parcel_status?.color || '#9ca3af';
     const itemCount = (order.items || []).reduce((sum, i) => sum + (i.quantity || 0), 0);
 
     return (
@@ -667,83 +548,83 @@ function CourierOrderSheet({
             <DialogContent
                 className="
                     p-0 border-none overflow-hidden bg-white
-                    sm:max-w-[560px] sm:rounded-[32px] sm:max-h-[90vh]
+                    sm:max-w-[560px] sm:rounded-xl sm:max-h-[90vh]
                     max-sm:!left-0 max-sm:!right-0 max-sm:!top-auto max-sm:!bottom-0
                     max-sm:!translate-x-0 max-sm:!translate-y-0
                     max-sm:!w-full max-sm:!max-w-none
                     max-sm:!h-[92dvh] max-sm:!max-h-[92dvh]
-                    max-sm:!rounded-t-[28px] max-sm:!rounded-b-none
+                    max-sm:!rounded-t-xl max-sm:!rounded-b-none
                     [&>button.absolute]:hidden
                 "
             >
                 <div className="flex flex-col h-full max-h-full">
                     {/* Drag handle on mobile */}
                     <div className="sm:hidden flex justify-center pt-3 pb-1">
-                        <div className="h-1.5 w-12 rounded-full bg-brand-navy/15" />
+                        <div className="h-1 w-10 rounded-full bg-gray-200" />
                     </div>
 
                     {/* Header */}
-                    <DialogHeader className="px-6 sm:px-8 pt-4 sm:pt-8 pb-4 shrink-0 border-b border-brand-navy/5">
+                    <DialogHeader className="px-5 pt-4 pb-3 shrink-0 border-b border-gray-100">
                         <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0 space-y-1">
-                                <DialogTitle className="text-xl sm:text-2xl font-black text-brand-navy truncate">
+                                <DialogTitle className="text-[14px] font-semibold text-brand-navy truncate">
                                     {order.name || 'Client'}
                                 </DialogTitle>
-                                <DialogDescription className="font-bold text-muted-foreground text-xs sm:text-sm">
+                                <DialogDescription className="text-[11px] text-gray-400">
                                     {order.phone || 'Pas de téléphone'}
                                 </DialogDescription>
                             </div>
                             <button
                                 type="button"
                                 onClick={onClose}
-                                className="w-11 h-11 rounded-full bg-brand-navy/[0.05] hover:bg-brand-navy/10 flex items-center justify-center text-brand-navy shrink-0"
+                                className="w-8 h-8 rounded-md bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-brand-navy shrink-0 transition-colors"
                                 aria-label="Fermer"
                             >
-                                <X className="w-5 h-5" />
+                                <X className="w-4 h-4" />
                             </button>
                         </div>
                     </DialogHeader>
 
                     {/* Scrollable body */}
-                    <div className="flex-1 overflow-y-auto px-6 sm:px-8 py-5 sm:py-6 space-y-5">
+                    <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
                         {/* Current package status */}
                         <button
                             type="button"
                             onClick={() => setPickerOpen((v) => !v)}
-                            className="w-full p-4 rounded-2xl border-2 transition-all text-left active:scale-[0.99]"
-                            style={{ borderColor: `${color}60`, backgroundColor: `${color}0d` }}
+                            className="w-full p-3 rounded-xl border transition-all text-left"
+                            style={{ borderColor: `${color}40`, backgroundColor: `${color}08` }}
                         >
                             <div className="flex items-center justify-between gap-3">
-                                <div className="min-w-0 space-y-1">
-                                    <div className="text-[10px] font-black uppercase tracking-widest" style={{ color }}>
+                                <div className="min-w-0 space-y-0.5">
+                                    <div className="text-[9px] font-bold uppercase tracking-[0.18em]" style={{ color }}>
                                         Statut du colis
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
-                                        <span className="text-base sm:text-lg font-black text-brand-navy truncate">
+                                        <span className="text-[13px] font-semibold text-brand-navy truncate">
                                             {parcel_status?.label || 'Non défini'}
                                         </span>
                                     </div>
                                 </div>
                                 <div className="flex flex-col items-end gap-0.5 shrink-0">
-                                    <span className="text-[9px] font-black uppercase tracking-widest text-brand-navy/40">Changer</span>
-                                    <ChevronRight className={cn('w-5 h-5 text-brand-navy/40 transition-transform', pickerOpen && 'rotate-90')} />
+                                    <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400">Changer</span>
+                                    <ChevronRight className={cn('w-4 h-4 text-gray-400 transition-transform', pickerOpen && 'rotate-90')} />
                                 </div>
                             </div>
                         </button>
 
                         {/* Status picker (in-line, expandable) */}
                         {pickerOpen && (
-                            <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                                <div className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40 px-1">
+                            <div className="space-y-1.5">
+                                <div className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 px-1">
                                     Choisir un nouveau statut
                                 </div>
-                                <div className="grid grid-cols-1 gap-2 max-h-[40vh] overflow-y-auto pr-1">
+                                <div className="grid grid-cols-1 gap-1 max-h-[40vh] overflow-y-auto pr-1">
                                     {packageStatuses
                                         .filter((s) => s.label && (s.category || '') !== 'other')
                                         .map((s) => {
                                             const isCurrent = parcel_status?.id === s.id;
-                                            const c = s.color || '#94a3b8';
+                                            const c = s.color || '#9ca3af';
                                             return (
                                                 <button
                                                     key={s.id}
@@ -751,25 +632,25 @@ function CourierOrderSheet({
                                                     disabled={isUpdating || isCurrent}
                                                     onClick={() => onSelectStatus(s)}
                                                     className={cn(
-                                                        'h-12 px-4 rounded-2xl border-2 flex items-center justify-between gap-3 text-left transition-all active:scale-[0.99] disabled:opacity-50',
+                                                        'h-9 px-3 rounded-lg border flex items-center justify-between gap-3 text-left transition-all disabled:opacity-50',
                                                         isCurrent
                                                             ? 'border-brand-navy bg-brand-navy/5'
-                                                            : 'border-brand-navy/[0.06] bg-white hover:border-brand-navy/20',
+                                                            : 'border-gray-100 bg-white hover:border-gray-200',
                                                     )}
                                                 >
-                                                    <div className="flex items-center gap-2.5 min-w-0">
-                                                        <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: c }} />
-                                                        <span className="text-sm font-bold text-brand-navy truncate">
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: c }} />
+                                                        <span className="text-[11px] font-semibold text-brand-navy truncate">
                                                             {s.label}
                                                         </span>
                                                         {s.recheck && (
-                                                            <Badge className="bg-amber-50 text-amber-700 border-none font-black text-[8px] uppercase tracking-tighter px-1.5 rounded-md shrink-0">
+                                                            <Badge className="bg-amber-50 text-amber-700 border-none font-semibold text-[9px] uppercase px-1.5 h-5 rounded shrink-0">
                                                                 Suivi
                                                             </Badge>
                                                         )}
                                                     </div>
                                                     {isCurrent && (
-                                                        <CheckCircle2 className="w-4 h-4 text-brand-navy shrink-0" />
+                                                        <CheckCircle2 className="w-3.5 h-3.5 text-brand-navy shrink-0" />
                                                     )}
                                                 </button>
                                             );
@@ -778,15 +659,10 @@ function CourierOrderSheet({
                             </div>
                         )}
 
-                        {/* Info sections */}
-                        <div className="space-y-3">
+                        {/* Info rows */}
+                        <div className="space-y-2.5">
                             <InfoRow icon={MapPin} label="Ville" value={order.city?.name || '—'} />
-                            <InfoRow
-                                icon={UserIcon}
-                                label="Adresse"
-                                value={order.address || '—'}
-                                multiline
-                            />
+                            <InfoRow icon={UserIcon} label="Adresse" value={order.address || '—'} multiline />
                             <InfoRow
                                 icon={Package}
                                 label="Articles"
@@ -800,41 +676,31 @@ function CourierOrderSheet({
                                 }
                                 multiline
                             />
-                            <InfoRow
-                                icon={Truck}
-                                label="Tracking"
-                                value={parcel_tracking_code || parcel_reference || '—'}
-                                mono
-                            />
+                            <InfoRow icon={Truck} label="Tracking" value={parcel_tracking_code || parcel_reference || '—'} mono />
                             <InfoRow icon={History} label="Bon de livraison" value={note_reference || '—'} mono />
                             {order.delivery_note && (
-                                <InfoRow
-                                    icon={MessageCircle}
-                                    label="Note pour le coursier"
-                                    value={order.delivery_note}
-                                    multiline
-                                />
+                                <InfoRow icon={MessageCircle} label="Note pour le coursier" value={order.delivery_note} multiline />
                             )}
                         </div>
                     </div>
 
-                    {/* Sticky footer with thumb-zone CTAs */}
-                    <div className="shrink-0 border-t border-brand-navy/5 bg-white p-4 sm:p-6 pb-[max(1rem,env(safe-area-inset-bottom))] flex gap-2">
+                    {/* Sticky footer */}
+                    <div className="shrink-0 border-t border-gray-100 bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] flex gap-2">
                         {order.phone && (
                             <a
                                 href={`tel:${order.phone.replace(/\D/g, '')}`}
-                                className="flex-1 h-12 rounded-2xl bg-brand-navy/[0.05] text-brand-navy text-sm font-black uppercase tracking-wider flex items-center justify-center gap-2 active:scale-95 transition-all"
+                                className="flex-1 h-8 rounded-md bg-gray-100 text-brand-navy text-[11px] font-semibold uppercase tracking-wider flex items-center justify-center gap-1.5 hover:bg-gray-200 transition-colors"
                             >
-                                <Phone className="w-4 h-4" />
+                                <Phone className="w-3.5 h-3.5" />
                                 Appeler
                             </a>
                         )}
                         <Button
                             onClick={() => setPickerOpen(true)}
                             disabled={isUpdating}
-                            className="flex-1 h-12 rounded-2xl bg-brand-navy text-white font-black uppercase tracking-wider text-sm hover:bg-brand-navy/90 active:scale-95 transition-all"
+                            className="flex-1 h-8 rounded-md bg-brand-navy text-white font-semibold uppercase tracking-wider text-[11px] hover:bg-brand-navy/90"
                         >
-                            {isUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Changer Statut'}
+                            {isUpdating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Changer Statut'}
                         </Button>
                     </div>
                 </div>
@@ -857,17 +723,17 @@ function InfoRow({
     multiline?: boolean;
 }) {
     return (
-        <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-xl bg-brand-navy/[0.05] flex items-center justify-center text-brand-navy/55 shrink-0">
-                <Icon className="w-4 h-4" />
+        <div className="flex items-start gap-2.5">
+            <div className="w-7 h-7 rounded-md bg-gray-100 flex items-center justify-center text-gray-400 shrink-0">
+                <Icon className="w-3.5 h-3.5" />
             </div>
             <div className="min-w-0 flex-1 space-y-0.5">
-                <div className="text-[9px] font-black uppercase tracking-widest text-brand-navy/40">
+                <div className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">
                     {label}
                 </div>
                 <div
                     className={cn(
-                        'text-sm font-bold text-brand-navy break-words',
+                        'text-[11px] font-semibold text-brand-navy break-words',
                         mono && 'font-mono',
                         !multiline && 'truncate',
                     )}

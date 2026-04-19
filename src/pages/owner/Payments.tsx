@@ -6,7 +6,6 @@ import {
     ChevronDown, ChevronUp, Banknote, Save, Building2,
     Calendar, Clock, CreditCard, User, FileText,
 } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -14,6 +13,7 @@ import {
     Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -30,16 +30,15 @@ function computeLicenseEnd(type: string, from?: Date): string | null {
     return new Date(start.getTime() + days * 86400000).toISOString();
 }
 
-const STATUS_STYLE: Record<string, string> = {
-    pending: 'bg-amber-50 text-amber-700 border-amber-200',
-    approved: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    denied: 'bg-red-50 text-red-700 border-red-200',
+const STATUS_BADGE: Record<string, string> = {
+    pending: 'bg-amber-50 text-amber-700 border border-amber-200',
+    approved: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+    denied: 'bg-red-50 text-red-700 border border-red-200',
 };
 
 const TABS = ['all', 'pending', 'approved', 'denied'] as const;
 type Tab = typeof TABS[number];
 
-// business_payments + joined business/plan/users (verified via MCP).
 type PaymentBusiness = {
     id: string;
     name: string;
@@ -116,7 +115,7 @@ const OwnerPayments = () => {
         },
     });
 
-    const { data: bankSettings, isLoading: bankLoading } = useQuery({
+    const { data: bankSettings } = useQuery({
         queryKey: ['platform-settings-bank'],
         queryFn: async () => {
             const { data } = await supabase
@@ -271,220 +270,203 @@ const OwnerPayments = () => {
     };
 
     return (
-        <div className="space-y-6">
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
             {/* Header */}
-            <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-                <div className="relative p-8">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div>
-                            <h1 className="text-4xl font-extralight text-gray-900 mb-2 flex items-center gap-3">
-                                Payments
-                                {counts.pending > 0 && (
-                                    <span className="text-sm font-bold bg-amber-100 text-amber-700 px-2.5 py-0.5 rounded-full">
-                                        {counts.pending} pending
-                                    </span>
-                                )}
-                            </h1>
-                            <p className="text-gray-500 font-light">Review payment proofs submitted by business admins.</p>
+            <header className="space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none flex items-center gap-2">
+                            Payments
+                            {counts.pending > 0 && (
+                                <span className="inline-flex items-center h-5 px-1.5 rounded text-[9px] font-semibold bg-amber-100 text-amber-700 uppercase tracking-wide">
+                                    {counts.pending} pending
+                                </span>
+                            )}
+                        </h1>
+                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Review payment proofs submitted by business admins</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="relative">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                            <Input
+                                placeholder="Search payments..."
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                                className="pl-7 h-8 rounded-md border-gray-200 bg-white text-[11px] w-52"
+                            />
                         </div>
-                        <div className="flex flex-col sm:flex-row gap-3 items-center">
-                            <div className="relative group sm:w-80">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
-                                <Input
-                                    placeholder="Search payments..."
-                                    value={searchQuery}
-                                    onChange={e => setSearchQuery(e.target.value)}
-                                    className="pl-11 h-12 rounded-2xl border-gray-100 bg-white"
-                                />
-                            </div>
-                            <Button
-                                variant="outline"
-                                onClick={() => { initBankForm(); setBankOpen(!bankOpen); }}
-                                className="h-12 px-6 rounded-2xl gap-2 w-full sm:w-auto"
-                            >
-                                <Banknote className="w-4 h-4" />
-                                Bank Info
-                                {bankOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                            </Button>
-                        </div>
+                        <Button
+                            variant="outline"
+                            onClick={() => { initBankForm(); setBankOpen(!bankOpen); }}
+                            className="h-8 rounded-md text-[11px] font-semibold gap-1.5 px-3"
+                        >
+                            <Banknote className="w-3.5 h-3.5" />
+                            Bank Info
+                            {bankOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                        </Button>
                     </div>
                 </div>
-            </div>
+            </header>
 
             {/* Bank Settings Panel */}
             {bankOpen && (
-                <Card className="border rounded-lg">
-                    <CardContent className="p-5">
-                        <h3 className="text-sm font-bold text-brand-navy uppercase tracking-wide mb-4 flex items-center gap-2">
-                            <Banknote className="w-4 h-4" /> Platform Bank Information
-                        </h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {[
-                                { key: 'bank_name', label: 'Bank Name' },
-                                { key: 'bank_account_holder', label: 'Account Holder' },
-                                { key: 'bank_rib', label: 'RIB' },
-                                { key: 'bank_iban', label: 'IBAN' },
-                            ].map(f => (
-                                <div key={f.key}>
-                                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                                        {f.label}
-                                    </label>
-                                    <Input
-                                        className="mt-1 h-9"
-                                        value={bankForm[f.key] ?? bankSettings?.[f.key] ?? ''}
-                                        onChange={e => setBankForm(prev => ({ ...prev, [f.key]: e.target.value }))}
-                                    />
-                                </div>
-                            ))}
-                        </div>
-                        <div className="flex justify-end mt-4">
-                            <Button
-                                size="sm"
-                                disabled={!bankDirty || saveBankMutation.isPending}
-                                onClick={() => saveBankMutation.mutate()}
-                                className="gap-2"
-                            >
-                                {saveBankMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-                                Save
-                            </Button>
-                        </div>
-                    </CardContent>
-                </Card>
+                <div className="border border-gray-100 shadow-none rounded-xl p-3.5">
+                    <h3 className="text-[9px] font-bold text-brand-navy uppercase tracking-[0.18em] mb-3 flex items-center gap-1.5">
+                        <Banknote className="w-3 h-3" /> Platform Bank Information
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {[
+                            { key: 'bank_name', label: 'Bank Name' },
+                            { key: 'bank_account_holder', label: 'Account Holder' },
+                            { key: 'bank_rib', label: 'RIB' },
+                            { key: 'bank_iban', label: 'IBAN' },
+                        ].map(f => (
+                            <div key={f.key}>
+                                <label className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.18em]">
+                                    {f.label}
+                                </label>
+                                <Input
+                                    className="mt-1 h-8 rounded-md border-gray-200 text-[11px]"
+                                    value={bankForm[f.key] ?? bankSettings?.[f.key] ?? ''}
+                                    onChange={e => setBankForm(prev => ({ ...prev, [f.key]: e.target.value }))}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                    <div className="flex justify-end mt-3">
+                        <Button
+                            size="sm"
+                            disabled={!bankDirty || saveBankMutation.isPending}
+                            onClick={() => saveBankMutation.mutate()}
+                            className="h-8 rounded-md text-[11px] font-semibold gap-1.5"
+                        >
+                            {saveBankMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                            Save
+                        </Button>
+                    </div>
+                </div>
             )}
 
             {/* Tabs */}
-            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg w-fit">
-                {TABS.map(tab => (
-                    <button
-                        key={tab}
-                        onClick={() => setActiveTab(tab)}
-                        className={cn(
-                            'h-7 px-3 rounded-md text-xs font-medium capitalize transition-all',
-                            activeTab === tab
-                                ? 'bg-white text-slate-900 shadow-sm'
-                                : 'text-slate-500 hover:text-slate-700'
-                        )}
-                    >
-                        {tab} ({counts[tab]})
-                    </button>
-                ))}
-            </div>
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as Tab)}>
+                <TabsList className="h-8">
+                    {TABS.map(tab => (
+                        <TabsTrigger key={tab} value={tab} className="text-[11px] h-6 px-3 gap-1.5 capitalize">
+                            {tab} ({counts[tab]})
+                        </TabsTrigger>
+                    ))}
+                </TabsList>
+            </Tabs>
 
             {/* Loading */}
             {isLoading && (
-                <div className="space-y-3">
-                    {[1, 2, 3].map(i => <Skeleton key={i} className="h-20 rounded-lg" />)}
+                <div className="space-y-2">
+                    {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 rounded-xl" />)}
                 </div>
             )}
 
             {/* Empty */}
             {!isLoading && filtered.length === 0 && (
-                <div className="text-center py-16">
-                    <Receipt className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-                    <p className="text-muted-foreground font-medium">No payment submissions found.</p>
+                <div className="flex flex-col items-center justify-center py-10 rounded-xl border border-dashed border-gray-200 bg-white">
+                    <Receipt className="w-6 h-6 text-gray-300 mb-2" />
+                    <p className="text-[11px] font-medium text-gray-500">No payment submissions found.</p>
                 </div>
             )}
 
             {/* List */}
             {!isLoading && filtered.length > 0 && (
-                <div className="space-y-3">
+                <div className="space-y-2">
                     {filtered.map(payment => (
-                        <Card key={payment.id} className="border rounded-lg hover:shadow-sm transition-shadow">
-                            <CardContent className="p-4">
-                                <div className="flex items-center gap-4">
-                                    {/* Business avatar */}
-                                    <Avatar className="w-10 h-10 rounded-lg shrink-0">
-                                        <AvatarImage src={payment.business?.logo} />
-                                        <AvatarFallback className="rounded-lg bg-brand-navy/10 text-brand-navy text-xs font-bold">
-                                            {payment.business?.name?.charAt(0)?.toUpperCase()}
-                                        </AvatarFallback>
-                                    </Avatar>
+                        <div key={payment.id} className="border border-gray-100 shadow-none rounded-xl p-3.5 hover:bg-gray-50 transition-colors">
+                            <div className="flex items-center gap-3">
+                                {/* Business avatar */}
+                                <Avatar className="w-8 h-8 rounded-md shrink-0">
+                                    <AvatarImage src={payment.business?.logo ?? undefined} />
+                                    <AvatarFallback className="rounded-md bg-brand-navy/10 text-brand-navy text-[10px] font-bold">
+                                        {payment.business?.name?.charAt(0)?.toUpperCase()}
+                                    </AvatarFallback>
+                                </Avatar>
 
-                                    {/* Info */}
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2">
-                                            <span className="font-bold text-sm text-brand-navy truncate">
-                                                {payment.business?.name}
-                                            </span>
-                                            <span className={cn(
-                                                'text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border',
-                                                STATUS_STYLE[payment.status] || STATUS_STYLE.pending
-                                            )}>
-                                                {payment.status}
-                                            </span>
-                                        </div>
-                                        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                                            {payment.amount > 0 && (
-                                                <span className="font-semibold text-slate-700">{payment.amount} {payment.currency || 'MAD'}</span>
-                                            )}
-                                            {payment.submitter && (
-                                                <span>by {payment.submitter.name}</span>
-                                            )}
-                                            <span>{new Date(payment.created_at).toLocaleDateString()}</span>
-                                            {payment.status === 'denied' && payment.denial_message && (
-                                                <span className="text-red-500 truncate max-w-[200px]">
-                                                    Denied: {payment.denial_message}
-                                                </span>
-                                            )}
-                                            {payment.status === 'approved' && payment.reviewer && (
-                                                <span className="text-emerald-600">
-                                                    Approved by {payment.reviewer.name}
-                                                </span>
-                                            )}
-                                        </div>
+                                {/* Info */}
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[12px] font-semibold text-brand-navy truncate">
+                                            {payment.business?.name}
+                                        </span>
+                                        <span className={cn(
+                                            'text-[9px] font-bold uppercase px-1.5 py-0.5 rounded',
+                                            STATUS_BADGE[payment.status] || STATUS_BADGE.pending
+                                        )}>
+                                            {payment.status}
+                                        </span>
                                     </div>
-
-                                    {/* Actions */}
-                                    <div className="flex items-center gap-2 shrink-0">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="h-8 gap-1.5 text-xs"
-                                            onClick={() => handlePreview(payment)}
-                                        >
-                                            <Eye className="w-3.5 h-3.5" />
-                                            Preview
-                                        </Button>
-                                        {payment.status === 'pending' && (
-                                            <>
-                                                <Button
-                                                    size="sm"
-                                                    className="h-8 gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700"
-                                                    disabled={approveMutation.isPending}
-                                                    onClick={() => approveMutation.mutate(payment)}
-                                                >
-                                                    {approveMutation.isPending ? (
-                                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                                    ) : (
-                                                        <CheckCircle2 className="w-3.5 h-3.5" />
-                                                    )}
-                                                    Approve
-                                                </Button>
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="h-8 gap-1.5 text-xs text-red-600 border-red-200 hover:bg-red-50"
-                                                    onClick={() => { setDenyId(payment.id); setDenyMessage(''); }}
-                                                >
-                                                    <XCircle className="w-3.5 h-3.5" />
-                                                    Deny
-                                                </Button>
-                                            </>
+                                    <div className="flex items-center gap-3 mt-0.5">
+                                        {payment.amount > 0 && (
+                                            <span className="text-[11px] font-semibold text-brand-navy tabular-nums">{payment.amount} {payment.currency || 'MAD'}</span>
+                                        )}
+                                        {payment.submitter && (
+                                            <span className="text-[11px] text-gray-400">by {payment.submitter.name}</span>
+                                        )}
+                                        <span className="text-[11px] text-gray-400 tabular-nums">{new Date(payment.created_at).toLocaleDateString()}</span>
+                                        {payment.status === 'denied' && payment.denial_message && (
+                                            <span className="text-[11px] text-red-500 truncate max-w-[200px]">
+                                                Denied: {payment.denial_message}
+                                            </span>
+                                        )}
+                                        {payment.status === 'approved' && payment.reviewer && (
+                                            <span className="text-[11px] text-emerald-600">
+                                                Approved by {payment.reviewer.name}
+                                            </span>
                                         )}
                                     </div>
                                 </div>
-                            </CardContent>
-                        </Card>
+
+                                {/* Actions */}
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <Button
+                                        variant="outline"
+                                        className="h-8 gap-1.5 text-[11px] font-semibold rounded-md"
+                                        onClick={() => handlePreview(payment)}
+                                    >
+                                        <Eye className="w-3.5 h-3.5" />
+                                        Preview
+                                    </Button>
+                                    {payment.status === 'pending' && (
+                                        <>
+                                            <Button
+                                                className="h-8 gap-1.5 text-[11px] font-semibold rounded-md bg-emerald-600 hover:bg-emerald-700 text-white"
+                                                disabled={approveMutation.isPending}
+                                                onClick={() => approveMutation.mutate(payment)}
+                                            >
+                                                {approveMutation.isPending ? (
+                                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                ) : (
+                                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                                )}
+                                                Approve
+                                            </Button>
+                                            <Button
+                                                variant="outline"
+                                                className="h-8 gap-1.5 text-[11px] font-semibold rounded-md text-red-600 border-red-200 hover:bg-red-50"
+                                                onClick={() => { setDenyId(payment.id); setDenyMessage(''); }}
+                                            >
+                                                <XCircle className="w-3.5 h-3.5" />
+                                                Deny
+                                            </Button>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
                     ))}
                 </div>
             )}
 
             {/* Preview Modal */}
             <Dialog open={!!previewId} onOpenChange={() => { setPreviewId(null); setPreviewProofUrl(null); }}>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle className="text-lg font-semibold">Payment Details</DialogTitle>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto border border-gray-100 rounded-xl p-0 gap-0">
+                    <DialogHeader className="px-5 pt-5 pb-4 border-b border-gray-100">
+                        <DialogTitle className="text-[14px] font-semibold text-brand-navy">Payment Details</DialogTitle>
                     </DialogHeader>
                     {previewPayment && (() => {
                         const biz = previewPayment.business;
@@ -493,166 +475,165 @@ const OwnerPayments = () => {
                         const daysLeft = endDate ? Math.ceil((endDate.getTime() - Date.now()) / 86400000) : null;
                         const isExpired = endDate && endDate < new Date();
                         return (
-                            <div className="space-y-5">
+                            <div className="px-5 py-4 space-y-4">
                                 {/* Business Info */}
-                                <div className="flex items-start gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100">
-                                    <div className="w-12 h-12 rounded-lg bg-white border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
+                                <div className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100">
+                                    <div className="w-10 h-10 rounded-md bg-white border border-gray-200 flex items-center justify-center overflow-hidden shrink-0">
                                         {biz?.logo ? (
-                                            <img src={biz.logo} alt="" className="w-full h-full object-contain p-1.5" />
+                                            <img src={biz.logo} alt="" className="w-full h-full object-contain p-1" />
                                         ) : (
-                                            <Building2 className="w-5 h-5 text-slate-300" />
+                                            <Building2 className="w-4 h-4 text-gray-300" />
                                         )}
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <h3 className="font-bold text-slate-900 truncate">{biz?.name || 'Unknown'}</h3>
-                                        <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                                        <p className="text-[12px] font-semibold text-brand-navy truncate">{biz?.name || 'Unknown'}</p>
+                                        <div className="flex flex-wrap items-center gap-1.5 mt-1">
                                             <span className={cn(
-                                                'text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border',
+                                                'text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border',
                                                 biz?.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                                     : biz?.status === 'suspended' ? 'bg-red-50 text-red-700 border-red-200'
-                                                    : 'bg-slate-50 text-slate-600 border-slate-200'
+                                                    : 'bg-gray-50 text-gray-600 border-gray-200'
                                             )}>
                                                 {biz?.status || 'unknown'}
                                             </span>
                                             <span className={cn(
-                                                'text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border',
+                                                'text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border',
                                                 biz?.paid ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'
                                             )}>
                                                 {biz?.paid ? 'Paid' : 'Unpaid'}
                                             </span>
                                         </div>
                                         {previewPayment.submitter?.email && (
-                                            <p className="text-xs text-slate-500 mt-1.5">{previewPayment.submitter.email}</p>
+                                            <p className="text-[11px] text-gray-400 mt-1">{previewPayment.submitter.email}</p>
                                         )}
                                     </div>
                                 </div>
 
-                                {/* Plan & License */}
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
-                                        <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1">
-                                            <CreditCard className="w-3.5 h-3.5" />
-                                            Plan
+                                {/* Plan & License grid */}
+                                <div className="grid grid-cols-2 gap-2.5">
+                                    <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                                        <div className="flex items-center gap-1.5 mb-1">
+                                            <CreditCard className="w-3 h-3 text-gray-400" />
+                                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.14em]">Plan</span>
                                         </div>
-                                        <p className="font-semibold text-sm text-slate-900">{plan?.name || biz?.license_type || '—'}</p>
+                                        <p className="text-[12px] font-semibold text-brand-navy">{plan?.name || biz?.license_type || '—'}</p>
                                         {plan?.price != null && (
-                                            <p className="text-xs text-slate-500 mt-0.5">{plan.price} {plan.currency || 'MAD'}</p>
+                                            <p className="text-[11px] text-gray-400 mt-0.5 tabular-nums">{plan.price} {plan.currency || 'MAD'}</p>
                                         )}
                                     </div>
-                                    <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
-                                        <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1">
-                                            <Calendar className="w-3.5 h-3.5" />
-                                            License
+                                    <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                                        <div className="flex items-center gap-1.5 mb-1">
+                                            <Calendar className="w-3 h-3 text-gray-400" />
+                                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.14em]">License</span>
                                         </div>
                                         {biz?.license_type === 'lifetime' ? (
-                                            <p className="font-semibold text-sm text-emerald-600">Lifetime</p>
+                                            <p className="text-[12px] font-semibold text-emerald-600">Lifetime</p>
                                         ) : endDate ? (
                                             <>
-                                                <p className={cn('font-semibold text-sm', isExpired ? 'text-red-600' : 'text-slate-900')}>
+                                                <p className={cn('text-[12px] font-semibold', isExpired ? 'text-red-600' : 'text-brand-navy')}>
                                                     {isExpired ? 'Expired' : `${daysLeft}d left`}
                                                 </p>
-                                                <p className="text-xs text-slate-500 mt-0.5">
+                                                <p className="text-[11px] text-gray-400 mt-0.5 tabular-nums">
                                                     Ends {endDate.toLocaleDateString()}
                                                 </p>
                                             </>
                                         ) : (
-                                            <p className="font-semibold text-sm text-slate-400">—</p>
+                                            <p className="text-[12px] font-semibold text-gray-400">—</p>
                                         )}
                                     </div>
-                                    <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
-                                        <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1">
-                                            <Clock className="w-3.5 h-3.5" />
-                                            Submitted
+                                    <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                                        <div className="flex items-center gap-1.5 mb-1">
+                                            <Clock className="w-3 h-3 text-gray-400" />
+                                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.14em]">Submitted</span>
                                         </div>
-                                        <p className="font-semibold text-sm text-slate-900">
+                                        <p className="text-[12px] font-semibold text-brand-navy tabular-nums">
                                             {new Date(previewPayment.created_at).toLocaleDateString()}
                                         </p>
-                                        <p className="text-xs text-slate-500 mt-0.5">
+                                        <p className="text-[11px] text-gray-400 mt-0.5 tabular-nums">
                                             {new Date(previewPayment.created_at).toLocaleTimeString()}
                                         </p>
                                     </div>
-                                    <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
-                                        <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1">
-                                            <User className="w-3.5 h-3.5" />
-                                            Submitted By
+                                    <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                                        <div className="flex items-center gap-1.5 mb-1">
+                                            <User className="w-3 h-3 text-gray-400" />
+                                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.14em]">Submitted By</span>
                                         </div>
-                                        <p className="font-semibold text-sm text-slate-900">{previewPayment.submitter?.name || '—'}</p>
+                                        <p className="text-[12px] font-semibold text-brand-navy">{previewPayment.submitter?.name || '—'}</p>
                                         {previewPayment.submitter?.email && (
-                                            <p className="text-xs text-slate-500 mt-0.5">{previewPayment.submitter.email}</p>
+                                            <p className="text-[11px] text-gray-400 mt-0.5">{previewPayment.submitter.email}</p>
                                         )}
                                     </div>
                                 </div>
 
                                 {/* Payment Info */}
-                                <div className="flex items-center gap-4 p-3 rounded-lg bg-slate-50 border border-slate-100">
+                                <div className="flex items-center gap-4 p-3 rounded-xl bg-gray-50 border border-gray-100">
                                     <div className="flex-1">
-                                        <span className="text-xs text-slate-500">Amount Paid</span>
-                                        <p className="font-bold text-lg text-slate-900">
-                                            {previewPayment.amount} <span className="text-xs font-normal text-slate-500">{previewPayment.currency || 'MAD'}</span>
+                                        <span className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.14em]">Amount Paid</span>
+                                        <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-0.5">
+                                            {previewPayment.amount} <span className="text-[11px] font-normal text-gray-400">{previewPayment.currency || 'MAD'}</span>
                                         </p>
                                     </div>
                                     {previewPayment.notes && (
                                         <div className="flex-1">
-                                            <span className="text-xs text-slate-500">Transfer Ref</span>
-                                            <p className="font-semibold text-sm text-slate-900 font-mono">{previewPayment.notes}</p>
+                                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.14em]">Transfer Ref</span>
+                                            <p className="text-[12px] font-semibold text-brand-navy font-mono mt-0.5">{previewPayment.notes}</p>
                                         </div>
                                     )}
                                     <div className="flex-1">
-                                        <span className="text-xs text-slate-500">Method</span>
-                                        <p className="font-semibold text-sm text-slate-900 capitalize">{previewPayment.payment_method?.replace('_', ' ') || '—'}</p>
+                                        <span className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.14em]">Method</span>
+                                        <p className="text-[12px] font-semibold text-brand-navy capitalize mt-0.5">{previewPayment.payment_method?.replace('_', ' ') || '—'}</p>
                                     </div>
                                 </div>
 
                                 {/* Payment Status */}
                                 <div className="flex items-center gap-2">
-                                    <span className="text-xs text-slate-500">Status:</span>
+                                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.14em]">Status:</span>
                                     <span className={cn(
-                                        'text-xs font-bold uppercase px-2.5 py-1 rounded-full border',
-                                        STATUS_STYLE[previewPayment.status] || STATUS_STYLE.pending
+                                        'text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border',
+                                        STATUS_BADGE[previewPayment.status] || STATUS_BADGE.pending
                                     )}>
                                         {previewPayment.status}
                                     </span>
                                     {previewPayment.status === 'approved' && previewPayment.reviewer && (
-                                        <span className="text-xs text-emerald-600">by {previewPayment.reviewer.name}</span>
+                                        <span className="text-[11px] text-emerald-600">by {previewPayment.reviewer.name}</span>
                                     )}
                                     {previewPayment.status === 'denied' && previewPayment.reviewer && (
-                                        <span className="text-xs text-red-500">by {previewPayment.reviewer.name}</span>
+                                        <span className="text-[11px] text-red-500">by {previewPayment.reviewer.name}</span>
                                     )}
                                 </div>
 
                                 {previewPayment.status === 'denied' && previewPayment.denial_message && (
-                                    <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
-                                        <p className="font-semibold text-xs uppercase tracking-wide mb-1">Denial Reason</p>
-                                        {previewPayment.denial_message}
+                                    <div className="p-3 rounded-xl bg-red-50 border border-red-200">
+                                        <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-red-700 mb-1">Denial Reason</p>
+                                        <p className="text-[11px] text-red-700">{previewPayment.denial_message}</p>
                                     </div>
                                 )}
 
                                 {/* Proof */}
                                 <div>
-                                    <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-2">
-                                        <FileText className="w-3.5 h-3.5" />
-                                        Payment Proof
+                                    <div className="flex items-center gap-1.5 mb-2">
+                                        <FileText className="w-3 h-3 text-gray-400" />
+                                        <span className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.14em]">Payment Proof</span>
                                     </div>
                                     {previewProofUrl ? (
                                         previewProofUrl.includes('.pdf') ? (
-                                            <iframe src={previewProofUrl} className="w-full h-[400px] rounded-lg border" />
+                                            <iframe src={previewProofUrl} className="w-full h-[400px] rounded-xl border border-gray-100" />
                                         ) : (
-                                            <img src={previewProofUrl} alt="Payment proof" className="w-full rounded-lg border" />
+                                            <img src={previewProofUrl} alt="Payment proof" className="w-full rounded-xl border border-gray-100" />
                                         )
                                     ) : (
-                                        <div className="flex items-center justify-center h-32 rounded-lg bg-slate-50 border border-dashed border-slate-200">
-                                            <Loader2 className="w-5 h-5 text-slate-400 animate-spin" />
+                                        <div className="flex items-center justify-center h-32 rounded-xl bg-gray-50 border border-dashed border-gray-200">
+                                            <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
                                         </div>
                                     )}
                                 </div>
 
                                 {/* Actions */}
                                 {previewPayment.status === 'pending' && (
-                                    <DialogFooter className="gap-2 sm:gap-2">
+                                    <DialogFooter className="gap-2 sm:gap-2 pt-2 border-t border-gray-100">
                                         <Button
                                             variant="outline"
-                                            size="sm"
-                                            className="gap-1.5 text-red-600 border-red-200 hover:bg-red-50"
+                                            className="h-8 gap-1.5 text-[11px] font-semibold rounded-md text-red-600 border-red-200 hover:bg-red-50"
                                             onClick={() => {
                                                 setDenyId(previewId);
                                                 setDenyMessage('');
@@ -664,8 +645,7 @@ const OwnerPayments = () => {
                                             Deny
                                         </Button>
                                         <Button
-                                            size="sm"
-                                            className="gap-1.5 bg-emerald-600 hover:bg-emerald-700"
+                                            className="h-8 gap-1.5 text-[11px] font-semibold rounded-md bg-emerald-600 hover:bg-emerald-700 text-white"
                                             disabled={approveMutation.isPending}
                                             onClick={() => {
                                                 if (previewPayment) approveMutation.mutate(previewPayment);
@@ -690,27 +670,29 @@ const OwnerPayments = () => {
 
             {/* Deny Modal */}
             <Dialog open={!!denyId} onOpenChange={() => setDenyId(null)}>
-                <DialogContent className="max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>Deny Payment</DialogTitle>
+                <DialogContent className="max-w-md border border-gray-100 rounded-xl p-0 gap-0">
+                    <DialogHeader className="px-5 pt-5 pb-4 border-b border-gray-100">
+                        <DialogTitle className="text-[14px] font-semibold text-brand-navy">Deny Payment</DialogTitle>
                     </DialogHeader>
-                    <p className="text-sm text-muted-foreground">
-                        Provide a reason for denying this payment from <strong>{denyTarget?.business?.name}</strong>.
-                        This message will be shown to the business admin.
-                    </p>
-                    <Textarea
-                        placeholder="Reason for denial..."
-                        value={denyMessage}
-                        onChange={e => setDenyMessage(e.target.value)}
-                        rows={3}
-                    />
-                    <DialogFooter>
-                        <Button variant="outline" size="sm" onClick={() => setDenyId(null)}>
+                    <div className="px-5 py-4 space-y-3">
+                        <p className="text-[11px] text-gray-500">
+                            Provide a reason for denying this payment from <strong className="text-brand-navy">{denyTarget?.business?.name}</strong>.
+                            This message will be shown to the business admin.
+                        </p>
+                        <Textarea
+                            placeholder="Reason for denial..."
+                            value={denyMessage}
+                            onChange={e => setDenyMessage(e.target.value)}
+                            rows={3}
+                            className="rounded-md border-gray-200 text-[11px] resize-none"
+                        />
+                    </div>
+                    <DialogFooter className="px-5 py-4 border-t border-gray-100 gap-2 sm:gap-2">
+                        <Button variant="outline" className="h-8 text-[11px] font-semibold rounded-md" onClick={() => setDenyId(null)}>
                             Cancel
                         </Button>
                         <Button
-                            size="sm"
-                            variant="destructive"
+                            className="h-8 text-[11px] font-semibold rounded-md bg-red-600 hover:bg-red-700 text-white"
                             disabled={!denyMessage.trim() || denyMutation.isPending || !denyId}
                             onClick={() => denyId && denyMutation.mutate({ paymentId: denyId, message: denyMessage })}
                         >

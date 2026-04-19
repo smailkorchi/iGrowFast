@@ -371,104 +371,77 @@ const Customers = () => {
     }, [selectedCustomer]);
 
 
-    if (isLoading) {
-        return (
-            <div className="flex h-[80vh] items-center justify-center">
-                <div className="flex flex-col items-center gap-4">
-                    <Loader2 className="w-12 h-12 animate-spin text-brand-navy" />
-                    <p className="text-muted-foreground animate-pulse font-medium">Loading customers...</p>
-                </div>
-            </div>
-        );
-    }
-
     return (
-        <div className="space-y-8 animate-in fade-in duration-500 pb-20">
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
             {/* Header */}
-            <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-                <div className="relative p-8">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div>
-                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Customers</h1>
-                            <p className="text-gray-500 font-light">Manage your customer base and view insights.</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <Button variant="outline" className="h-12 px-6 rounded-2xl border-gray-200 hover:bg-gray-50 text-gray-700 font-medium gap-2">
-                                <Download className="w-5 h-5" />
-                                Export List
-                            </Button>
-                        </div>
+            <header className="space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Customers</h1>
+                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Customer base &amp; insights</p>
                     </div>
+                    <Button variant="outline" className="h-8 px-3 rounded-md text-[11px] font-semibold gap-1.5 border-gray-200 shrink-0">
+                        <Download className="w-3.5 h-3.5" />
+                        Export
+                    </Button>
                 </div>
-            </div>
+            </header>
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card className="rounded-[32px] border-none shadow-lg bg-gradient-to-br from-brand-navy to-brand-navy/90 text-white">
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-lg font-medium opacity-80">Total Customers</CardTitle>
-                        <UsersIcon className="w-6 h-6 opacity-60" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-4xl font-black">{stats.total.toLocaleString()}</div>
-                        <p className="text-sm opacity-60 mt-1">Active database entries</p>
-                    </CardContent>
-                </Card>
-                <Card className="rounded-[32px] border-none shadow-lg bg-white">
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-lg font-medium text-brand-navy/60">Total Lifetime Value</CardTitle>
-                        <DollarSign className="w-6 h-6 text-brand-navy/40" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-4xl font-black text-brand-navy">{stats.revenue.toLocaleString()} MAD</div>
-                        <p className="text-sm text-brand-navy/40 mt-1">Across all orders</p>
-                    </CardContent>
-                </Card>
-                <Card className="rounded-[32px] border-none shadow-lg bg-white">
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-lg font-medium text-brand-navy/60">Avg. Customer Value</CardTitle>
-                        <Activity className="w-6 h-6 text-brand-navy/40" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-4xl font-black text-brand-navy">{stats.avgValue.toFixed(0)} MAD</div>
-                        <p className="text-sm text-brand-navy/40 mt-1">Per customer average</p>
-                    </CardContent>
-                </Card>
-            </div>
+            {/* KPI tiles */}
+            {isLoading ? (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {[1,2,3].map(i => <div key={i} className="rounded-xl border border-gray-100 bg-white h-[62px] animate-pulse" />)}
+                </div>
+            ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {[
+                        { label: 'Total customers', value: stats.total.toLocaleString(), accent: '#3b5e5e' },
+                        { label: 'Total lifetime value', value: `${stats.revenue.toLocaleString()} MAD`, accent: '#059669' },
+                        { label: 'Avg. customer value', value: `${stats.avgValue.toFixed(0)} MAD`, accent: '#d97706' },
+                    ].map((s) => (
+                        <div key={s.label} className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
+                            <span className="w-[3px] self-stretch rounded-full" style={{ background: s.accent }} />
+                            <div className="flex-1 min-w-0">
+                                <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{s.label}</p>
+                                <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1 truncate">{s.value}</p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
 
             {/* Controls */}
             <div className="space-y-2">
-                <div className="flex flex-col xl:flex-row gap-4 items-stretch xl:items-center justify-between bg-white p-4 rounded-[24px] shadow-sm border border-brand-navy/5">
-                    <div className="relative w-full xl:w-96 shrink-0">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <div className="flex flex-col xl:flex-row gap-2 items-stretch xl:items-center justify-between">
+                    <div className="relative w-full xl:w-72 shrink-0">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
                         <Input
                             placeholder="Search by name, phone, city..."
-                            className="pl-11 h-12 rounded-xl border-brand-navy/10 focus:border-brand-navy focus:ring-brand-navy bg-brand-navy/[0.02]"
+                            className="pl-7 h-8 rounded-md border-gray-200 bg-white text-[11px]"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
                     </div>
-                    <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 w-full xl:flex-1 xl:justify-end">
+                    <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 w-full xl:flex-1 xl:justify-end">
                         <Popover open={orderStatusFilterOpen} onOpenChange={setOrderStatusFilterOpen}>
                             <PopoverTrigger asChild>
                                 <Button
                                     type="button"
                                     variant="outline"
                                     className={cn(
-                                        'h-12 min-h-[48px] rounded-xl border-brand-navy/10 justify-between gap-2 font-semibold text-brand-navy sm:min-w-[200px]',
+                                        'h-8 rounded-md border-gray-200 justify-between gap-1.5 text-[11px] font-semibold text-brand-navy sm:min-w-[160px]',
                                         orderStatusFilterIds.length > 0 && 'border-brand-navy/30 bg-brand-navy/[0.04]'
                                     )}
                                 >
-                                    <span className="flex items-center gap-2 truncate">
-                                        <ShoppingBag className="w-4 h-4 shrink-0 opacity-60" />
+                                    <span className="flex items-center gap-1.5 truncate">
+                                        <ShoppingBag className="w-3 h-3 shrink-0 opacity-60" />
                                         <span className="truncate">
                                             {orderStatusFilterIds.length === 0
                                                 ? 'Order status'
                                                 : `${orderStatusFilterIds.length} order status${orderStatusFilterIds.length > 1 ? 'es' : ''}`}
                                         </span>
                                     </span>
-                                    <ChevronsUpDown className="w-4 h-4 shrink-0 opacity-50" />
+                                    <ChevronsUpDown className="w-3 h-3 shrink-0 opacity-50" />
                                 </Button>
                             </PopoverTrigger>
                             <PopoverContent
@@ -535,19 +508,19 @@ const Customers = () => {
                                     type="button"
                                     variant="outline"
                                     className={cn(
-                                        'h-12 min-h-[48px] rounded-xl border-brand-navy/10 justify-between gap-2 font-semibold text-brand-navy sm:min-w-[200px]',
+                                        'h-8 rounded-md border-gray-200 justify-between gap-1.5 text-[11px] font-semibold text-brand-navy sm:min-w-[160px]',
                                         packageStatusFilterIds.length > 0 && 'border-brand-navy/30 bg-brand-navy/[0.04]'
                                     )}
                                 >
-                                    <span className="flex items-center gap-2 truncate">
-                                        <Truck className="w-4 h-4 shrink-0 opacity-60" />
+                                    <span className="flex items-center gap-1.5 truncate">
+                                        <Truck className="w-3 h-3 shrink-0 opacity-60" />
                                         <span className="truncate">
                                             {packageStatusFilterIds.length === 0
                                                 ? 'Package status'
                                                 : `${packageStatusFilterIds.length} package status${packageStatusFilterIds.length > 1 ? 'es' : ''}`}
                                         </span>
                                     </span>
-                                    <ChevronsUpDown className="w-4 h-4 shrink-0 opacity-50" />
+                                    <ChevronsUpDown className="w-3 h-3 shrink-0 opacity-50" />
                                 </Button>
                             </PopoverTrigger>
                             <PopoverContent
@@ -612,21 +585,21 @@ const Customers = () => {
                             <Button
                                 type="button"
                                 variant="ghost"
-                                className="h-12 rounded-xl text-brand-navy/80 hover:text-brand-navy"
+                                className="h-8 rounded-md text-[11px] font-semibold text-brand-navy/80 hover:text-brand-navy"
                                 onClick={() => {
                                     setOrderStatusFilterIds([]);
                                     setPackageStatusFilterIds([]);
                                 }}
                             >
-                                <X className="w-4 h-4 mr-1.5" />
-                                Reset statuses
+                                <X className="w-3 h-3 mr-1" />
+                                Reset
                             </Button>
                         )}
 
                         <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
-                            <SelectTrigger className="w-full sm:w-[180px] h-12 rounded-xl border-brand-navy/10">
-                                <div className="flex items-center gap-2">
-                                    <Filter className="w-4 h-4 opacity-50" />
+                            <SelectTrigger className="w-full sm:w-[150px] h-8 rounded-md border-gray-200 text-[11px]">
+                                <div className="flex items-center gap-1.5">
+                                    <Filter className="w-3 h-3 opacity-50" />
                                     <SelectValue placeholder="Sort by" />
                                 </div>
                             </SelectTrigger>
@@ -639,7 +612,7 @@ const Customers = () => {
                     </div>
                 </div>
                 {customers && filteredData.length !== customers.length && (
-                    <p className="text-xs font-medium text-muted-foreground px-1">
+                    <p className="text-[10px] font-medium text-gray-400 px-1">
                         Showing{' '}
                         <span className="font-bold text-brand-navy">{filteredData.length}</span> of{' '}
                         {customers.length} customers
@@ -647,250 +620,192 @@ const Customers = () => {
                 )}
             </div>
 
-            {/* Customer Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {paginatedCustomers.map((customer) => (
-                    <Card
-                        key={customer.id}
-                        onClick={() => setSelectedCustomer(customer)}
-                        className="group relative cursor-pointer border-none shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1 rounded-[32px] overflow-hidden bg-white"
-                    >
-                        <div className={cn(
-                            "absolute top-0 left-0 w-full h-2",
-                            customer.status === 'High Value' ? "bg-gradient-to-r from-yellow-400 to-orange-500" :
-                                customer.status === 'Mid Value' ? "bg-gradient-to-r from-blue-400 to-indigo-500" :
-                                    "bg-gradient-to-r from-gray-200 to-gray-300"
-                        )} />
-
-                        <CardContent className="p-6 pt-8 space-y-4">
-                            <div className="flex items-start justify-between gap-2">
-                                <div className="flex items-center gap-3 min-w-0">
-                                    <div className="w-12 h-12 rounded-2xl bg-brand-navy/5 flex items-center justify-center text-brand-navy font-bold text-xl group-hover:scale-110 transition-transform shrink-0">
-                                        {customer.name.charAt(0).toUpperCase()}
-                                    </div>
-                                    <div className="min-w-0">
-                                        <h3 className="font-bold text-lg text-brand-navy leading-tight line-clamp-1">{customer.name}</h3>
-                                        <div className="flex items-center gap-1.5 text-muted-foreground text-sm mt-0.5">
-                                            <Phone className="w-3 h-3" />
-                                            <span className="font-mono tracking-tight">{customer.phone}</span>
+            {/* Customer Table */}
+            {isLoading ? (
+                <div className="space-y-2">{[1,2,3,4,5].map(i => <div key={i} className="h-10 rounded-lg bg-gray-100 animate-pulse" />)}</div>
+            ) : paginatedCustomers.length === 0 ? (
+                <div className="border border-dashed border-gray-200 rounded-xl py-8 text-center">
+                    <p className="text-[14px] font-semibold text-brand-navy">No customers found</p>
+                    <p className="text-[11px] text-gray-400 mt-1">Try adjusting search or filters.</p>
+                </div>
+            ) : (
+            <div className="rounded-xl border border-gray-100 bg-white overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full">
+                        <thead>
+                            <tr className="border-b border-gray-100">
+                                <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Customer</th>
+                                <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">City</th>
+                                <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Orders</th>
+                                <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Spent</th>
+                                <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Last order</th>
+                                <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Status</th>
+                                <th className="px-3 py-2" />
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {paginatedCustomers.map((customer) => (
+                            <tr
+                                key={customer.id}
+                                className="hover:bg-gray-50 transition-colors border-b border-gray-100 cursor-pointer"
+                                onClick={() => setSelectedCustomer(customer)}
+                            >
+                                <td className="px-3 py-2">
+                                    <div className="flex items-center gap-2">
+                                        <div className="h-7 w-7 rounded-full bg-brand-navy/5 flex items-center justify-center text-brand-navy font-bold text-[11px] shrink-0">
+                                            {customer.name.charAt(0).toUpperCase()}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="text-[12px] font-semibold text-brand-navy leading-tight truncate">{customer.name}</p>
+                                            <p className="text-[10px] text-gray-500 font-mono">{customer.phone}</p>
                                         </div>
                                     </div>
-                                </div>
-                                {customer.orders[0]?.status?.label && (
-                                    <Badge
-                                        style={{
-                                            backgroundColor: `${customer.orders[0].status.color}20`,
-                                            color: customer.orders[0].status.color,
-                                        }}
-                                        className="border-none font-bold rounded-full px-2.5 py-1 text-[10px] uppercase tracking-wider whitespace-nowrap shrink-0"
-                                        title={`Latest order: ${customer.orders[0].status.label}`}
-                                    >
-                                        {customer.orders[0].status.label}
-                                    </Badge>
-                                )}
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-3 py-3 border-y border-dashed border-brand-navy/10">
-                                <div>
-                                    <div className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Spent</div>
-                                    <div className="font-black text-brand-navy text-lg">{customer.totalSpent.toLocaleString()} <span className="text-xs font-medium text-muted-foreground">dh</span></div>
-                                </div>
-                                <div className="text-right">
-                                    <div className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Orders</div>
-                                    <div className="font-black text-brand-navy text-lg">{customer.totalOrders}</div>
-                                </div>
-                            </div>
-
-                            <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
-                                <div className="flex items-center gap-1.5">
-                                    <MapPin className="w-3.5 h-3.5" />
-                                    {customer.city}
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                    <Calendar className="w-3.5 h-3.5" />
-                                    {format(new Date(customer.lastOrderDate), 'MMM d, yyyy')}
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                ))}
+                                </td>
+                                <td className="px-3 py-2 text-[11px] text-brand-navy/80">{customer.city}</td>
+                                <td className="px-3 py-2 text-right text-[11px] text-brand-navy/80 tabular-nums font-semibold">{customer.totalOrders}</td>
+                                <td className="px-3 py-2 text-right text-[11px] text-brand-navy font-semibold tabular-nums">{customer.totalSpent.toLocaleString()} dh</td>
+                                <td className="px-3 py-2 text-[10px] text-gray-500 tabular-nums">{format(new Date(customer.lastOrderDate), 'MMM d, yyyy')}</td>
+                                <td className="px-3 py-2">
+                                    {customer.orders[0]?.status?.label && (
+                                        <span
+                                            className="inline-flex items-center h-5 px-1.5 rounded text-[9px] font-bold uppercase tracking-[0.08em]"
+                                            style={{ backgroundColor: `${customer.orders[0].status.color}20`, color: customer.orders[0].status.color }}
+                                        >
+                                            {customer.orders[0].status.label}
+                                        </span>
+                                    )}
+                                </td>
+                                <td className="px-3 py-2">
+                                    <ArrowUpRight className="w-3.5 h-3.5 text-gray-300" />
+                                </td>
+                            </tr>
+                        ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
+            )}
 
             {/* Pagination */}
             {totalPages > 1 && (
-                <div className="flex items-center justify-center gap-2 mt-8">
+                <div className="flex items-center justify-center gap-2">
                     <Button
                         variant="outline"
                         size="icon"
                         onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                         disabled={currentPage === 1}
-                        className="rounded-xl"
+                        className="h-8 w-8 rounded-md border-gray-200"
                     >
-                        <ChevronLeft className="w-4 h-4" />
+                        <ChevronLeft className="w-3.5 h-3.5" />
                     </Button>
-                    <span className="text-sm font-bold text-brand-navy px-4">
-                        Page {currentPage} of {totalPages}
+                    <span className="text-[11px] font-semibold text-brand-navy px-2">
+                        {currentPage} / {totalPages}
                     </span>
                     <Button
                         variant="outline"
                         size="icon"
                         onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                         disabled={currentPage === totalPages}
-                        className="rounded-xl"
+                        className="h-8 w-8 rounded-md border-gray-200"
                     >
-                        <ChevronRight className="w-4 h-4" />
+                        <ChevronRight className="w-3.5 h-3.5" />
                     </Button>
                 </div>
             )}
 
-            {/* Detailed Customer Modal */}
+            {/* Customer detail dialog */}
             <Dialog open={!!selectedCustomer} onOpenChange={(open) => !open && setSelectedCustomer(null)}>
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto rounded-[40px] border-none shadow-2xl p-0 gap-0">
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl border border-gray-100 shadow-none p-0 gap-0">
                     {selectedCustomer && (
-                        <div>
-                            {/* Modal Header */}
-                            <div className="bg-brand-navy p-8 text-brand-white relative overflow-hidden">
-                                <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32 blur-3xl pointer-events-none" />
-                                <div className="relative z-10 flex flex-col md:flex-row md:items-start justify-between gap-6">
-                                    <div className="flex items-center gap-6">
-                                        <div className="w-20 h-20 rounded-[24px] bg-white/10 backdrop-blur-md flex items-center justify-center text-3xl font-bold shadow-inner border border-white/20">
-                                            {selectedCustomer.name.charAt(0)}
-                                        </div>
+                        <div className="p-4 space-y-3">
+                            {/* Identity */}
+                            <div className="flex items-center gap-3 pb-3 border-b border-gray-100">
+                                <div className="h-7 w-7 rounded-full bg-brand-navy/5 flex items-center justify-center text-brand-navy font-bold text-[11px] shrink-0">
+                                    {selectedCustomer.name.charAt(0).toUpperCase()}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-[13px] font-semibold text-brand-navy leading-none truncate">{selectedCustomer.name}</p>
+                                    <p className="text-[10px] text-gray-500 mt-0.5 font-mono">{selectedCustomer.phone} · {selectedCustomer.city}</p>
+                                </div>
+                                <span className={cn(
+                                    "h-5 px-1.5 rounded text-[9px] font-bold uppercase tracking-[0.08em] inline-flex items-center",
+                                    selectedCustomer.status === 'High Value' ? "bg-amber-50 text-amber-600" :
+                                    selectedCustomer.status === 'Mid Value' ? "bg-brand-navy/10 text-brand-navy" :
+                                    "bg-gray-100 text-gray-500"
+                                )}>
+                                    {selectedCustomer.status}
+                                </span>
+                            </div>
+
+                            {/* KPI row */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                {[
+                                    { label: 'Lifetime value', value: `${selectedCustomer.totalSpent.toLocaleString()} dh`, accent: '#059669' },
+                                    { label: 'Total orders', value: String(selectedCustomer.totalOrders), accent: '#3b5e5e' },
+                                    { label: 'Avg. order', value: `${selectedCustomer.avgOrderValue.toFixed(0)} dh`, accent: '#d97706' },
+                                    { label: 'Score', value: String(selectedCustomer.interactionScore), accent: '#3b5e5e' },
+                                ].map((s) => (
+                                    <div key={s.label} className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2">
+                                        <span className="w-[3px] self-stretch rounded-full" style={{ background: s.accent }} />
                                         <div>
-                                            <h2 className="text-3xl font-bold">{selectedCustomer.name}</h2>
-                                            <div className="flex flex-wrap gap-4 mt-2 text-brand-white/70">
-                                                <div className="flex items-center gap-2 text-sm bg-white/10 px-3 py-1 rounded-full">
-                                                    <Phone className="w-3.5 h-3.5" /> {selectedCustomer.phone}
-                                                </div>
-                                                <div className="flex items-center gap-2 text-sm bg-white/10 px-3 py-1 rounded-full">
-                                                    <MapPin className="w-3.5 h-3.5" /> {selectedCustomer.city}
-                                                </div>
-                                            </div>
+                                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{s.label}</p>
+                                            <p className="text-[15px] font-semibold tabular-nums text-brand-navy mt-0.5">{s.value}</p>
                                         </div>
                                     </div>
-                                    <div className="flex flex-col items-end gap-2">
-                                        <Badge className={`
-                                            px-4 py-1.5 rounded-full text-sm font-bold border-none
-                                            ${selectedCustomer.status === 'High Value' ? 'bg-amber-400 text-amber-950' :
-                                                selectedCustomer.status === 'Mid Value' ? 'bg-blue-400 text-blue-950' :
-                                                    'bg-slate-200 text-slate-800'}
-                                        `}>
-                                            {selectedCustomer.status}
-                                        </Badge>
-                                        <span className="text-xs font-medium text-brand-white/50 uppercase tracking-widest">
-                                            Member since {format(new Date(selectedCustomer.firstOrderDate), 'MMM yyyy')}
-                                        </span>
-                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Chart */}
+                            <div className="rounded-xl border border-gray-100 bg-white p-3">
+                                <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400 mb-2">Order amount history</p>
+                                <div className="h-[180px]">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <AreaChart data={chartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                                            <defs>
+                                                <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="#3b5e5e" stopOpacity={0.08} />
+                                                    <stop offset="95%" stopColor="#3b5e5e" stopOpacity={0} />
+                                                </linearGradient>
+                                            </defs>
+                                            <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 9 }} dy={6} />
+                                            <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 9 }} tickFormatter={(v) => `${v}dh`} />
+                                            <CartesianGrid vertical={false} stroke="#f3f4f6" strokeDasharray="3 3" />
+                                            <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #f3f4f6', fontSize: '11px' }} cursor={{ stroke: '#9ca3af', strokeWidth: 1 }} />
+                                            <Area type="monotone" dataKey="amount" stroke="#3b5e5e" strokeWidth={1.5} fillOpacity={1} fill="url(#colorAmount)" activeDot={{ r: 4, strokeWidth: 0, fill: '#3b5e5e' }} />
+                                        </AreaChart>
+                                    </ResponsiveContainer>
                                 </div>
                             </div>
 
-                            <div className="p-8 space-y-8 bg-slate-50/50">
-                                {/* Stats Grid */}
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    <Card className="rounded-2xl border-none shadow-sm bg-white p-4 text-center">
-                                        <div className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">Lifetime Value</div>
-                                        <div className="text-2xl font-black text-brand-navy">{selectedCustomer.totalSpent.toLocaleString()} dh</div>
-                                    </Card>
-                                    <Card className="rounded-2xl border-none shadow-sm bg-white p-4 text-center">
-                                        <div className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">Total Orders</div>
-                                        <div className="text-2xl font-black text-brand-navy">{selectedCustomer.totalOrders}</div>
-                                    </Card>
-                                    <Card className="rounded-2xl border-none shadow-sm bg-white p-4 text-center">
-                                        <div className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">Avg. Order</div>
-                                        <div className="text-2xl font-black text-brand-navy">{selectedCustomer.avgOrderValue.toFixed(0)} dh</div>
-                                    </Card>
-                                    <Card className="rounded-2xl border-none shadow-sm bg-white p-4 text-center">
-                                        <div className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">Score</div>
-                                        <div className="text-2xl font-black text-brand-navy">{selectedCustomer.interactionScore}</div>
-                                    </Card>
-                                </div>
-
-                                {/* Interaction Chart */}
-                                <Card className="border-none shadow-sm rounded-3xl bg-white overflow-hidden">
-                                    <CardHeader>
-                                        <CardTitle className="text-lg font-bold text-brand-navy">Order Amount History</CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="h-[300px] w-full mt-4">
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                                                <defs>
-                                                    <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
-                                                        <stop offset="5%" stopColor="#1e293b" stopOpacity={0.1} />
-                                                        <stop offset="95%" stopColor="#1e293b" stopOpacity={0} />
-                                                    </linearGradient>
-                                                </defs>
-                                                <XAxis
-                                                    dataKey="date"
-                                                    axisLine={false}
-                                                    tickLine={false}
-                                                    tick={{ fill: '#94a3b8', fontSize: 12 }}
-                                                    dy={10}
-                                                />
-                                                <YAxis
-                                                    axisLine={false}
-                                                    tickLine={false}
-                                                    tick={{ fill: '#94a3b8', fontSize: 12 }}
-                                                    tickFormatter={(value) => `${value}dh`}
-                                                />
-                                                <CartesianGrid vertical={false} stroke="#e2e8f0" strokeDasharray="4 4" />
-                                                <Tooltip
-                                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}
-                                                    cursor={{ stroke: '#94a3b8', strokeWidth: 1, strokeDasharray: '4 4' }}
-                                                />
-                                                <Area
-                                                    type="monotone"
-                                                    dataKey="amount"
-                                                    stroke="#1e293b"
-                                                    strokeWidth={3}
-                                                    fillOpacity={1}
-                                                    fill="url(#colorAmount)"
-                                                    activeDot={{ r: 6, strokeWidth: 0, fill: '#1e293b' }}
-                                                />
-                                            </AreaChart>
-                                        </ResponsiveContainer>
-                                    </CardContent>
-                                </Card>
-
-                                {/* Transaction History */}
-                                <Card className="border-none shadow-sm rounded-3xl bg-white overflow-hidden">
-                                    <CardHeader>
-                                        <CardTitle className="text-lg font-bold text-brand-navy">Transaction History</CardTitle>
-                                    </CardHeader>
-                                    <div className="p-0">
-                                        <Table>
-                                            <TableHeader className="bg-slate-50">
-                                                <TableRow className="border-none">
-                                                    <TableHead className="font-bold pl-8">Date</TableHead>
-                                                    <TableHead className="font-bold">Status</TableHead>
-                                                    <TableHead className="font-bold">City</TableHead>
-                                                    <TableHead className="font-bold text-right pr-8">Amount</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {selectedCustomer.orders.map((order) => (
-                                                    <TableRow key={order.id} className="hover:bg-slate-50 border-slate-100">
-                                                        <TableCell className="pl-8 font-medium">
-                                                            {format(new Date(order.date), 'MMM d, yyyy')}
-                                                            <div className="text-xs text-muted-foreground">{format(new Date(order.date), 'h:mm a')}</div>
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            <Badge
-                                                                style={{ backgroundColor: `${order.status.color}20`, color: order.status.color }}
-                                                                className="border-none font-bold"
-                                                            >
-                                                                {order.status.label}
-                                                            </Badge>
-                                                        </TableCell>
-                                                        <TableCell className="text-muted-foreground">{order.city_name}</TableCell>
-                                                        <TableCell className="text-right pr-8 font-bold text-brand-navy">
-                                                            {order.price.toLocaleString()} dh
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))}
-                                            </TableBody>
-                                        </Table>
-                                    </div>
-                                </Card>
+                            {/* Orders table */}
+                            <div className="rounded-xl border border-gray-100 bg-white overflow-hidden">
+                                <table className="w-full">
+                                    <thead>
+                                        <tr className="border-b border-gray-100">
+                                            <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Date</th>
+                                            <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Status</th>
+                                            <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">City</th>
+                                            <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Amount</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {selectedCustomer.orders.map((order) => (
+                                            <tr key={order.id} className="hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0">
+                                                <td className="px-3 py-2 text-[10px] text-gray-500 tabular-nums">{format(new Date(order.date), 'MMM d, yyyy')}</td>
+                                                <td className="px-3 py-2">
+                                                    <span
+                                                        className="h-5 px-1.5 rounded text-[9px] font-bold uppercase tracking-[0.08em] inline-flex items-center"
+                                                        style={{ backgroundColor: `${order.status.color}20`, color: order.status.color }}
+                                                    >
+                                                        {order.status.label}
+                                                    </span>
+                                                </td>
+                                                <td className="px-3 py-2 text-[11px] text-brand-navy/80">{order.city_name}</td>
+                                                <td className="px-3 py-2 text-right text-[11px] font-semibold text-brand-navy tabular-nums">{order.price.toLocaleString()} dh</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     )}

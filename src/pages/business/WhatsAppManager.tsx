@@ -628,46 +628,39 @@ export default function WhatsAppManager() {
   };
 
   return (
-    <div className="space-y-8 pb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-
-      {/* Header */}
-      <div className="relative">
-        <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-        <div className="relative p-8 flex flex-col lg:flex-row lg:items-end justify-between gap-8">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 mb-2">Integrations</p>
-            <h1 className="text-3xl sm:text-4xl font-extralight text-gray-900 tracking-tight mb-2">WhatsApp Devices</h1>
-            <p className="text-gray-500 font-light text-sm max-w-xl">
-              Connect and manage physical devices to automate delivery notifications and customer messaging in real-time.
-            </p>
-          </div>
-          <div className="hidden sm:flex w-14 h-14 rounded-2xl bg-primary/10 items-center justify-center shrink-0">
-            <Smartphone className="w-7 h-7 text-primary/80" />
-          </div>
+    <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+      {/* Header — matches /analytics compact style */}
+      <header className="flex items-center gap-2">
+        <Smartphone className="w-3.5 h-3.5 text-gray-400" />
+        <div>
+          <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">WhatsApp Devices</h1>
+          <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">
+            Paired phones for auto-notifications & inbox
+          </p>
         </div>
-      </div>
+      </header>
 
       {/* Instance Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {/* "+" Add Device tile — always first */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+        {/* "+" Add device tile — always first */}
         <button
           type="button"
           onClick={openAddInstanceModal}
-          className="group relative h-full min-h-[220px] rounded-3xl border-2 border-dashed border-gray-200 bg-white/40 hover:bg-white hover:border-primary/40 hover:shadow-md transition-all flex flex-col items-center justify-center gap-3 cursor-pointer"
+          className="group relative min-h-[120px] rounded-xl border border-dashed border-gray-200 bg-white/40 hover:bg-white hover:border-brand-navy/40 transition flex flex-col items-center justify-center gap-1.5"
         >
-          <div className="w-14 h-14 rounded-2xl bg-primary/5 group-hover:bg-primary/10 flex items-center justify-center transition-colors">
-            <Plus className="w-7 h-7 text-primary/70" strokeWidth={1.5} />
+          <div className="w-8 h-8 rounded-md bg-brand-navy/[0.04] group-hover:bg-brand-navy/[0.08] flex items-center justify-center transition-colors">
+            <Plus className="w-3.5 h-3.5 text-brand-navy/70" strokeWidth={1.75} />
           </div>
-          <div className="text-center px-4">
-            <p className="text-sm font-medium text-gray-900">Add Device</p>
-            <p className="text-[11px] text-gray-400 font-light mt-0.5">Connect a new WhatsApp account</p>
+          <div className="text-center px-3">
+            <p className="text-[11px] font-semibold text-brand-navy">Add device</p>
+            <p className="text-[9px] text-gray-400 mt-0.5">Connect a new WhatsApp account</p>
           </div>
         </button>
 
         {loading ? (
           Array.from({ length: 3 }).map((_, i) => (
-            <Card key={i} className="animate-pulse border-0 shadow-sm rounded-3xl bg-white">
-              <CardContent className="h-[200px]" />
+            <Card key={i} className="animate-pulse border border-gray-100 shadow-none rounded-xl bg-white">
+              <CardContent className="h-[120px]" />
             </Card>
           ))
         ) : (
@@ -678,53 +671,51 @@ export default function WhatsAppManager() {
             return (
               <Card
                 key={inst.id}
-                className={cn("relative overflow-hidden border-0 shadow-sm rounded-3xl bg-white transition-all hover:shadow-md", isSyncing && "cursor-pointer ring-1 ring-emerald-200")}
+                className={cn("relative overflow-hidden border border-gray-100 shadow-none rounded-xl bg-white transition-all", isSyncing && "cursor-pointer ring-1 ring-emerald-200")}
                 onClick={isSyncing ? () => handleReopenSyncModal(inst.instance_name) : undefined}
               >
-                <div className={cn("absolute top-0 left-0 w-full h-1.5 transition-colors", isSyncing ? "bg-emerald-400/80 animate-pulse" : isOpen ? "bg-emerald-500/80" : "bg-amber-400/80")} />
-                <CardContent className="p-6">
-                  <div className="flex justify-between items-start mb-6 mt-1">
-                    <div className="flex items-center gap-4">
-                      <Avatar className="h-12 w-12 border border-gray-100 shadow-sm">
-                        <AvatarImage src={inst.profile_pic} />
-                        <AvatarFallback className="bg-gradient-to-br from-primary/10 to-primary/5 text-primary text-sm font-medium">
-                          {inst.instance_name.substring(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <h3 className="text-lg font-medium text-gray-900 truncate max-w-[150px]">{inst.instance_name}</h3>
-                        {inst.phone_number ? (
-                          <div className="flex items-center text-xs text-gray-500 font-light mt-1 gap-1.5">
-                            <Phone className="w-3 h-3 text-gray-400" /> +{inst.phone_number}
-                          </div>
-                        ) : (
-                          <div className="text-xs text-gray-400 font-light mt-1">Unpaired device</div>
-                        )}
-                      </div>
+                <div className={cn("absolute top-0 left-0 w-full h-[3px] transition-colors", isSyncing ? "bg-emerald-400/80 animate-pulse" : isOpen ? "bg-emerald-500/80" : "bg-amber-400/80")} />
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2">
+                    <Avatar className="h-8 w-8 border border-gray-100 shrink-0">
+                      <AvatarImage src={inst.profile_pic} />
+                      <AvatarFallback className="bg-brand-navy/[0.06] text-brand-navy text-[10px] font-semibold">
+                        {inst.instance_name.substring(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-[12px] font-semibold text-brand-navy truncate">{inst.instance_name}</h3>
+                      {inst.phone_number ? (
+                        <div className="flex items-center text-[10px] text-gray-500 mt-0.5 gap-1">
+                          <Phone className="w-2.5 h-2.5 text-gray-400" /> +{inst.phone_number}
+                        </div>
+                      ) : (
+                        <div className="text-[10px] text-gray-400 mt-0.5">Unpaired device</div>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center justify-between py-4 border-t border-gray-50">
-                    <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Status</span>
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-50">
+                    <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400">Status</span>
                     <Badge
                       variant="outline"
                       className={cn(
-                        "rounded-full text-[10px] font-bold uppercase border px-3 py-1",
+                        "rounded-md text-[9px] font-bold uppercase border px-1.5 py-0.5 h-5",
                         isSyncing ? "bg-blue-50 text-blue-800 border-blue-100"
                           : isOpen ? "bg-emerald-50 text-emerald-800 border-emerald-100"
                           : "bg-amber-50 text-amber-800 border-amber-100"
                       )}
                     >
-                      {isSyncing && <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
-                      {!isSyncing && isOpen && <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />}
-                      {!isSyncing && !isOpen && <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
+                      {isSyncing && <Loader2 className="w-2.5 h-2.5 mr-1 animate-spin" />}
+                      {!isSyncing && isOpen && <CheckCircle2 className="w-2.5 h-2.5 mr-1" />}
+                      {!isSyncing && !isOpen && <Loader2 className="w-2.5 h-2.5 mr-1 animate-spin" />}
                       {isSyncing ? 'Syncing' : isOpen ? 'Connected' : 'Pending'}
                     </Badge>
                   </div>
                   {isSyncing && instSync && (
-                    <div className="mt-3 space-y-1.5">
-                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="mt-2 space-y-1">
+                      <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-gradient-to-r from-blue-500 to-blue-400 rounded-full transition-all duration-700 animate-pulse"
+                          className="h-full bg-blue-500 rounded-full transition-all duration-700"
                           style={{
                             width: `${Math.round(
                               ((instSync.progress.contacts.synced + instSync.progress.chats.synced) /
@@ -733,29 +724,29 @@ export default function WhatsAppManager() {
                           }}
                         />
                       </div>
-                      <p className="text-[10px] text-blue-600 font-medium truncate">{instSync.progress.status}</p>
+                      <p className="text-[9px] text-blue-600 truncate">{instSync.progress.status}</p>
                     </div>
                   )}
                 </CardContent>
-                <div className="px-3 pb-3 flex justify-end gap-2 bg-gray-50/50 pt-3 border-t border-gray-50">
+                <div className="px-2 pb-2 flex justify-end gap-1 bg-gray-50/50 pt-2 border-t border-gray-50">
                   {!isOpen && (
                     <Button
                       variant="outline" size="sm"
-                      className="flex-1 rounded-xl bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900 font-medium h-9 text-xs"
+                      className="flex-1 rounded-md bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-brand-navy text-[10px] font-semibold h-7"
                       disabled={actionLoading !== null}
                       onClick={() => fetchAndShowQR(inst.instance_name)}
                     >
-                      {actionLoading === `qr-${inst.instance_name}` ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <QrCode className="w-3.5 h-3.5 mr-2 text-primary/70" />}
+                      {actionLoading === `qr-${inst.instance_name}` ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <QrCode className="w-3 h-3 mr-1 text-brand-navy/70" />}
                       Scan QR
                     </Button>
                   )}
                   <Button
                     variant="ghost" size="sm"
-                    className="flex-1 rounded-xl text-red-600/80 hover:text-red-700 hover:bg-red-50 font-medium h-9 text-xs"
+                    className="flex-1 rounded-md text-red-600/80 hover:text-red-700 hover:bg-red-50 text-[10px] font-semibold h-7"
                     disabled={actionLoading !== null}
                     onClick={() => confirmDeleteInstance(inst.id, inst.instance_name)}
                   >
-                    {actionLoading === `delete-${inst.instance_name}` ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <Trash2 className="w-3.5 h-3.5 mr-2" />}
+                    {actionLoading === `delete-${inst.instance_name}` ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Trash2 className="w-3 h-3 mr-1" />}
                     Remove
                   </Button>
                 </div>

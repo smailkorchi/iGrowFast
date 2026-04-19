@@ -19,7 +19,6 @@ import { registerPdfFonts } from '@/lib/documentPdf/registerFonts';
 import type { BonCommandeSnapshot } from '@/lib/bonCommande/types';
 import type { OrderDerivedClient } from '@/lib/devis/types';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -39,7 +38,6 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { BonCommandePdfDocument } from './BonCommandePdfDocument';
 import { BonCommandeWizard } from './BonCommandeWizard';
-import { Badge } from '@/components/ui/badge';
 
 type BonCommandeRow = {
   id: string;
@@ -235,7 +233,7 @@ export default function BonCommandePage() {
       } catch (e) {
         console.error(e);
         toast({
-          title: 'Aperçu indisponible',
+          title: 'Apercu indisponible',
           description: 'Impossible de charger le PDF.',
           variant: 'destructive',
         });
@@ -319,7 +317,7 @@ export default function BonCommandePage() {
             .single();
           if (insErr) {
             if (customNumber && (insErr.code === '23505' || /duplicate|unique/i.test(insErr.message))) {
-              throw new Error(`Le numéro « ${customNumber} » existe déjà pour ce business.`);
+              throw new Error(`Le numero << ${customNumber} >> existe deja pour ce business.`);
             }
             throw insErr;
           }
@@ -373,12 +371,12 @@ export default function BonCommandePage() {
 
         await queryClient.invalidateQueries({ queryKey: ['bc-list', activeBusinessId] });
 
-        toast({ title: wasEdit ? 'Document mis à jour' : 'Document enregistré', description: bcNumber });
+        toast({ title: wasEdit ? 'Document mis a jour' : 'Document enregistre', description: bcNumber });
       } catch (e) {
         console.error(e);
         const msg = e instanceof Error ? e.message : 'Enregistrement impossible.';
         toast({
-          title: 'Échec',
+          title: 'Echec',
           description: msg,
           variant: 'destructive',
         });
@@ -394,7 +392,7 @@ export default function BonCommandePage() {
       try {
         const url = await resolvePreviewUrl(row);
         if (!url) {
-          toast({ title: 'Pas de fichier', description: 'PDF non généré.' });
+          toast({ title: 'Pas de fichier', description: 'PDF non genere.' });
           return;
         }
         const res = await fetch(url);
@@ -406,7 +404,7 @@ export default function BonCommandePage() {
         URL.revokeObjectURL(a.href);
       } catch (e) {
         console.error(e);
-        toast({ title: 'Téléchargement impossible', variant: 'destructive' });
+        toast({ title: 'Telechargement impossible', variant: 'destructive' });
       }
     },
     [resolvePreviewUrl, toast],
@@ -421,7 +419,7 @@ export default function BonCommandePage() {
       }
       const { error } = await supabase.from('bons_commande').delete().eq('id', deleteTarget.id);
       if (error) throw error;
-      toast({ title: 'Supprimé' });
+      toast({ title: 'Supprime' });
       setDeleteTarget(null);
       await queryClient.invalidateQueries({ queryKey: ['bc-list', activeBusinessId] });
     } catch (e) {
@@ -434,9 +432,9 @@ export default function BonCommandePage() {
 
   const counterpartLabel = useCallback((row: BonCommandeRow) => {
     const s = parseSnapshot(row.snapshot_json);
-    if (!s) return '—';
-    if (s.direction === 'purchase') return s.supplier?.name || '—';
-    return s.client?.name || '—';
+    if (!s) return '-';
+    if (s.direction === 'purchase') return s.supplier?.name || '-';
+    return s.client?.name || '-';
   }, []);
 
   const emptyState = useMemo(
@@ -446,120 +444,118 @@ export default function BonCommandePage() {
 
   if (!activeBusinessId) {
     return (
-      <div className="space-y-8 pb-8">
-        <div className="relative">
-          <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-          <div className="relative p-8">
-            <h1 className="text-3xl font-extralight tracking-tight">Bon de commande</h1>
-            <p className="text-gray-500 text-sm mt-2">Sélectionnez une entreprise active pour accéder aux documents.</p>
+      <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+        <header className="space-y-2.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Bon de commande</h1>
+              <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Outils · PDF</p>
+            </div>
           </div>
-        </div>
+          <p className="text-[11px] text-gray-500">Selectionnez une entreprise active pour acceder aux documents.</p>
+        </header>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8 pb-8">
-      <div className="relative">
-        <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-        <div className="relative p-8 flex flex-col sm:flex-row sm:items-end justify-between gap-6">
+    <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+      <header className="space-y-2.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 mb-2">Tools</p>
-            <h1 className="text-3xl sm:text-4xl font-extralight text-gray-900 tracking-tight mb-2">Bon de commande</h1>
-            <p className="text-gray-500 font-light text-sm max-w-lg">
-              Commande fournisseur ou confirmation client, TVA optionnelle, PDF archivé par entreprise.
-            </p>
+            <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Bon de commande</h1>
+            <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Outils · PDF</p>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <Button className="rounded-2xl gap-2" onClick={openCreate}>
-              <Plus className="w-4 h-4" />
-              Nouveau document
-            </Button>
-            <div className="hidden sm:flex w-14 h-14 rounded-2xl bg-primary/10 items-center justify-center shrink-0">
-              <ClipboardList className="w-7 h-7 text-primary/80" />
-            </div>
-          </div>
+          <Button onClick={openCreate} className="h-8 rounded-md text-[11px] font-semibold gap-1.5">
+            <Plus className="w-3.5 h-3.5" /> Nouveau
+          </Button>
         </div>
-      </div>
-
-      {/* Inline PDF removed — preview modal opens directly after generation */}
+      </header>
 
       {listLoading ? (
-        <Card className="border-0 shadow-sm rounded-3xl">
-          <CardContent className="p-16 flex justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-primary/40" />
-          </CardContent>
-        </Card>
+        <div className="rounded-xl border border-gray-100 bg-white p-10 flex items-center justify-center">
+          <Loader2 className="w-5 h-5 animate-spin text-gray-300" />
+        </div>
       ) : emptyState ? (
-        <Card className="border-0 shadow-sm rounded-3xl bg-white">
-          <CardContent className="p-12 sm:p-16 min-h-[280px] flex flex-col items-center justify-center text-center gap-4">
-            <ClipboardList className="w-12 h-12 text-gray-200" />
-            <p className="text-sm text-gray-500 font-light max-w-md">
-              Aucun document. Créez un bon de commande fournisseur ou une confirmation de commande client : assistant en
-              étapes, PDF A4, totaux HT / TVA / TTC.
-            </p>
-            <Button className="rounded-2xl" onClick={openCreate}>
-              <Plus className="w-4 h-4 mr-2" />
-              Nouveau document
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="rounded-xl border border-gray-100 bg-white p-10 flex flex-col items-center justify-center gap-2.5 text-center">
+          <ClipboardList className="w-8 h-8 text-gray-300" />
+          <p className="text-[11px] text-gray-500 max-w-xs">
+            Aucun document. Creez un bon de commande fournisseur ou une confirmation client.
+          </p>
+          <Button onClick={openCreate} className="h-8 rounded-md text-[11px] font-semibold gap-1.5">
+            <Plus className="w-3.5 h-3.5" /> Nouveau
+          </Button>
+        </div>
       ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
           {list.map((row) => (
-            <Card
+            <div
               key={row.id}
-              className="border-0 shadow-sm rounded-3xl cursor-pointer hover:shadow-md transition-shadow"
+              className="rounded-xl border border-gray-100 bg-white p-3 hover:border-gray-200 transition-colors cursor-pointer"
               onClick={() => void openPreview(row)}
             >
-              <CardContent className="p-6 space-y-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-lg font-light tracking-tight">{row.bc_number}</p>
-                    <p className="text-xs text-gray-400">
-                      {format(parseISO(row.issued_at), 'd MMM yyyy', { locale: fr })}
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <Badge variant="secondary" className="rounded-lg text-[10px]">
-                      {row.direction === 'purchase' ? 'Achat' : 'Client'}
-                    </Badge>
-                    {row.tva_rate > 0 ? (
-                      <Badge variant="outline" className="rounded-lg text-[10px]">
-                        TVA {row.tva_rate}%
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="rounded-lg text-[10px]">
-                        HT
-                      </Badge>
-                    )}
-                  </div>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[12px] font-semibold text-brand-navy tabular-nums">{row.bc_number}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">
+                    {format(parseISO(row.issued_at), 'd MMM yyyy', { locale: fr })}
+                  </p>
                 </div>
-                <p className="text-sm text-gray-600 line-clamp-1">{counterpartLabel(row)}</p>
-                <p className="text-xl font-light">{Number(row.total_ttc).toFixed(2)} MAD</p>
-                <div className="flex flex-wrap gap-2 pt-2" onClick={(e) => e.stopPropagation()}>
-                  <Button size="sm" variant="secondary" className="rounded-xl gap-1" onClick={() => void openPreview(row)}>
-                    <Eye className="w-3.5 h-3.5" />
-                    Aperçu
-                  </Button>
-                  <Button size="sm" variant="outline" className="rounded-xl gap-1" onClick={() => openEdit(row)}>
-                    <Pencil className="w-3.5 h-3.5" />
-                    Modifier
-                  </Button>
-                  <Button size="sm" variant="outline" className="rounded-xl gap-1" onClick={() => void handleDownload(row)}>
-                    <Download className="w-3.5 h-3.5" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="rounded-xl text-red-600 hover:text-red-700"
-                    onClick={() => setDeleteTarget(row)}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  <span className="inline-flex items-center h-5 px-1.5 text-[9px] font-semibold rounded-md bg-gray-100 text-gray-600">
+                    {row.direction === 'purchase' ? 'Achat' : 'Client'}
+                  </span>
+                  {row.tva_rate > 0 ? (
+                    <span className="inline-flex items-center h-5 px-1.5 text-[9px] font-semibold rounded-md border border-gray-200 text-gray-500">
+                      TVA {row.tva_rate}%
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center h-5 px-1.5 text-[9px] font-semibold rounded-md border border-gray-200 text-gray-500">
+                      HT
+                    </span>
+                  )}
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+              <p className="text-[11px] text-gray-600 line-clamp-1 mt-2">{counterpartLabel(row)}</p>
+              <p className="text-[15px] font-semibold tabular-nums text-brand-navy mt-1">
+                {Number(row.total_ttc).toFixed(2)} <span className="text-[10px] font-normal text-gray-400">MAD</span>
+              </p>
+              <div className="flex gap-1 mt-2.5 pt-2 border-t border-gray-100" onClick={(e) => e.stopPropagation()}>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-[10px] font-semibold gap-1 rounded-md"
+                  onClick={() => void openPreview(row)}
+                >
+                  <Eye className="w-3 h-3" />
+                  Apercu
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-[10px] font-semibold gap-1 rounded-md"
+                  onClick={() => openEdit(row)}
+                >
+                  <Pencil className="w-3 h-3" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-[10px] font-semibold gap-1 rounded-md"
+                  onClick={() => void handleDownload(row)}
+                >
+                  <Download className="w-3 h-3" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-[10px] font-semibold gap-1 rounded-md ml-auto text-red-500 hover:text-red-600"
+                  onClick={() => setDeleteTarget(row)}
+                >
+                  <Trash2 className="w-3 h-3" />
+                </Button>
+              </div>
+            </div>
           ))}
         </div>
       )}
@@ -577,79 +573,79 @@ export default function BonCommandePage() {
       />
 
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0 gap-0 rounded-3xl">
+        <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0 gap-0 rounded-xl border border-gray-100">
           <DialogHeader className="p-4 border-b shrink-0">
-            <DialogTitle className="font-light text-lg">
-              {previewRow?.bc_number || 'Aperçu du bon de commande'}
+            <DialogTitle className="text-[14px] font-semibold text-brand-navy">
+              {previewRow?.bc_number || 'Apercu du bon de commande'}
               {previewRow ? (
-                <span className="text-sm font-normal text-gray-400 ml-2">{counterpartLabel(previewRow)}</span>
+                <span className="text-[11px] font-normal text-gray-400 ml-2">{counterpartLabel(previewRow)}</span>
               ) : null}
             </DialogTitle>
-            <div className="flex gap-2 pt-2">
+            <div className="flex gap-1.5 pt-2">
               {previewRow ? (
                 <>
                   <Button
                     size="sm"
                     variant="outline"
-                    className="rounded-xl"
+                    className="h-7 px-2 text-[10px] font-semibold gap-1 rounded-md"
                     onClick={() => void handleDownload(previewRow)}
                   >
-                    <Download className="w-4 h-4 mr-2" />
-                    Télécharger
+                    <Download className="w-3 h-3" />
+                    Telecharger
                   </Button>
                   <Button
                     size="sm"
-                    className="rounded-xl"
+                    className="h-7 px-2 text-[10px] font-semibold gap-1 rounded-md"
                     onClick={() => {
                       if (!previewRow) return;
                       setPreviewOpen(false);
                       openEdit(previewRow);
                     }}
                   >
-                    <Pencil className="w-4 h-4 mr-2" />
+                    <Pencil className="w-3 h-3" />
                     Modifier
                   </Button>
                 </>
               ) : inlinePdfUrl ? (
-                <Button size="sm" variant="outline" className="rounded-xl" asChild>
+                <Button size="sm" variant="outline" className="h-7 px-2 text-[10px] font-semibold gap-1 rounded-md" asChild>
                   <a href={inlinePdfUrl} download="bon-de-commande.pdf">
-                    <Download className="w-4 h-4 mr-2" />
-                    Télécharger
+                    <Download className="w-3 h-3" />
+                    Telecharger
                   </a>
                 </Button>
               ) : null}
             </div>
           </DialogHeader>
-          <div className="flex-1 min-h-0 bg-gray-100 relative">
+          <div className="flex-1 min-h-0 bg-gray-50 relative">
             {previewLoading ? (
               <div className="absolute inset-0 flex items-center justify-center">
-                <Loader2 className="w-8 h-8 animate-spin text-primary/40" />
+                <Loader2 className="w-5 h-5 animate-spin text-gray-300" />
               </div>
             ) : previewUrl ? (
-              <iframe title="Aperçu BC" src={`${previewUrl}#toolbar=0&navpanes=0`} className="w-full h-full border-0" />
+              <iframe title="Apercu BC" src={`${previewUrl}#toolbar=0&navpanes=0`} className="w-full h-full border-0" />
             ) : (
-              <p className="p-8 text-sm text-gray-500">Aucun PDF.</p>
+              <p className="p-8 text-[11px] text-gray-500">Aucun PDF.</p>
             )}
           </div>
         </DialogContent>
       </Dialog>
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
-        <AlertDialogContent className="rounded-3xl">
+        <AlertDialogContent className="rounded-xl">
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer ce document ?</AlertDialogTitle>
+            <AlertDialogTitle className="text-[14px]">Supprimer ce document ?</AlertDialogTitle>
             <AlertDialogDescription>
-              Le fichier PDF et l&apos;entrée seront supprimés définitivement.
+              Le fichier PDF et l&apos;entree seront supprimes definitivement.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-xl">Annuler</AlertDialogCancel>
+            <AlertDialogCancel className="h-8 rounded-md text-[11px]">Annuler</AlertDialogCancel>
             <AlertDialogAction
-              className="rounded-xl bg-red-600 hover:bg-red-700"
+              className="h-8 rounded-md text-[11px] bg-red-600 hover:bg-red-700"
               disabled={deleting}
               onClick={() => void confirmDelete()}
             >
-              {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Supprimer'}
+              {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Supprimer'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

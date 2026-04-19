@@ -498,61 +498,50 @@ const DeliveryServices = () => {
     };
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
-            {/* Header */}
-            <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-                <div className="relative p-8">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div>
-                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Delivery Services</h1>
-                            <p className="text-gray-500 font-light">Manage your logistics network, couriers, and provider integrations.</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            {(activeTab === 'person' || !allProvidersConnected) && (
-                                <Button
-                                    onClick={() => {
-                                        setEditingItem(null);
-                                        if (activeTab === 'person') {
-                                            setIsPersonModalOpen(true);
-                                        } else {
-                                            setIsPickerOpen(true);
-                                        }
-                                    }}
-                                    className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group flex items-center gap-2"
-                                >
-                                    <Plus className="w-5 h-5 mr-3 group-hover:rotate-90 transition-transform duration-500" />
-                                    Add {activeTab === 'person' ? 'Courier' : 'Partner'}
-                                </Button>
-                            )}
-                        </div>
-                    </div>
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+            {/* Header — compact Analytics style */}
+            <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                    <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">
+                        Delivery Services
+                    </h1>
+                    <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">
+                        Partners &amp; in-house couriers
+                    </p>
                 </div>
-            </div>
+                {(activeTab === 'person' || !allProvidersConnected) && (
+                    <Button
+                        size="sm"
+                        onClick={() => {
+                            setEditingItem(null);
+                            if (activeTab === 'person') setIsPersonModalOpen(true);
+                            else setIsPickerOpen(true);
+                        }}
+                        className="bg-brand-navy hover:bg-brand-navy/90 text-white h-8 px-3 rounded-md text-[11px] font-semibold gap-1.5 shrink-0"
+                    >
+                        <Plus className="w-3.5 h-3.5" />
+                        Add {activeTab === 'person' ? 'courier' : 'partner'}
+                    </Button>
+                )}
+            </header>
 
             {/* Tabs & Search */}
-            <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="space-y-6">
-                <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                    <TabsList className="bg-white/50 backdrop-blur-md p-1.5 h-16 rounded-[24px] border border-brand-navy/5 shadow-sm inline-flex">
-                        <TabsTrigger
-                            value="company"
-                            className="rounded-[18px] px-8 h-full data-[state=active]:bg-brand-navy data-[state=active]:text-white data-[state=active]:shadow-xl font-bold transition-all text-base gap-2"
-                        >
-                            <Building2 className="w-4 h-4" /> Partners
+            <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="space-y-3">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                    <TabsList className="h-8">
+                        <TabsTrigger value="company" className="text-[11px] h-6 px-3 gap-1.5">
+                            <Building2 className="w-3 h-3" /> Partners
                         </TabsTrigger>
-                        <TabsTrigger
-                            value="person"
-                            className="rounded-[18px] px-8 h-full data-[state=active]:bg-brand-navy data-[state=active]:text-white data-[state=active]:shadow-xl font-bold transition-all text-base gap-2"
-                        >
-                            <User className="w-4 h-4" /> Couriers
+                        <TabsTrigger value="person" className="text-[11px] h-6 px-3 gap-1.5">
+                            <User className="w-3 h-3" /> Couriers
                         </TabsTrigger>
                     </TabsList>
 
-                    <div className="relative w-full md:w-96">
-                        <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground/60" />
+                    <div className="relative w-full sm:w-72">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
                         <Input
-                            placeholder="Search service..."
-                            className="h-16 pl-14 pr-6 rounded-[24px] border-none bg-white shadow-sm font-bold text-brand-navy placeholder:text-muted-foreground/40 focus-visible:ring-brand-navy/10"
+                            placeholder="Search service…"
+                            className="pl-7 h-8 rounded-md border-gray-200 bg-white text-[11px]"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
@@ -560,7 +549,7 @@ const DeliveryServices = () => {
                 </div>
 
                 <TabsContent value="company" className="mt-0">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
                         {isLoadingCompanies ? <SkeletonCards /> : filteredCompanies?.map(company => (
                             <PartnerCard
                                 key={company.id}
@@ -583,7 +572,7 @@ const DeliveryServices = () => {
                 </TabsContent>
 
                 <TabsContent value="person" className="mt-0">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
                         {isLoadingPeople ? <SkeletonCards /> : filteredPeople?.map(person => (
                             <CourierCard
                                 key={person.id}

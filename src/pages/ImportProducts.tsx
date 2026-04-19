@@ -470,84 +470,64 @@ const ImportProducts = () => {
     const validCount = data.filter((d) => d.status === 'valid').length;
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500 pb-20">
-            <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-                <div className="relative p-8">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div>
-                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Import Products</h1>
-                            <p className="text-gray-500 font-light">
-                                Bulk create or update products by code. Optional column lists accessory codes
-                                (comma-separated); accessories must exist first.
-                            </p>
-                        </div>
-                        <Button
-                            variant="outline"
-                            onClick={() => window.open(TEMPLATE_URL, '_blank')}
-                            className="h-12 px-6 rounded-2xl border-gray-200 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-medium gap-2"
-                        >
-                            <Download className="w-5 h-5" />
-                            Download Excel model
-                        </Button>
-                    </div>
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+            <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                    <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Import Products</h1>
+                    <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Bulk create or update products by code</p>
                 </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <Card
-                    className={cn(
-                        'lg:col-span-2 border-none shadow-xl rounded-[40px] overflow-hidden transition-all duration-500',
-                        isDragActive ? 'scale-[0.99]' : ''
-                    )}
+                <Button
+                    variant="outline"
+                    onClick={() => window.open(TEMPLATE_URL, '_blank')}
+                    className="h-8 px-3 rounded-md text-[11px] font-semibold border-gray-200 gap-1.5 shrink-0"
                 >
+                    <Download className="w-3.5 h-3.5" />
+                    Download Excel model
+                </Button>
+            </header>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                <Card className={cn(
+                    'lg:col-span-2 border border-gray-100 shadow-none rounded-xl overflow-hidden transition-all duration-300',
+                    isDragActive ? 'border-brand-navy/30' : ''
+                )}>
                     <CardContent className="p-0">
                         <div
                             {...getRootProps()}
                             className={cn(
-                                'relative flex flex-col items-center justify-center min-h-[400px] cursor-pointer transition-all duration-500',
-                                isDragActive
-                                    ? 'bg-brand-navy/[0.08]'
-                                    : 'bg-white/40 hover:bg-white/60 backdrop-blur-xl'
+                                'border-dashed border-gray-200 rounded-xl p-6 flex flex-col items-center justify-center min-h-[200px] cursor-pointer transition-all duration-300',
+                                isDragActive ? 'border-brand-navy/40 bg-brand-navy/[0.03]' : 'hover:border-gray-300'
                             )}
                         >
                             <input {...getInputProps()} />
-                            <div className="absolute inset-0 border-2 border-dashed border-brand-navy/10 rounded-[40px] m-4 pointer-events-none" />
-
                             {isParsing ? (
-                                <div className="text-center space-y-4 animate-pulse">
-                                    <Loader2 className="w-10 h-10 text-brand-navy animate-spin mx-auto" />
-                                    <h3 className="text-2xl font-bold text-brand-navy">Analyzing file…</h3>
+                                <div className="text-center space-y-2">
+                                    <Loader2 className="w-6 h-6 text-brand-navy animate-spin mx-auto" />
+                                    <p className="text-[11px] font-semibold text-brand-navy">Analyzing file...</p>
                                 </div>
                             ) : file && data.length > 0 ? (
-                                <div className="text-center space-y-6">
-                                    <h3 className="text-3xl font-bold text-brand-navy">{file.name}</h3>
-                                    <p className="text-muted-foreground font-medium">{data.length} rows</p>
-                                    <div className="flex items-center justify-center gap-3">
-                                        <Badge className="bg-green-500 h-8 px-4 rounded-full">{validCount} ready</Badge>
-                                        <Badge variant="destructive" className="h-8 px-4 rounded-full">
-                                            {data.length - validCount} errors
-                                        </Badge>
+                                <div className="text-center space-y-2">
+                                    <p className="text-[12px] font-semibold text-brand-navy">{file.name}</p>
+                                    <p className="text-[11px] text-gray-500">{data.length} rows</p>
+                                    <div className="flex items-center justify-center gap-2">
+                                        <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 border h-5 px-1.5 text-[9px] font-semibold">{validCount} ready</Badge>
+                                        <Badge className="bg-red-50 text-red-700 border-red-100 border h-5 px-1.5 text-[9px] font-semibold">{data.length - validCount} errors</Badge>
                                     </div>
                                     <Button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setFile(null);
-                                            setData([]);
-                                        }}
+                                        onClick={(e) => { e.stopPropagation(); setFile(null); setData([]); }}
                                         variant="ghost"
-                                        className="text-brand-red hover:bg-brand-red/10 rounded-xl"
+                                        className="h-7 px-2 rounded-md text-[10px] font-semibold text-red-500 hover:bg-red-50 gap-1"
                                     >
-                                        <Trash2 className="w-4 h-4 mr-2" />
+                                        <Trash2 className="w-3 h-3" />
                                         Remove file
                                     </Button>
                                 </div>
                             ) : (
-                                <div className="text-center space-y-6">
-                                    <Upload className="w-12 h-12 text-brand-navy/40 mx-auto" />
-                                    <h3 className="text-3xl font-bold text-brand-navy">Drop Excel here</h3>
-                                    <p className="text-muted-foreground">or click to browse</p>
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 flex items-center gap-2 justify-center">
+                                <div className="text-center space-y-2">
+                                    <Upload className="w-6 h-6 text-gray-400 mx-auto" />
+                                    <p className="text-[12px] font-semibold text-brand-navy">Drop Excel here</p>
+                                    <p className="text-[11px] text-gray-400">or click to browse</p>
+                                    <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400 flex items-center gap-1 justify-center">
                                         <FileSpreadsheet className="w-3 h-3" /> XLSX / XLS
                                     </span>
                                 </div>
@@ -556,177 +536,165 @@ const ImportProducts = () => {
                     </CardContent>
                 </Card>
 
-                <Card className="border-none shadow-xl bg-brand-navy rounded-[40px] text-brand-white p-8 flex flex-col justify-between overflow-hidden relative">
-                    <div className="space-y-6 relative z-10">
-                        <Database className="w-7 h-7" />
-                        <h3 className="text-2xl font-bold">Products + links</h3>
-                        <p className="text-brand-white/60 leading-relaxed text-sm">
-                            Existing product codes are updated. Default accessory links are replaced by the sheet
-                            (empty column clears links).
+                <Card className="border border-gray-100 shadow-none rounded-xl overflow-hidden">
+                    <CardContent className="p-3.5 space-y-3">
+                        <div className="flex items-center gap-2">
+                            <Database className="w-4 h-4 text-brand-navy/40" />
+                            <p className="text-[11px] font-semibold text-brand-navy">Products + links</p>
+                        </div>
+                        <p className="text-[10px] text-gray-400 leading-relaxed">
+                            Existing product codes are updated. Default accessory links are replaced by the sheet (empty column clears links).
                         </p>
-                        <ul className="space-y-3 text-sm">
+                        <div className="space-y-1.5">
                             {[
                                 'Import accessories first if you use Accessory SKUs',
                                 'Codes matched case-insensitively',
                                 'Duplicate codes in the same file are rejected',
                             ].map((t) => (
-                                <li key={t} className="flex gap-2 items-start">
-                                    <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0 mt-0.5" />
-                                    {t}
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                    <div className="relative z-10 pt-8">
-                        {uploadProgress > 0 ? (
-                            <div className="space-y-2">
-                                <div className="flex justify-between text-xs font-bold uppercase">
-                                    <span>Syncing</span>
-                                    <span>{uploadProgress}%</span>
+                                <div key={t} className="flex items-start gap-1.5">
+                                    <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0 mt-0.5" />
+                                    <p className="text-[10px] text-brand-navy/80">{t}</p>
                                 </div>
-                                <Progress value={uploadProgress} className="h-2 bg-white/10" />
-                            </div>
-                        ) : (
-                            <Button
-                                disabled={
-                                    data.length === 0 ||
-                                    validCount === 0 ||
-                                    !activeBusinessId ||
-                                    uploadMutation.isPending
-                                }
-                                onClick={() => uploadMutation.mutate(data.filter((d) => d.status === 'valid'))}
-                                className="w-full h-14 bg-brand-white text-brand-navy hover:bg-brand-white/90 rounded-2xl font-black"
-                            >
-                                {uploadMutation.isPending ? (
-                                    <>
-                                        <Loader2 className="w-5 h-5 mr-2 animate-spin inline" />
-                                        Processing…
-                                    </>
-                                ) : (
-                                    <>
-                                        Commit {validCount} rows
-                                        <ArrowRight className="w-5 h-5 ml-2 inline" />
-                                    </>
-                                )}
-                            </Button>
-                        )}
-                    </div>
+                            ))}
+                        </div>
+                        <div className="pt-2 border-t border-gray-100">
+                            {uploadProgress > 0 ? (
+                                <div className="space-y-1.5">
+                                    <div className="flex justify-between text-[10px] font-semibold text-brand-navy">
+                                        <span>Syncing</span>
+                                        <span>{uploadProgress}%</span>
+                                    </div>
+                                    <Progress value={uploadProgress} className="h-1.5" />
+                                </div>
+                            ) : (
+                                <Button
+                                    disabled={data.length === 0 || validCount === 0 || !activeBusinessId || uploadMutation.isPending}
+                                    onClick={() => uploadMutation.mutate(data.filter((d) => d.status === 'valid'))}
+                                    className="w-full h-8 bg-brand-navy hover:bg-brand-navy/90 text-white rounded-md text-[11px] font-semibold gap-1.5"
+                                >
+                                    {uploadMutation.isPending ? (
+                                        <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Processing...</>
+                                    ) : (
+                                        <>Commit {validCount} rows <ArrowRight className="w-3.5 h-3.5" /></>
+                                    )}
+                                </Button>
+                            )}
+                        </div>
+                    </CardContent>
                 </Card>
             </div>
 
             {data.length > 0 && (
-                <div className="space-y-6">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <h2 className="text-2xl font-bold text-brand-navy">Preview</h2>
-                        <div className="relative w-full md:w-[300px]">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <div className="space-y-3">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                            <p className="text-[13px] font-semibold text-brand-navy">Preview</p>
+                            <Badge variant="secondary" className="h-5 px-1.5 text-[9px] font-semibold">{filteredData.length} rows</Badge>
+                        </div>
+                        <div className="relative w-full md:w-64">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
                             <Input
-                                placeholder="Search…"
-                                className="pl-11 h-11 rounded-xl"
+                                placeholder="Search..."
+                                className="pl-7 h-8 rounded-md border-gray-200 text-[11px]"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                             />
                         </div>
                     </div>
 
-                    <Card className="border-none shadow-xl rounded-[32px] overflow-hidden">
+                    <Card className="border border-gray-100 shadow-none rounded-xl overflow-hidden">
                         <div className="overflow-x-auto max-w-full">
-                        <Table>
-                            <TableHeader className="bg-brand-navy/5">
-                                <TableRow>
-                                    <TableHead className="font-bold text-brand-navy pl-8 min-w-[140px]">Code / Name</TableHead>
-                                    <TableHead className="font-bold text-brand-navy min-w-[120px]">Label</TableHead>
-                                    <TableHead className="font-bold text-brand-navy min-w-[280px]">Description</TableHead>
-                                    <TableHead className="font-bold text-brand-navy min-w-[100px]">Prices</TableHead>
-                                    <TableHead className="font-bold text-brand-navy min-w-[160px]">Accessories</TableHead>
-                                    <TableHead className="font-bold text-brand-navy">Op</TableHead>
-                                    <TableHead className="font-bold text-brand-navy">Status</TableHead>
-                                    <TableHead className="pr-8 w-12" />
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {paginatedData.map((row) => (
-                                    <TableRow key={row.id}>
-                                        <TableCell className="pl-8 align-top">
-                                            <div className="font-mono text-sm font-bold">{row.code}</div>
-                                            <div className="text-sm text-muted-foreground">{row.name}</div>
-                                        </TableCell>
-                                        <TableCell className="align-top text-sm max-w-[160px] break-words" title={row.label || undefined}>
-                                            {row.label || '—'}
-                                        </TableCell>
-                                        <TableCell className="align-top text-xs text-muted-foreground max-w-[min(420px,40vw)]">
-                                            <p
-                                                className="line-clamp-4 whitespace-pre-wrap break-words"
-                                                title={row.description || undefined}
-                                            >
-                                                {row.description || '—'}
-                                            </p>
-                                        </TableCell>
-                                        <TableCell className="align-top">
-                                            <div className="text-sm">
-                                                {row.cost_price} / {row.selling_price} DH
-                                            </div>
-                                            <div className="text-xs text-muted-foreground">Stock {row.stock}</div>
-                                        </TableCell>
-                                        <TableCell className="max-w-[200px] truncate text-xs align-top" title={row.accessory_codes_raw}>
-                                            {row.accessory_codes_raw || '—'}
-                                        </TableCell>
-                                        <TableCell className="align-top">
-                                            {row.existing_product_id ? (
-                                                <Badge variant="secondary">Update</Badge>
-                                            ) : (
-                                                <Badge>Create</Badge>
-                                            )}
-                                        </TableCell>
-                                        <TableCell className="align-top">
-                                            {row.status === 'valid' ? (
-                                                <Badge className="bg-green-500/10 text-green-700 border-none">Valid</Badge>
-                                            ) : (
-                                                <div className="flex flex-col gap-1 max-w-[220px]">
-                                                    <Badge variant="destructive">Invalid</Badge>
-                                                    <span className="text-[10px] text-brand-red flex items-start gap-1">
-                                                        <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
-                                                        {row.errors[0]}
-                                                    </span>
-                                                </div>
-                                            )}
-                                        </TableCell>
-                                        <TableCell className="pr-8 align-top">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="rounded-full text-muted-foreground hover:text-brand-red"
-                                                onClick={() => setData((prev) => prev.filter((d) => d.id !== row.id))}
-                                            >
-                                                <X className="w-4 h-4" />
-                                            </Button>
-                                        </TableCell>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow className="bg-gray-50/60 hover:bg-gray-50/60">
+                                        <TableHead className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold py-2 pl-3 min-w-[140px]">Code / Name</TableHead>
+                                        <TableHead className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold py-2 min-w-[120px]">Label</TableHead>
+                                        <TableHead className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold py-2 min-w-[200px]">Description</TableHead>
+                                        <TableHead className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold py-2 min-w-[100px]">Prices</TableHead>
+                                        <TableHead className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold py-2 min-w-[140px]">Accessories</TableHead>
+                                        <TableHead className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold py-2">Op</TableHead>
+                                        <TableHead className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold py-2">Status</TableHead>
+                                        <TableHead className="py-2 pr-3 w-10" />
                                     </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
+                                </TableHeader>
+                                <TableBody>
+                                    {paginatedData.map((row) => (
+                                        <TableRow key={row.id} className="hover:bg-gray-50 transition-colors border-gray-50">
+                                            <TableCell className="pl-3 py-2 align-top">
+                                                <div className="font-mono text-[10px] font-semibold text-brand-navy">{row.code}</div>
+                                                <div className="text-[10px] text-gray-500">{row.name}</div>
+                                            </TableCell>
+                                            <TableCell className="py-2 align-top text-[10px] text-brand-navy/80 max-w-[120px] break-words">
+                                                {row.label || '—'}
+                                            </TableCell>
+                                            <TableCell className="py-2 align-top max-w-[min(300px,35vw)]">
+                                                <p className="text-[10px] text-gray-500 line-clamp-3 whitespace-pre-wrap break-words">
+                                                    {row.description || '—'}
+                                                </p>
+                                            </TableCell>
+                                            <TableCell className="py-2 align-top text-[10px] tabular-nums text-brand-navy/80">
+                                                <div>{row.cost_price} / {row.selling_price} DH</div>
+                                                <div className="text-gray-400">Stock {row.stock}</div>
+                                            </TableCell>
+                                            <TableCell className="py-2 align-top max-w-[160px] truncate text-[10px] text-gray-500">
+                                                {row.accessory_codes_raw || '—'}
+                                            </TableCell>
+                                            <TableCell className="py-2 align-top">
+                                                {row.existing_product_id ? (
+                                                    <Badge variant="secondary" className="text-[9px] h-5 px-1.5">Update</Badge>
+                                                ) : (
+                                                    <Badge className="text-[9px] h-5 px-1.5">Create</Badge>
+                                                )}
+                                            </TableCell>
+                                            <TableCell className="py-2 align-top">
+                                                {row.status === 'valid' ? (
+                                                    <Badge className="bg-emerald-50 text-emerald-700 border-none h-5 px-1.5 text-[9px] font-semibold">Valid</Badge>
+                                                ) : (
+                                                    <div className="space-y-0.5">
+                                                        <Badge className="bg-red-50 text-red-600 border-none h-5 px-1.5 text-[9px] font-semibold block w-fit">Invalid</Badge>
+                                                        <span className="text-[9px] text-red-500 flex items-start gap-1">
+                                                            <AlertCircle className="w-2.5 h-2.5 shrink-0 mt-0.5" />
+                                                            {row.errors[0]}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </TableCell>
+                                            <TableCell className="py-2 pr-3 align-top">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-6 w-6 rounded-md text-gray-400 hover:bg-red-50 hover:text-red-500"
+                                                    onClick={() => setData((prev) => prev.filter((d) => d.id !== row.id))}
+                                                >
+                                                    <X className="w-3.5 h-3.5" />
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
                         </div>
                         {totalPages > 1 && (
-                            <div className="p-4 flex items-center justify-between border-t">
-                                <span className="text-sm text-muted-foreground">
-                                    Page {currentPage} / {totalPages}
-                                </span>
-                                <div className="flex gap-2">
+                            <div className="px-3 py-2 border-t border-gray-100 flex items-center justify-between bg-gray-50/40">
+                                <span className="text-[10px] text-gray-400">Page {currentPage} / {totalPages}</span>
+                                <div className="flex gap-1">
                                     <Button
                                         variant="outline"
                                         size="icon"
                                         disabled={currentPage === 1}
                                         onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                                        className="h-7 w-7 rounded-md border-gray-200"
                                     >
-                                        <ChevronLeft className="w-5 h-5" />
+                                        <ChevronLeft className="w-3.5 h-3.5" />
                                     </Button>
                                     <Button
                                         variant="outline"
                                         size="icon"
                                         disabled={currentPage === totalPages}
                                         onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                                        className="h-7 w-7 rounded-md border-gray-200"
                                     >
-                                        <ChevronRight className="w-5 h-5" />
+                                        <ChevronRight className="w-3.5 h-3.5" />
                                     </Button>
                                 </div>
                             </div>

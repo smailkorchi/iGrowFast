@@ -17,18 +17,18 @@ interface DashboardCityStatsProps {
 const TOP_N_PREVIEW = 8;
 
 // Deterministic palette for the top-N proportion bar. Cities beyond TOP_N fall into
-// an "Others" segment.
+// an "Others" segment. Warm Anthropic-inspired neutrals + single orange lead.
 const TOP_COLORS = [
-    '#3b5e5e',
-    '#7a9385',
-    '#6366f1',
-    '#f97316',
-    '#a855f7',
-    '#14b8a6',
-    '#ec4899',
-    '#0ea5e9',
+    '#141413',
+    '#d97757',
+    '#6a9bcc',
+    '#788c5d',
+    '#b0aea5',
+    '#c96356',
+    '#3f3e3a',
+    '#8d8b84',
 ];
-const OTHERS_COLOR = '#d1d5db';
+const OTHERS_COLOR = '#e8e6dc';
 
 export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStatsProps) => {
     const { confirmedIds, deliveredPkgIds } = useStatusCategories();
@@ -180,65 +180,66 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
     const maxCityVolume = Math.max(1, ...metrics.cities.map((c) => c.total));
 
     return (
-        <Card className="border border-gray-100 shadow-none rounded-xl">
-            <CardHeader className="px-3.5 pt-2.5 pb-1.5">
+        <Card className="ant-surface border border-ant-line bg-ant-paper shadow-none rounded-xl">
+            <CardHeader className="px-4 pt-3 pb-2">
                 <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5">
-                        <MapPin className="w-3 h-3 text-gray-400" />
-                        <CardTitle className="text-[12px] font-semibold text-brand-navy">
+                    <div className="flex items-center gap-2">
+                        <span className="w-1 h-1 rounded-full bg-ant-orange" />
+                        <CardTitle className="font-display text-[13px] font-semibold text-ant-ink tracking-tight">
                             Cities
                         </CardTitle>
+                        <MapPin className="hidden" />
                     </div>
-                    <span className="text-[9px] text-gray-400 uppercase tracking-[0.14em] tabular-nums">
+                    <span className="text-[10px] text-ant-mid uppercase tracking-[0.18em] tabular-nums">
                         {metrics.totalCities} cities · {metrics.totalOrders.toLocaleString('fr-MA')} orders
                     </span>
                 </div>
             </CardHeader>
-            <CardContent className="px-3.5 pb-3 pt-0 space-y-2.5">
+            <CardContent className="px-4 pb-4 pt-0 space-y-3">
                 {metrics.totalCities === 0 ? (
-                    <p className="text-[11px] text-gray-400 italic py-8 text-center">
+                    <p className="font-serif-display text-[12px] text-ant-muted italic py-8 text-center">
                         No city-tagged orders in this period
                     </p>
                 ) : (
                     <>
                         {/* Summary chips */}
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                             <SummaryChip
                                 label="Delivered"
                                 value={metrics.totalDelivered.toLocaleString('fr-MA')}
-                                accent="#10b981"
+                                accent="#788c5d"
                             />
                             <SummaryChip
                                 label="Delivery rate"
                                 value={`${metrics.overallRate.toFixed(1)}%`}
                                 accent={
                                     metrics.overallRate >= 50
-                                        ? '#10b981'
+                                        ? '#788c5d'
                                         : metrics.overallRate >= 25
-                                            ? '#f59e0b'
-                                            : '#ef4444'
+                                            ? '#d97757'
+                                            : '#c96356'
                                 }
                             />
                             <SummaryChip
                                 label="Revenue"
                                 value={`${Math.round(metrics.totalRevenue).toLocaleString('fr-MA')}`}
                                 suffix="MAD"
-                                accent="#2563eb"
+                                accent="#6a9bcc"
                             />
                             <SummaryChip
                                 label="Top 8 share"
                                 value={`${metrics.topVolumeShare.toFixed(0)}%`}
-                                accent="#6366f1"
+                                accent="#141413"
                             />
                         </div>
 
                         {/* Concentration bar */}
-                        <div className="space-y-1">
+                        <div className="space-y-1.5">
                             <div className="flex items-baseline justify-between">
-                                <h4 className="text-[9px] font-bold text-gray-500 uppercase tracking-[0.14em]">
+                                <h4 className="text-[10px] font-medium text-ant-mid uppercase tracking-[0.2em]">
                                     Concentration
                                 </h4>
-                                <span className="text-[9px] text-gray-400 tabular-nums">
+                                <span className="text-[10px] text-ant-mid tabular-nums">
                                     by order volume
                                 </span>
                             </div>
@@ -247,7 +248,7 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
                                 total={metrics.totalOrders}
                                 height={6}
                             />
-                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                                 {metrics.concentrationSegments.slice(0, 4).map((seg) => {
                                     const pct = metrics.totalOrders > 0
                                         ? (seg.count / metrics.totalOrders) * 100
@@ -255,23 +256,23 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
                                     return (
                                         <span
                                             key={seg.id}
-                                            className="inline-flex items-center gap-1 text-[9px]"
+                                            className="inline-flex items-center gap-1 text-[10px]"
                                         >
                                             <span
-                                                className="w-1 h-1 rounded-full"
+                                                className="w-1.5 h-1.5 rounded-full"
                                                 style={{ backgroundColor: seg.color }}
                                             />
-                                            <span className="text-gray-600 truncate max-w-[100px]">
+                                            <span className="text-ant-ink truncate max-w-[100px]">
                                                 {seg.label}
                                             </span>
-                                            <span className="text-gray-400 tabular-nums">
+                                            <span className="text-ant-mid tabular-nums">
                                                 {pct.toFixed(0)}%
                                             </span>
                                         </span>
                                     );
                                 })}
                                 {metrics.concentrationSegments.length > 4 && (
-                                    <span className="text-[9px] text-gray-400">
+                                    <span className="text-[10px] text-ant-mid">
                                         +{metrics.concentrationSegments.length - 4} more
                                     </span>
                                 )}
@@ -280,12 +281,12 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
 
                         {/* Problem cities alert */}
                         {metrics.problemCities.length > 0 && (
-                            <div className="flex items-start gap-1.5 px-2.5 py-1.5 rounded-md bg-red-50/40 border border-red-100">
+                            <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-ant-rose/[0.06] border border-ant-rose/25">
                                 <AlertTriangle
-                                    className="w-3 h-3 text-red-500 shrink-0 mt-0.5"
+                                    className="w-3.5 h-3.5 text-ant-rose shrink-0 mt-0.5"
                                     strokeWidth={2.25}
                                 />
-                                <div className="text-[10px] text-red-700 font-medium">
+                                <div className="text-[11px] text-ant-rose font-medium">
                                     Low delivery rate in{' '}
                                     {metrics.problemCities.map((c, i) => {
                                         const rate = c.confirmed > 0
@@ -305,11 +306,11 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
 
                         {/* City list */}
                         <div className="space-y-0">
-                            <div className="flex items-baseline justify-between px-1.5 pb-1">
-                                <h4 className="text-[9px] font-bold text-gray-500 uppercase tracking-[0.14em]">
+                            <div className="flex items-baseline justify-between px-2 pb-1.5">
+                                <h4 className="text-[10px] font-medium text-ant-mid uppercase tracking-[0.2em]">
                                     {showAll ? 'All cities' : 'Top cities'}
                                 </h4>
-                                <span className="text-[8px] text-gray-400 uppercase tracking-[0.12em]">
+                                <span className="text-[9px] text-ant-mid uppercase tracking-[0.16em]">
                                     Rank · City · Volume · Rate · Revenue
                                 </span>
                             </div>
@@ -320,41 +321,41 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
                                 const volumeShare = (c.total / maxCityVolume) * 100;
                                 const rateTone =
                                     deliveryRateNum >= 50
-                                        ? 'text-emerald-600 bg-emerald-50'
+                                        ? 'text-ant-green bg-ant-green/10'
                                         : deliveryRateNum >= 25
-                                            ? 'text-amber-600 bg-amber-50'
-                                            : 'text-red-600 bg-red-50';
+                                            ? 'text-ant-orange bg-ant-orange/10'
+                                            : 'text-ant-rose bg-ant-rose/10';
                                 return (
                                     <div
                                         key={c.name}
-                                        className="grid grid-cols-[18px_minmax(0,1fr)_40px_1fr_44px_72px] items-center gap-1.5 py-1 px-1.5 rounded-md hover:bg-gray-50/60 transition-colors"
+                                        className="grid grid-cols-[22px_minmax(0,1fr)_44px_1fr_48px_78px] items-center gap-2 py-1.5 px-2 rounded-md hover:bg-ant-line-soft transition-colors"
                                     >
-                                        <span className="text-[9px] font-bold text-gray-300 text-right tabular-nums">
+                                        <span className="text-[10px] font-semibold text-ant-mid text-right tabular-nums">
                                             {i + 1}
                                         </span>
-                                        <span className="text-[10px] font-medium text-gray-700 truncate">
+                                        <span className="text-[11px] font-medium text-ant-ink truncate">
                                             {c.name}
                                         </span>
-                                        <span className="text-[10px] font-semibold text-brand-navy tabular-nums text-right">
+                                        <span className="text-[11px] font-semibold text-ant-ink tabular-nums text-right">
                                             {c.total}
                                         </span>
-                                        <div className="h-[3px] rounded-full bg-gray-100 overflow-hidden">
+                                        <div className="h-[3px] rounded-full bg-ant-line overflow-hidden">
                                             <div
-                                                className="h-full rounded-full bg-brand-navy/60"
+                                                className="h-full rounded-full bg-ant-ink/60"
                                                 style={{ width: `${volumeShare}%` }}
                                             />
                                         </div>
                                         <span
                                             className={cn(
-                                                'text-[9px] font-semibold rounded px-1 py-px tabular-nums text-center',
+                                                'text-[9.5px] font-semibold rounded-full px-1.5 py-px tabular-nums text-center',
                                                 rateTone,
                                             )}
                                         >
                                             {deliveryRateNum.toFixed(0)}%
                                         </span>
-                                        <span className="text-[9px] text-gray-400 tabular-nums text-right">
+                                        <span className="text-[10px] text-ant-mid tabular-nums text-right">
                                             {Math.round(c.revenue).toLocaleString('fr-MA')}{' '}
-                                            <span className="text-[8px]">MAD</span>
+                                            <span className="text-[9px]">MAD</span>
                                         </span>
                                     </div>
                                 );
@@ -363,13 +364,13 @@ export const DashboardCityStats = ({ businessId, dateFilter }: DashboardCityStat
                                 <button
                                     type="button"
                                     onClick={() => setShowAll((v) => !v)}
-                                    className="w-full flex items-center justify-center gap-1 py-1 text-[10px] font-semibold text-gray-500 hover:text-brand-navy hover:bg-gray-50 rounded-md transition-colors"
+                                    className="w-full flex items-center justify-center gap-1.5 py-2 text-[11px] font-semibold text-ant-ink hover:text-ant-orange hover:bg-ant-line-soft rounded-md transition-colors"
                                 >
                                     {showAll
                                         ? 'Show top 10 only'
                                         : `Show all ${metrics.totalCities} cities`}
                                     <ChevronRight
-                                        className={cn('w-2.5 h-2.5 transition-transform', showAll && 'rotate-90')}
+                                        className={cn('w-3 h-3 transition-transform', showAll && 'rotate-90')}
                                     />
                                 </button>
                             )}
@@ -393,20 +394,20 @@ function SummaryChip({
     accent: string;
 }) {
     return (
-        <div className="rounded-lg border border-gray-100 px-2.5 py-1.5">
-            <div className="flex items-center gap-1">
+        <div className="rounded-lg border border-ant-line px-3 py-2">
+            <div className="flex items-center gap-1.5">
                 <span
                     className="w-1 h-1 rounded-full"
                     style={{ backgroundColor: accent }}
                     aria-hidden
                 />
-                <span className="text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">
+                <span className="text-[9.5px] uppercase tracking-[0.18em] font-medium text-ant-mid">
                     {label}
                 </span>
             </div>
-            <div className="text-[13px] font-semibold text-brand-navy tabular-nums mt-0.5 leading-none">
+            <div className="font-display text-[16px] font-semibold text-ant-ink tabular-nums mt-1 leading-none tracking-[-0.02em]">
                 {value}
-                {suffix && <span className="text-[8px] text-gray-400 font-medium ml-1">{suffix}</span>}
+                {suffix && <span className="text-[9px] text-ant-mid font-medium ml-1">{suffix}</span>}
             </div>
         </div>
     );

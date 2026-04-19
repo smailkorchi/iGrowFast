@@ -4,24 +4,20 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { format, parseISO } from 'date-fns';
-import { motion } from 'framer-motion';
 import { useDropzone } from 'react-dropzone';
 import {
-  LayoutDashboard,
   Building2,
-  Calendar,
-  CreditCard,
-  Shield,
-  Sparkles,
   Loader2,
   Upload,
   PenLine,
   Stamp,
   Save,
   FileImage,
+  Shield,
+  Calendar,
+  CreditCard,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -65,7 +61,6 @@ const profileSchema = z.object({
     .nullable()
     .refine((v) => {
       if (!v || v === '') return true;
-      // Accept domain-only entries (e.g. "acme.ma") by prepending https:// before validation.
       const candidate = /^https?:\/\//i.test(v) ? v : `https://${v}`;
       return z.string().url().safeParse(candidate).success;
     }, { message: 'URL invalide' }),
@@ -122,10 +117,10 @@ function formatLicenseLabel(type: string) {
   return type.replace(/_/g, ' ');
 }
 
-const statusStyles: Record<string, string> = {
-  active: 'bg-emerald-50 text-emerald-800 border-emerald-100',
-  deactivated: 'bg-red-50 text-red-800 border-red-100',
-  suspended: 'bg-amber-50 text-amber-900 border-amber-100',
+const statusAccent: Record<string, string> = {
+  active: '#059669',
+  deactivated: '#ef4444',
+  suspended: '#d97706',
 };
 
 // @react-pdf/renderer's <Image> component only accepts raster formats (PNG / JPEG).
@@ -309,7 +304,7 @@ const BusinessOverview = () => {
       {
         label: 'Billing',
         value: business.paid ? 'Paid' : 'Unpaid',
-        valueClass: business.paid ? 'text-emerald-700' : undefined,
+        paid: business.paid,
       },
       {
         label: 'Member since',
@@ -330,7 +325,7 @@ const BusinessOverview = () => {
     try {
       const url = await uploadBrandingAsset(activeBusinessId, kind, file);
       setValue(url);
-      toast({ title: 'Fichier envoyé', description: 'N’oubliez pas d’enregistrer.' });
+      toast({ title: 'Fichier envoyé', description: "N'oubliez pas d'enregistrer." });
     } catch (e) {
       toast({ title: 'Échec envoi', description: (e as Error).message, variant: 'destructive' });
     } finally {
@@ -373,25 +368,23 @@ const BusinessOverview = () => {
 
   if (!activeBusinessId) {
     return (
-      <div className="space-y-8 pb-8">
-        <HeaderShell />
-        <Card className="border-0 shadow-sm rounded-3xl bg-white">
-          <CardContent className="p-12 text-center">
-            <p className="text-sm text-gray-400 font-light">No active business selected.</p>
-          </CardContent>
-        </Card>
+      <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+        <OverviewHeader />
+        <div className="rounded-xl border border-gray-100 bg-white p-12 text-center">
+          <p className="text-[11px] text-gray-400">No active business selected.</p>
+        </div>
       </div>
     );
   }
 
   if (isLoading) {
     return (
-      <div className="space-y-8 pb-8">
-        <HeaderShell />
-        <div className="grid gap-5 lg:grid-cols-3">
-          <Skeleton className="h-64 rounded-3xl lg:col-span-2" />
-          <Skeleton className="h-64 rounded-3xl" />
-          <Skeleton className="h-96 rounded-3xl lg:col-span-3" />
+      <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+        <OverviewHeader />
+        <div className="grid gap-3 lg:grid-cols-3">
+          <Skeleton className="h-56 rounded-xl lg:col-span-2" />
+          <Skeleton className="h-56 rounded-xl" />
+          <Skeleton className="h-80 rounded-xl lg:col-span-3" />
         </div>
       </div>
     );
@@ -399,19 +392,14 @@ const BusinessOverview = () => {
 
   if (isError || !business) {
     return (
-      <div className="space-y-8 pb-8">
-        <HeaderShell />
-        <Card className="border-0 shadow-sm rounded-3xl bg-white">
-          <CardContent className="p-12 text-center">
-            <p className="text-sm text-gray-500 font-light">Could not load business details.</p>
-          </CardContent>
-        </Card>
+      <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+        <OverviewHeader />
+        <div className="rounded-xl border border-gray-100 bg-white p-12 text-center">
+          <p className="text-[11px] text-gray-500">Could not load business details.</p>
+        </div>
       </div>
     );
   }
-
-  const statusClass =
-    statusStyles[business.status] ?? 'bg-gray-50 text-gray-700 border-gray-100';
 
   const logoPreview = form.watch('logo');
   const cachetPreview = form.watch('cachet_url');
@@ -419,553 +407,365 @@ const BusinessOverview = () => {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit((v) => saveMutation.mutate(v))} className="space-y-8 pb-8">
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, ease: [0.23, 1, 0.32, 1] }}
-          className="relative"
-        >
-          <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-primary/[0.03] rounded-3xl" />
-          <div className="relative p-6 sm:p-8 flex flex-col xl:flex-row xl:items-end justify-between gap-8">
-            <div className="flex-1 min-w-0 space-y-4">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 mb-2">Overview</p>
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem className="space-y-1">
-                      <FormControl>
-                        <Input
-                          {...field}
-                          className="text-2xl sm:text-3xl font-extralight h-auto py-2 border-0 border-b border-transparent focus-visible:ring-0 focus-visible:border-gray-200 rounded-none px-0 bg-transparent"
-                          placeholder="Raison sociale"
-                        />
-                      </FormControl>
-                      <FormMessage className="text-xs" />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge
-                  variant="outline"
-                  className={cn('rounded-full text-[10px] font-bold uppercase tracking-wide border', statusClass)}
+      <form onSubmit={form.handleSubmit((v) => saveMutation.mutate(v))} className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+
+        {/* Header */}
+        <header className="space-y-2.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Overview</h1>
+              <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Business profile & legal identity</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span
+                  className="h-5 px-1.5 inline-flex items-center rounded text-[9px] font-semibold"
+                  style={{
+                    background: `${statusAccent[business.status] ?? '#9ca3af'}18`,
+                    color: statusAccent[business.status] ?? '#9ca3af',
+                  }}
                 >
                   {business.status}
-                </Badge>
-                <Badge
-                  variant="outline"
-                  className={cn(
-                    'rounded-full text-[10px] font-bold uppercase tracking-wide border',
-                    business.active
-                      ? 'bg-slate-50 text-slate-700 border-slate-100'
-                      : 'bg-gray-100 text-gray-500 border-gray-100'
-                  )}
-                >
-                  {business.active ? 'Active account' : 'Inactive account'}
-                </Badge>
+                </span>
+                <span className={cn(
+                  'h-5 px-1.5 inline-flex items-center rounded text-[9px] font-semibold',
+                  business.active ? 'bg-gray-100 text-brand-navy/70' : 'bg-gray-100 text-gray-500'
+                )}>
+                  {business.active ? 'Active' : 'Inactive'}
+                </span>
               </div>
-            </div>
-            <div className="flex items-center gap-3 shrink-0">
               <Button
                 type="submit"
                 disabled={saveMutation.isPending || !form.formState.isDirty}
-                className="rounded-2xl h-11 px-6 font-bold gap-2 shadow-sm"
+                className="h-8 rounded-md text-[11px] font-semibold gap-1.5 px-3"
               >
                 {saveMutation.isPending ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <Loader2 className="w-3 h-3 animate-spin" />
                 ) : (
-                  <Save className="w-4 h-4" />
+                  <Save className="w-3 h-3" />
                 )}
                 Enregistrer
               </Button>
-              <LayoutDashboard className="w-9 h-9 text-primary/15 hidden sm:block" />
             </div>
           </div>
-        </motion.div>
+        </header>
 
-        <div className="grid gap-5 lg:grid-cols-12 items-start">
-          <motion.div
-            className="lg:col-span-4 space-y-5"
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.06, duration: 0.45 }}
-          >
-            <Card className="border-0 shadow-sm rounded-3xl bg-white overflow-hidden">
-              <CardContent className="p-0">
-                <div className="px-6 py-5 border-b border-gray-50 flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-primary/70" />
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Subscription</span>
-                </div>
-                <dl className="divide-y divide-gray-50">
-                  {meta.map((row) => (
-                    <div
-                      key={row.label}
-                      className="px-6 py-4 flex flex-col gap-1"
-                    >
-                      <dt className="text-[10px] font-bold uppercase tracking-wider text-gray-400">{row.label}</dt>
-                      <dd className="text-sm font-medium text-gray-900">
-                        <span className={cn('inline-flex flex-col', 'valueClass' in row && row.valueClass)}>
-                          {row.value}
-                          {'sub' in row && row.sub ? (
-                            <span className="text-xs font-normal text-gray-400 mt-0.5">{row.sub}</span>
-                          ) : null}
-                        </span>
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-              </CardContent>
-            </Card>
+        <div className="grid gap-3 lg:grid-cols-12 items-start">
+          {/* Left column: subscription + business name */}
+          <div className="lg:col-span-4 space-y-3">
 
-            <Card className="border-0 shadow-sm rounded-3xl bg-gradient-to-br from-slate-900/[0.02] to-transparent">
-              <CardContent className="p-6">
-                <Calendar className="w-5 h-5 text-primary/45 mb-3" />
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Last updated</p>
-                <p className="text-lg font-light text-gray-900">
-                  {business.updated_at ? format(parseISO(business.updated_at), 'MMM d, yyyy · HH:mm') : '—'}
-                </p>
-                {business.plan?.description && (
-                  <p className="text-xs text-gray-500 font-light leading-relaxed mt-5 line-clamp-5">
-                    {business.plan.description}
-                  </p>
+            {/* Business name */}
+            <div className="rounded-xl border border-gray-100 bg-white p-3.5 space-y-2">
+              <div className="flex items-center gap-1.5 border-b border-gray-100 pb-2.5">
+                <Building2 className="w-3 h-3 text-gray-400" />
+                <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Business Name</p>
+              </div>
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem className="space-y-1">
+                    <FormControl>
+                      <Input
+                        {...field}
+                        className="h-8 rounded-md border-gray-200 text-[13px] font-semibold text-brand-navy"
+                        placeholder="Raison sociale"
+                      />
+                    </FormControl>
+                    <FormMessage className="text-[10px]" />
+                  </FormItem>
                 )}
-              </CardContent>
-            </Card>
+              />
+            </div>
 
-            <Card className="border-0 shadow-sm rounded-3xl bg-white">
-              <CardContent className="p-6">
-                <CreditCard className="w-5 h-5 text-primary/45 mb-3" />
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Workspace</p>
-                <p className="text-sm text-gray-600 font-light leading-relaxed">
-                  Les champs juridiques servent aux documents et à la conformité. Le plan et la facturation restent gérés par la plateforme.
+            {/* Subscription */}
+            <div className="rounded-xl border border-gray-100 bg-white overflow-hidden">
+              <div className="px-3.5 py-2.5 border-b border-gray-100 flex items-center gap-1.5">
+                <Shield className="w-3 h-3 text-gray-400" />
+                <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Subscription</p>
+              </div>
+              <dl className="divide-y divide-gray-100">
+                {meta.map((row) => (
+                  <div key={row.label} className="px-3.5 py-2.5 flex items-start justify-between gap-3">
+                    <dt className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400 mt-0.5 shrink-0">{row.label}</dt>
+                    <dd className="text-[11px] font-semibold text-brand-navy text-right">
+                      {'paid' in row ? (
+                        <span style={{ color: row.paid ? '#059669' : '#ef4444' }}>{row.value}</span>
+                      ) : (
+                        <span>{row.value}</span>
+                      )}
+                      {'sub' in row && row.sub ? (
+                        <span className="block text-[9px] font-normal text-gray-400 mt-0.5">{row.sub}</span>
+                      ) : null}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+
+            {/* Last updated */}
+            <div className="rounded-xl border border-gray-100 bg-white p-3.5 space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <Calendar className="w-3 h-3 text-gray-400" />
+                <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Last Updated</p>
+              </div>
+              <p className="text-[12px] font-semibold text-brand-navy">
+                {business.updated_at ? format(parseISO(business.updated_at), 'MMM d, yyyy · HH:mm') : '—'}
+              </p>
+              {business.plan?.description && (
+                <p className="text-[10px] text-gray-400 leading-relaxed mt-2 line-clamp-4">
+                  {business.plan.description}
                 </p>
-              </CardContent>
-            </Card>
-          </motion.div>
+              )}
+            </div>
 
-          <motion.div
-            className="lg:col-span-8 space-y-5"
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1, duration: 0.45 }}
-          >
-            <Card className="border-0 shadow-sm rounded-3xl bg-white overflow-hidden">
-              <CardContent className="p-0">
-                <div className="px-6 py-5 border-b border-gray-50 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-primary/70" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                      Identité légale (Maroc)
-                    </span>
-                  </div>
-                  <Sparkles className="w-4 h-4 text-amber-400/80" />
+            <div className="rounded-xl border border-gray-100 bg-white p-3.5 space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <CreditCard className="w-3 h-3 text-gray-400" />
+                <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Workspace</p>
+              </div>
+              <p className="text-[10px] text-gray-500 leading-relaxed">
+                Les champs juridiques servent aux documents et à la conformité. Le plan et la facturation restent gérés par la plateforme.
+              </p>
+            </div>
+          </div>
+
+          {/* Right column: legal identity + branding */}
+          <div className="lg:col-span-8 space-y-3">
+
+            {/* Legal identity */}
+            <div className="rounded-xl border border-gray-100 bg-white overflow-hidden">
+              <div className="px-3.5 py-2.5 border-b border-gray-100 flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Building2 className="w-3 h-3 text-gray-400" />
+                  <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Identité légale (Maroc)</p>
                 </div>
-                <div className="p-6 sm:p-8 space-y-6">
-                  <div className="grid sm:grid-cols-2 gap-5">
+              </div>
+              <div className="p-3.5 space-y-3">
+                <div className="grid sm:grid-cols-2 gap-3">
+                  {[
+                    { name: 'ice' as const, label: 'ICE', placeholder: 'Identifiant Commun de l\'Entreprise' },
+                    { name: 'rc' as const, label: 'RC', placeholder: 'Registre de Commerce' },
+                    { name: 'identifiant_fiscal' as const, label: 'IF · Identifiant fiscal', placeholder: 'IF' },
+                    { name: 'patente' as const, label: 'Patente', placeholder: 'Numéro de patente' },
+                    { name: 'cnss' as const, label: 'CNSS', placeholder: 'Affiliation / numéro CNSS' },
+                    { name: 'legal_form' as const, label: 'Forme juridique', placeholder: 'SARL, SARLAU, SA…' },
+                  ].map(f => (
                     <FormField
+                      key={f.name}
                       control={form.control}
-                      name="ice"
+                      name={f.name}
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                            ICE
-                          </FormLabel>
+                          <FormLabel className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{f.label}</FormLabel>
                           <FormControl>
                             <Input
                               {...field}
                               value={field.value ?? ''}
-                              placeholder="Identifiant Commun de l’Entreprise"
-                              className="h-11 rounded-2xl border-gray-100 bg-gray-50/50 focus:bg-white transition-colors"
+                              placeholder={f.placeholder}
+                              className="h-8 rounded-md border-gray-200 text-[11px]"
                             />
                           </FormControl>
-                          <FormMessage />
+                          <FormMessage className="text-[10px]" />
                         </FormItem>
                       )}
                     />
-                    <FormField
-                      control={form.control}
-                      name="rc"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                            RC
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              {...field}
-                              value={field.value ?? ''}
-                              placeholder="Registre de Commerce"
-                              className="h-11 rounded-2xl border-gray-100 bg-gray-50/50"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="identifiant_fiscal"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                            IF · Identifiant fiscal
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              {...field}
-                              value={field.value ?? ''}
-                              placeholder="IF"
-                              className="h-11 rounded-2xl border-gray-100 bg-gray-50/50"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="patente"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                            Patente
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              {...field}
-                              value={field.value ?? ''}
-                              placeholder="Numéro de patente"
-                              className="h-11 rounded-2xl border-gray-100 bg-gray-50/50"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="cnss"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                            CNSS
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              {...field}
-                              value={field.value ?? ''}
-                              placeholder="Affiliation / numéro CNSS"
-                              className="h-11 rounded-2xl border-gray-100 bg-gray-50/50"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="legal_form"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                            Forme juridique
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              {...field}
-                              value={field.value ?? ''}
-                              placeholder="SARL, SARLAU, SA…"
-                              className="h-11 rounded-2xl border-gray-100 bg-gray-50/50"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="capital_social"
-                      render={({ field }) => (
-                        <FormItem className="sm:col-span-2">
-                          <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                            Capital social
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              {...field}
-                              value={field.value ?? ''}
-                              placeholder="Ex. 100 000 DH"
-                              className="h-11 rounded-2xl border-gray-100 bg-gray-50/50"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
+                  ))}
+                  <FormField
+                    control={form.control}
+                    name="capital_social"
+                    render={({ field }) => (
+                      <FormItem className="sm:col-span-2">
+                        <FormLabel className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Capital social</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            value={field.value ?? ''}
+                            placeholder="Ex. 100 000 DH"
+                            className="h-8 rounded-md border-gray-200 text-[11px]"
+                          />
+                        </FormControl>
+                        <FormMessage className="text-[10px]" />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="border-t border-gray-100 pt-3">
                   <FormField
                     control={form.control}
                     name="legal_address"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                          Siège social · Adresse
-                        </FormLabel>
+                        <FormLabel className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Siège social · Adresse</FormLabel>
                         <FormControl>
                           <Textarea
                             {...field}
                             value={field.value ?? ''}
-                            rows={3}
+                            rows={2}
                             placeholder="Adresse complète"
-                            className="rounded-2xl border-gray-100 bg-gray-50/50 resize-none min-h-[88px]"
+                            className="rounded-md border-gray-200 text-[11px] resize-none min-h-[64px]"
                           />
                         </FormControl>
-                        <FormMessage />
+                        <FormMessage className="text-[10px]" />
                       </FormItem>
                     )}
                   />
-                  <div className="grid sm:grid-cols-3 gap-5">
-                    <FormField
-                      control={form.control}
-                      name="legal_city"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                            Ville
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              {...field}
-                              value={field.value ?? ''}
-                              className="h-11 rounded-2xl border-gray-100 bg-gray-50/50"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="postal_code"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                            Code postal
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              {...field}
-                              value={field.value ?? ''}
-                              placeholder="20000"
-                              className="h-11 rounded-2xl border-gray-100 bg-gray-50/50"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="business_phone"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                            Téléphone
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              {...field}
-                              value={field.value ?? ''}
-                              placeholder="+212…"
-                              className="h-11 rounded-2xl border-gray-100 bg-gray-50/50"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="business_email"
-                      render={({ field }) => (
-                        <FormItem className="sm:col-span-2">
-                          <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                            Email entreprise
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              {...field}
-                              value={field.value ?? ''}
-                              type="email"
-                              className="h-11 rounded-2xl border-gray-100 bg-gray-50/50"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="website"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                            Site web
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              {...field}
-                              value={field.value ?? ''}
-                              placeholder="https://acme.ma"
-                              className="h-11 rounded-2xl border-gray-100 bg-gray-50/50"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
                 </div>
-              </CardContent>
-            </Card>
 
-            <Card className="border-0 shadow-sm rounded-3xl bg-white overflow-hidden">
-              <CardContent className="p-0">
-                <div className="px-6 py-5 border-b border-gray-50 flex items-center gap-2">
-                  <FileImage className="w-4 h-4 text-primary/70" />
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                    Logo, cachet & signature
-                  </span>
+                <div className="grid sm:grid-cols-3 gap-3 border-t border-gray-100 pt-3">
+                  {[
+                    { name: 'legal_city' as const, label: 'Ville', placeholder: '' },
+                    { name: 'postal_code' as const, label: 'Code postal', placeholder: '20000' },
+                    { name: 'business_phone' as const, label: 'Téléphone', placeholder: '+212…' },
+                  ].map(f => (
+                    <FormField
+                      key={f.name}
+                      control={form.control}
+                      name={f.name}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{f.label}</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              value={field.value ?? ''}
+                              placeholder={f.placeholder}
+                              className="h-8 rounded-md border-gray-200 text-[11px]"
+                            />
+                          </FormControl>
+                          <FormMessage className="text-[10px]" />
+                        </FormItem>
+                      )}
+                    />
+                  ))}
+                  <FormField
+                    control={form.control}
+                    name="business_email"
+                    render={({ field }) => (
+                      <FormItem className="sm:col-span-2">
+                        <FormLabel className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Email entreprise</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            value={field.value ?? ''}
+                            type="email"
+                            className="h-8 rounded-md border-gray-200 text-[11px]"
+                          />
+                        </FormControl>
+                        <FormMessage className="text-[10px]" />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="website"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Site web</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            value={field.value ?? ''}
+                            placeholder="https://acme.ma"
+                            className="h-8 rounded-md border-gray-200 text-[11px]"
+                          />
+                        </FormControl>
+                        <FormMessage className="text-[10px]" />
+                      </FormItem>
+                    )}
+                  />
                 </div>
-                <div className="p-6 sm:p-8 grid grid-cols-1 md:grid-cols-3 gap-5">
+              </div>
+            </div>
+
+            {/* Branding assets */}
+            <div className="rounded-xl border border-gray-100 bg-white overflow-hidden">
+              <div className="px-3.5 py-2.5 border-b border-gray-100 flex items-center gap-1.5">
+                <FileImage className="w-3 h-3 text-gray-400" />
+                <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Logo, cachet & signature</p>
+              </div>
+              <div className="p-3.5 grid grid-cols-1 md:grid-cols-3 gap-3">
+                {[
+                  {
+                    dropzone: logoDrop,
+                    kind: 'logo' as const,
+                    label: 'Logo',
+                    hint: 'Carré ou paysage · PNG / JPG / WebP',
+                    icon: Building2,
+                    preview: logoPreview,
+                  },
+                  {
+                    dropzone: cachetDrop,
+                    kind: 'cachet' as const,
+                    label: 'Cachet',
+                    hint: 'PNG / JPG recommandé · fond transparent idéal',
+                    icon: Stamp,
+                    preview: cachetPreview,
+                  },
+                  {
+                    dropzone: signatureDrop,
+                    kind: 'signature' as const,
+                    label: 'Signature',
+                    hint: 'Scan ou image propre du signataire',
+                    icon: PenLine,
+                    preview: signaturePreview,
+                  },
+                ].map(({ dropzone, kind, label, hint, icon: Icon, preview }) => (
                   <div
-                    {...logoDrop.getRootProps()}
+                    key={kind}
+                    {...dropzone.getRootProps()}
                     className={cn(
-                      'relative rounded-2xl border-2 border-dashed min-h-[200px] transition-all cursor-pointer',
-                      logoDrop.isDragActive ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-primary/25 bg-gray-50/30'
+                      'relative rounded-xl border-2 border-dashed min-h-[160px] transition-all cursor-pointer',
+                      dropzone.isDragActive ? 'border-brand-navy bg-brand-navy/5' : 'border-gray-200 hover:border-gray-300 bg-gray-50/30'
                     )}
                   >
-                    <input {...logoDrop.getInputProps()} />
-                    {uploadKind === 'logo' ? (
-                      <div className="absolute inset-0 flex items-center justify-center bg-white/90 z-10 rounded-2xl">
-                        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                    <input {...dropzone.getInputProps()} />
+                    {uploadKind === kind ? (
+                      <div className="absolute inset-0 flex items-center justify-center bg-white/90 z-10 rounded-xl">
+                        <Loader2 className="w-5 h-5 animate-spin text-brand-navy/40" />
                       </div>
                     ) : null}
-                    <div className="p-5 h-full flex flex-col">
-                      <div className="flex items-center gap-2 mb-4">
-                        <Building2 className="w-5 h-5 text-primary/60" />
+                    <div className="p-3 h-full flex flex-col">
+                      <div className="flex items-center gap-1.5 mb-3">
+                        <Icon className="w-3 h-3 text-gray-400" />
                         <div>
-                          <p className="text-[11px] font-bold uppercase tracking-wider">Logo</p>
-                          <p className="text-[10px] text-gray-400 font-light">Carré ou paysage · PNG / JPG / WebP</p>
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-brand-navy">{label}</p>
+                          <p className="text-[9px] text-gray-400">{hint}</p>
                         </div>
                       </div>
-                      {logoPreview ? (
-                        <div className="flex-1 flex items-center justify-center rounded-xl bg-white border border-gray-100 p-4">
-                          <img src={logoPreview} alt="" className="max-h-40 w-full object-contain" />
+                      {preview ? (
+                        <div className="flex-1 flex items-center justify-center rounded-lg bg-white border border-gray-100 p-3">
+                          <img src={preview} alt="" className="max-h-28 w-full object-contain" />
                         </div>
                       ) : (
-                        <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-2">
-                          <Upload className="w-8 h-8 opacity-35" />
-                          <span className="text-xs font-medium">Glisser-déposer ou cliquer</span>
+                        <div className="flex-1 flex flex-col items-center justify-center text-gray-300 gap-1.5">
+                          <Upload className="w-6 h-6" />
+                          <span className="text-[9px] font-medium text-gray-400">Glisser-déposer ou cliquer</span>
                         </div>
                       )}
                     </div>
                   </div>
-                  <div
-                    {...cachetDrop.getRootProps()}
-                    className={cn(
-                      'relative rounded-2xl border-2 border-dashed min-h-[200px] transition-all cursor-pointer',
-                      cachetDrop.isDragActive ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-primary/25 bg-gray-50/30'
-                    )}
-                  >
-                    <input {...cachetDrop.getInputProps()} />
-                    {uploadKind === 'cachet' ? (
-                      <div className="absolute inset-0 flex items-center justify-center bg-white/90 z-10 rounded-2xl">
-                        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                      </div>
-                    ) : null}
-                    <div className="p-5 h-full flex flex-col">
-                      <div className="flex items-center gap-2 mb-4">
-                        <Stamp className="w-5 h-5 text-primary/60" />
-                        <div>
-                          <p className="text-[11px] font-bold uppercase tracking-wider">Cachet</p>
-                          <p className="text-[10px] text-gray-400 font-light">PNG / JPG recommandé · fond transparent idéal</p>
-                        </div>
-                      </div>
-                      {cachetPreview ? (
-                        <div className="flex-1 flex items-center justify-center rounded-xl bg-white border border-gray-100 p-4">
-                          <img src={cachetPreview} alt="" className="max-h-40 w-full object-contain" />
-                        </div>
-                      ) : (
-                        <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-2">
-                          <Upload className="w-8 h-8 opacity-35" />
-                          <span className="text-xs font-medium">Glisser-déposer ou cliquer</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div
-                    {...signatureDrop.getRootProps()}
-                    className={cn(
-                      'relative rounded-2xl border-2 border-dashed min-h-[200px] transition-all cursor-pointer',
-                      signatureDrop.isDragActive ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-primary/25 bg-gray-50/30'
-                    )}
-                  >
-                    <input {...signatureDrop.getInputProps()} />
-                    {uploadKind === 'signature' ? (
-                      <div className="absolute inset-0 flex items-center justify-center bg-white/90 z-10 rounded-2xl">
-                        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                      </div>
-                    ) : null}
-                    <div className="p-5 h-full flex flex-col">
-                      <div className="flex items-center gap-2 mb-4">
-                        <PenLine className="w-5 h-5 text-primary/60" />
-                        <div>
-                          <p className="text-[11px] font-bold uppercase tracking-wider">Signature</p>
-                          <p className="text-[10px] text-gray-400 font-light">Scan ou image propre du signataire</p>
-                        </div>
-                      </div>
-                      {signaturePreview ? (
-                        <div className="flex-1 flex items-center justify-center rounded-xl bg-white border border-gray-100 p-4">
-                          <img src={signaturePreview} alt="" className="max-h-40 w-full object-contain" />
-                        </div>
-                      ) : (
-                        <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-2">
-                          <Upload className="w-8 h-8 opacity-35" />
-                          <span className="text-xs font-medium">Glisser-déposer ou cliquer</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </form>
     </Form>
   );
 };
 
-function HeaderShell() {
+function OverviewHeader() {
   return (
-    <div className="relative">
-      <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-      <div className="relative p-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Overview</h1>
-            <p className="text-gray-500 font-light">Business overview and settings</p>
-          </div>
-          <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-primary/10 items-center justify-center">
-            <LayoutDashboard className="w-6 h-6 text-primary" />
-          </div>
+    <header className="space-y-2.5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div>
+          <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Overview</h1>
+          <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Business profile & legal identity</p>
         </div>
       </div>
-    </div>
+    </header>
   );
 }
 

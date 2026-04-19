@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import {
@@ -11,12 +10,8 @@ import {
     type CommissionBasis,
 } from '@/lib/commercialCommission';
 import {
-    ShoppingCart, DollarSign, Clock, Package, ArrowUpRight,
-    CheckCircle, ChevronRight, Truck, Eye,
-    Receipt, Target, Zap, ShieldCheck, CalendarDays,
-    BarChart3, MessageSquare, HeartPulse, Trophy, Star
+    ShoppingCart, Eye, ChevronRight, Truck, Receipt
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
@@ -68,16 +63,6 @@ interface TopProduct {
     successRate: number;
 }
 
-
-
-// --- Helper: Time-aware Greeting ---
-const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good Morning';
-    if (hour < 18) return 'Good Afternoon';
-    return 'Good Evening';
-};
-
 const SellerDashboard = () => {
     const navigate = useNavigate();
     const statusCats = useStatusCategories();
@@ -124,10 +109,7 @@ const SellerDashboard = () => {
                     },
                     { onConflict: 'seller_id, date' }
                 );
-
-            if (error) {
-                console.error('Error logging presence:', error);
-            }
+            if (error) console.error('Error logging presence:', error);
         } catch (err) {
             console.error('Unexpected error during presence logging:', err);
         }
@@ -141,7 +123,6 @@ const SellerDashboard = () => {
                 .select('*')
                 .eq('id', session.user.id)
                 .single();
-
             if (profile) {
                 setUserProfile(profile as UserProfile);
                 logPresence(session.user.id, profile["DigiCom Business"]);
@@ -155,11 +136,9 @@ const SellerDashboard = () => {
             if (!session) return;
 
             const userId = session.user.id;
-
             const today = new Date();
             today.setHours(0, 0, 0, 0);
 
-            // Get seller config
             const { data: sellerData } = await supabase
                 .from('users')
                 .select('products, commission_price, commission_basis, "DigiCom Business"')
@@ -173,8 +152,6 @@ const SellerDashboard = () => {
             const commissionBasis = normalizeCommissionBasis(sellerData?.commission_basis as string | null | undefined);
             const sellerBusinessId = (sellerData as { 'DigiCom Business'?: string | null } | null)?.['DigiCom Business'] ?? null;
 
-            // Get orders attributed to this seller, scoped to their business so multi-business
-            // sellers don't see cross-business data inflating their KPIs.
             let ordersQuery = supabase
                 .from('orders')
                 .select('id, price, created_at, updated_at, date_livraison, name, order_status_id, package_status_id, package_status_label, order_statuses(code), package_statuses(label), order_items(product_id, quantity, products(name, image_url))')
@@ -198,7 +175,6 @@ const SellerDashboard = () => {
             const isOrderConfirmed = (o: any) => isConfirmed(o, statusCats.confirmedIds);
 
             const todayOrders = orders.filter(o => new Date(o.created_at) >= today);
-
             const now = new Date();
             const deliveredToday = orders.filter(o =>
                 isDeliveredOnLocalDay(o, statusCats.deliveredPkgIds, now),
@@ -208,8 +184,7 @@ const SellerDashboard = () => {
             const confirmed = orders.filter(o => isOrderConfirmed(o)).length;
             const successRate = orders.length > 0 ? (delivered / orders.length) * 100 : 0;
             const confirmRate = orders.length > 0 ? (confirmed / orders.length) * 100 : 0;
-            
-            // Get already paid deliveries from seller_payments
+
             const { data: paymentsData } = await supabase
                 .from('seller_payments')
                 .select('delivered_orders, status')
@@ -243,7 +218,6 @@ const SellerDashboard = () => {
                 commissionBasis,
             });
 
-            // Recent orders with product images
             setRecentOrders(orders.slice(0, 10).map(o => {
                 const orderItem = (o.order_items as any)?.[0];
                 const product = orderItem?.products;
@@ -259,7 +233,6 @@ const SellerDashboard = () => {
                 };
             }));
 
-            // Top Product calculation
             const productMap: Record<string, { name: string; image: string | null; delivered: number; total: number; revenue: number }> = {};
             orders.forEach((o: any) => {
                 const item = o.order_items?.[0];
@@ -285,7 +258,6 @@ const SellerDashboard = () => {
                     successRate: topProd.total > 0 ? (topProd.delivered / topProd.total) * 100 : 0,
                 });
             }
-
         } catch (error) {
             console.error('Error fetching seller data:', error);
         } finally {
@@ -293,514 +265,299 @@ const SellerDashboard = () => {
         }
     };
 
-    const getUserName = () => {
-        return userProfile?.name || userProfile?.email?.split('@')[0] || 'Seller';
-    };
-
     const getStatusStyle = (statusId: string) => {
         const hex = statusCats.getOrderStatusColor(statusId);
         return { backgroundColor: `${hex}20`, color: hex };
     };
 
-    // Group recent orders by day
     const groupedOrders = recentOrders.reduce<{ label: string; orders: RecentOrder[] }[]>((acc, order) => {
         const date = new Date(order.created_at);
         let label = format(date, 'MMM d, yyyy');
         if (isToday(date)) label = 'Today';
         else if (isYesterday(date)) label = 'Yesterday';
-
         const existing = acc.find(g => g.label === label);
-        if (existing) {
-            existing.orders.push(order);
-        } else {
-            acc.push({ label, orders: [order] });
-        }
+        if (existing) existing.orders.push(order);
+        else acc.push({ label, orders: [order] });
         return acc;
     }, []);
 
-    // SVG Gauge Component
-    const SuccessGauge = ({ value, size = 140 }: { value: number; size?: number }) => {
-        const strokeWidth = 10;
-        const radius = (size - strokeWidth) / 2;
-        const circumference = 2 * Math.PI * radius;
-        const progress = (value / 100) * circumference;
-        const color = value > 70 ? '#10B981' : value > 50 ? '#F59E0B' : '#EF4444';
-
-        return (
-            <div className="relative" style={{ width: size, height: size }}>
-                <svg width={size} height={size} className="-rotate-90">
-                    <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#F3F4F6" strokeWidth={strokeWidth} />
-                    <motion.circle
-                        cx={size / 2} cy={size / 2} r={radius}
-                        fill="none" stroke={color} strokeWidth={strokeWidth}
-                        strokeLinecap="round"
-                        strokeDasharray={circumference}
-                        initial={{ strokeDashoffset: circumference }}
-                        animate={{ strokeDashoffset: circumference - progress }}
-                        transition={{ duration: 1.5, ease: "easeOut" }}
-                    />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-2xl font-light text-gray-900">{value.toFixed(0)}%</span>
-                    <span className="text-[9px] uppercase tracking-widest font-bold text-gray-400">Success</span>
-                </div>
-            </div>
-        );
-    };
-
     return (
-        <>
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+            {/* Header */}
+            <header className="space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">
+                            Dashboard
+                        </h1>
+                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">
+                            Seller Overview
+                        </p>
+                    </div>
+                    <Button
+                        onClick={() => navigate('/seller/orders')}
+                        className="h-8 rounded-md text-[11px] font-semibold"
+                    >
+                        <Eye className="w-3.5 h-3.5 mr-1.5" />
+                        View Orders
+                    </Button>
+                </div>
+            </header>
 
-
-            {/* Dashboard Content */}
-            <div className="space-y-8 pb-8">
-                {/* ============ HEADER ============ */}
-                <div className="relative">
-                    <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-                    <div className="relative p-8">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-6">
-                                {userProfile?.avatar_url ? (
-                                    <img
-                                        src={userProfile.avatar_url}
-                                        alt={getUserName()}
-                                        className="w-20 h-20 rounded-full border-2 border-primary/20 shadow-lg object-cover"
-                                    />
-                                ) : (
-                                    <div className="w-20 h-20 rounded-full border-2 border-primary/20 shadow-lg bg-gradient-to-br from-primary/10 to-primary/20 flex items-center justify-center">
-                                        <span className="text-3xl font-light text-primary">
-                                            {getUserName().charAt(0).toUpperCase()}
-                                        </span>
-                                    </div>
-                                )}
-                                <div>
-                                    <p className="text-sm text-gray-400 font-medium mb-1">
-                                        {getGreeting()}, {getUserName().split(' ')[0]}
-                                    </p>
-                                    <h1 className="text-4xl font-extralight text-gray-900 mb-1">
-                                        Dashboard
-                                    </h1>
-                                    <p className="text-xs text-gray-400 flex items-center gap-2">
-                                        <CalendarDays className="w-3 h-3" />
-                                        {format(new Date(), 'EEEE, MMMM d, yyyy')}
-                                    </p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                {stats.pendingOrders > 0 && (
-                                    <motion.div
-                                        initial={{ scale: 0.9 }}
-                                        animate={{ scale: [0.9, 1.05, 0.9] }}
-                                        transition={{ repeat: Infinity, duration: 2 }}
-                                    >
-                                        <Badge className="bg-orange-500 text-white border-0 h-8 px-4 text-sm rounded-xl shadow-lg shadow-orange-500/20">
-                                            {stats.pendingOrders} pending
-                                        </Badge>
-                                    </motion.div>
-                                )}
-                                <Button
-                                    onClick={() => navigate('/seller/orders')}
-                                    className="bg-gray-900 hover:bg-black text-white rounded-2xl h-12 px-6"
-                                >
-                                    <Eye className="w-4 h-4 mr-2" />
-                                    View Orders
-                                    <ArrowUpRight className="w-4 h-4 ml-2" />
-                                </Button>
-                            </div>
+            {/* KPI Grid */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+                {[
+                    {
+                        label: 'Orders today',
+                        value: stats.todayOrders,
+                        sub: 'By creation date',
+                        accent: '#3b5e5e',
+                        href: '/seller/orders',
+                    },
+                    {
+                        label: 'Pending',
+                        value: stats.pendingOrders,
+                        sub: 'Awaiting confirmation',
+                        accent: '#d97706',
+                        href: '/seller/orders',
+                    },
+                    {
+                        label: 'Delivered today',
+                        value: stats.deliveredToday,
+                        sub: `All-time: ${stats.deliveredOrders}/${stats.totalOrders}`,
+                        accent: '#059669',
+                        href: '/seller/orders',
+                    },
+                    {
+                        label: 'Live commission (unpaid)',
+                        value: `${stats.liveCommission.toLocaleString()} MAD`,
+                        sub: stats.commissionBasis === 'per_unit'
+                            ? `${stats.commissionRate} MAD × ${stats.unpaidDeliveries} units`
+                            : `${stats.commissionRate} MAD × ${stats.unpaidDeliveries} orders`,
+                        accent: '#d97706',
+                        href: '/seller/payments',
+                    },
+                ].map((kpi, i) => (
+                    <div
+                        key={i}
+                        role="link"
+                        tabIndex={0}
+                        className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5 cursor-pointer hover:border-gray-200 transition-colors"
+                        onClick={() => navigate(kpi.href)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(kpi.href); } }}
+                    >
+                        <span className="w-[3px] self-stretch rounded-full" style={{ background: kpi.accent }} />
+                        <div className="flex-1 min-w-0">
+                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{kpi.label}</p>
+                            <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{kpi.value}</p>
+                            <p className="text-[9px] text-gray-400 mt-0.5">{kpi.sub}</p>
                         </div>
                     </div>
-                </div>
+                ))}
+            </div>
 
-                {/* ============ KPI GRID ============ */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {/* Conversion Pipeline */}
+            <div className="rounded-xl border border-gray-100 bg-white p-3.5">
+                <div className="flex items-center justify-between mb-3">
+                    <div>
+                        <p className="text-[11px] font-semibold text-brand-navy">Conversion Pipeline</p>
+                        <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 mt-0.5">Live funnel</p>
+                    </div>
+                    <Button variant="outline" size="sm" className="h-8 rounded-md text-[11px] font-semibold" onClick={() => navigate('/seller/statistics')}>
+                        Deep Dive <ChevronRight className="w-3 h-3 ml-1" />
+                    </Button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     {[
-                        {
-                            label: 'Orders created today',
-                            value: stats.todayOrders,
-                            sub: 'By order creation date',
-                            icon: ShoppingCart,
-                            color: 'text-blue-600',
-                            bg: 'bg-blue-50',
-                            gradient: 'from-blue-50 to-white',
-                            href: '/seller/orders?tab=new',
-                        },
-                        {
-                            label: 'Pending',
-                            value: stats.pendingOrders,
-                            sub: 'Awaiting confirmation',
-                            icon: Clock,
-                            color: 'text-orange-600',
-                            bg: 'bg-orange-50',
-                            gradient: 'from-orange-50 to-white',
-                            pulse: stats.pendingOrders > 0,
-                            href: '/seller/orders?tab=confirmation',
-                        },
-                        {
-                            label: 'Delivered today',
-                            value: stats.deliveredToday,
-                            sub: `All-time delivered ${stats.deliveredOrders}/${stats.totalOrders}`,
-                            icon: Truck,
-                            color: 'text-emerald-600',
-                            bg: 'bg-emerald-50',
-                            gradient: 'from-emerald-50 to-white',
-                            href: '/seller/orders?tab=suivi',
-                        },
-                        {
-                            label: 'Live Commission (Unpaid)',
-                            value: `${stats.liveCommission.toLocaleString()} MAD`,
-                            sub:
-                                stats.commissionBasis === 'per_unit'
-                                    ? `${stats.commissionRate} MAD × ${stats.unpaidDeliveries} unpaid units`
-                                    : `${stats.commissionRate} MAD × ${stats.unpaidDeliveries} unpaid orders`,
-                            icon: Receipt,
-                            color: 'text-amber-600',
-                            bg: 'bg-amber-50',
-                            gradient: 'from-amber-50 to-white',
-                            href: '/seller/payments',
-                        },
-                    ].map((kpi, i) => (
-                        <motion.div
-                            key={i}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: i * 0.08, duration: 0.4 }}
+                        { label: 'Attributed', value: stats.totalOrders, pct: 100, color: '#9ca3af' },
+                        { label: 'Confirmed', value: stats.confirmedOrders, pct: stats.confirmRate, color: '#3b5e5e' },
+                        { label: 'Delivered', value: stats.deliveredOrders, pct: stats.successRate, color: '#059669' },
+                    ].map((step) => (
+                        <div key={step.label} className="space-y-1.5">
+                            <div className="flex justify-between items-center">
+                                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">{step.label}</span>
+                                <span className="text-[10px] font-bold text-brand-navy tabular-nums">{step.value}</span>
+                            </div>
+                            <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div style={{ width: `${step.pct}%`, background: step.color }} className="h-full rounded-full transition-all duration-700" />
+                            </div>
+                            <p className="text-[9px] text-gray-400 tabular-nums">{step.pct.toFixed(0)}%</p>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* WhatsApp Card */}
+            <SellerWhatsAppUnreadCard businessId={userProfile?.['DigiCom Business'] || ''} />
+
+            {/* Performance Section */}
+            {userProfile?.id ? (
+                <div className="space-y-2.5">
+                    <div className="flex justify-end">
+                        <AnalyticsDateFilter dateFilter={perfDateFilter} onDateFilterChange={setPerfDateFilter} />
+                    </div>
+                    <SellerSelfPerformanceSection
+                        sellerId={userProfile.id}
+                        businessId={userProfile['DigiCom Business']}
+                        dateFilter={perfDateFilter}
+                    />
+                </div>
+            ) : null}
+
+            {/* Two column: Quick Links + Activity Feed */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-2.5">
+                {/* Quick Links */}
+                <div className="rounded-xl border border-gray-100 bg-white p-3.5 space-y-1.5">
+                    <p className="text-[11px] font-semibold text-brand-navy mb-2">Quick Access</p>
+                    {[
+                        { label: 'Process Orders', path: '/seller/orders', badge: stats.pendingOrders > 0 ? stats.pendingOrders : null },
+                        { label: 'View Statistics', path: '/seller/statistics', badge: null },
+                        { label: 'View Payments', path: '/seller/payments', badge: null },
+                        { label: 'Submit Demand', path: '/seller/demands', badge: null },
+                        { label: 'My Profile', path: '/seller/profile', badge: null },
+                    ].map((action) => (
+                        <button
+                            key={action.path}
+                            onClick={() => navigate(action.path)}
+                            className="w-full flex items-center justify-between h-8 px-3 rounded-lg border border-gray-100 hover:border-gray-200 hover:bg-gray-50 transition-colors text-left"
                         >
-                            <Card
-                                role="link"
-                                tabIndex={0}
-                                className={`border-0 shadow-sm rounded-3xl overflow-hidden bg-gradient-to-br ${kpi.gradient} hover:shadow-xl transition-all duration-500 group h-full cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900/20 focus-visible:ring-offset-2`}
-                                onClick={() => navigate(kpi.href)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter' || e.key === ' ') {
-                                        e.preventDefault();
-                                        navigate(kpi.href);
-                                    }
-                                }}
-                            >
-                                <CardContent className="p-6">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className={`w-11 h-11 ${kpi.bg} ${kpi.color} rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 duration-500`}>
-                                            <kpi.icon className="w-5 h-5" />
-                                        </div>
-                                        {(kpi as any).pulse && (
-                                            <span className="relative flex h-3 w-3">
-                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75" />
-                                                <span className="relative inline-flex rounded-full h-3 w-3 bg-orange-500" />
-                                            </span>
-                                        )}
-                                    </div>
-                                    <h3 className="text-2xl font-light text-gray-900 mb-1">{kpi.value}</h3>
-                                    <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400 mb-0.5">{kpi.label}</p>
-                                    <p className="text-[10px] text-gray-400 font-light">{kpi.sub}</p>
-                                </CardContent>
-                            </Card>
-                        </motion.div>
+                            <span className="text-[11px] font-medium text-gray-700">{action.label}</span>
+                            {action.badge !== null ? (
+                                <Badge className="bg-brand-navy text-white border-0 text-[10px] h-4 px-1.5 rounded">{action.badge}</Badge>
+                            ) : (
+                                <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
+                            )}
+                        </button>
                     ))}
                 </div>
 
-                {userProfile?.id ? (
-                    <div className="space-y-3">
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2">
-                            <AnalyticsDateFilter dateFilter={perfDateFilter} onDateFilterChange={setPerfDateFilter} />
-                        </div>
-                        <SellerSelfPerformanceSection
-                            sellerId={userProfile.id}
-                            businessId={userProfile['DigiCom Business']}
-                            dateFilter={perfDateFilter}
-                        />
+                {/* Activity Feed */}
+                <div className="lg:col-span-2 rounded-xl border border-gray-100 bg-white overflow-hidden">
+                    <div className="p-3.5 border-b border-gray-50">
+                        <p className="text-[11px] font-semibold text-brand-navy">Activity Feed</p>
+                        <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 mt-0.5">Recent orders</p>
                     </div>
-                ) : null}
-
-                {/* ============ CONVERSION SNAPSHOT (full width) ============ */}
-                <Card className="border-0 shadow-sm rounded-3xl overflow-hidden bg-white">
-                    <CardContent className="p-6">
-                        <div className="flex items-center justify-between mb-5">
-                            <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 bg-indigo-50 rounded-xl flex items-center justify-center">
-                                    <ShieldCheck className="w-4 h-4 text-indigo-500" />
-                                </div>
-                                <div>
-                                    <p className="text-sm font-medium text-gray-900">Conversion Pipeline</p>
-                                    <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400">Live Funnel Status</p>
-                                </div>
+                    <div className="max-h-[380px] overflow-y-auto">
+                        {loading ? (
+                            <div className="p-4 space-y-2.5">
+                                {[1, 2, 3].map(i => <div key={i} className="h-10 bg-gray-50 rounded-lg animate-pulse" />)}
                             </div>
-                            <Button variant="outline" size="sm" className="rounded-xl text-xs" onClick={() => navigate('/seller/statistics')}>
-                                Deep Dive <ChevronRight className="w-3 h-3 ml-1" />
-                            </Button>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-center">
-                            {/* Funnel steps */}
-                            <div className="space-y-2">
-                                <div className="flex justify-between text-[10px] font-bold text-gray-500 uppercase">
-                                    <span>Attributed</span>
-                                    <span>{stats.totalOrders}</span>
-                                </div>
-                                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                                    <motion.div initial={{ width: 0 }} animate={{ width: '100%' }} transition={{ duration: 0.8 }} className="h-full bg-gray-400 rounded-full" />
-                                </div>
+                        ) : recentOrders.length === 0 ? (
+                            <div className="p-8 text-center">
+                                <ShoppingCart className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+                                <p className="text-[11px] text-gray-400">No orders yet</p>
                             </div>
-                            <div className="space-y-2">
-                                <div className="flex justify-between text-[10px] font-bold text-gray-500 uppercase">
-                                    <span>Confirmed</span>
-                                    <span>{stats.confirmRate.toFixed(0)}%</span>
-                                </div>
-                                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                                    <motion.div initial={{ width: 0 }} animate={{ width: `${stats.confirmRate}%` }} transition={{ duration: 1 }} className="h-full bg-blue-500 rounded-full" />
-                                </div>
-                            </div>
-                            <div className="space-y-2">
-                                <div className="flex justify-between text-[10px] font-bold text-gray-500 uppercase">
-                                    <span>Delivered</span>
-                                    <span>{stats.successRate.toFixed(0)}%</span>
-                                </div>
-                                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                                    <motion.div initial={{ width: 0 }} animate={{ width: `${stats.successRate}%` }} transition={{ duration: 1.2 }} className="h-full bg-emerald-500 rounded-full" />
-                                </div>
-                            </div>
-                            {/* Earnings result */}
-                            <div className="flex items-center justify-center gap-3 p-4 bg-amber-50/60 rounded-2xl border border-amber-100/50">
-                                <Receipt className="w-5 h-5 text-amber-500" />
-                                <div>
-                                    <p className="text-lg font-light text-gray-900">{stats.liveCommission.toLocaleString()} <span className="text-xs text-gray-400 font-bold">MAD</span></p>
-                                    <p className="text-[9px] uppercase tracking-widest font-bold text-amber-600">Unpaid Commission</p>
-                                </div>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* ============ WHATSAPP UNREAD (only when assigned) ============ */}
-                <SellerWhatsAppUnreadCard businessId={userProfile?.['DigiCom Business'] || ''} />
-
-                {/* ============ COMMAND CENTER + ACTIVITY FEED ============ */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Command Center */}
-                    <Card className="border-0 shadow-xl rounded-3xl overflow-hidden lg:col-span-1">
-                        <CardHeader className="border-b border-gray-50 bg-gradient-to-r from-gray-50 to-transparent p-6">
-                            <CardTitle className="text-lg font-light text-gray-900">Command Center</CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-5 space-y-3">
-                            {[
-                                {
-                                    label: 'Process Orders',
-                                    icon: CheckCircle,
-                                    iconColor: 'text-blue-500',
-                                    bg: 'bg-blue-50',
-                                    path: '/seller/orders',
-                                    badge: stats.pendingOrders > 0 ? stats.pendingOrders : null,
-                                    badgeColor: 'bg-primary text-white',
-                                },
-                                {
-                                    label: 'View Statistics',
-                                    icon: BarChart3,
-                                    iconColor: 'text-indigo-500',
-                                    bg: 'bg-indigo-50',
-                                    path: '/seller/statistics',
-                                    badge: null,
-                                    badgeColor: '',
-                                },
-                                {
-                                    label: 'View Payments',
-                                    icon: DollarSign,
-                                    iconColor: 'text-green-500',
-                                    bg: 'bg-green-50',
-                                    path: '/seller/payments',
-                                    badge: null,
-                                    badgeColor: '',
-                                },
-                                {
-                                    label: 'Submit Demand',
-                                    icon: MessageSquare,
-                                    iconColor: 'text-purple-500',
-                                    bg: 'bg-purple-50',
-                                    path: '/seller/demands',
-                                    badge: null,
-                                    badgeColor: '',
-                                },
-                                {
-                                    label: 'My Profile',
-                                    icon: Target,
-                                    iconColor: 'text-orange-500',
-                                    bg: 'bg-orange-50',
-                                    path: '/seller/profile',
-                                    badge: null,
-                                    badgeColor: '',
-                                },
-                            ].map((action, i) => (
-                                <motion.div
-                                    key={i}
-                                    initial={{ opacity: 0, x: -10 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{ delay: 0.3 + i * 0.06 }}
-                                >
-                                    <Button
-                                        onClick={() => navigate(action.path)}
-                                        variant="outline"
-                                        className="w-full justify-between h-12 rounded-2xl group border-gray-100 hover:border-gray-200 hover:bg-gray-50/50 transition-all duration-300"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className={`w-8 h-8 ${action.bg} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}>
-                                                <action.icon className={`w-4 h-4 ${action.iconColor}`} />
-                                            </div>
-                                            <span className="text-sm text-gray-700">{action.label}</span>
-                                        </div>
-                                        {action.badge !== null ? (
-                                            <Badge className={`${action.badgeColor} border-0 text-xs rounded-lg`}>{action.badge}</Badge>
-                                        ) : (
-                                            <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors" />
-                                        )}
-                                    </Button>
-                                </motion.div>
-                            ))}
-                        </CardContent>
-                    </Card>
-
-                    {/* Activity Feed */}
-                    <Card className="border-0 shadow-xl rounded-3xl overflow-hidden lg:col-span-2">
-                        <CardHeader className="border-b border-gray-50 bg-gradient-to-r from-gray-50 to-transparent p-6">
-                            <CardTitle className="text-lg font-light text-gray-900">Activity Feed</CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-0 max-h-[440px] overflow-y-auto">
-                            {loading ? (
-                                <div className="p-6 space-y-4">
-                                    {[1, 2, 3, 4].map(i => (
-                                        <div key={i} className="h-14 bg-gray-50 rounded-xl animate-pulse" />
-                                    ))}
-                                </div>
-                            ) : recentOrders.length === 0 ? (
-                                <div className="p-12 text-center">
-                                    <ShoppingCart className="w-12 h-12 text-gray-200 mx-auto mb-3" />
-                                    <p className="text-gray-400 font-light">No orders yet</p>
-                                </div>
-                            ) : (
-                                <div>
-                                    {groupedOrders.map((group, gi) => (
-                                        <div key={gi}>
-                                            <div className="px-6 py-2 bg-gray-50/80 sticky top-0 z-10">
-                                                <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400">{group.label}</p>
-                                            </div>
-                                            <div className="divide-y divide-gray-50">
-                                                {group.orders.map((order) => (
-                                                    <div
-                                                        key={order.id}
-                                                        className="flex items-center justify-between px-6 py-3.5 hover:bg-gray-50/50 transition-colors cursor-pointer group"
-                                                        onClick={() => navigate('/seller/orders')}
-                                                    >
-                                                        <div className="flex items-center gap-3.5">
-                                                            <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0">
-                                                                {order.product_image ? (
-                                                                    <img src={order.product_image} alt="" className="w-full h-full object-cover" />
-                                                                ) : (
-                                                                    <ShoppingCart className="w-4 h-4 text-gray-400" />
-                                                                )}
-                                                            </div>
-                                                            <div className="min-w-0">
-                                                                <p className="text-sm font-medium text-gray-900 truncate">{order.customer_name}</p>
-                                                                <p className="text-[10px] text-gray-400 truncate">{order.product_name} · #{order.id.slice(0, 8)}</p>
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex items-center gap-3 flex-shrink-0">
-                                                            <Badge className="border-0 text-[10px] rounded-lg" style={order.order_status_id ? getStatusStyle(order.order_status_id) : { backgroundColor: '#f3f4f6', color: '#6b7280' }}>
-                                                                {order.status.replace('_', ' ')}
-                                                            </Badge>
-                                                            <p className="text-[10px] text-gray-400">
-                                                                {formatDistanceToNow(new Date(order.created_at), { addSuffix: true })}
-                                                            </p>
-                                                        </div>
+                        ) : (
+                            groupedOrders.map((group, gi) => (
+                                <div key={gi}>
+                                    <div className="px-3.5 py-1.5 bg-gray-50/80 sticky top-0 z-10">
+                                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{group.label}</p>
+                                    </div>
+                                    <div className="divide-y divide-gray-50">
+                                        {group.orders.map((order) => (
+                                            <div
+                                                key={order.id}
+                                                className="flex items-center justify-between px-3.5 py-2.5 hover:bg-gray-50/50 transition-colors cursor-pointer"
+                                                onClick={() => navigate('/seller/orders')}
+                                            >
+                                                <div className="flex items-center gap-2.5">
+                                                    <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden shrink-0">
+                                                        {order.product_image ? (
+                                                            <img src={order.product_image} alt="" className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <ShoppingCart className="w-3.5 h-3.5 text-gray-400" />
+                                                        )}
                                                     </div>
-                                                ))}
+                                                    <div className="min-w-0">
+                                                        <p className="text-[11px] font-semibold text-brand-navy truncate">{order.customer_name}</p>
+                                                        <p className="text-[9px] text-gray-400 truncate">{order.product_name} · #{order.id.slice(0, 8)}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    <Badge
+                                                        className="border-0 text-[9px] rounded px-1.5 h-4"
+                                                        style={order.order_status_id ? getStatusStyle(order.order_status_id) : { backgroundColor: '#f3f4f6', color: '#6b7280' }}
+                                                    >
+                                                        {order.status.replace('_', ' ')}
+                                                    </Badge>
+                                                    <p className="text-[9px] text-gray-400">
+                                                        {formatDistanceToNow(new Date(order.created_at), { addSuffix: true })}
+                                                    </p>
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                </div>
-
-                {/* ============ PERFORMANCE SNAPSHOT ============ */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Success Gauge */}
-                    <Card className="border-0 shadow-xl rounded-3xl overflow-hidden">
-                        <CardContent className="p-8 flex items-center gap-8">
-                            <SuccessGauge value={stats.successRate} size={140} />
-                            <div className="flex-1 space-y-4">
-                                <div>
-                                    <p className="text-lg font-light text-gray-900 mb-1">Delivery Performance</p>
-                                    <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400">Your success rate across all orders</p>
-                                </div>
-                                <div className="space-y-3">
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-xs text-gray-500">Your Rate</span>
-                                        <span className="text-xs font-bold text-gray-900">{stats.successRate.toFixed(1)}%</span>
-                                    </div>
-                                    <div className="relative h-2 bg-gray-100 rounded-full">
-                                        <div className="absolute top-0 left-0 h-full bg-gray-200 rounded-full" style={{ width: '64.2%' }} />
-                                        <motion.div
-                                            initial={{ width: 0 }}
-                                            animate={{ width: `${stats.successRate}%` }}
-                                            transition={{ duration: 1.2 }}
-                                            className="absolute top-0 left-0 h-full bg-primary rounded-full shadow-lg shadow-primary/20"
-                                        />
-                                    </div>
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-1.5">
-                                            <Trophy className="w-3 h-3 text-amber-500" />
-                                            <span className="text-[10px] font-bold text-gray-400 uppercase">Network Avg: 64.2%</span>
-                                        </div>
-                                        <span className="text-[10px] font-bold text-gray-400 uppercase">Elite: 82%</span>
+                                        ))}
                                     </div>
                                 </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    {/* Top Product Highlight */}
-                    <Card className="border-0 shadow-xl rounded-3xl overflow-hidden">
-                        <CardContent className="p-8">
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className="w-9 h-9 bg-amber-50 rounded-xl flex items-center justify-center">
-                                    <Star className="w-4 h-4 text-amber-500" />
-                                </div>
-                                <div>
-                                    <p className="text-lg font-light text-gray-900">Top Performer</p>
-                                    <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400">Your best-selling product</p>
-                                </div>
-                            </div>
-                            {topProduct ? (
-                                <div className="flex items-center gap-5">
-                                    <div className="w-20 h-20 bg-gray-50 rounded-2xl flex items-center justify-center overflow-hidden border border-gray-100 flex-shrink-0">
-                                        {topProduct.image ? (
-                                            <img src={topProduct.image} alt={topProduct.name} className="w-full h-full object-cover" />
-                                        ) : (
-                                            <Package className="w-8 h-8 text-gray-200" />
-                                        )}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium text-gray-900 truncate mb-3">{topProduct.name}</p>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div className="p-2 bg-green-50/60 rounded-xl text-center">
-                                                <p className="text-sm font-bold text-gray-900">{topProduct.delivered}</p>
-                                                <p className="text-[9px] text-gray-400 font-bold uppercase">Delivered</p>
-                                            </div>
-                                            <div className="p-2 bg-amber-50/60 rounded-xl text-center">
-                                                <p className="text-sm font-bold text-gray-900">{topProduct.successRate.toFixed(0)}%</p>
-                                                <p className="text-[9px] text-gray-400 font-bold uppercase">Success</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="text-center py-6">
-                                    <Package className="w-10 h-10 text-gray-200 mx-auto mb-2" />
-                                    <p className="text-sm text-gray-400 font-light">No product data yet</p>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
+                            ))
+                        )}
+                    </div>
                 </div>
             </div>
-        </>
+
+            {/* Top Product + Performance Stats */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
+                {/* Success Rate */}
+                <div className="rounded-xl border border-gray-100 bg-white p-3.5">
+                    <p className="text-[11px] font-semibold text-brand-navy mb-1">Delivery Performance</p>
+                    <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 mb-3">Success rate across all orders</p>
+                    <div className="space-y-2">
+                        {[
+                            { label: 'Delivery Rate', pct: stats.successRate, color: '#059669' },
+                            { label: 'Confirmation Rate', pct: stats.confirmRate, color: '#3b5e5e' },
+                        ].map((metric) => (
+                            <div key={metric.label} className="space-y-1">
+                                <div className="flex justify-between">
+                                    <span className="text-[10px] font-semibold text-gray-500">{metric.label}</span>
+                                    <span className="text-[10px] font-bold text-brand-navy tabular-nums">{metric.pct.toFixed(1)}%</span>
+                                </div>
+                                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                    <div style={{ width: `${metric.pct}%`, background: metric.color }} className="h-full rounded-full" />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Top Product */}
+                <div className="rounded-xl border border-gray-100 bg-white p-3.5">
+                    <p className="text-[11px] font-semibold text-brand-navy mb-1">Top Performer</p>
+                    <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 mb-3">Best-selling product</p>
+                    {topProduct ? (
+                        <div className="flex items-center gap-3">
+                            <div className="w-14 h-14 bg-gray-50 rounded-lg flex items-center justify-center overflow-hidden border border-gray-100 shrink-0">
+                                {topProduct.image ? (
+                                    <img src={topProduct.image} alt={topProduct.name} className="w-full h-full object-cover" />
+                                ) : (
+                                    <Truck className="w-6 h-6 text-gray-200" />
+                                )}
+                            </div>
+                            <div className="flex-1 min-w-0 space-y-1.5">
+                                <p className="text-[11px] font-semibold text-brand-navy truncate">{topProduct.name}</p>
+                                <div className="flex items-center gap-3">
+                                    <div>
+                                        <p className="text-[9px] text-gray-400 uppercase font-bold">Delivered</p>
+                                        <p className="text-[13px] font-semibold text-brand-navy tabular-nums">{topProduct.delivered}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[9px] text-gray-400 uppercase font-bold">Success</p>
+                                        <p className="text-[13px] font-semibold text-emerald-600 tabular-nums">{topProduct.successRate.toFixed(0)}%</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[9px] text-gray-400 uppercase font-bold">Revenue</p>
+                                        <p className="text-[13px] font-semibold text-brand-navy tabular-nums">{topProduct.revenue.toLocaleString()} MAD</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="text-center py-4">
+                            <Receipt className="w-8 h-8 text-gray-200 mx-auto mb-1.5" />
+                            <p className="text-[11px] text-gray-400">No product data yet</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
     );
 };
 

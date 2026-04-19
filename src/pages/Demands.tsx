@@ -27,7 +27,6 @@ import {
   X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -335,152 +334,182 @@ const Demands = () => {
     return matchesStatus && matchesSearch;
   });
 
+  const resolvedCount = demands.filter(d => d.status === 'resolved').length;
+  const openCount = demands.filter(d => d.status === 'pending' || d.status === 'in_progress').length;
+  const responseRate = demands.length > 0 ? ((resolvedCount / demands.length) * 100).toFixed(0) : '0';
+
+  const STATUS_PILLS = [
+    { id: 'all', label: 'All' },
+    { id: 'pending', label: 'Pending' },
+    { id: 'in_progress', label: 'In Progress' },
+    { id: 'resolved', label: 'Resolved' },
+    { id: 'dismissed', label: 'Dismissed' },
+  ];
+
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
-      {/* Header Area */}
-      <div className="relative">
-        <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-        <div className="relative p-8">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 text-left">
-            <div>
-              <h1 className="text-4xl font-extralight text-gray-900 mb-2">Demands</h1>
-              <p className="text-gray-500 font-light">Direct administrative oversight of {role === 'seller' ? 'seller' : 'media buyer'} specialized requests.</p>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="flex bg-white/80 backdrop-blur-sm border border-white p-1 rounded-2xl shadow-sm">
-                <button
-                  onClick={() => setRole('seller')}
-                  className={`px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all ${role === 'seller' ? 'bg-brand-navy text-white shadow-lg' : 'text-gray-400 hover:text-brand-navy'}`}
-                >
-                  Sellers
-                </button>
-                <button
-                  onClick={() => setRole('mediabuyer')}
-                  className={`px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all ${role === 'mediabuyer' ? 'bg-brand-navy text-white shadow-lg' : 'text-gray-400 hover:text-brand-navy'}`}
-                >
-                  Media Buyers
-                </button>
-              </div>
-              <div className="bg-white/50 backdrop-blur-sm border border-white p-2 rounded-2xl flex items-center gap-4 px-6 shadow-sm">
-                <div>
-                  <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400">Response Rate</p>
-                  <p className="text-xl font-light text-primary">
-                    {demands.length > 0 ? ((demands.filter(d => d.status === 'resolved').length / demands.length) * 100).toFixed(0) : 0}%
-                  </p>
-                </div>
-                <div className="w-px h-8 bg-gray-100" />
-                <div>
-                  <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400">Open Tickets</p>
-                  <p className="text-xl font-light text-amber-600">
-                    {demands.filter(d => d.status === 'pending' || d.status === 'in_progress').length}
-                  </p>
-                </div>
-              </div>
-            </div>
+    <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Demands</h1>
+          <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">
+            {role === 'seller' ? 'Seller' : 'Media Buyer'} Support Requests
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {/* Role toggle */}
+          <div className="flex items-center gap-0.5 p-0.5 bg-gray-100 rounded-md">
+            {(['seller', 'mediabuyer'] as DemandRole[]).map((r) => (
+              <button
+                key={r}
+                onClick={() => setRole(r)}
+                className={`h-7 px-3 rounded-[4px] text-[10px] font-semibold uppercase tracking-wider transition-all ${
+                  role === r
+                    ? 'bg-brand-navy text-white'
+                    : 'text-gray-500 hover:text-brand-navy hover:bg-gray-50'
+                }`}
+              >
+                {r === 'seller' ? 'Sellers' : 'Media Buyers'}
+              </button>
+            ))}
           </div>
         </div>
       </div>
 
+      {/* KPI Strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        {[
+          { label: 'Total Requests', value: demands.length, accent: '#1e3a5f' },
+          { label: 'Open Tickets', value: openCount, accent: '#d97706' },
+          { label: 'Response Rate', value: `${responseRate}%`, accent: '#16a34a' },
+        ].map((s) => (
+          <div key={s.label} className="flex items-stretch bg-white border border-gray-100 rounded-xl shadow-none overflow-hidden">
+            <div className="w-[3px] self-stretch rounded-full shrink-0" style={{ backgroundColor: s.accent }} />
+            <div className="flex flex-col justify-center px-3 py-2.5 gap-0.5">
+              <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-semibold">{s.label}</p>
+              <p className="text-[15px] font-bold text-brand-navy leading-none">{s.value}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
       {/* Filter Bar */}
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="relative flex-1 min-w-[300px] group">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[220px]">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
           <Input
             placeholder={`Search by subject or ${role === 'seller' ? 'seller' : 'media buyer'} name...`}
-            className="pl-11 h-12 rounded-2xl border-gray-100 bg-white"
+            className="pl-8 h-8 rounded-md border-gray-200 text-[11px] bg-white"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-48 h-12 rounded-2xl border-gray-100 bg-white">
-            <SelectValue placeholder="All Status" />
-          </SelectTrigger>
-          <SelectContent className="rounded-2xl border-gray-100">
-            <SelectItem value="all">All Records</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="in_progress">In Progress</SelectItem>
-            <SelectItem value="resolved">Resolved</SelectItem>
-            <SelectItem value="dismissed">Dismissed</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-1">
+          {STATUS_PILLS.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => setStatusFilter(p.id)}
+              className={`h-7 px-2.5 rounded-[4px] text-[10px] font-semibold transition-colors ${
+                statusFilter === p.id
+                  ? 'bg-brand-navy text-white'
+                  : 'text-gray-500 hover:text-brand-navy hover:bg-gray-50'
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        <AnimatePresence mode="popLayout">
+      {/* Loading */}
+      {loading && (
+        <div className="flex items-center justify-center py-16">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-brand-navy" />
+        </div>
+      )}
+
+      {/* Empty */}
+      {!loading && filteredDemands.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-16 gap-3">
+          <div className="w-9 h-9 rounded-xl bg-gray-50 flex items-center justify-center">
+            <MessageSquare className="w-4 h-4 text-gray-300" />
+          </div>
+          <p className="text-[11px] text-gray-400 font-medium">No demands found</p>
+        </div>
+      )}
+
+      {/* Demand Cards Grid */}
+      {!loading && filteredDemands.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
           {filteredDemands.map((d) => {
             const statusCfg = getStatusConfig(d.status);
             const priorityCfg = getPriorityConfig(d.priority);
             return (
-              <motion.div
+              <div
                 key={d.id}
-                layout
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
+                className="flex flex-col bg-white border border-gray-100 rounded-xl shadow-none overflow-hidden"
               >
-                <Card className="border-0 shadow-lg rounded-[2rem] bg-white group hover:shadow-2xl transition-all duration-500 overflow-hidden text-left h-full flex flex-col">
-                  <div className="p-6 pb-4 border-b border-gray-50 bg-gradient-to-tr from-gray-50/50 to-transparent">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <Avatar className="w-12 h-12 rounded-2xl border-2 border-white shadow-sm ring-1 ring-gray-100">
-                          <AvatarImage src={d.collaborator?.avatar_url || ''} />
-                          <AvatarFallback className="bg-primary/5 text-primary">
-                            {d.collaborator?.name?.charAt(0)?.toUpperCase() || '?'}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="text-sm font-medium text-gray-900 line-clamp-1">{d.collaborator?.name || 'Unknown'}</p>
-                          <p className="text-[10px] text-gray-400 font-mono tracking-tighter">#{d.id.slice(0, 8).toUpperCase()}</p>
-                        </div>
-                      </div>
-                      <Badge className={`${statusCfg.color} border px-2 py-0.5 rounded-lg text-[10px] uppercase tracking-widest font-bold`}>
-                        {statusCfg.label}
-                      </Badge>
-                    </div>
-                    <h3 className="text-lg font-light text-gray-900 line-clamp-2 min-h-[3.5rem] leading-tight group-hover:text-primary transition-colors">
-                      {d.subject}
-                    </h3>
-                  </div>
-                  <div className="p-6 flex-1 flex flex-col">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Badge variant="outline" className={`${priorityCfg.color} text-[10px] py-0.5 px-3 rounded-full border`}>
-                        {priorityCfg.label}
-                      </Badge>
-                      <Badge variant="outline" className="text-[10px] py-0.5 px-3 rounded-full uppercase border-gray-100 text-gray-400 font-light">
-                        {d.category}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-gray-500 font-light line-clamp-3 mb-6 italic">
-                      "{d.content}"
-                    </p>
-                    <div className="mt-auto pt-4 flex items-center justify-between border-t border-gray-50">
-                      <div className="flex items-center gap-2 text-[10px] text-gray-400 font-bold uppercase tracking-widest">
-                        <Clock className="w-3 h-3" />
-                        {format(new Date(d.created_at), 'MMM dd, HH:mm')}
-                      </div>
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setSelectedDemand(d);
-                          setNewStatus(d.status);
-                          setAdminResponse(d.admin_response || '');
-                          setIsResponseModalOpen(true);
-                        }}
-                        className="h-10 rounded-xl px-4 text-xs font-light hover:bg-gray-900 hover:text-white transition-all overflow-hidden relative group/btn"
-                      >
-                        <span className="relative z-10 group-hover/btn:translate-x-1 duration-300">Take Action</span>
-                        <ChevronRight className="w-3 h-3 ml-2 group-hover/btn:translate-x-1 duration-300" />
-                      </Button>
+                {/* Card Header */}
+                <div className="px-3 py-2.5 border-b border-gray-50 flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Avatar className="h-6 w-6 shrink-0 rounded-full">
+                      <AvatarImage src={d.collaborator?.avatar_url || ''} />
+                      <AvatarFallback className="text-[9px] bg-gray-100 text-gray-500">
+                        {d.collaborator?.name?.charAt(0)?.toUpperCase() || '?'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-semibold text-gray-800 truncate">{d.collaborator?.name || 'Unknown'}</p>
+                      <p className="text-[9px] text-gray-400 font-mono">#{d.id.slice(0, 8).toUpperCase()}</p>
                     </div>
                   </div>
-                </Card>
-              </motion.div>
+                  <Badge className={`h-5 px-1.5 text-[9px] font-semibold uppercase tracking-wider border rounded shrink-0 ${statusCfg.color}`}>
+                    {statusCfg.label}
+                  </Badge>
+                </div>
+
+                {/* Card Body */}
+                <div className="px-3 py-2.5 flex-1 flex flex-col gap-2">
+                  <p className="text-[12px] font-semibold text-gray-800 line-clamp-2 leading-snug">{d.subject}</p>
+                  <div className="flex items-center gap-1.5">
+                    <Badge variant="outline" className={`h-5 px-1.5 text-[9px] border rounded ${priorityCfg.color}`}>
+                      {priorityCfg.label}
+                    </Badge>
+                    <Badge variant="outline" className="h-5 px-1.5 text-[9px] border border-gray-100 text-gray-400 rounded uppercase">
+                      {d.category}
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-gray-500 line-clamp-2 leading-relaxed">
+                    {d.content}
+                  </p>
+                </div>
+
+                {/* Card Footer */}
+                <div className="px-3 py-2 border-t border-gray-50 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1 text-[9px] text-gray-400 uppercase tracking-[0.12em] font-semibold">
+                    <Clock className="w-3 h-3" />
+                    {format(new Date(d.created_at), 'MMM dd, HH:mm')}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedDemand(d);
+                      setNewStatus(d.status);
+                      setAdminResponse(d.admin_response || '');
+                      setIsResponseModalOpen(true);
+                    }}
+                    className="h-7 px-2.5 rounded-md text-[10px] font-semibold border-gray-200"
+                  >
+                    Take Action
+                    <ChevronRight className="w-3 h-3 ml-1" />
+                  </Button>
+                </div>
+              </div>
             );
           })}
-        </AnimatePresence>
-      </div>
+        </div>
+      )}
 
       {/* Admin Response Modal */}
       <Dialog
@@ -493,58 +522,51 @@ const Demands = () => {
           }
         }}
       >
-        <DialogContent className="max-w-2xl p-0 border-0 overflow-hidden rounded-[2.5rem] bg-gray-50 flex flex-col max-h-[92vh]">
+        <DialogContent className="max-w-2xl p-0 border border-gray-100 overflow-hidden rounded-xl bg-white flex flex-col max-h-[92vh] shadow-none">
           {selectedDemand && (
-            <div className="overflow-y-auto scrollbar-hide text-left">
-              <div className="relative p-10 bg-white shadow-sm">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl opacity-50" />
-                <div className="relative z-10 flex flex-col md:flex-row md:items-start justify-between gap-6">
-                  <div className="flex items-start gap-6">
-                    <Avatar className="w-16 h-16 rounded-[1.5rem] border-2 border-white shadow-lg ring-1 ring-gray-100">
+            <div className="overflow-y-auto text-left">
+              {/* Modal Header */}
+              <div className="px-4 py-3 border-b border-gray-100">
+                <DialogHeader>
+                  <div className="flex items-start gap-2.5">
+                    <Avatar className="h-6 w-6 shrink-0 rounded-full">
                       <AvatarImage src={selectedDemand.collaborator?.avatar_url || ''} />
-                      <AvatarFallback className="bg-primary/5 text-primary text-xl">
+                      <AvatarFallback className="text-[9px] bg-gray-100 text-gray-500">
                         {selectedDemand.collaborator?.name?.charAt(0)?.toUpperCase() || '?'}
                       </AvatarFallback>
                     </Avatar>
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <Badge className="bg-primary/5 text-primary border-primary/10 rounded-lg text-[10px] uppercase font-bold tracking-widest">
-                          Seller Request
-                        </Badge>
-                        <p className="text-[10px] text-gray-400 font-mono">ID: {selectedDemand.id.toUpperCase()}</p>
-                      </div>
-                      <h2 className="text-2xl font-light text-gray-900 leading-tight">{selectedDemand.subject}</h2>
-                      <p className="text-gray-500 font-medium text-xs mt-1">{selectedDemand.collaborator?.name} • {selectedDemand.collaborator?.email}</p>
+                    <div className="min-w-0">
+                      <DialogTitle className="text-[13px] font-semibold text-brand-navy leading-snug line-clamp-2">
+                        {selectedDemand.subject}
+                      </DialogTitle>
+                      <p className="text-[10px] text-gray-400 mt-0.5">
+                        {selectedDemand.collaborator?.name} · {selectedDemand.collaborator?.email}
+                      </p>
                     </div>
                   </div>
-                </div>
+                </DialogHeader>
               </div>
 
-              <div className="p-10 space-y-8">
-                {/* Demand Content Card */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 ml-1">
-                    <MessageCircle className="w-4 h-4 text-gray-400" />
-                    <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400">Request Content</p>
-                  </div>
-                  <div className="p-8 rounded-[2rem] bg-white border border-gray-100 shadow-sm relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-gray-50 rounded-full translate-x-1/2 -translate-y-1/2 blur-2xl" />
-                    <p className="text-gray-800 font-light leading-relaxed whitespace-pre-wrap relative z-10 italic">
-                      "{selectedDemand.content}"
+              <div className="px-4 py-3 space-y-4">
+                {/* Demand Content */}
+                <div>
+                  <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-semibold mb-1.5 flex items-center gap-1">
+                    <MessageCircle className="w-3 h-3" /> Request Content
+                  </p>
+                  <div className="p-3 rounded-xl border border-gray-100 bg-gray-50">
+                    <p className="text-[11px] text-gray-700 leading-relaxed whitespace-pre-wrap">
+                      {selectedDemand.content}
                     </p>
                   </div>
                 </div>
 
                 {/* Attached Media */}
                 {resolvedMedia && resolvedMedia.length > 0 && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 ml-1">
-                      <Paperclip className="w-4 h-4 text-gray-400" />
-                      <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400">
-                        Attachments ({resolvedMedia.length})
-                      </p>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <div>
+                    <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-semibold mb-1.5 flex items-center gap-1">
+                      <Paperclip className="w-3 h-3" /> Attachments ({resolvedMedia.length})
+                    </p>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                       {resolvedMedia.map((m, idx) => {
                         const isImage = m.type?.startsWith('image/');
                         const isVideo = m.type?.startsWith('video/');
@@ -552,47 +574,29 @@ const Demands = () => {
                         return (
                           <div
                             key={`${m.path}-${idx}`}
-                            className="group relative rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-all"
+                            className="group relative rounded-xl bg-white border border-gray-100 overflow-hidden"
                           >
-                            <a
-                              href={m.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="block"
-                            >
+                            <a href={m.url} target="_blank" rel="noopener noreferrer" className="block">
                               <div className="aspect-square bg-gray-50 flex items-center justify-center overflow-hidden">
                                 {isImage ? (
-                                  <img
-                                    src={m.url}
-                                    alt={m.name}
-                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                  />
+                                  <img src={m.url} alt={m.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                                 ) : isVideo ? (
-                                  <video
-                                    src={m.url}
-                                    className="w-full h-full object-cover"
-                                    muted
-                                    playsInline
-                                  />
+                                  <video src={m.url} className="w-full h-full object-cover" muted playsInline />
                                 ) : (
-                                  <div className="flex flex-col items-center gap-2 text-gray-400">
-                                    {isPdf ? (
-                                      <FileText className="w-10 h-10" />
-                                    ) : (
-                                      <Paperclip className="w-10 h-10" />
-                                    )}
+                                  <div className="flex flex-col items-center gap-1 text-gray-300">
+                                    {isPdf ? <FileText className="w-8 h-8" /> : <Paperclip className="w-8 h-8" />}
                                   </div>
                                 )}
                               </div>
-                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                                <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center">
-                                  <ExternalLink className="w-4 h-4 text-gray-900" />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                                <div className="w-7 h-7 rounded-full bg-white/90 flex items-center justify-center">
+                                  <ExternalLink className="w-3.5 h-3.5 text-gray-800" />
                                 </div>
                               </div>
                             </a>
-                            <div className="p-3 border-t border-gray-50 flex items-center justify-between gap-2">
+                            <div className="p-2 border-t border-gray-50 flex items-center justify-between gap-1">
                               <div className="min-w-0">
-                                <p className="text-[11px] font-medium text-gray-700 truncate" title={m.name}>{m.name}</p>
+                                <p className="text-[10px] font-medium text-gray-700 truncate" title={m.name}>{m.name}</p>
                                 <p className="text-[9px] text-gray-400">{formatFileSize(m.size)}</p>
                               </div>
                               <a
@@ -601,10 +605,10 @@ const Demands = () => {
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={(e) => e.stopPropagation()}
-                                className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-700 shrink-0"
+                                className="w-6 h-6 rounded flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-700 shrink-0"
                                 title="Download"
                               >
-                                <Download className="w-3.5 h-3.5" />
+                                <Download className="w-3 h-3" />
                               </a>
                             </div>
                           </div>
@@ -614,193 +618,191 @@ const Demands = () => {
                   </div>
                 )}
 
-                {/* Action Console */}
-                <div className="space-y-8">
-                  <div className="space-y-4">
-                    <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400 ml-1">Resolution Status</label>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      {[
-                        { id: 'pending', label: 'Pending', icon: Clock, color: 'hover:border-amber-500 hover:text-amber-500', active: 'border-amber-500 bg-amber-50/50 text-amber-600' },
-                        { id: 'in_progress', label: 'Processing', icon: Timer, color: 'hover:border-blue-500 hover:text-blue-500', active: 'border-blue-500 bg-blue-50/50 text-blue-600' },
-                        { id: 'resolved', label: 'Resolved', icon: CheckCircle2, color: 'hover:border-green-500 hover:text-green-500', active: 'border-green-500 bg-green-50/50 text-green-600' },
-                        { id: 'dismissed', label: 'Dismissed', icon: XCircle, color: 'hover:border-red-500 hover:text-red-500', active: 'border-red-500 bg-red-50/50 text-red-600' }
-                      ].map((choice) => (
-                        <button
-                          key={choice.id}
-                          onClick={() => setNewStatus(choice.id)}
-                          className={`flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all duration-300 gap-2 group/choice ${newStatus === choice.id
-                            ? choice.active
-                            : 'border-white bg-white text-gray-400 ' + choice.color
-                            }`}
-                        >
-                          <choice.icon className={`w-5 h-5 ${newStatus === choice.id ? '' : 'opacity-40 group-hover/choice:opacity-100'} transition-opacity`} />
-                          <span className="text-[10px] uppercase tracking-widest font-bold">{choice.label}</span>
-                        </button>
-                      ))}
-                    </div>
+                {/* Status Selector */}
+                <div>
+                  <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-semibold mb-1.5">Resolution Status</p>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5">
+                    {[
+                      { id: 'pending', label: 'Pending', icon: Clock, active: 'border-amber-400 bg-amber-50 text-amber-600', idle: 'border-gray-200 text-gray-400 hover:border-amber-300 hover:text-amber-500' },
+                      { id: 'in_progress', label: 'Processing', icon: Timer, active: 'border-blue-400 bg-blue-50 text-blue-600', idle: 'border-gray-200 text-gray-400 hover:border-blue-300 hover:text-blue-500' },
+                      { id: 'resolved', label: 'Resolved', icon: CheckCircle2, active: 'border-green-400 bg-green-50 text-green-600', idle: 'border-gray-200 text-gray-400 hover:border-green-300 hover:text-green-500' },
+                      { id: 'dismissed', label: 'Dismissed', icon: XCircle, active: 'border-red-400 bg-red-50 text-red-600', idle: 'border-gray-200 text-gray-400 hover:border-red-300 hover:text-red-500' }
+                    ].map((choice) => (
+                      <button
+                        key={choice.id}
+                        onClick={() => setNewStatus(choice.id)}
+                        className={`flex flex-col items-center justify-center py-2 px-2 rounded-lg border transition-colors gap-1 ${
+                          newStatus === choice.id ? choice.active : choice.idle
+                        }`}
+                      >
+                        <choice.icon className="w-4 h-4" />
+                        <span className="text-[9px] uppercase tracking-wider font-semibold">{choice.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Admin Response */}
+                <div>
+                  <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-semibold mb-1.5">Administrative Response</p>
+                  <Textarea
+                    placeholder="Type your official response here..."
+                    className="min-h-[100px] rounded-lg border-gray-200 text-[11px] resize-none"
+                    value={adminResponse}
+                    onChange={(e) => setAdminResponse(e.target.value)}
+                  />
+                  <p className="text-[9px] text-gray-400 mt-1">
+                    Response will be visible to the collaborator immediately upon update.
+                  </p>
+                </div>
+
+                {/* Response Attachments */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-semibold">Response Attachments</p>
+                    <span className="text-[9px] text-gray-400">Images, videos, PDF · max 50MB each</span>
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400 ml-1">Administrative Response</label>
-                    <Textarea
-                      placeholder="Type your official response to the seller here..."
-                      className="min-h-[150px] rounded-[2rem] border-white bg-white shadow-sm focus:ring-primary/10 p-6 text-sm resize-none"
-                      value={adminResponse}
-                      onChange={(e) => setAdminResponse(e.target.value)}
-                    />
-                    <p className="text-[10px] text-gray-400 italic mt-2 ml-2">
-                      This response will be visible to the seller immediately upon clicking Sync.
-                    </p>
-                  </div>
-
-                  {/* Response attachments uploader */}
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between ml-1">
-                      <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400">Response Attachments</label>
-                      <span className="text-[10px] text-gray-400 font-light">Images, videos, PDF · max 50MB each</span>
-                    </div>
-
-                    {/* Already-attached response media */}
-                    {resolvedResponseMedia.length > 0 && (
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                        {resolvedResponseMedia.map((m, idx) => {
-                          const isImage = m.type?.startsWith('image/');
-                          const isVideo = m.type?.startsWith('video/');
-                          const isPdf = m.type === 'application/pdf';
-                          return (
-                            <div key={`${m.path}-${idx}`} className="group relative rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-                              <a href={m.url} target="_blank" rel="noopener noreferrer" className="block">
-                                <div className="aspect-square bg-gray-50 flex items-center justify-center overflow-hidden">
-                                  {isImage ? (
-                                    <img src={m.url} alt={m.name} className="w-full h-full object-cover" />
-                                  ) : isVideo ? (
-                                    <video src={m.url} muted playsInline className="w-full h-full object-cover" />
-                                  ) : (
-                                    <FileText className="w-9 h-9 text-gray-300" />
-                                  )}
-                                </div>
-                              </a>
-                              <div className="p-2.5 border-t border-gray-50 flex items-center justify-between gap-2">
-                                <div className="min-w-0">
-                                  <p className="text-[11px] font-medium text-gray-700 truncate" title={m.name}>{m.name}</p>
-                                  <p className="text-[9px] text-gray-400">{formatFileSizeLocal(m.size)}</p>
-                                </div>
-                                <a
-                                  href={m.url}
-                                  download={m.name}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-700 shrink-0"
-                                >
-                                  <Download className="w-3.5 h-3.5" />
-                                </a>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {/* Drop zone */}
-                    <div
-                      onDragOver={(e) => { e.preventDefault(); setResponseDragging(true); }}
-                      onDragEnter={(e) => { e.preventDefault(); setResponseDragging(true); }}
-                      onDragLeave={() => setResponseDragging(false)}
-                      onDrop={handleResponseDrop}
-                      onClick={() => responseInputRef.current?.click()}
-                      className={`relative cursor-pointer rounded-2xl border-2 border-dashed p-6 text-center transition-all ${
-                        responseDragging
-                          ? 'border-primary bg-primary/5 scale-[1.01]'
-                          : 'border-gray-200 bg-white hover:border-primary/40'
-                      }`}
-                    >
-                      <input
-                        ref={responseInputRef}
-                        type="file"
-                        multiple
-                        accept={ACCEPTED_TYPES}
-                        className="hidden"
-                        onChange={handleResponseFileInput}
-                      />
-                      <div className="flex flex-col items-center gap-2 pointer-events-none">
-                        <div className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-colors ${
-                          responseDragging ? 'bg-primary/10 text-primary' : 'bg-gray-50 text-gray-400'
-                        }`}>
-                          <UploadCloud className="w-5 h-5" />
-                        </div>
-                        <p className="text-sm font-medium text-gray-700">
-                          {responseDragging ? 'Drop files to attach' : 'Drag & drop, or click to browse'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Pending files queued for upload */}
-                    {responseFiles.length > 0 && (
-                      <div className="space-y-2">
-                        {responseFiles.map((file, idx) => {
-                          const isImage = file.type.startsWith('image/');
-                          const isVideo = file.type.startsWith('video/');
-                          const Icon = isImage ? ImageIcon : isVideo ? Film : Paperclip;
-                          const previewUrl = isImage ? URL.createObjectURL(file) : null;
-                          return (
-                            <div key={`${file.name}-${idx}`} className="flex items-center gap-3 p-3 rounded-2xl bg-white border border-gray-100">
-                              <div className="w-10 h-10 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center overflow-hidden shrink-0">
-                                {previewUrl ? (
-                                  <img src={previewUrl} alt={file.name} className="w-full h-full object-cover" />
+                  {/* Already-attached response media */}
+                  {resolvedResponseMedia.length > 0 && (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-2">
+                      {resolvedResponseMedia.map((m, idx) => {
+                        const isImage = m.type?.startsWith('image/');
+                        const isVideo = m.type?.startsWith('video/');
+                        const isPdf = m.type === 'application/pdf';
+                        return (
+                          <div key={`${m.path}-${idx}`} className="group relative rounded-xl bg-white border border-gray-100 overflow-hidden">
+                            <a href={m.url} target="_blank" rel="noopener noreferrer" className="block">
+                              <div className="aspect-square bg-gray-50 flex items-center justify-center overflow-hidden">
+                                {isImage ? (
+                                  <img src={m.url} alt={m.name} className="w-full h-full object-cover" />
+                                ) : isVideo ? (
+                                  <video src={m.url} muted playsInline className="w-full h-full object-cover" />
                                 ) : (
-                                  <Icon className="w-4 h-4 text-gray-400" />
+                                  <FileText className="w-8 h-8 text-gray-300" />
                                 )}
                               </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs font-medium text-gray-800 truncate">{file.name}</p>
-                                <p className="text-[10px] text-gray-400">{formatFileSizeLocal(file.size)}</p>
+                            </a>
+                            <div className="p-2 border-t border-gray-50 flex items-center justify-between gap-1">
+                              <div className="min-w-0">
+                                <p className="text-[10px] font-medium text-gray-700 truncate" title={m.name}>{m.name}</p>
+                                <p className="text-[9px] text-gray-400">{formatFileSizeLocal(m.size)}</p>
                               </div>
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); removeResponseFile(idx); }}
-                                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
-                                disabled={submitting}
+                              <a
+                                href={m.url}
+                                download={m.name}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="w-6 h-6 rounded flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-700 shrink-0"
                               >
-                                <X className="w-4 h-4" />
-                              </button>
+                                <Download className="w-3 h-3" />
+                              </a>
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
-                    {submitting && responseFiles.length > 0 && (
-                      <div className="pt-1">
-                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                          <div className="h-full bg-primary transition-all duration-300" style={{ width: `${responseUploadProgress}%` }} />
-                        </div>
-                        <p className="text-[10px] text-gray-400 mt-1 text-center">Uploading {responseUploadProgress}%</p>
+                  {/* Drop zone */}
+                  <div
+                    onDragOver={(e) => { e.preventDefault(); setResponseDragging(true); }}
+                    onDragEnter={(e) => { e.preventDefault(); setResponseDragging(true); }}
+                    onDragLeave={() => setResponseDragging(false)}
+                    onDrop={handleResponseDrop}
+                    onClick={() => responseInputRef.current?.click()}
+                    className={`relative cursor-pointer rounded-lg border-2 border-dashed p-4 text-center transition-all ${
+                      responseDragging
+                        ? 'border-brand-navy bg-blue-50'
+                        : 'border-gray-200 bg-white hover:border-gray-300'
+                    }`}
+                  >
+                    <input
+                      ref={responseInputRef}
+                      type="file"
+                      multiple
+                      accept={ACCEPTED_TYPES}
+                      className="hidden"
+                      onChange={handleResponseFileInput}
+                    />
+                    <div className="flex flex-col items-center gap-1.5 pointer-events-none">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                        responseDragging ? 'bg-brand-navy/10 text-brand-navy' : 'bg-gray-50 text-gray-400'
+                      }`}>
+                        <UploadCloud className="w-4 h-4" />
                       </div>
-                    )}
+                      <p className="text-[11px] font-medium text-gray-600">
+                        {responseDragging ? 'Drop files to attach' : 'Drag & drop, or click to browse'}
+                      </p>
+                    </div>
                   </div>
+
+                  {/* Pending files */}
+                  {responseFiles.length > 0 && (
+                    <div className="space-y-1.5 mt-2">
+                      {responseFiles.map((file, idx) => {
+                        const isImage = file.type.startsWith('image/');
+                        const isVideo = file.type.startsWith('video/');
+                        const Icon = isImage ? ImageIcon : isVideo ? Film : Paperclip;
+                        const previewUrl = isImage ? URL.createObjectURL(file) : null;
+                        return (
+                          <div key={`${file.name}-${idx}`} className="flex items-center gap-2 p-2 rounded-lg bg-gray-50 border border-gray-100">
+                            <div className="w-8 h-8 rounded-md bg-white border border-gray-100 flex items-center justify-center overflow-hidden shrink-0">
+                              {previewUrl ? (
+                                <img src={previewUrl} alt={file.name} className="w-full h-full object-cover" />
+                              ) : (
+                                <Icon className="w-3.5 h-3.5 text-gray-400" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[10px] font-medium text-gray-800 truncate">{file.name}</p>
+                              <p className="text-[9px] text-gray-400">{formatFileSizeLocal(file.size)}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); removeResponseFile(idx); }}
+                              className="w-6 h-6 rounded flex items-center justify-center text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                              disabled={submitting}
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {submitting && responseFiles.length > 0 && (
+                    <div className="mt-2">
+                      <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-brand-navy transition-all duration-300" style={{ width: `${responseUploadProgress}%` }} />
+                      </div>
+                      <p className="text-[9px] text-gray-400 mt-1 text-center">Uploading {responseUploadProgress}%</p>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <DialogFooter className="p-10 pt-0 bg-gray-50">
-                <div className="grid grid-cols-2 w-full gap-4">
+              <DialogFooter className="px-4 py-3 border-t border-gray-100">
+                <div className="flex items-center gap-2 w-full justify-end">
                   <Button
                     variant="outline"
-                    className="h-14 rounded-2xl border-gray-200 bg-white hover:bg-gray-50 text-gray-600 font-light"
+                    className="h-8 px-3 rounded-md border-gray-200 text-[11px] font-semibold text-gray-600"
                     onClick={() => setIsResponseModalOpen(false)}
                   >
-                    Discard Changes
+                    Discard
                   </Button>
                   <Button
-                    className="h-14 rounded-2xl bg-gray-900 hover:bg-black text-white font-light group shadow-xl shadow-gray-200"
+                    className="h-8 px-3 rounded-md bg-brand-navy hover:bg-brand-navy/90 text-white text-[11px] font-semibold"
                     onClick={handleUpdateDemand}
                     disabled={submitting}
                   >
                     {submitting ? (
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
                     ) : (
                       <>
-                        <CheckCircle2 className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" />
-                        Sync & Update Seller
+                        <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
+                        Sync & Update
                       </>
                     )}
                   </Button>

@@ -2,10 +2,7 @@ import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-import { motion } from 'framer-motion';
 import {
     Building2,
     CreditCard,
@@ -115,6 +112,8 @@ function buildDailySeries(
     });
 }
 
+const KPI_ACCENTS = ['#3b5e5e', '#d97706', '#059669', '#9ca3af', '#9ca3af', '#9ca3af'];
+
 const OwnerPlatformDashboard = () => {
     const { data, isLoading, isError, error, refetch } = useQuery({
         queryKey: ['owner-platform-overview'],
@@ -150,10 +149,10 @@ const OwnerPlatformDashboard = () => {
             .slice(0, 10);
 
         const statusChart = [
-            { name: 'Active', value: byStatus.active, fill: '#0f766e' },
-            { name: 'Suspended', value: byStatus.suspended, fill: '#f59e0b' },
+            { name: 'Active', value: byStatus.active, fill: '#059669' },
+            { name: 'Suspended', value: byStatus.suspended, fill: '#d97706' },
             { name: 'Deactivated', value: byStatus.deactivated, fill: '#ef4444' },
-            ...(byStatus.other > 0 ? [{ name: 'Other', value: byStatus.other, fill: '#94a3b8' }] : []),
+            ...(byStatus.other > 0 ? [{ name: 'Other', value: byStatus.other, fill: '#9ca3af' }] : []),
         ].filter((d) => d.value > 0);
 
         const bizDaily = buildDailySeries(
@@ -179,20 +178,20 @@ const OwnerPlatformDashboard = () => {
 
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center min-h-[50vh]">
-                <Loader2 className="w-10 h-10 animate-spin text-brand-navy" />
+            <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 flex items-center justify-center min-h-[50vh]">
+                <Loader2 className="w-5 h-5 animate-spin text-brand-navy/40" />
             </div>
         );
     }
 
     if (isError || !data || !stats) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4 px-4 text-center">
-                <AlertCircle className="w-10 h-10 text-red-500" />
-                <p className="text-sm text-gray-600 max-w-md">
+            <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 flex flex-col items-center justify-center min-h-[50vh] gap-3 text-center">
+                <AlertCircle className="w-5 h-5 text-red-500" />
+                <p className="text-[11px] text-gray-500 max-w-sm">
                     {(error as Error)?.message || 'Could not load platform overview.'}
                 </p>
-                <Button variant="outline" onClick={() => refetch()}>
+                <Button variant="outline" size="sm" className="h-8 rounded-md text-[11px] font-semibold" onClick={() => refetch()}>
                     Retry
                 </Button>
             </div>
@@ -203,298 +202,200 @@ const OwnerPlatformDashboard = () => {
         {
             title: 'Businesses',
             value: stats.total,
-            subtitle: `${stats.byStatus.active} active status`,
-            icon: Building2,
-            iconBg: 'bg-brand-navy/5',
-            iconColor: 'text-brand-navy',
+            sub: `${stats.byStatus.active} active`,
+            accent: KPI_ACCENTS[0],
             to: '/owner/businesses',
         },
         {
             title: 'Pending payments',
             value: stats.pendingPayments,
-            subtitle: 'Proof submissions to review',
-            icon: Receipt,
-            iconBg: 'bg-amber-50',
-            iconColor: 'text-amber-600',
+            sub: 'Proof submissions to review',
+            accent: KPI_ACCENTS[1],
             to: '/owner/payments',
         },
         {
             title: 'Paid businesses',
             value: stats.paidTrue,
-            subtitle: `${stats.total ? Math.round((stats.paidTrue / stats.total) * 100) : 0}% of total`,
-            icon: CreditCard,
-            iconBg: 'bg-emerald-50',
-            iconColor: 'text-emerald-600',
+            sub: `${stats.total ? Math.round((stats.paidTrue / stats.total) * 100) : 0}% of total`,
+            accent: KPI_ACCENTS[2],
             to: '/owner/businesses',
         },
         {
             title: 'Owner accounts',
             value: data.ownerCount,
-            subtitle: 'Platform owner role',
-            icon: Shield,
-            iconBg: 'bg-violet-50',
-            iconColor: 'text-violet-600',
+            sub: 'Platform owner role',
+            accent: KPI_ACCENTS[3],
             to: '/owner/users',
         },
         {
             title: 'Tenant users',
             value: data.tenantUserCount,
-            subtitle: 'Linked to a business',
-            icon: Users,
-            iconBg: 'bg-blue-50',
-            iconColor: 'text-blue-600',
+            sub: 'Linked to a business',
+            accent: KPI_ACCENTS[4],
             to: '/owner/businesses',
         },
         {
             title: 'Active plans',
             value: stats.activePlans,
-            subtitle: `${data.plans.length} total in catalog`,
-            icon: LayoutDashboard,
-            iconBg: 'bg-slate-100',
-            iconColor: 'text-slate-700',
+            sub: `${data.plans.length} total in catalog`,
+            accent: KPI_ACCENTS[5],
             to: '/owner/plans',
         },
     ];
 
     return (
-        <div className="min-h-screen">
-            <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-                <div className="relative p-8">
-                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-                        <div>
-                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Owner overview</h1>
-                            <p className="text-gray-500 font-light">
-                                Platform-wide businesses, billing, and access — not a single-tenant operations
-                                dashboard.
-                            </p>
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+            {/* Header */}
+            <header className="space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Owner Overview</h1>
+                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Platform-wide businesses, billing, and access</p>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                        <Button asChild variant="outline" className="h-8 rounded-md text-[11px] font-semibold gap-1.5 px-3">
+                            <Link to="/owner/businesses">
+                                Businesses <ArrowRight className="w-3 h-3" />
+                            </Link>
+                        </Button>
+                        <Button asChild variant="outline" className="h-8 rounded-md text-[11px] font-semibold gap-1.5 px-3">
+                            <Link to="/owner/payments">
+                                Payments <ArrowRight className="w-3 h-3" />
+                            </Link>
+                        </Button>
+                        <Button asChild className="h-8 rounded-md text-[11px] font-semibold px-3 bg-brand-navy hover:bg-brand-navy/90">
+                            <Link to="/owner/plans">Plans</Link>
+                        </Button>
+                    </div>
+                </div>
+            </header>
+
+            {/* KPI tiles */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                {kpi.map((card) => (
+                    <Link key={card.title} to={card.to} className="block">
+                        <div className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5 hover:border-gray-200 transition-colors">
+                            <span className="w-[3px] self-stretch rounded-full shrink-0" style={{ background: card.accent }} />
+                            <div className="flex-1 min-w-0">
+                                <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400 leading-tight">{card.title}</p>
+                                <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1 leading-none">
+                                    {typeof card.value === 'number' ? card.value.toLocaleString('fr-MA') : card.value}
+                                </p>
+                                {card.sub && <p className="text-[9px] text-gray-400 mt-0.5 leading-tight">{card.sub}</p>}
+                            </div>
                         </div>
-                        <div className="flex flex-wrap gap-2">
-                            <Button asChild variant="outline" className="rounded-2xl">
-                                <Link to="/owner/businesses">
-                                    Businesses <ArrowRight className="w-4 h-4 ml-1" />
-                                </Link>
-                            </Button>
-                            <Button asChild variant="outline" className="rounded-2xl">
-                                <Link to="/owner/payments">
-                                    Payments <ArrowRight className="w-4 h-4 ml-1" />
-                                </Link>
-                            </Button>
-                            <Button asChild variant="default" className="rounded-2xl bg-brand-navy hover:bg-brand-navy/90">
-                                <Link to="/owner/plans">Plans</Link>
-                            </Button>
-                        </div>
+                    </Link>
+                ))}
+            </div>
+
+            {/* Charts row 1 */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                <div className="rounded-xl border border-gray-100 bg-white p-3.5">
+                    <div className="mb-2">
+                        <p className="text-[11px] font-semibold text-brand-navy">New businesses (30 days)</p>
+                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em]">Registrations per day</p>
+                    </div>
+                    <div className="h-[220px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={stats.bizDaily} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                                <defs>
+                                    <linearGradient id="ownerBizGrad" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stopColor="#3b5e5e" stopOpacity={0.25} />
+                                        <stop offset="100%" stopColor="#3b5e5e" stopOpacity={0} />
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" className="stroke-gray-100" />
+                                <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#9ca3af' }} interval="preserveStartEnd" />
+                                <YAxis tick={{ fontSize: 9, fill: '#9ca3af' }} allowDecimals={false} width={28} />
+                                <Tooltip
+                                    contentStyle={{ borderRadius: 8, border: '1px solid #f3f4f6', boxShadow: 'none', fontSize: 11 }}
+                                    labelFormatter={(_, payload) =>
+                                        payload?.[0]?.payload?.day ? String(payload[0].payload.day) : ''
+                                    }
+                                />
+                                <Area type="monotone" dataKey="count" stroke="#3b5e5e" strokeWidth={1.5} fill="url(#ownerBizGrad)" name="New businesses" />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+
+                <div className="rounded-xl border border-gray-100 bg-white p-3.5">
+                    <div className="mb-2">
+                        <p className="text-[11px] font-semibold text-brand-navy">Payment submissions (90 days)</p>
+                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em]">Proof uploads per day</p>
+                    </div>
+                    <div className="h-[220px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={stats.payDaily} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                                <defs>
+                                    <linearGradient id="ownerPayGrad" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stopColor="#d97706" stopOpacity={0.25} />
+                                        <stop offset="100%" stopColor="#d97706" stopOpacity={0} />
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" className="stroke-gray-100" />
+                                <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#9ca3af' }} interval="preserveStartEnd" />
+                                <YAxis tick={{ fontSize: 9, fill: '#9ca3af' }} allowDecimals={false} width={28} />
+                                <Tooltip
+                                    contentStyle={{ borderRadius: 8, border: '1px solid #f3f4f6', boxShadow: 'none', fontSize: 11 }}
+                                    labelFormatter={(_, payload) =>
+                                        payload?.[0]?.payload?.day ? String(payload[0].payload.day) : ''
+                                    }
+                                />
+                                <Area type="monotone" dataKey="count" stroke="#d97706" strokeWidth={1.5} fill="url(#ownerPayGrad)" name="Submissions" />
+                            </AreaChart>
+                        </ResponsiveContainer>
                     </div>
                 </div>
             </div>
 
-            <div className="py-6 space-y-6">
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                    {kpi.map((card, i) => (
-                        <motion.div
-                            key={card.title}
-                            initial={{ opacity: 0, y: 16 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.25, delay: i * 0.04 }}
-                        >
-                            <Link to={card.to} className="block h-full">
-                                <Card className="border-0 shadow-sm rounded-3xl h-full transition-all duration-200 cursor-pointer hover:shadow-md hover:scale-[1.02] active:scale-[0.98]">
-                                    <CardContent className="p-4">
-                                        <div
-                                            className={cn(
-                                                'w-9 h-9 rounded-xl flex items-center justify-center mb-2.5',
-                                                card.iconBg,
-                                            )}
-                                        >
-                                            <card.icon className={cn('w-4.5 h-4.5', card.iconColor)} />
-                                        </div>
-                                        <div className="text-2xl font-black text-brand-navy tracking-tight">
-                                            {typeof card.value === 'number'
-                                                ? card.value.toLocaleString('fr-MA')
-                                                : card.value}
-                                        </div>
-                                        <div className="text-[10px] uppercase tracking-widest font-bold text-gray-400 mt-0.5">
-                                            {card.title}
-                                        </div>
-                                        {card.subtitle && (
-                                            <div className="text-[11px] text-gray-500 mt-1">{card.subtitle}</div>
-                                        )}
-                                    </CardContent>
-                                </Card>
-                            </Link>
-                        </motion.div>
-                    ))}
+            {/* Charts row 2 */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                <div className="rounded-xl border border-gray-100 bg-white p-3.5">
+                    <div className="mb-2">
+                        <p className="text-[11px] font-semibold text-brand-navy">Businesses by status</p>
+                    </div>
+                    <div className="h-[220px]">
+                        {stats.statusChart.length === 0 ? (
+                            <p className="text-[11px] text-gray-400 text-center py-16">No data</p>
+                        ) : (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={stats.statusChart} layout="vertical" margin={{ left: 16 }}>
+                                    <CartesianGrid strokeDasharray="3 3" className="stroke-gray-100" />
+                                    <XAxis type="number" allowDecimals={false} tick={{ fontSize: 9, fill: '#9ca3af' }} />
+                                    <YAxis type="category" dataKey="name" width={80} tick={{ fontSize: 10, fill: '#6b7280' }} />
+                                    <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #f3f4f6', boxShadow: 'none', fontSize: 11 }} />
+                                    <Bar dataKey="value" radius={[0, 6, 6, 0]} name="Businesses">
+                                        {stats.statusChart.map((entry) => (
+                                            <Cell key={entry.name} fill={entry.fill} />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        )}
+                    </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <Card className="border-0 shadow-sm rounded-3xl overflow-hidden">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-lg font-light text-gray-900">
-                                New businesses (30 days)
-                            </CardTitle>
-                            <p className="text-xs text-gray-500">Registrations per day</p>
-                        </CardHeader>
-                        <CardContent className="h-[280px] pt-2">
+                <div className="rounded-xl border border-gray-100 bg-white p-3.5">
+                    <div className="mb-2">
+                        <p className="text-[11px] font-semibold text-brand-navy">Businesses by plan</p>
+                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em]">Top plans by assigned businesses</p>
+                    </div>
+                    <div className="h-[220px]">
+                        {stats.planChart.length === 0 ? (
+                            <p className="text-[11px] text-gray-400 text-center py-16">No businesses yet</p>
+                        ) : (
                             <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={stats.bizDaily} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                                    <defs>
-                                        <linearGradient id="ownerBizGrad" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="0%" stopColor="#0f766e" stopOpacity={0.35} />
-                                            <stop offset="100%" stopColor="#0f766e" stopOpacity={0} />
-                                        </linearGradient>
-                                    </defs>
+                                <BarChart data={stats.planChart} margin={{ top: 8, right: 8, left: 0, bottom: 40 }}>
                                     <CartesianGrid strokeDasharray="3 3" className="stroke-gray-100" />
-                                    <XAxis
-                                        dataKey="label"
-                                        tick={{ fontSize: 10, fill: '#94a3b8' }}
-                                        interval="preserveStartEnd"
-                                    />
-                                    <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} allowDecimals={false} width={32} />
-                                    <Tooltip
-                                        contentStyle={{
-                                            borderRadius: 12,
-                                            border: 'none',
-                                            boxShadow: '0 8px 30px rgba(0,0,0,0.08)',
-                                        }}
-                                        labelFormatter={(_, payload) =>
-                                            payload?.[0]?.payload?.day
-                                                ? String(payload[0].payload.day)
-                                                : ''
-                                        }
-                                    />
-                                    <Area
-                                        type="monotone"
-                                        dataKey="count"
-                                        stroke="#0f766e"
-                                        strokeWidth={2}
-                                        fill="url(#ownerBizGrad)"
-                                        name="New businesses"
-                                    />
-                                </AreaChart>
+                                    <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#9ca3af' }} interval={0} angle={-25} textAnchor="end" height={52} />
+                                    <YAxis tick={{ fontSize: 9, fill: '#9ca3af' }} allowDecimals={false} width={28} />
+                                    <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #f3f4f6', boxShadow: 'none', fontSize: 11 }} />
+                                    <Bar dataKey="value" fill="#3b5e5e" radius={[6, 6, 0, 0]} name="Businesses" />
+                                </BarChart>
                             </ResponsiveContainer>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="border-0 shadow-sm rounded-3xl overflow-hidden">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-lg font-light text-gray-900">
-                                Payment submissions (90 days)
-                            </CardTitle>
-                            <p className="text-xs text-gray-500">Proof uploads per day</p>
-                        </CardHeader>
-                        <CardContent className="h-[280px] pt-2">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={stats.payDaily} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                                    <defs>
-                                        <linearGradient id="ownerPayGrad" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="0%" stopColor="#6366f1" stopOpacity={0.35} />
-                                            <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
-                                        </linearGradient>
-                                    </defs>
-                                    <CartesianGrid strokeDasharray="3 3" className="stroke-gray-100" />
-                                    <XAxis
-                                        dataKey="label"
-                                        tick={{ fontSize: 10, fill: '#94a3b8' }}
-                                        interval="preserveStartEnd"
-                                    />
-                                    <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} allowDecimals={false} width={32} />
-                                    <Tooltip
-                                        contentStyle={{
-                                            borderRadius: 12,
-                                            border: 'none',
-                                            boxShadow: '0 8px 30px rgba(0,0,0,0.08)',
-                                        }}
-                                        labelFormatter={(_, payload) =>
-                                            payload?.[0]?.payload?.day
-                                                ? String(payload[0].payload.day)
-                                                : ''
-                                        }
-                                    />
-                                    <Area
-                                        type="monotone"
-                                        dataKey="count"
-                                        stroke="#6366f1"
-                                        strokeWidth={2}
-                                        fill="url(#ownerPayGrad)"
-                                        name="Submissions"
-                                    />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                        </CardContent>
-                    </Card>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <Card className="border-0 shadow-sm rounded-3xl overflow-hidden">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-lg font-light text-gray-900">Businesses by status</CardTitle>
-                        </CardHeader>
-                        <CardContent className="h-[280px] pt-2">
-                            {stats.statusChart.length === 0 ? (
-                                <p className="text-sm text-gray-400 text-center py-20">No data</p>
-                            ) : (
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={stats.statusChart} layout="vertical" margin={{ left: 16 }}>
-                                        <CartesianGrid strokeDasharray="3 3" className="stroke-gray-100" />
-                                        <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
-                                        <YAxis
-                                            type="category"
-                                            dataKey="name"
-                                            width={88}
-                                            tick={{ fontSize: 11, fill: '#64748b' }}
-                                        />
-                                        <Tooltip
-                                            contentStyle={{
-                                                borderRadius: 12,
-                                                border: 'none',
-                                                boxShadow: '0 8px 30px rgba(0,0,0,0.08)',
-                                            }}
-                                        />
-                                        <Bar dataKey="value" radius={[0, 8, 8, 0]} name="Businesses">
-                                            {stats.statusChart.map((entry) => (
-                                                <Cell key={entry.name} fill={entry.fill} />
-                                            ))}
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            )}
-                        </CardContent>
-                    </Card>
-
-                    <Card className="border-0 shadow-sm rounded-3xl overflow-hidden">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-lg font-light text-gray-900">Businesses by plan</CardTitle>
-                            <p className="text-xs text-gray-500">Top plans by assigned businesses</p>
-                        </CardHeader>
-                        <CardContent className="h-[280px] pt-2">
-                            {stats.planChart.length === 0 ? (
-                                <p className="text-sm text-gray-400 text-center py-20">No businesses yet</p>
-                            ) : (
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={stats.planChart} margin={{ top: 8, right: 8, left: 0, bottom: 40 }}>
-                                        <CartesianGrid strokeDasharray="3 3" className="stroke-gray-100" />
-                                        <XAxis
-                                            dataKey="name"
-                                            tick={{ fontSize: 9, fill: '#94a3b8' }}
-                                            interval={0}
-                                            angle={-25}
-                                            textAnchor="end"
-                                            height={56}
-                                        />
-                                        <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} allowDecimals={false} width={32} />
-                                        <Tooltip
-                                            contentStyle={{
-                                                borderRadius: 12,
-                                                border: 'none',
-                                                boxShadow: '0 8px 30px rgba(0,0,0,0.08)',
-                                            }}
-                                        />
-                                        <Bar dataKey="value" fill="#0f766e" radius={[8, 8, 0, 0]} name="Businesses" />
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            )}
-                        </CardContent>
-                    </Card>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

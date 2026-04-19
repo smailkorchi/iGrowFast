@@ -63,30 +63,30 @@ export function FinancialsWaterfall({
 
         const amountClass = isNet
           ? netPositive
-            ? 'text-emerald-700'
-            : 'text-red-700'
+            ? 'text-ant-green'
+            : 'text-ant-rose'
           : row.tone === 'revenue'
-            ? 'text-brand-navy'
-            : 'text-gray-700';
+            ? 'text-ant-ink'
+            : 'text-ant-muted';
 
         const barClass = isNet
           ? netPositive
-            ? 'bg-emerald-500'
-            : 'bg-red-500'
+            ? 'bg-ant-green'
+            : 'bg-ant-rose'
           : row.tone === 'revenue'
-            ? 'bg-brand-navy/60'
-            : 'bg-gray-300';
+            ? 'bg-ant-ink/70'
+            : 'bg-ant-mid/50';
 
         return (
-          <div key={row.label} className={cn(isNet && i > 0 && 'pt-1 border-t border-gray-100 mt-1')}>
-            <div className="flex items-baseline justify-between gap-1.5 text-[10px]">
-              <div className="flex items-center gap-1 min-w-0">
+          <div key={row.label} className={cn(isNet && i > 0 && 'pt-1.5 border-t border-ant-line mt-1')}>
+            <div className="flex items-baseline justify-between gap-2 text-[10px]">
+              <div className="flex items-center gap-1.5 min-w-0">
                 <span
                   className={cn(
-                    'inline-flex items-center justify-center w-3 text-[9px] font-bold tabular-nums',
-                    row.sign === '+' && 'text-brand-navy',
-                    row.sign === '−' && 'text-gray-400',
-                    row.sign === '=' && (netPositive ? 'text-emerald-600' : 'text-red-600'),
+                    'inline-flex items-center justify-center w-3 text-[9.5px] font-semibold tabular-nums',
+                    row.sign === '+' && 'text-ant-ink',
+                    row.sign === '−' && 'text-ant-mid',
+                    row.sign === '=' && (netPositive ? 'text-ant-green' : 'text-ant-rose'),
                   )}
                 >
                   {row.sign}
@@ -94,18 +94,18 @@ export function FinancialsWaterfall({
                 <span
                   className={cn(
                     'font-medium truncate',
-                    isNet ? 'text-brand-navy uppercase tracking-widest text-[9px] font-bold' : 'text-gray-600',
+                    isNet ? 'text-ant-ink uppercase tracking-[0.2em] text-[9.5px] font-semibold' : 'text-ant-muted',
                   )}
                 >
                   {row.label}
                 </span>
               </div>
-              <span className={cn('font-semibold tabular-nums', isNet ? 'text-[12px] font-bold' : 'text-[11px]', amountClass)}>
+              <span className={cn('font-semibold tabular-nums', isNet ? 'font-display text-[13px] font-semibold tracking-[-0.01em]' : 'text-[11px]', amountClass)}>
                 {Math.round(row.value).toLocaleString('fr-MA')}
-                <span className="text-[8px] text-gray-400 font-medium ml-0.5">MAD</span>
+                <span className="text-[9px] text-ant-mid font-medium ml-0.5">MAD</span>
               </span>
             </div>
-            <div className="h-[3px] w-full rounded-full bg-gray-50 overflow-hidden mt-0.5">
+            <div className="h-[3px] w-full rounded-full bg-ant-line-soft overflow-hidden mt-1">
               <div
                 className={cn('h-full rounded-full', barClass)}
                 style={{ width: `${Math.min(100, widthPct)}%` }}

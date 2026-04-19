@@ -171,99 +171,88 @@ const AiKeys = () => {
     );
 
     return (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-5 duration-700">
-            <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-                <div className="relative p-8">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div>
-                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">AI Keys</h1>
-                            <p className="text-gray-500 font-light">Manage your AI API keys and model limits.</p>
-                        </div>
-                        <div className="flex flex-col sm:flex-row gap-3 items-center">
-                            <div className="relative group sm:w-80">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
-                                <Input
-                                    placeholder="Search keys..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="pl-11 h-12 rounded-2xl border-gray-100 bg-white"
-                                />
-                            </div>
-                            <Button
-                                onClick={() => {
-                                    setEditingItem(null);
-                                    setIsModalOpen(true);
-                                }}
-                                className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group flex items-center gap-2 w-full sm:w-auto"
-                            >
-                                <Plus className="w-5 h-5 mr-3 group-hover:rotate-90 transition-transform duration-500" /> New Key
-                            </Button>
-                        </div>
-                    </div>
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+            <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                    <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">AI Keys</h1>
+                    <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Manage API keys and model configurations</p>
                 </div>
-            </div>
+                <div className="flex items-center gap-2">
+                    <div className="relative">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                        <Input
+                            placeholder="Search keys..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="pl-7 h-8 rounded-md border-gray-200 bg-white text-[11px] w-52"
+                        />
+                    </div>
+                    <Button
+                        onClick={() => { setEditingItem(null); setIsModalOpen(true); }}
+                        className="bg-brand-navy hover:bg-brand-navy/90 text-white h-8 px-3 rounded-md text-[11px] font-semibold gap-1.5 shrink-0"
+                    >
+                        <Plus className="w-3.5 h-3.5" /> New Key
+                    </Button>
+                </div>
+            </header>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
                 {isLoading ? (
-                    [1, 2, 3].map(i => <div key={i} className="h-64 rounded-[32px] bg-white animate-pulse" />)
+                    [1, 2, 3].map(i => <div key={i} className="h-48 rounded-xl bg-white border border-gray-100 animate-pulse" />)
                 ) : filteredKeys?.length ? (
                     filteredKeys.map(item => (
-                        <Card key={item.id} className="group overflow-hidden border-none bg-white hover:shadow-2xl transition-all duration-500 rounded-[32px]">
-                            <CardHeader className="p-6">
-                                <div className="flex justify-between items-start">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 rounded-2xl bg-brand-navy/[0.04] flex items-center justify-center text-brand-navy">
-                                            <Key className="w-6 h-6" />
-                                        </div>
-                                        <div>
-                                            <CardTitle className="text-lg font-black text-brand-navy">{item.name}</CardTitle>
-                                            <p className="text-xs text-muted-foreground font-medium mt-1">
-                                                Added {format(new Date(item.created_at), 'MMM dd, yyyy')}
-                                            </p>
-                                        </div>
+                        <Card key={item.id} className="border border-gray-100 shadow-none rounded-xl overflow-hidden">
+                            <CardHeader className="p-3 pb-2 flex flex-row items-start justify-between space-y-0">
+                                <div className="flex items-center gap-2 min-w-0">
+                                    <div className="w-8 h-8 rounded-md bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0">
+                                        <Key className="w-4 h-4 text-brand-navy/40" />
                                     </div>
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="rounded-xl h-9 w-9 hover:bg-slate-50">
-                                                <MoreVertical className="w-4 h-4 text-slate-400" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[160px]">
-                                            <DropdownMenuItem onClick={() => { setEditingItem(item); setIsModalOpen(true); }} className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy">
-                                                <Edit2 className="w-4 h-4 mr-3 text-slate-400" /> Edit Key
-                                            </DropdownMenuItem>
-                                            <DropdownMenuSeparator />
-                                            <DropdownMenuItem onClick={() => deleteMutation.mutate(item.id)} className="rounded-xl p-3 cursor-pointer font-bold text-red-500 hover:bg-red-50">
-                                                <Trash2 className="w-4 h-4 mr-3 text-red-400" /> Delete Key
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
+                                    <div className="min-w-0">
+                                        <CardTitle className="text-[12px] font-semibold text-brand-navy tracking-tight leading-tight truncate">{item.name}</CardTitle>
+                                        <p className="text-[9px] text-gray-400 mt-0.5 tabular-nums">
+                                            Added {format(new Date(item.created_at), 'MMM dd, yyyy')}
+                                        </p>
+                                    </div>
                                 </div>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="rounded-md h-6 w-6 hover:bg-gray-50 shadow-none -mr-1 -mt-1">
+                                            <MoreVertical className="w-3.5 h-3.5 text-gray-400" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="rounded-md min-w-[140px]">
+                                        <DropdownMenuItem onClick={() => { setEditingItem(item); setIsModalOpen(true); }} className="text-[11px] font-medium text-brand-navy">
+                                            <Edit2 className="w-3 h-3 mr-2 text-gray-400" /> Edit Key
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem onClick={() => deleteMutation.mutate(item.id)} className="text-[11px] font-medium text-red-600 hover:bg-red-50 focus:bg-red-50">
+                                            <Trash2 className="w-3 h-3 mr-2" /> Delete Key
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             </CardHeader>
-                            <CardContent className="px-6 pb-6 pt-0 space-y-4">
-                                <div className="flex flex-col gap-2">
-                                    <p className="text-[10px] uppercase font-black tracking-widest text-muted-foreground/60">API KEY</p>
-                                    <div className="p-3 bg-slate-50 rounded-xl font-mono text-xs text-brand-navy/60 truncate relative">
-                                        <span className="blur-sm select-none">{item.api_key.substring(0, 15)}...</span>
-                                        <span className="absolute inset-x-3">{item.api_key.substring(0, 4)}••••••••••••••••</span>
+                            <CardContent className="px-3 pb-3 space-y-2">
+                                <div>
+                                    <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400 mb-0.5">API Key</p>
+                                    <div className="px-2 py-1.5 rounded-md bg-gray-50 border border-gray-100 font-mono text-[10px] text-brand-navy/60 truncate">
+                                        {item.api_key.substring(0, 4)}••••••••••••••••
                                     </div>
                                 </div>
-                                <div className="space-y-3 pt-4 border-t border-slate-100">
-                                    <p className="text-[10px] uppercase font-black tracking-widest text-muted-foreground/60 flex items-center gap-2">
-                                        <Server className="w-3 h-3" /> Connected Models ({item.models?.length || 0})
+                                <div className="pt-2 border-t border-gray-100">
+                                    <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400 mb-1.5 flex items-center gap-1">
+                                        <Server className="w-2.5 h-2.5" /> Models ({item.models?.length || 0})
                                     </p>
-                                    <div className="grid grid-cols-1 gap-2 max-h-[140px] overflow-y-auto pr-2 custom-scrollbar">
+                                    <div className="space-y-1 max-h-[120px] overflow-y-auto">
                                         {item.models?.map((model: AiModel) => (
-                                            <div key={model.id} className="flex items-center justify-between p-3 bg-brand-navy/[0.02] rounded-xl border border-brand-navy/[0.04]">
-                                                <div className="flex items-center gap-2 truncate">
-                                                    <Bot className="w-3.5 h-3.5 text-brand-navy/40 shrink-0" />
-                                                    <span className="text-xs font-bold text-brand-navy truncate">{model.name}</span>
+                                            <div key={model.id} className="flex items-center justify-between px-2 py-1 rounded-md bg-gray-50 border border-gray-100">
+                                                <div className="flex items-center gap-1.5 min-w-0">
+                                                    <Bot className="w-3 h-3 text-brand-navy/40 shrink-0" />
+                                                    <span className="text-[10px] font-semibold text-brand-navy truncate">{model.name}</span>
                                                 </div>
-                                                <div className="flex items-center gap-3 shrink-0">
-                                                    <Badge variant="outline" className="text-[9px] uppercase font-black bg-white">{model.type}</Badge>
-                                                    <div className="flex items-center gap-1 text-[10px] font-bold text-brand-navy/50">
-                                                        <Activity className="w-3 h-3" /> {model.concurrency_limit}
+                                                <div className="flex items-center gap-1.5 shrink-0">
+                                                    <Badge variant="outline" className="text-[9px] font-semibold h-4 px-1 bg-white">{model.type}</Badge>
+                                                    <div className="flex items-center gap-0.5 text-[9px] font-semibold text-brand-navy/50">
+                                                        <Activity className="w-2.5 h-2.5" /> {model.concurrency_limit}
                                                     </div>
                                                 </div>
                                             </div>
@@ -274,16 +263,13 @@ const AiKeys = () => {
                         </Card>
                     ))
                 ) : (
-                    <div className="col-span-full py-20 flex flex-col items-center justify-center text-center bg-white rounded-[40px] border border-dashed border-slate-200">
-                        <div className="bg-brand-navy/5 p-6 rounded-full mb-6 relative">
-                            <Key className="w-12 h-12 text-brand-navy/40" />
-                            <Zap className="w-6 h-6 text-brand-navy absolute -bottom-2 -right-2" />
-                        </div>
-                        <h3 className="text-2xl font-black text-brand-navy">No AI Keys configured</h3>
-                        <p className="text-muted-foreground mt-2 max-w-sm">Add your provider API keys and setup model configurations to get started.</p>
+                    <div className="col-span-full border border-dashed border-gray-200 rounded-xl py-8 flex flex-col items-center justify-center text-center gap-2">
+                        <Key className="w-5 h-5 text-gray-300" />
+                        <p className="text-[11px] font-semibold text-brand-navy">No AI Keys configured</p>
+                        <p className="text-[10px] text-gray-400">Add your provider API keys to get started.</p>
                         <Button
                             onClick={() => { setEditingItem(null); setIsModalOpen(true); }}
-                            className="mt-6 bg-brand-navy hover:bg-brand-navy/90 text-white rounded-xl font-bold px-8 shadow-lg"
+                            className="mt-1 bg-brand-navy hover:bg-brand-navy/90 text-white h-8 px-3 rounded-md text-[11px] font-semibold"
                         >
                             Add First Key
                         </Button>
@@ -292,7 +278,7 @@ const AiKeys = () => {
             </div>
 
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                <DialogContent className="max-w-2xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden">
+                <DialogContent className="max-w-2xl p-0 border border-gray-100 rounded-xl shadow-none overflow-hidden">
                     <AiKeyForm
                         initialData={editingItem}
                         onSubmit={(v) => mutation.mutate({ values: v, id: editingItem?.id })}
@@ -323,95 +309,95 @@ const AiKeyForm = ({ initialData, onSubmit, loading }: { initialData: AiKeyData 
     return (
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col max-h-[90vh]">
-                <DialogHeader className="p-8 pb-6 bg-brand-navy/[0.02]">
-                    <DialogTitle className="text-3xl font-black text-brand-navy tracking-tight">
+                <DialogHeader className="px-4 pt-4 pb-3 border-b border-gray-100">
+                    <DialogTitle className="text-[13px] font-semibold text-brand-navy">
                         {initialData ? 'Edit AI Configuration' : 'New AI Configuration'}
                     </DialogTitle>
-                    <DialogDescription className="text-base font-semibold text-slate-500">
+                    <DialogDescription className="text-[11px] text-gray-500">
                         Securely provide your API key and configure its related models.
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="overflow-y-auto p-8 pt-6 space-y-8 flex-1 custom-scrollbar">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="overflow-y-auto p-4 space-y-3 flex-1">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <FormField control={form.control} name="name" render={({ field }) => (
                             <FormItem>
-                                <FormLabel className="text-[10px] font-black uppercase tracking-widest text-brand-navy/30">Provider Name</FormLabel>
+                                <FormLabel className="text-[10px] font-medium text-gray-500">Provider Name</FormLabel>
                                 <FormControl>
-                                    <Input placeholder="e.g. OpenAI, Anthropic..." {...field} className="h-14 rounded-2xl border-none bg-brand-navy/5 text-brand-navy font-black shadow-inner px-5 focus-visible:ring-1 focus-visible:ring-brand-navy" />
+                                    <Input placeholder="e.g. OpenAI, Anthropic..." {...field} className="h-9 text-[12px] rounded-md border-gray-200" />
                                 </FormControl>
-                                <FormMessage />
+                                <FormMessage className="text-[10px]" />
                             </FormItem>
                         )} />
                         <FormField control={form.control} name="api_key" render={({ field }) => (
                             <FormItem>
-                                <FormLabel className="text-[10px] font-black uppercase tracking-widest text-brand-navy/30">API Key</FormLabel>
+                                <FormLabel className="text-[10px] font-medium text-gray-500">API Key</FormLabel>
                                 <FormControl>
-                                    <Input type={initialData ? "password" : "text"} placeholder="sk-..." {...field} className="h-14 rounded-2xl border-none bg-brand-navy/5 text-brand-navy font-black shadow-inner px-5 focus-visible:ring-1 focus-visible:ring-brand-navy" />
+                                    <Input type={initialData ? "password" : "text"} placeholder="sk-..." {...field} className="h-9 text-[12px] rounded-md border-gray-200" />
                                 </FormControl>
-                                <FormMessage />
+                                <FormMessage className="text-[10px]" />
                             </FormItem>
                         )} />
                     </div>
                     <FormField control={form.control} name="base_url" render={({ field }) => (
                         <FormItem>
-                            <FormLabel className="text-[10px] font-black uppercase tracking-widest text-brand-navy/30">Base URL</FormLabel>
+                            <FormLabel className="text-[10px] font-medium text-gray-500">Base URL</FormLabel>
                             <FormControl>
-                                <Input placeholder="https://openrouter.ai/api/v1" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/5 text-brand-navy font-bold shadow-inner px-5 focus-visible:ring-1 focus-visible:ring-brand-navy text-xs" />
+                                <Input placeholder="https://openrouter.ai/api/v1" {...field} className="h-9 text-[12px] rounded-md border-gray-200" />
                             </FormControl>
-                            <FormMessage />
+                            <FormMessage className="text-[10px]" />
                         </FormItem>
                     )} />
 
-                    <div className="space-y-4 pt-4">
-                        <div className="flex items-center justify-between border-b border-brand-navy/5 pb-4">
+                    <div className="space-y-2 pt-1">
+                        <div className="flex items-center justify-between border-b border-gray-100 pb-2">
                             <div>
-                                <h3 className="text-lg font-black text-brand-navy">Configured Models</h3>
-                                <p className="text-xs font-bold text-muted-foreground">List the models accessible via this key</p>
+                                <p className="text-[11px] font-semibold text-brand-navy">Configured Models</p>
+                                <p className="text-[9px] text-gray-400">List the models accessible via this key</p>
                             </div>
                             <Button
                                 type="button"
                                 variant="outline"
                                 onClick={() => append({ name: '', type: 'text', concurrency_limit: 1 })}
-                                className="rounded-xl border-dashed border-2 border-brand-navy/20 hover:border-brand-navy/40 font-bold bg-transparent text-brand-navy h-10 px-4"
+                                className="h-8 px-3 rounded-md text-[11px] font-semibold border-gray-200 gap-1.5"
                             >
-                                <Plus className="w-4 h-4 mr-2" /> Add Model
+                                <Plus className="w-3.5 h-3.5" /> Add Model
                             </Button>
                         </div>
 
-                        <div className="space-y-3">
+                        <div className="space-y-2">
                             {fields.map((field, index) => (
-                                <div key={field.id} className="p-4 rounded-[24px] bg-white border border-slate-100 shadow-sm flex flex-col md:flex-row gap-4 items-start md:items-end animate-in fade-in run-in-from-bottom-2 duration-300">
-                                    <div className="flex-1 w-full relative group">
+                                <div key={field.id} className="p-2.5 rounded-xl border border-gray-100 bg-gray-50/50 flex flex-col md:flex-row gap-2 items-start md:items-end">
+                                    <div className="flex-1 w-full">
                                         <FormField control={form.control} name={`models.${index}.name`} render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel className="text-[10px] font-black uppercase tracking-widest text-brand-navy/30">Model Name</FormLabel>
+                                                <FormLabel className="text-[10px] font-medium text-gray-500">Model Name</FormLabel>
                                                 <FormControl>
-                                                    <Input placeholder="e.g. gpt-4, claude-3-opus..." {...field} className="h-12 rounded-xl bg-brand-navy/[0.02] border-none font-bold text-sm shadow-inner" />
+                                                    <Input placeholder="e.g. gpt-4, claude-3-opus..." {...field} className="h-9 text-[12px] rounded-md border-gray-200" />
                                                 </FormControl>
-                                                <FormMessage />
+                                                <FormMessage className="text-[10px]" />
                                             </FormItem>
                                         )} />
                                     </div>
-                                    <div className="w-full md:w-[140px] shrink-0">
+                                    <div className="w-full md:w-[130px] shrink-0">
                                         <FormField control={form.control} name={`models.${index}.type`} render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel className="text-[10px] font-black uppercase tracking-widest text-brand-navy/30">Type</FormLabel>
+                                                <FormLabel className="text-[10px] font-medium text-gray-500">Type</FormLabel>
                                                 <FormControl>
-                                                    <Input placeholder="text, image..." {...field} className="h-12 rounded-xl bg-brand-navy/[0.02] border-none font-bold text-sm shadow-inner text-center" />
+                                                    <Input placeholder="text, image..." {...field} className="h-9 text-[12px] rounded-md border-gray-200" />
                                                 </FormControl>
-                                                <FormMessage />
+                                                <FormMessage className="text-[10px]" />
                                             </FormItem>
                                         )} />
                                     </div>
-                                    <div className="w-full md:w-[120px] shrink-0">
+                                    <div className="w-full md:w-[110px] shrink-0">
                                         <FormField control={form.control} name={`models.${index}.concurrency_limit`} render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel className="text-[10px] font-black uppercase tracking-widest text-brand-navy/30">Concurrency</FormLabel>
+                                                <FormLabel className="text-[10px] font-medium text-gray-500">Concurrency</FormLabel>
                                                 <FormControl>
-                                                    <Input type="number" min={1} {...field} className="h-12 rounded-xl bg-brand-navy/[0.02] border-none font-bold text-sm shadow-inner text-center" />
+                                                    <Input type="number" min={1} {...field} className="h-9 text-[12px] rounded-md border-gray-200" />
                                                 </FormControl>
-                                                <FormMessage />
+                                                <FormMessage className="text-[10px]" />
                                             </FormItem>
                                         )} />
                                     </div>
@@ -419,10 +405,10 @@ const AiKeyForm = ({ initialData, onSubmit, loading }: { initialData: AiKeyData 
                                         type="button"
                                         variant="ghost"
                                         onClick={() => remove(index)}
-                                        className="shrink-0 h-10 w-10 p-0 rounded-xl text-red-400 hover:text-red-500 hover:bg-red-50 mb-1 active:scale-95 transition-transform"
+                                        className="shrink-0 h-8 w-8 p-0 rounded-md text-red-400 hover:text-red-500 hover:bg-red-50"
                                         disabled={fields.length === 1}
                                     >
-                                        <Trash2 className="w-4 h-4" />
+                                        <Trash2 className="w-3.5 h-3.5" />
                                     </Button>
                                 </div>
                             ))}
@@ -430,10 +416,10 @@ const AiKeyForm = ({ initialData, onSubmit, loading }: { initialData: AiKeyData 
                     </div>
                 </div>
 
-                <DialogFooter className="p-8 pb-8 pt-4 bg-brand-white border-t border-slate-50">
-                    <Button type="submit" disabled={loading} className="w-full bg-brand-navy hover:bg-brand-navy/90 text-white rounded-[24px] h-14 text-base font-black shadow-xl transition-all active:scale-[0.98]">
-                        {loading && <Loader2 className="w-5 h-5 mr-3 animate-spin" />}
-                        Save AI Configuration
+                <DialogFooter className="px-4 py-3 border-t border-gray-100 bg-white gap-2">
+                    <Button type="submit" disabled={loading} className="bg-brand-navy hover:bg-brand-navy/90 text-white h-8 px-3 rounded-md text-[11px] font-semibold gap-1.5">
+                        {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                        Save Configuration
                     </Button>
                 </DialogFooter>
             </form>

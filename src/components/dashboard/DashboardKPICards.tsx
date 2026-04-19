@@ -147,12 +147,22 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
         const notesTotal = filteredNotes.reduce((s: number, n: PaymentNote) => s + Number(n.net_amount || 0), 0);
         void returnedPkgIds;
 
+        // Anthropic-brand palette — single warm accent (orange) reserved for hero
+        // metric + any "rate" progress bar. Status tones use semantic blues/greens.
+        const ANT = {
+            ink: '#141413',
+            orange: '#d97757',
+            blue: '#6a9bcc',
+            green: '#788c5d',
+            mid: '#b0aea5',
+            rose: '#c96356',
+        };
         return [
             {
                 title: 'Total Orders',
                 value: total,
                 icon: ShoppingCart,
-                accent: '#3b5e5e',
+                accent: ANT.ink,
                 onClick: () => navigate('/orders'),
             },
             {
@@ -160,7 +170,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
                 value: confirmed.length,
                 subtitle: `${pct(confirmed.length)}% of total`,
                 icon: CheckCircle2,
-                accent: '#10b981',
+                accent: ANT.green,
                 onClick: () => navigate('/orders', { state: { filterStatusIds: confirmedIdList, filterStatusLabel: 'Confirmed' } }),
             },
             {
@@ -168,7 +178,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
                 value: `${confirmationRate}%`,
                 subtitle: `${confirmed.length}/${total} of total`,
                 icon: Target,
-                accent: '#8b5cf6',
+                accent: ANT.orange,
                 rate: confirmationRateNum,
             },
             {
@@ -179,7 +189,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
                         ? `${((delivered.length / confirmed.length) * 100).toFixed(1)}% of confirmed`
                         : `${pct(delivered.length)}% of total`,
                 icon: Package,
-                accent: '#059669',
+                accent: ANT.green,
                 onClick: () => navigate('/orders', { state: { filterPackageStatusIds: deliveredPkgIdList, filterPackageStatusLabel: 'Delivered' } }),
             },
             {
@@ -187,7 +197,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
                 value: `${deliveryRate}%`,
                 subtitle: `${delivered.length}/${confirmed.length} of confirmed`,
                 icon: TrendingUp,
-                accent: '#2563eb',
+                accent: ANT.orange,
                 rate: deliveryRateNum,
             },
             {
@@ -195,7 +205,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
                 value: pendingConfirmation.length,
                 subtitle: `${pct(pendingConfirmation.length)}% of total`,
                 icon: Clock,
-                accent: '#f59e0b',
+                accent: ANT.blue,
                 onClick: () => navigate('/orders', { state: { filterStatusIds: pendingIdList, filterStatusLabel: 'Pending confirmation' } }),
             },
             {
@@ -203,7 +213,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
                 value: enCoursLivraison.length,
                 subtitle: `${pct(enCoursLivraison.length)}% of total`,
                 icon: Truck,
-                accent: '#6366f1',
+                accent: ANT.blue,
                 onClick: () => navigate('/orders', { state: { filterPackageStatusIds: shippedPkgIdList, filterPackageStatusLabel: 'In transit' } }),
             },
             {
@@ -211,8 +221,8 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
                 value: canceled.length,
                 subtitle: `${pct(canceled.length)}% of total`,
                 icon: XCircle,
-                accent: '#ef4444',
-                valueColor: canceled.length > 0 ? 'text-red-600' : undefined,
+                accent: ANT.rose,
+                valueColor: canceled.length > 0 ? 'text-ant-rose' : undefined,
                 onClick: () => navigate('/orders', { state: { filterStatusIds: cancelledIdList, filterStatusLabel: 'Canceled' } }),
             },
             {
@@ -220,8 +230,8 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
                 value: refused.length,
                 subtitle: `${pct(refused.length)}% of total`,
                 icon: Ban,
-                accent: '#f97316',
-                valueColor: refused.length > 0 ? 'text-orange-600' : undefined,
+                accent: ANT.rose,
+                valueColor: refused.length > 0 ? 'text-ant-rose' : undefined,
                 onClick: () => navigate('/orders', { state: { filterPackageStatusIds: refusedPkgIdList, filterPackageStatusLabel: 'Refused' } }),
             },
             {
@@ -229,51 +239,46 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
                 value: filteredNotes.length,
                 subtitle: `${notesTotal.toLocaleString('fr-MA')} MAD`,
                 icon: FileText,
-                accent: '#a855f7',
+                accent: ANT.mid,
                 onClick: () => navigate('/payments'),
             },
         ];
     }, [orders, paymentNotes, dateFilter, navigate, confirmedIds, cancelledIds, pendingIds, newOrderIds, deliveredPkgIds, returnedPkgIds, getPkgsByCategories, isPkgCategory]);
 
     return (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5">
             {cards.map((card, i) => (
                 <motion.div
                     key={card.title}
-                    initial={{ opacity: 0, y: 6 }}
+                    initial={{ opacity: 0, y: 4 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.22, delay: i * 0.025 }}
+                    transition={{ duration: 0.22, delay: i * 0.02 }}
                 >
                     <Card
                         className={cn(
-                            'group relative border border-gray-100 shadow-none rounded-lg h-full overflow-hidden transition-all',
-                            card.onClick && 'cursor-pointer hover:border-gray-200 hover:shadow-[0_1px_2px_rgba(0,0,0,0.04)]',
+                            'group relative border border-ant-line bg-ant-paper shadow-none rounded-xl h-full overflow-hidden transition-all',
+                            card.onClick && 'cursor-pointer hover:border-ant-ink/20 hover:-translate-y-[1px]',
                         )}
                         onClick={card.onClick}
                     >
-                        <span
-                            aria-hidden
-                            className="absolute inset-y-0 left-0 w-[2px]"
-                            style={{ backgroundColor: card.accent }}
-                        />
-                        <CardContent className="p-2.5 pl-3">
+                        <CardContent className="p-3">
                             <div className="flex items-center justify-between gap-1.5">
-                                <span className="text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400 truncate">
+                                <span className="text-[9.5px] uppercase tracking-[0.18em] font-medium text-ant-mid truncate">
                                     {card.title}
                                 </span>
                                 <span
-                                    className="flex items-center justify-center w-4 h-4 rounded shrink-0"
+                                    className="flex items-center justify-center w-5 h-5 rounded-md shrink-0"
                                     style={{ backgroundColor: `${card.accent}14`, color: card.accent }}
                                 >
-                                    <card.icon className="w-2.5 h-2.5" strokeWidth={2.25} />
+                                    <card.icon className="w-3 h-3" strokeWidth={2} />
                                 </span>
                             </div>
                             <div
                                 className={cn(
-                                    'font-semibold text-brand-navy tabular-nums mt-1.5 leading-none',
+                                    'font-display font-semibold text-ant-ink tabular-nums mt-2 leading-none tracking-[-0.02em]',
                                     typeof card.value === 'string' && card.value.includes('%')
-                                        ? 'text-[17px]'
-                                        : 'text-[15px]',
+                                        ? 'text-[22px]'
+                                        : 'text-[20px]',
                                     card.valueColor,
                                 )}
                             >
@@ -281,8 +286,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
                             </div>
                             {card.rate !== undefined && (
                                 <div
-                                    className="mt-1.5 h-[3px] rounded-full overflow-hidden"
-                                    style={{ backgroundColor: `${card.accent}1A` }}
+                                    className="mt-2 h-[3px] rounded-full overflow-hidden bg-ant-line/70"
                                 >
                                     <div
                                         className="h-full rounded-full transition-all duration-500"
@@ -291,7 +295,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
                                 </div>
                             )}
                             {card.subtitle && (
-                                <div className="text-[9px] text-gray-400 mt-1 truncate tabular-nums">
+                                <div className="text-[10px] text-ant-muted mt-1.5 truncate tabular-nums">
                                     {card.subtitle}
                                 </div>
                             )}

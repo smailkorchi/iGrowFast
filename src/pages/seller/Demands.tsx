@@ -8,8 +8,6 @@ import {
     CheckCircle2,
     XCircle,
     AlertCircle,
-    Search,
-    Filter,
     ChevronRight,
     Send,
     HelpCircle,
@@ -23,11 +21,10 @@ import {
     Film,
     Paperclip,
     Loader2,
-    Download,
-    ExternalLink
+    Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -321,119 +318,114 @@ const SellerDemands = () => {
     };
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500 pb-20">
-            {/* Header Area */}
-            <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-                <div className="relative p-8">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div>
-                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Demands Hub</h1>
-                            <p className="text-gray-500 font-light">Submit your requests and track administrative resolutions.</p>
-                        </div>
-                        <Button
-                            onClick={() => setIsCreateModalOpen(true)}
-                            className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-14 px-8 rounded-2xl transition-all active:scale-95 group"
-                        >
-                            <Plus className="w-5 h-5 mr-3 group-hover:rotate-90 transition-transform duration-500" />
-                            New Request
-                        </Button>
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+            {/* Header */}
+            <header className="space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Demands Hub</h1>
+                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Submit requests · Track admin resolutions</p>
+                    </div>
+                    <Button
+                        onClick={() => setIsCreateModalOpen(true)}
+                        className="h-8 rounded-md text-[11px] font-semibold bg-brand-navy hover:bg-brand-navy/90 text-white px-3 flex items-center gap-1.5"
+                    >
+                        <Plus className="w-3.5 h-3.5" />
+                        New Request
+                    </Button>
+                </div>
+            </header>
+
+            {/* KPI Tiles */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                <div className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
+                    <span className="w-[3px] self-stretch rounded-full" style={{ background: '#d97706' }} />
+                    <div className="flex-1 min-w-0">
+                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Pending</p>
+                        <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{demands.filter(d => d.status === 'pending').length}</p>
+                    </div>
+                </div>
+                <div className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
+                    <span className="w-[3px] self-stretch rounded-full" style={{ background: '#3b5e5e' }} />
+                    <div className="flex-1 min-w-0">
+                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">In Progress</p>
+                        <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{demands.filter(d => d.status === 'in_progress').length}</p>
+                    </div>
+                </div>
+                <div className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
+                    <span className="w-[3px] self-stretch rounded-full" style={{ background: '#059669' }} />
+                    <div className="flex-1 min-w-0">
+                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Resolved</p>
+                        <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{demands.filter(d => d.status === 'resolved').length}</p>
+                    </div>
+                </div>
+                <div className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
+                    <span className="w-[3px] self-stretch rounded-full" style={{ background: '#6b7280' }} />
+                    <div className="flex-1 min-w-0">
+                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Total</p>
+                        <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{demands.length}</p>
                     </div>
                 </div>
             </div>
 
-            {/* Stats Overview */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {[
-                    { label: 'Pending', count: demands.filter(d => d.status === 'pending').length, color: 'text-amber-600', bg: 'bg-amber-50' },
-                    { label: 'In Progress', count: demands.filter(d => d.status === 'in_progress').length, color: 'text-blue-600', bg: 'bg-blue-50' },
-                    { label: 'Resolved', count: demands.filter(d => d.status === 'resolved').length, color: 'text-green-600', bg: 'bg-green-50' },
-                    { label: 'Total Files', count: demands.length, color: 'text-gray-900', bg: 'bg-gray-100' }
-                ].map((stat, i) => (
-                    <Card key={i} className="border-0 shadow-sm rounded-2xl overflow-hidden">
-                        <CardContent className="p-4 flex items-center justify-between">
-                            <div>
-                                <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400">{stat.label}</p>
-                                <p className={`text-2xl font-light ${stat.color}`}>{stat.count}</p>
-                            </div>
-                            <div className={`w-10 h-10 ${stat.bg} rounded-xl flex items-center justify-center`}>
-                                <FileText className={`w-5 h-5 ${stat.color}`} />
-                            </div>
-                        </CardContent>
-                    </Card>
-                ))}
-            </div>
-
             {/* Demands List */}
-            <Card className="border-0 shadow-2xl rounded-[2rem] overflow-hidden bg-white">
-                <CardHeader className="p-8 border-b border-gray-50 bg-gradient-to-r from-gray-50/50 to-transparent">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <CardTitle className="text-2xl font-light text-gray-900">Request History</CardTitle>
-                            <CardDescription className="font-light">Direct line to platform administration</CardDescription>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 px-4 py-1 font-light">
-                                Authenticated Channel
-                            </Badge>
-                        </div>
-                    </div>
-                </CardHeader>
+            <Card className="border border-gray-100 shadow-none rounded-xl">
                 <CardContent className="p-0">
+                    <div className="flex items-center justify-between px-3.5 pt-3 pb-2.5 border-b border-gray-100">
+                        <span className="text-[11px] font-semibold text-brand-navy">Request History</span>
+                    </div>
                     <div className="overflow-x-auto text-left">
                         <table className="w-full border-collapse">
                             <thead>
-                                <tr className="text-left border-b border-gray-50/50 bg-gray-50/30">
-                                    <th className="p-6 text-[10px] uppercase tracking-widest font-medium text-gray-400">Category</th>
-                                    <th className="p-6 text-[10px] uppercase tracking-widest font-medium text-gray-400">Subject</th>
-                                    <th className="p-6 text-[10px] uppercase tracking-widest font-medium text-gray-400">Priority</th>
-                                    <th className="p-6 text-[10px] uppercase tracking-widest font-medium text-gray-400">Status</th>
-                                    <th className="p-6 text-[10px] uppercase tracking-widest font-medium text-gray-400">Requested On</th>
-                                    <th className="p-6"></th>
+                                <tr className="border-b border-gray-100">
+                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Category</th>
+                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Subject</th>
+                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Priority</th>
+                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Status</th>
+                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Date</th>
+                                    <th className="px-3 py-2"></th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-50">
+                            <tbody>
                                 {loading ? (
-                                    <tr>
-                                        <td colSpan={6} className="p-20 text-center">
-                                            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto" />
-                                        </td>
-                                    </tr>
+                                    [1,2,3].map(i => (
+                                        <tr key={i}>
+                                            <td colSpan={6} className="px-3 py-2">
+                                                <div className="h-5 bg-gray-100 rounded animate-pulse" />
+                                            </td>
+                                        </tr>
+                                    ))
                                 ) : demands.length > 0 ? (
                                     demands.map((d) => {
                                         const StatusIcon = getStatusConfig(d.status).icon;
                                         const CategoryIcon = getCategoryIcon(d.category);
                                         return (
-                                            <tr key={d.id} className="group hover:bg-gray-50/50 transition-colors duration-300">
-                                                <td className="p-6">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-9 h-9 rounded-xl border border-gray-100 bg-white flex items-center justify-center shadow-sm">
-                                                            <CategoryIcon className="w-4 h-4 text-gray-500" />
-                                                        </div>
-                                                        <span className="text-xs uppercase tracking-wider text-gray-400 font-bold">{d.category}</span>
+                                            <tr key={d.id} className="hover:bg-gray-50 transition-colors border-b border-gray-100">
+                                                <td className="px-3 py-2 text-[11px] text-brand-navy/80 tabular-nums">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <CategoryIcon className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                                                        <span className="capitalize">{d.category}</span>
                                                     </div>
                                                 </td>
-                                                <td className="p-6">
-                                                    <p className="text-sm font-medium text-gray-900 leading-tight line-clamp-1">{d.subject}</p>
-                                                    <p className="text-[10px] text-gray-400 mt-1">ID: {d.id.slice(0, 8).toUpperCase()}</p>
+                                                <td className="px-3 py-2 text-[11px] text-brand-navy/80 max-w-[200px]">
+                                                    <p className="truncate font-medium">{d.subject}</p>
+                                                    <p className="text-[9px] text-gray-400 tabular-nums">{d.id.slice(0, 8).toUpperCase()}</p>
                                                 </td>
-                                                <td className="p-6">
-                                                    <span className={`text-[10px] uppercase tracking-widest ${getPriorityColor(d.priority)}`}>
+                                                <td className="px-3 py-2">
+                                                    <span className={`text-[9px] uppercase tracking-[0.12em] font-bold ${getPriorityColor(d.priority)}`}>
                                                         {d.priority}
                                                     </span>
                                                 </td>
-                                                <td className="p-6">
-                                                    <Badge className={`${getStatusConfig(d.status).color} border px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center w-fit gap-2`}>
-                                                        <StatusIcon className="w-3 h-3" />
+                                                <td className="px-3 py-2">
+                                                    <span className={`inline-flex items-center gap-1 h-5 px-1.5 rounded text-[9px] font-semibold border ${getStatusConfig(d.status).color}`}>
+                                                        <StatusIcon className="w-2.5 h-2.5" />
                                                         {getStatusConfig(d.status).label}
-                                                    </Badge>
+                                                    </span>
                                                 </td>
-                                                <td className="p-6">
-                                                    <p className="text-xs text-gray-500 font-light">
-                                                        {format(new Date(d.created_at), 'MMM dd, yyyy')}
-                                                    </p>
+                                                <td className="px-3 py-2 text-[11px] text-brand-navy/80 tabular-nums whitespace-nowrap">
+                                                    {format(new Date(d.created_at), 'MMM dd, yyyy')}
                                                 </td>
-                                                <td className="p-6 text-right">
+                                                <td className="px-3 py-2 text-right">
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
@@ -441,9 +433,9 @@ const SellerDemands = () => {
                                                             setSelectedDemand(d);
                                                             setIsViewModalOpen(true);
                                                         }}
-                                                        className="w-10 h-10 rounded-xl hover:bg-white hover:shadow-md transition-all text-gray-400 hover:text-primary"
+                                                        className="h-7 w-7 rounded-md hover:bg-gray-100 text-gray-400 hover:text-brand-navy"
                                                     >
-                                                        <ChevronRight className="w-4 h-4" />
+                                                        <ChevronRight className="w-3.5 h-3.5" />
                                                     </Button>
                                                 </td>
                                             </tr>
@@ -451,13 +443,10 @@ const SellerDemands = () => {
                                     })
                                 ) : (
                                     <tr>
-                                        <td colSpan={6} className="p-20 text-center">
-                                            <div className="flex flex-col items-center justify-center text-gray-400 font-light">
-                                                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
-                                                    <MessageSquare className="w-8 h-8 text-gray-200" />
-                                                </div>
-                                                <p className="text-lg">No active requests found.</p>
-                                                <p className="text-sm opacity-60 mt-1">Your demands will be listed here for tracking.</p>
+                                        <td colSpan={6}>
+                                            <div className="border border-dashed border-gray-200 rounded-xl py-8 mx-3 my-3 flex flex-col items-center justify-center text-center">
+                                                <MessageSquare className="w-6 h-6 text-gray-400 mb-2" />
+                                                <p className="text-[11px] font-medium text-gray-400">No active requests found.</p>
                                             </div>
                                         </td>
                                     </tr>
@@ -470,24 +459,24 @@ const SellerDemands = () => {
 
             {/* Create Demand Modal */}
             <Dialog open={isCreateModalOpen} onOpenChange={(open) => { setIsCreateModalOpen(open); if (!open) resetCreateForm(); }}>
-                <DialogContent className="max-w-4xl p-0 border-0 overflow-hidden rounded-[2.5rem] bg-white flex flex-col max-h-[92vh]">
-                    <DialogHeader className="px-10 pt-10 pb-6 shrink-0">
-                        <DialogTitle className="text-3xl font-extralight text-gray-900">New Support Request</DialogTitle>
-                        <DialogDescription className="font-light">Briefly describe your issue and its priority.</DialogDescription>
+                <DialogContent className="max-w-4xl p-0 border border-gray-100 overflow-hidden rounded-xl bg-white flex flex-col max-h-[92vh]">
+                    <DialogHeader className="px-5 pt-5 pb-4 shrink-0 border-b border-gray-100">
+                        <DialogTitle className="text-[14px] font-semibold text-brand-navy">New Support Request</DialogTitle>
+                        <DialogDescription className="text-[11px] text-gray-400">Briefly describe your issue and its priority.</DialogDescription>
                     </DialogHeader>
-                    <div className="px-10 pb-6 grid grid-cols-1 md:grid-cols-2 gap-8 overflow-y-auto flex-1">
-                      <div className="space-y-6">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400 ml-1">Topic Category</label>
+                    <div className="px-5 pb-5 grid grid-cols-1 md:grid-cols-2 gap-5 overflow-y-auto flex-1 pt-4">
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1.5">
+                                <label className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Category</label>
                                 <Select
                                     value={newDemand.category}
                                     onValueChange={(val) => setNewDemand(prev => ({ ...prev, category: val }))}
                                 >
-                                    <SelectTrigger className="h-12 rounded-2xl border-gray-100 bg-gray-50/50">
+                                    <SelectTrigger className="h-8 rounded-md border-gray-100 bg-gray-50 text-[11px]">
                                         <SelectValue />
                                     </SelectTrigger>
-                                    <SelectContent className="rounded-2xl border-gray-100">
+                                    <SelectContent className="rounded-lg border-gray-100">
                                         <SelectItem value="general">General Inquiry</SelectItem>
                                         <SelectItem value="payment">Payment Issue</SelectItem>
                                         <SelectItem value="order">Order Correction</SelectItem>
@@ -496,40 +485,40 @@ const SellerDemands = () => {
                                     </SelectContent>
                                 </Select>
                             </div>
-                            <div className="space-y-2">
-                                <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400 ml-1">Priority Level</label>
+                            <div className="space-y-1.5">
+                                <label className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Priority</label>
                                 <Select
                                     value={newDemand.priority}
                                     onValueChange={(val) => setNewDemand(prev => ({ ...prev, priority: val }))}
                                 >
-                                    <SelectTrigger className="h-12 rounded-2xl border-gray-100 bg-gray-50/50">
+                                    <SelectTrigger className="h-8 rounded-md border-gray-100 bg-gray-50 text-[11px]">
                                         <SelectValue />
                                     </SelectTrigger>
-                                    <SelectContent className="rounded-2xl border-gray-100">
-                                        <SelectItem value="low">Low (Routine)</SelectItem>
+                                    <SelectContent className="rounded-lg border-gray-100">
+                                        <SelectItem value="low">Low</SelectItem>
                                         <SelectItem value="medium">Medium</SelectItem>
-                                        <SelectItem value="high">High (Urgent)</SelectItem>
-                                        <SelectItem value="urgent">Critical (Blocker)</SelectItem>
+                                        <SelectItem value="high">High</SelectItem>
+                                        <SelectItem value="urgent">Urgent</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
                         </div>
 
-                        <div className="space-y-2">
-                            <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400 ml-1">Request Subject</label>
+                        <div className="space-y-1.5">
+                            <label className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Subject</label>
                             <Input
                                 placeholder="I have a question about my latest payout..."
-                                className="h-12 rounded-2xl border-gray-100 bg-gray-50/50 focus:ring-primary/10"
+                                className="h-8 rounded-md border-gray-100 bg-gray-50 text-[11px]"
                                 value={newDemand.subject}
                                 onChange={(e) => setNewDemand(prev => ({ ...prev, subject: e.target.value }))}
                             />
                         </div>
 
-                        <div className="space-y-2">
-                            <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400 ml-1">Detailed Explanation</label>
+                        <div className="space-y-1.5">
+                            <label className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Description</label>
                             <Textarea
                                 placeholder="Please provide as much detail as possible to help us resolve this quickly."
-                                className="min-h-[180px] rounded-2xl border-gray-100 bg-gray-50/50 focus:ring-primary/10 resize-none p-4"
+                                className="min-h-[140px] rounded-md border-gray-100 bg-gray-50 text-[11px] resize-none p-2.5"
                                 value={newDemand.content}
                                 onChange={(e) => setNewDemand(prev => ({ ...prev, content: e.target.value }))}
                             />
@@ -537,12 +526,11 @@ const SellerDemands = () => {
                       </div>
 
                       {/* Right column: attachments */}
-                      <div className="space-y-6">
-                        {/* Drag & drop media uploader */}
-                        <div className="space-y-2">
-                            <div className="flex items-center justify-between ml-1">
-                                <label className="text-[10px] uppercase tracking-widest font-bold text-gray-400">Attachments</label>
-                                <span className="text-[10px] text-gray-400 font-light">Images, videos, PDF · max 50MB each</span>
+                      <div className="space-y-4">
+                        <div className="space-y-1.5">
+                            <div className="flex items-center justify-between">
+                                <label className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Attachments</label>
+                                <span className="text-[9px] text-gray-400">Images, videos, PDF · max 50MB</span>
                             </div>
                             <div
                                 onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
@@ -550,10 +538,10 @@ const SellerDemands = () => {
                                 onDragLeave={() => setIsDragging(false)}
                                 onDrop={handleDrop}
                                 onClick={() => fileInputRef.current?.click()}
-                                className={`relative cursor-pointer rounded-2xl border-2 border-dashed p-6 text-center transition-all ${
+                                className={`relative cursor-pointer rounded-xl border-2 border-dashed p-5 text-center transition-all ${
                                     isDragging
-                                        ? 'border-primary bg-primary/5 scale-[1.01]'
-                                        : 'border-gray-200 bg-gray-50/50 hover:border-primary/40 hover:bg-primary/[0.02]'
+                                        ? 'border-brand-navy bg-brand-navy/5'
+                                        : 'border-gray-200 bg-gray-50 hover:border-brand-navy/30'
                                 }`}
                             >
                                 <input
@@ -565,20 +553,16 @@ const SellerDemands = () => {
                                     onChange={handleFileInput}
                                 />
                                 <div className="flex flex-col items-center gap-2 pointer-events-none">
-                                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${
-                                        isDragging ? 'bg-primary/10 text-primary' : 'bg-white text-gray-400 shadow-sm'
-                                    }`}>
-                                        <UploadCloud className="w-6 h-6" />
-                                    </div>
-                                    <p className="text-sm font-medium text-gray-700">
+                                    <UploadCloud className="w-5 h-5 text-gray-400" />
+                                    <p className="text-[11px] font-medium text-gray-600">
                                         {isDragging ? 'Drop files to attach' : 'Drag & drop, or click to browse'}
                                     </p>
-                                    <p className="text-[10px] text-gray-400 font-light">Screenshots help us resolve issues faster</p>
+                                    <p className="text-[9px] text-gray-400">Screenshots help us resolve issues faster</p>
                                 </div>
                             </div>
 
                             {pendingFiles.length > 0 && (
-                                <div className="space-y-2 pt-2">
+                                <div className="space-y-1.5 pt-1.5">
                                     {pendingFiles.map((file, idx) => {
                                         const isImage = file.type.startsWith('image/');
                                         const isVideo = file.type.startsWith('video/');
@@ -587,26 +571,26 @@ const SellerDemands = () => {
                                         return (
                                             <div
                                                 key={`${file.name}-${idx}`}
-                                                className="flex items-center gap-3 p-3 rounded-2xl bg-gray-50/70 border border-gray-100 group"
+                                                className="flex items-center gap-2 p-2 rounded-lg bg-gray-50 border border-gray-100"
                                             >
-                                                <div className="w-10 h-10 rounded-xl bg-white border border-gray-100 flex items-center justify-center overflow-hidden shrink-0">
+                                                <div className="w-8 h-8 rounded-md bg-white border border-gray-100 flex items-center justify-center overflow-hidden shrink-0">
                                                     {previewUrl ? (
                                                         <img src={previewUrl} alt={file.name} className="w-full h-full object-cover" />
                                                     ) : (
-                                                        <Icon className="w-4 h-4 text-gray-400" />
+                                                        <Icon className="w-3.5 h-3.5 text-gray-400" />
                                                     )}
                                                 </div>
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="text-xs font-medium text-gray-800 truncate">{file.name}</p>
-                                                    <p className="text-[10px] text-gray-400">{formatFileSize(file.size)}</p>
+                                                    <p className="text-[11px] font-medium text-gray-700 truncate">{file.name}</p>
+                                                    <p className="text-[9px] text-gray-400">{formatFileSize(file.size)}</p>
                                                 </div>
                                                 <button
                                                     type="button"
                                                     onClick={(e) => { e.stopPropagation(); removePendingFile(idx); }}
-                                                    className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                                                    className="w-7 h-7 rounded-md flex items-center justify-center text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
                                                     disabled={submitting}
                                                 >
-                                                    <X className="w-4 h-4" />
+                                                    <X className="w-3.5 h-3.5" />
                                                 </button>
                                             </div>
                                         );
@@ -616,111 +600,103 @@ const SellerDemands = () => {
 
                             {submitting && pendingFiles.length > 0 && (
                                 <div className="pt-2">
-                                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                    <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
                                         <div
-                                            className="h-full bg-primary transition-all duration-300"
+                                            className="h-full bg-brand-navy transition-all duration-300"
                                             style={{ width: `${uploadProgress}%` }}
                                         />
                                     </div>
-                                    <p className="text-[10px] text-gray-400 mt-1 text-center">Uploading {uploadProgress}%</p>
+                                    <p className="text-[9px] text-gray-400 mt-1 text-center">Uploading {uploadProgress}%</p>
                                 </div>
                             )}
                         </div>
                       </div>
                     </div>
-                    <DialogFooter className="px-10 py-6 bg-white border-t border-gray-50 shrink-0">
+                    <div className="px-5 py-3.5 bg-white border-t border-gray-100 shrink-0">
                         <Button
-                            className="w-full bg-primary hover:bg-primary/90 text-white h-14 rounded-2xl shadow-xl shadow-primary/20 transition-all active:scale-95 text-lg font-light"
+                            className="w-full h-8 rounded-md text-[11px] font-semibold bg-brand-navy hover:bg-brand-navy/90 text-white flex items-center gap-1.5 justify-center"
                             onClick={handleCreateDemand}
                             disabled={submitting}
                         >
                             {submitting ? (
-                                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
+                                <Loader2 className="w-4 h-4 animate-spin" />
                             ) : (
                                 <>
-                                    <Send className="w-5 h-5 mr-3" />
+                                    <Send className="w-3.5 h-3.5" />
                                     File Request
                                 </>
                             )}
                         </Button>
-                    </DialogFooter>
+                    </div>
                 </DialogContent>
             </Dialog>
 
             {/* View Demand Modal */}
             <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
-                <DialogContent className="max-w-5xl p-0 border-0 overflow-hidden rounded-[2.5rem] bg-gray-50 flex flex-col max-h-[92vh]">
+                <DialogContent className="max-w-4xl p-0 border border-gray-100 overflow-hidden rounded-xl bg-white flex flex-col max-h-[92vh]">
                     {selectedDemand && (
                         <>
-                            <div className="relative p-8 bg-white shrink-0 border-b border-gray-50">
-                                <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl opacity-50" />
-                                <div className="relative z-10 flex flex-col md:flex-row md:items-start justify-between gap-6">
-                                    <div className="flex items-center gap-5">
-                                        <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center shadow-inner shrink-0">
-                                            {React.createElement(getCategoryIcon(selectedDemand.category), {
-                                                className: "w-7 h-7 text-gray-400"
-                                            })}
-                                        </div>
-                                        <div className="min-w-0">
-                                            <Badge className={`${getStatusConfig(selectedDemand.status).color} border px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest inline-flex items-center gap-2 mb-2`}>
-                                                {getStatusConfig(selectedDemand.status).label}
-                                            </Badge>
-                                            <h2 className="text-2xl font-light text-gray-900 leading-tight">{selectedDemand.subject}</h2>
-                                        </div>
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 pt-4 pb-3.5 shrink-0 border-b border-gray-100">
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <div className="w-8 h-8 bg-gray-50 rounded-lg flex items-center justify-center border border-gray-100 shrink-0">
+                                        {React.createElement(getCategoryIcon(selectedDemand.category), {
+                                            className: "w-4 h-4 text-gray-400"
+                                        })}
                                     </div>
-                                    <div className="text-right shrink-0">
-                                        <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400">Filed On</p>
-                                        <p className="text-sm font-medium text-gray-600">{format(new Date(selectedDemand.created_at), 'MMMM dd, yyyy')}</p>
+                                    <div className="min-w-0">
+                                        <span className={`inline-flex items-center gap-1 h-5 px-1.5 rounded text-[9px] font-semibold border ${getStatusConfig(selectedDemand.status).color} mb-1`}>
+                                            {getStatusConfig(selectedDemand.status).label}
+                                        </span>
+                                        <h2 className="text-[13px] font-semibold text-brand-navy leading-tight truncate">{selectedDemand.subject}</h2>
                                     </div>
+                                </div>
+                                <div className="shrink-0 text-right">
+                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Filed On</p>
+                                    <p className="text-[11px] font-medium text-brand-navy/80">{format(new Date(selectedDemand.created_at), 'MMM dd, yyyy')}</p>
                                 </div>
                             </div>
 
-                            <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8 overflow-y-auto flex-1">
+                            <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-5 overflow-y-auto flex-1">
                                 {/* Left column: submission + attachments */}
-                                <div className="space-y-6">
-                                    <div className="space-y-3">
-                                        <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400 ml-1">Your Submission</p>
-                                        <div className="p-6 rounded-3xl bg-white border border-gray-100 shadow-sm">
-                                            <p className="text-gray-700 font-light leading-relaxed whitespace-pre-wrap">{selectedDemand.content}</p>
+                                <div className="space-y-4">
+                                    <div className="space-y-1.5">
+                                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Your Submission</p>
+                                        <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100">
+                                            <p className="text-[11px] text-brand-navy/80 leading-relaxed whitespace-pre-wrap">{selectedDemand.content}</p>
                                         </div>
                                     </div>
 
                                     {resolvedMedia.length > 0 && (
-                                        <div className="space-y-3">
-                                            <div className="flex items-center gap-2 ml-1">
-                                                <Paperclip className="w-3.5 h-3.5 text-gray-400" />
-                                                <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400">
+                                        <div className="space-y-1.5">
+                                            <div className="flex items-center gap-1.5">
+                                                <Paperclip className="w-3 h-3 text-gray-400" />
+                                                <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">
                                                     Attachments ({resolvedMedia.length})
                                                 </p>
                                             </div>
-                                            <div className="grid grid-cols-2 gap-3">
+                                            <div className="grid grid-cols-2 gap-2">
                                                 {resolvedMedia.map((m, idx) => {
                                                     const isImage = m.type?.startsWith('image/');
                                                     const isVideo = m.type?.startsWith('video/');
                                                     return (
                                                         <div
                                                             key={`${m.path}-${idx}`}
-                                                            className="group relative rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-all"
+                                                            className="group relative rounded-lg bg-white border border-gray-100 overflow-hidden"
                                                         >
                                                             <a href={m.url} target="_blank" rel="noopener noreferrer" className="block">
                                                                 <div className="aspect-square bg-gray-50 flex items-center justify-center overflow-hidden">
                                                                     {isImage ? (
-                                                                        <img src={m.url} alt={m.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                                                        <img src={m.url} alt={m.name} className="w-full h-full object-cover" />
                                                                     ) : isVideo ? (
                                                                         <video src={m.url} className="w-full h-full object-cover" muted playsInline />
                                                                     ) : (
-                                                                        <Paperclip className="w-8 h-8 text-gray-300" />
+                                                                        <Paperclip className="w-6 h-6 text-gray-300" />
                                                                     )}
                                                                 </div>
-                                                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                                                                    <div className="w-9 h-9 rounded-full bg-white/90 flex items-center justify-center">
-                                                                        <ExternalLink className="w-4 h-4 text-gray-900" />
-                                                                    </div>
-                                                                </div>
                                                             </a>
-                                                            <div className="p-2.5 border-t border-gray-50 flex items-center justify-between gap-2">
+                                                            <div className="p-2 border-t border-gray-100 flex items-center justify-between gap-1.5">
                                                                 <div className="min-w-0">
-                                                                    <p className="text-[11px] font-medium text-gray-700 truncate" title={m.name}>{m.name}</p>
+                                                                    <p className="text-[10px] font-medium text-gray-600 truncate" title={m.name}>{m.name}</p>
                                                                     <p className="text-[9px] text-gray-400">{formatFileSize(m.size)}</p>
                                                                 </div>
                                                                 <a
@@ -729,9 +705,9 @@ const SellerDemands = () => {
                                                                     target="_blank"
                                                                     rel="noopener noreferrer"
                                                                     onClick={(e) => e.stopPropagation()}
-                                                                    className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-700 shrink-0"
+                                                                    className="w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:bg-gray-100 shrink-0"
                                                                 >
-                                                                    <Download className="w-3.5 h-3.5" />
+                                                                    <Download className="w-3 h-3" />
                                                                 </a>
                                                             </div>
                                                         </div>
@@ -743,27 +719,27 @@ const SellerDemands = () => {
                                 </div>
 
                                 {/* Right column: admin response */}
-                                <div className="space-y-3">
+                                <div className="space-y-1.5">
                                     <AnimatePresence>
                                         {selectedDemand.admin_response ? (
                                             <motion.div
                                                 initial={{ opacity: 0, y: 10 }}
                                                 animate={{ opacity: 1, y: 0 }}
-                                                className="space-y-3"
+                                                className="space-y-2"
                                             >
-                                                <div className="flex items-center justify-between ml-1">
-                                                    <p className="text-[10px] uppercase tracking-widest font-bold text-primary">Official Admin Response</p>
-                                                    <p className="text-[10px] text-gray-400">{format(new Date(selectedDemand.responded_at!), 'MMM dd, HH:mm')}</p>
+                                                <div className="flex items-center justify-between">
+                                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-brand-navy">Admin Response</p>
+                                                    <p className="text-[9px] text-gray-400">{format(new Date(selectedDemand.responded_at!), 'MMM dd, HH:mm')}</p>
                                                 </div>
-                                                <div className="p-7 rounded-[2rem] bg-primary/5 border border-primary/10 shadow-inner relative">
-                                                    <AlertCircle className="absolute top-4 right-4 w-5 h-5 text-primary/20" />
-                                                    <p className="text-gray-900 font-medium leading-relaxed whitespace-pre-wrap">{selectedDemand.admin_response}</p>
+                                                <div className="p-3.5 rounded-xl bg-brand-navy/[0.03] border border-brand-navy/10 relative">
+                                                    <AlertCircle className="absolute top-3 right-3 w-4 h-4 text-brand-navy/20" />
+                                                    <p className="text-[11px] text-brand-navy/80 leading-relaxed whitespace-pre-wrap">{selectedDemand.admin_response}</p>
 
                                                     {resolvedResponseMedia.length > 0 && (
-                                                        <div className="mt-5 pt-5 border-t border-primary/10 space-y-2">
-                                                            <div className="flex items-center gap-2">
-                                                                <Paperclip className="w-3.5 h-3.5 text-primary/60" />
-                                                                <p className="text-[10px] uppercase tracking-widest font-bold text-primary/70">
+                                                        <div className="mt-3.5 pt-3.5 border-t border-brand-navy/10 space-y-2">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <Paperclip className="w-3 h-3 text-brand-navy/50" />
+                                                                <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-brand-navy/60">
                                                                     Admin attachments ({resolvedResponseMedia.length})
                                                                 </p>
                                                             </div>
@@ -772,7 +748,7 @@ const SellerDemands = () => {
                                                                     const isImage = m.type?.startsWith('image/');
                                                                     const isVideo = m.type?.startsWith('video/');
                                                                     return (
-                                                                        <div key={`${m.path}-${idx}`} className="group relative rounded-xl bg-white border border-primary/10 overflow-hidden">
+                                                                        <div key={`${m.path}-${idx}`} className="group relative rounded-lg bg-white border border-brand-navy/10 overflow-hidden">
                                                                             <a href={m.url} target="_blank" rel="noopener noreferrer" className="block">
                                                                                 <div className="aspect-video bg-white flex items-center justify-center overflow-hidden">
                                                                                     {isImage ? (
@@ -780,18 +756,18 @@ const SellerDemands = () => {
                                                                                     ) : isVideo ? (
                                                                                         <video src={m.url} muted playsInline className="w-full h-full object-cover" />
                                                                                     ) : (
-                                                                                        <Paperclip className="w-6 h-6 text-primary/30" />
+                                                                                        <Paperclip className="w-5 h-5 text-brand-navy/20" />
                                                                                     )}
                                                                                 </div>
                                                                             </a>
-                                                                            <div className="p-2 flex items-center justify-between gap-2 border-t border-primary/5">
-                                                                                <p className="text-[10px] font-medium text-gray-700 truncate flex-1" title={m.name}>{m.name}</p>
+                                                                            <div className="p-1.5 flex items-center justify-between gap-1.5 border-t border-brand-navy/5">
+                                                                                <p className="text-[9px] font-medium text-gray-600 truncate flex-1" title={m.name}>{m.name}</p>
                                                                                 <a
                                                                                     href={m.url}
                                                                                     download={m.name}
                                                                                     target="_blank"
                                                                                     rel="noopener noreferrer"
-                                                                                    className="w-6 h-6 rounded-md flex items-center justify-center text-primary/60 hover:bg-primary/10 shrink-0"
+                                                                                    className="w-5 h-5 rounded flex items-center justify-center text-brand-navy/50 hover:bg-brand-navy/10 shrink-0"
                                                                                 >
                                                                                     <Download className="w-3 h-3" />
                                                                                 </a>
@@ -803,19 +779,17 @@ const SellerDemands = () => {
                                                         </div>
                                                     )}
 
-                                                    <div className="mt-6 flex items-center gap-3">
-                                                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                                                            <CheckCircle2 className="w-4 h-4 text-primary" />
-                                                        </div>
-                                                        <p className="text-xs font-bold text-primary uppercase tracking-tighter">Verified Resolution</p>
+                                                    <div className="mt-3 flex items-center gap-2">
+                                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                                        <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-[0.12em]">Verified Resolution</p>
                                                     </div>
                                                 </div>
                                             </motion.div>
                                         ) : (
-                                            <div className="h-full min-h-[200px] p-8 rounded-[2rem] bg-gray-100/50 border border-dashed border-gray-200 flex flex-col items-center justify-center text-center">
-                                                <Clock className="w-6 h-6 text-gray-300 mb-2" />
-                                                <p className="text-sm text-gray-400 font-light">Waiting for administrative review.</p>
-                                                <p className="text-xs text-gray-300 font-light mt-1">You will be notified here when an admin replies.</p>
+                                            <div className="border border-dashed border-gray-200 rounded-xl py-8 flex flex-col items-center justify-center text-center">
+                                                <Clock className="w-6 h-6 text-gray-400 mb-2" />
+                                                <p className="text-[11px] font-medium text-gray-400">Waiting for administrative review.</p>
+                                                <p className="text-[10px] text-gray-300 mt-1">You will be notified when an admin replies.</p>
                                             </div>
                                         )}
                                     </AnimatePresence>

@@ -2,28 +2,27 @@ import { HelpCircle } from 'lucide-react';
 
 const SellerHelp = () => {
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
-            {/* Header */}
-            <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-                <div className="relative p-8">
-                    <h1 className="text-4xl font-extralight text-gray-900 mb-2">Help</h1>
-                    <p className="text-gray-500 font-light">Get support and find answers to your questions.</p>
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+            <header className="space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Help</h1>
+                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Support & Guides</p>
+                    </div>
                 </div>
-            </div>
+            </header>
 
-            {/* Coming Soon */}
-            <div className="flex flex-col items-center justify-center py-32">
-                <div className="w-24 h-24 bg-gradient-to-br from-primary/10 to-primary/20 rounded-3xl flex items-center justify-center mb-6 shadow-lg shadow-primary/10">
-                    <HelpCircle className="w-12 h-12 text-primary" />
+            <div className="rounded-xl border border-gray-100 bg-white p-3.5 flex flex-col items-center justify-center py-16 gap-3">
+                <HelpCircle className="w-8 h-8 text-gray-200" />
+                <div className="text-center">
+                    <p className="text-[13px] font-semibold text-brand-navy">Coming Soon</p>
+                    <p className="text-[11px] text-gray-400 mt-1 max-w-xs">
+                        FAQs, guides, and direct support will be available here.
+                    </p>
                 </div>
-                <h2 className="text-2xl font-light text-gray-900 mb-2">Coming Soon</h2>
-                <p className="text-gray-400 font-light text-center max-w-md">
-                    FAQs, guides, and direct support will be available here to help you.
-                </p>
-                <div className="mt-8 flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                    <span className="text-xs text-primary font-medium tracking-wider uppercase">Under Development</span>
+                <div className="flex items-center gap-2 mt-1">
+                    <div className="w-1.5 h-1.5 rounded-full bg-brand-navy animate-pulse" />
+                    <span className="text-[9px] text-gray-400 uppercase tracking-[0.18em] font-bold">Under Development</span>
                 </div>
             </div>
         </div>

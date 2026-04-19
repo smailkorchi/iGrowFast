@@ -11,12 +11,6 @@ import {
     Trash2,
     Loader2,
     Image as ImageIcon,
-    Upload,
-    Check,
-    X,
-    TrendingUp,
-    Coins,
-    Layers,
     Tag,
     Hash,
     LayoutGrid,
@@ -28,11 +22,10 @@ import {
     ChevronDown,
     ChevronUp,
     ShoppingCart,
+    Coins,
+    Layers,
 } from 'lucide-react';
-import {
-    Card,
-    CardContent
-} from '@/components/ui/card';
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { TruncatedText } from '@/components/ui/truncated-text';
@@ -405,151 +398,98 @@ const Products = () => {
     );
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
-            {/* Header Section */}
-            <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-                <div className="relative p-8">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div>
-                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Inventory & Products</h1>
-                            <p className="text-gray-500 font-light">Catalog and manage your items with pricing and stock info.</p>
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+            {/* Page Header */}
+            <header className="space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Inventory & Products</h1>
+                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Catalog — pricing & stock</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && setViewMode(v as 'grid' | 'list')} variant="outline" size="sm">
+                            <ToggleGroupItem value="grid" className="h-8 w-8 p-0 rounded-r-none">
+                                <LayoutGrid className="w-3.5 h-3.5" />
+                            </ToggleGroupItem>
+                            <ToggleGroupItem value="list" className="h-8 w-8 p-0 rounded-l-none border-l-0">
+                                <List className="w-3.5 h-3.5" />
+                            </ToggleGroupItem>
+                        </ToggleGroup>
+                        <div className="relative">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                            <Input
+                                placeholder="Search name, code, or label..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-8 h-8 rounded-md text-[11px] w-56 border-gray-200"
+                            />
                         </div>
-                        <div className="flex flex-col sm:flex-row gap-3 items-center">
-                            <div className="flex bg-white/80 p-1 rounded-2xl border border-gray-100 shadow-sm">
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => setViewMode('list')}
-                                    className={cn(
-                                        "rounded-xl w-10 h-10 transition-all",
-                                        viewMode === 'list' ? "bg-white shadow-xl text-primary font-bold" : "text-gray-400 hover:text-primary"
-                                    )}
-                                >
-                                    <List className="w-5 h-5" />
-                                </Button>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => setViewMode('grid')}
-                                    className={cn(
-                                        "rounded-xl w-10 h-10 transition-all",
-                                        viewMode === 'grid' ? "bg-white shadow-xl text-primary font-bold" : "text-gray-400 hover:text-primary"
-                                    )}
-                                >
-                                    <LayoutGrid className="w-5 h-5" />
-                                </Button>
-                            </div>
-                            <div className="relative group sm:w-80">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
-                                <Input
-                                    placeholder="Search name, code, or label..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="pl-11 h-12 rounded-2xl border-gray-100 bg-white"
-                                />
-                            </div>
-                            <Button
-                                onClick={() => openModal()}
-                                className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group flex items-center gap-2 w-full sm:w-auto"
-                            >
-                                <Plus className="w-5 h-5" />
-                                Add Product
-                            </Button>
+                        <Button
+                            onClick={() => openModal()}
+                            className="h-8 rounded-md text-[11px] font-semibold gap-1.5 px-3"
+                        >
+                            <Plus className="w-3.5 h-3.5" />
+                            Add Product
+                        </Button>
+                    </div>
+                </div>
+            </header>
+
+            {/* KPI Tiles */}
+            {isLoading ? (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                        <Skeleton key={i} className="h-16 rounded-xl" />
+                    ))}
+                </div>
+            ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
+                        <span className="w-[3px] self-stretch rounded-full" style={{ background: '#3b5e5e' }} />
+                        <div className="flex-1 min-w-0">
+                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Products</p>
+                            <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{products?.length ?? 0}</p>
                         </div>
                     </div>
-
-                    {isLoading ? (
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-4 pt-2">
-                            {Array.from({ length: 3 }).map((_, i) => (
-                                <Skeleton key={i} className="h-28 rounded-3xl bg-white/60" />
-                            ))}
+                    <div className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
+                        <span className="w-[3px] self-stretch rounded-full" style={{ background: '#3b5e5e' }} />
+                        <div className="flex-1 min-w-0">
+                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Units in stock</p>
+                            <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{new Intl.NumberFormat('fr-FR').format(catalogTotals.totalQuantity)}</p>
                         </div>
-                    ) : (
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-4 pt-2">
-                            <div className="rounded-3xl border border-gray-100/80 bg-white/90 p-5 shadow-sm backdrop-blur-sm">
-                                <div className="flex items-start justify-between gap-3">
-                                    <div className="space-y-1">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                                            Total products
-                                        </p>
-                                        <p className="text-2xl font-black tabular-nums text-gray-900 tracking-tight">
-                                            {products?.length ?? 0}
-                                        </p>
-                                        <p className="text-xs text-gray-500 font-medium">SKUs in the catalog</p>
-                                    </div>
-                                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-navy/10 text-brand-navy">
-                                        <Hash className="h-5 w-5" />
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="rounded-3xl border border-gray-100/80 bg-white/90 p-5 shadow-sm backdrop-blur-sm">
-                                <div className="flex items-start justify-between gap-3">
-                                    <div className="space-y-1">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                                            Total quantity
-                                        </p>
-                                        <p className="text-2xl font-black tabular-nums text-gray-900 tracking-tight">
-                                            {new Intl.NumberFormat('fr-FR').format(catalogTotals.totalQuantity)}
-                                        </p>
-                                        <p className="text-xs text-gray-500 font-medium">Units in stock (all products)</p>
-                                    </div>
-                                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                                        <Layers className="h-5 w-5" />
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="rounded-3xl border border-gray-100/80 bg-white/90 p-5 shadow-sm backdrop-blur-sm">
-                                <div className="flex items-start justify-between gap-3">
-                                    <div className="space-y-1 min-w-0">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                                            Total cost
-                                        </p>
-                                        <p className="text-2xl font-black tabular-nums text-gray-900 tracking-tight truncate">
-                                            {formatProductDhAggregate(catalogTotals.totalCost)}
-                                        </p>
-                                        <p className="text-xs text-gray-500 font-medium">Σ qty × unit cost (inventory)</p>
-                                    </div>
-                                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-700">
-                                        <Coins className="h-5 w-5" />
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="rounded-3xl border border-emerald-100/80 bg-emerald-50/40 p-5 shadow-sm backdrop-blur-sm">
-                                <div className="flex items-start justify-between gap-3">
-                                    <div className="space-y-1 min-w-0">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700/70">
-                                            Total value
-                                        </p>
-                                        <p className="text-2xl font-black tabular-nums text-emerald-800 tracking-tight truncate">
-                                            {formatProductDhAggregate(catalogTotals.totalValue)}
-                                        </p>
-                                        <p className="text-xs text-emerald-800/70 font-medium">Σ qty × selling price</p>
-                                    </div>
-                                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-700">
-                                        <TrendingUp className="h-5 w-5" />
-                                    </div>
-                                </div>
-                            </div>
+                    </div>
+                    <div className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
+                        <span className="w-[3px] self-stretch rounded-full" style={{ background: '#d97706' }} />
+                        <div className="flex-1 min-w-0">
+                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Inventory cost</p>
+                            <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1 truncate">{formatProductDhAggregate(catalogTotals.totalCost)}</p>
                         </div>
-                    )}
+                    </div>
+                    <div className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
+                        <span className="w-[3px] self-stretch rounded-full" style={{ background: '#059669' }} />
+                        <div className="flex-1 min-w-0">
+                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Inventory value</p>
+                            <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1 truncate">{formatProductDhAggregate(catalogTotals.totalValue)}</p>
+                        </div>
+                    </div>
                 </div>
-            </div>
+            )}
 
+            {/* Low Stock Banner */}
             {lowStockProducts.length > 0 && (
                 <div className="bg-white border border-red-100 rounded-xl overflow-hidden">
                     <button
                         type="button"
                         onClick={() => setLowStockListExpanded((v) => !v)}
-                        className="w-full flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-red-50/30 transition-colors text-left"
+                        className="w-full flex items-center justify-between gap-3 px-3.5 py-2.5 hover:bg-red-50/30 transition-colors text-left"
                     >
                         <div className="flex items-center gap-2">
                             <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
-                            <span className="text-[12px] font-semibold text-red-600">
+                            <span className="text-[11px] font-semibold text-red-600">
                                 Low stock — {lowStockProducts.length} item{lowStockProducts.length === 1 ? '' : 's'}
                             </span>
                             <span className="text-[10px] text-gray-400 tabular-nums">
-                                {lowStockProductsTotalUnits} unit{lowStockProductsTotalUnits === 1 ? '' : 's'} total
+                                {lowStockProductsTotalUnits} unit{lowStockProductsTotalUnits === 1 ? '' : 's'} remaining
                             </span>
                         </div>
                         <div className="flex items-center gap-1 text-[10px] text-gray-400 uppercase tracking-[0.14em]">
@@ -566,11 +506,11 @@ const Products = () => {
                             <table className="w-full">
                                 <thead>
                                     <tr className="border-b border-gray-100">
-                                        <th className="text-left py-1.5 px-4 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Product</th>
-                                        <th className="text-left py-1.5 px-2 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Code</th>
-                                        <th className="text-right py-1.5 px-2 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Stock</th>
-                                        <th className="text-right py-1.5 px-2 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Cost</th>
-                                        <th className="text-right py-1.5 px-4 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">At risk</th>
+                                        <th className="text-left py-1.5 px-3 text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Product</th>
+                                        <th className="text-left py-1.5 px-2 text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Code</th>
+                                        <th className="text-right py-1.5 px-2 text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Stock</th>
+                                        <th className="text-right py-1.5 px-2 text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Cost</th>
+                                        <th className="text-right py-1.5 px-3 text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">At risk</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -583,29 +523,29 @@ const Products = () => {
                                             <tr
                                                 key={p.id}
                                                 onClick={() => setPreviewProduct(p)}
-                                                className="border-b border-gray-50 hover:bg-red-50/30 transition-colors cursor-pointer"
+                                                className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer"
                                             >
-                                                <td className="py-1.5 px-4">
+                                                <td className="px-3 py-2 text-[11px] text-brand-navy/80">
                                                     <div className="flex items-center gap-2">
                                                         {p.image_url ? (
-                                                            <img src={p.image_url} alt={p.name} className="w-6 h-6 rounded-sm object-cover border border-brand-navy/5 shrink-0" />
+                                                            <img src={p.image_url} alt={p.name} className="w-5 h-5 rounded-sm object-cover border border-brand-navy/5 shrink-0" />
                                                         ) : (
-                                                            <div className="w-6 h-6 rounded-sm bg-brand-navy/[0.04] flex items-center justify-center shrink-0">
+                                                            <div className="w-5 h-5 rounded-sm bg-brand-navy/[0.04] flex items-center justify-center shrink-0">
                                                                 <Package className="w-3 h-3 text-brand-navy/20" />
                                                             </div>
                                                         )}
-                                                        <TruncatedText as="span" text={p.name} className="text-[11px] font-medium text-brand-navy truncate" />
+                                                        <TruncatedText as="span" text={p.name} className="truncate" />
                                                     </div>
                                                 </td>
-                                                <td className="py-1.5 px-2 text-[10px] text-gray-400 font-mono truncate">{p.code}</td>
-                                                <td className={`py-1.5 px-2 text-right text-[11px] font-semibold tabular-nums ${stockTone}`}>
+                                                <td className="px-2 py-2 text-[10px] text-gray-400 font-mono tabular-nums truncate">{p.code}</td>
+                                                <td className={`px-2 py-2 text-right text-[11px] font-semibold tabular-nums ${stockTone}`}>
                                                     {stock} left
                                                 </td>
-                                                <td className="py-1.5 px-2 text-right text-[11px] text-gray-500 tabular-nums">
+                                                <td className="px-2 py-2 text-right text-[11px] text-brand-navy/80 tabular-nums">
                                                     {cost.toLocaleString('fr-MA')}
                                                     <span className="text-[9px] text-brand-navy/40 ml-0.5">MAD</span>
                                                 </td>
-                                                <td className="py-1.5 px-4 text-right text-[11px] text-brand-navy tabular-nums">
+                                                <td className="px-3 py-2 text-right text-[11px] text-brand-navy tabular-nums">
                                                     {(stock * cost).toLocaleString('fr-MA')}
                                                     <span className="text-[9px] text-brand-navy/40 ml-0.5">MAD</span>
                                                 </td>
@@ -622,273 +562,220 @@ const Products = () => {
             {/* Content Section */}
             {isLoading ? (
                 <div className={cn(
-                    "grid gap-6",
+                    "grid gap-2.5",
                     viewMode === 'grid' ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1"
                 )}>
                     {Array.from({ length: 8 }).map((_, i) => (
                         viewMode === 'grid' ? (
-                            <Card key={i} className="border-none bg-white/50 backdrop-blur-sm rounded-[24px] overflow-hidden shadow-sm">
-                                <Skeleton className="h-48 w-full" />
-                                <CardContent className="p-6 space-y-4">
-                                    <Skeleton className="h-6 w-3/4" />
-                                    <Skeleton className="h-4 w-1/2" />
-                                    <div className="flex justify-between pt-4">
-                                        <Skeleton className="h-8 w-20" />
-                                        <Skeleton className="h-8 w-20" />
-                                    </div>
-                                </CardContent>
-                            </Card>
+                            <Skeleton key={i} className="h-36 rounded-xl" />
                         ) : (
-                            <Card key={i} className="border-none bg-white/50 backdrop-blur-sm rounded-[24px] overflow-hidden shadow-sm flex flex-col sm:flex-row items-center p-4 gap-6">
-                                <Skeleton className="h-32 w-32 rounded-[20px] shrink-0" />
-                                <div className="flex-1 space-y-4 w-full">
-                                    <Skeleton className="h-6 w-1/3" />
-                                    <Skeleton className="h-4 w-1/4" />
-                                    <Skeleton className="h-4 w-1/2" />
+                            <div key={i} className="rounded-xl border border-gray-100 bg-white p-3 flex gap-3 items-center">
+                                <Skeleton className="h-14 w-14 rounded-lg shrink-0" />
+                                <div className="flex-1 space-y-2">
+                                    <Skeleton className="h-4 w-24" />
+                                    <Skeleton className="h-3 w-16" />
                                 </div>
-                            </Card>
+                            </div>
                         )
                     ))}
                 </div>
             ) : filteredProducts?.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-32 space-y-6 bg-white/50 backdrop-blur-sm rounded-[40px] shadow-sm border border-brand-navy/[0.03]">
-                    <div className="w-24 h-24 bg-brand-navy/[0.04] rounded-full flex items-center justify-center">
-                        <Package className="w-12 h-12 text-brand-navy/20" />
-                    </div>
-                    <div className="text-center space-y-2">
-                        <h3 className="text-2xl font-bold text-brand-navy">No products found</h3>
-                        <p className="text-muted-foreground max-w-xs mx-auto">Start building your inventory by adding your first product with images and pricing.</p>
-                    </div>
-                    <Button variant="outline" onClick={() => openModal()} className="rounded-xl border-brand-navy/10 font-bold hover:bg-brand-navy hover:text-brand-white transition-all">
-                        Create First Product
+                <div className="rounded-xl border border-dashed border-gray-200 bg-white flex flex-col items-center justify-center py-8 gap-2">
+                    <Package className="w-6 h-6 text-gray-400" />
+                    <p className="text-[14px] font-semibold text-brand-navy">No products found</p>
+                    <p className="text-[11px] text-gray-500">Start building your inventory by adding your first product.</p>
+                    <Button variant="outline" onClick={() => openModal()} className="h-8 rounded-md text-[11px] font-semibold mt-2">
+                        Add First Product
                     </Button>
                 </div>
             ) : (
                 <div className={cn(
-                    "grid gap-6",
+                    "grid gap-2.5",
                     viewMode === 'grid' ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1"
                 )}>
                     {filteredProducts?.map((product) => {
                         const inv = productInventoryTotals(product);
                         return viewMode === 'grid' ? (
-                            <Card
+                            <div
                                 key={product.id}
-                                className="group relative overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-2xl transition-all duration-300 rounded-[32px]"
+                                className="rounded-xl border border-gray-100 bg-white overflow-hidden group relative"
                             >
-                                {/* Product Image */}
                                 <ImageHoverPreview imageUrl={product.image_url} name={product.name} code={product.code}>
-                                <div className="relative h-48 w-full overflow-hidden bg-brand-navy/[0.02]">
+                                <div className="relative aspect-square overflow-hidden bg-brand-navy/[0.02]">
                                     {product.image_url ? (
                                         <img
                                             src={product.image_url}
                                             alt={product.name}
-                                            className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
+                                            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                                         />
                                     ) : (
                                         <div className="flex items-center justify-center h-full w-full text-brand-navy/10">
-                                            <ImageIcon className="w-16 h-16" />
+                                            <ImageIcon className="w-10 h-10" />
                                         </div>
                                     )}
-                                    <div className="absolute top-4 left-4 z-20">
+                                    <div className="absolute top-2 left-2 z-20">
                                         <Button
                                             type="button"
                                             variant="secondary"
                                             size="icon"
                                             title="Preview"
                                             onClick={() => setPreviewProduct(product)}
-                                            className="h-10 w-10 rounded-xl bg-white/80 backdrop-blur-md border-none shadow-lg text-brand-navy hover:bg-white transition-all"
+                                            className="h-7 w-7 rounded-md bg-white/90 border-none shadow text-brand-navy hover:bg-white transition-all"
                                         >
-                                            <Eye className="h-5 w-5" />
+                                            <Eye className="h-3.5 w-3.5" />
                                         </Button>
                                     </div>
-                                    <div className="absolute top-4 right-4 z-20">
+                                    <div className="absolute top-2 right-2 z-20">
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
-                                                <Button variant="secondary" size="icon" className="h-10 w-10 rounded-xl bg-white/80 backdrop-blur-md border-none shadow-lg text-brand-navy hover:bg-white transition-all">
-                                                    <MoreVertical className="h-5 w-5" />
+                                                <Button variant="secondary" size="icon" className="h-7 w-7 rounded-md bg-white/90 border-none shadow text-brand-navy hover:bg-white transition-all">
+                                                    <MoreVertical className="h-3.5 w-3.5" />
                                                 </Button>
                                             </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[160px]">
-                                                <DropdownMenuItem onClick={() => setPreviewProduct(product)} className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3">
-                                                    <Eye className="w-4 h-4" />
-                                                    <span className="font-bold">Preview</span>
+                                            <DropdownMenuContent align="end" className="min-w-[160px]">
+                                                <DropdownMenuItem onClick={() => setPreviewProduct(product)} className="gap-2 text-[11px]">
+                                                    <Eye className="w-3.5 h-3.5" />Preview
                                                 </DropdownMenuItem>
-                                                <DropdownMenuItem onClick={() => openModal(product)} className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3">
-                                                    <Edit2 className="w-4 h-4" />
-                                                    <span className="font-bold">Edit Product</span>
+                                                <DropdownMenuItem onClick={() => openModal(product)} className="gap-2 text-[11px]">
+                                                    <Edit2 className="w-3.5 h-3.5" />Edit Product
                                                 </DropdownMenuItem>
-                                                <DropdownMenuItem onClick={() => {
-                                                    setProductToResetStock(product);
-                                                }} className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3">
-                                                    <RotateCcw className="w-4 h-4" />
-                                                    <span className="font-bold">Clear Stock (0)</span>
+                                                <DropdownMenuItem onClick={() => setProductToResetStock(product)} className="gap-2 text-[11px]">
+                                                    <RotateCcw className="w-3.5 h-3.5" />Clear Stock (0)
                                                 </DropdownMenuItem>
                                                 <DropdownMenuItem
                                                     onClick={() => toggleProductActiveMutation.mutate({ id: product.id, active: !product.active })}
                                                     disabled={toggleProductActiveMutation.isPending}
-                                                    className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3"
+                                                    className="gap-2 text-[11px]"
                                                 >
-                                                    <Power className="w-4 h-4" />
-                                                    <span className="font-bold">{product.active ? 'Deactivate' : 'Activate'}</span>
+                                                    <Power className="w-3.5 h-3.5" />{product.active ? 'Deactivate' : 'Activate'}
                                                 </DropdownMenuItem>
                                                 <DropdownMenuSeparator />
-                                                <DropdownMenuItem onClick={() => setProductToDelete(product)} className="rounded-xl p-3 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-3">
-                                                    <Trash2 className="w-4 h-4" />
-                                                    <span className="font-bold">Delete</span>
+                                                <DropdownMenuItem onClick={() => setProductToDelete(product)} className="gap-2 text-[11px] text-red-500 focus:text-red-600">
+                                                    <Trash2 className="w-3.5 h-3.5" />Delete
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
                                     </div>
                                     {!product.active && (
                                         <div className="absolute inset-0 z-[1] pointer-events-none bg-brand-navy/40 backdrop-blur-[2px] flex items-center justify-center">
-                                            <Badge variant="secondary" className="bg-brand-white text-brand-navy font-bold text-xs px-4 py-1.5 rounded-full shadow-lg">INACTIVE</Badge>
+                                            <Badge variant="secondary" className="text-[9px] px-2 py-0.5">INACTIVE</Badge>
                                         </div>
                                     )}
-                                    <div className="absolute bottom-3 right-3 z-20">
+                                    <div className="absolute bottom-2 right-2 z-20">
                                         <Button
                                             type="button"
                                             size="sm"
                                             title="Create order with this product"
                                             onClick={() => navigate(`/orders?addProductId=${product.id}`)}
-                                            className="h-9 rounded-xl bg-brand-navy text-white hover:bg-brand-navy/90 shadow-lg shadow-brand-navy/30 px-3 gap-1.5 text-[11px] font-black uppercase tracking-wider"
+                                            className="h-7 rounded-md bg-brand-navy text-white hover:bg-brand-navy/90 px-2 gap-1 text-[10px] font-semibold"
                                         >
-                                            <ShoppingCart className="w-3.5 h-3.5" />
+                                            <ShoppingCart className="w-3 h-3" />
                                             New order
                                         </Button>
                                     </div>
                                 </div>
                                 </ImageHoverPreview>
 
-                                <CardContent className="p-5 space-y-4">
-                                    <div className="space-y-2">
-                                        <TruncatedText as="p" text={product.code} className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40 truncate" />
-                                        <TruncatedText as="h3" text={product.name} className="text-base font-bold text-brand-navy leading-snug line-clamp-2 break-words min-h-[2.5rem]" />
+                                <div className="p-3 space-y-2">
+                                    <div>
+                                        <TruncatedText as="p" text={product.code} className="text-[9px] font-semibold uppercase tracking-widest text-brand-navy/40 truncate" />
+                                        <TruncatedText as="h3" text={product.name} className="text-[12px] font-semibold text-brand-navy leading-snug line-clamp-2 break-words" />
                                         {product.label && product.label.toLowerCase() !== 'regular' && (
-                                            <div className="inline-flex max-w-full">
-                                                <TruncatedText as="span" text={product.label} className="inline-block max-w-full truncate rounded-full bg-brand-navy/[0.05] px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-brand-navy/55" />
-                                            </div>
+                                            <TruncatedText as="span" text={product.label} className="inline-block truncate rounded-full bg-brand-navy/[0.05] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-brand-navy/55 mt-0.5" />
                                         )}
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-1">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Cost Price</p>
-                                            <p className="text-lg font-bold text-brand-navy/40">{product.cost_price} DH</p>
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-[9px] text-gray-400 uppercase tracking-[0.14em]">Cost / Sell</p>
+                                            <p className="text-[11px] font-semibold text-brand-navy tabular-nums">{product.cost_price} / {product.selling_price} DH</p>
                                         </div>
-                                        <div className="space-y-1">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Selling Price</p>
-                                            <p className="text-lg font-bold text-brand-navy">{product.selling_price} DH</p>
-                                        </div>
+                                        <Badge
+                                            className={cn(
+                                                "h-5 px-1.5 text-[9px] border-none",
+                                                (product.stock || 0) > 10
+                                                    ? "bg-emerald-50 text-emerald-700"
+                                                    : (product.stock || 0) > 0
+                                                    ? "bg-amber-50 text-amber-700"
+                                                    : "bg-red-50 text-red-600"
+                                            )}
+                                        >
+                                            {product.stock || 0} in stock
+                                        </Badge>
                                     </div>
-
-                                    <div className="grid grid-cols-2 gap-4 pt-2 border-t border-brand-navy/[0.06]">
-                                        <div className="space-y-1">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Total cost</p>
-                                            <p className="text-base font-bold text-brand-navy tabular-nums">
-                                                {formatProductDhAggregate(inv.totalCost)}
-                                            </p>
-                                            <p className="text-[10px] text-brand-navy/40 font-medium">Qty × cost</p>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Total value</p>
-                                            <p className="text-base font-bold text-emerald-700 tabular-nums">
-                                                {formatProductDhAggregate(inv.totalValue)}
-                                            </p>
-                                            <p className="text-[10px] text-emerald-800/60 font-medium">Qty × sell</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="pt-2 flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <div className={cn(
-                                                "w-2 h-2 rounded-full",
-                                                (product.stock || 0) > 10 ? "bg-emerald-500" : (product.stock || 0) > 0 ? "bg-amber-500" : "bg-red-500"
-                                            )} />
-                                            <span className="text-[10px] font-black text-brand-navy/60 tracking-wider uppercase">
-                                                {product.stock || 0} in stock
-                                            </span>
-                                        </div>
-                                        <span className="text-[10px] font-black text-brand-navy/60 tracking-wider uppercase">
-                                            {product.active ? 'Active' : 'Hidden'}
-                                        </span>
-                                    </div>
-                                </CardContent>
-                            </Card>
+                                </div>
+                            </div>
                         ) : (
-                            <Card key={product.id} className="group overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-xl transition-all duration-300 rounded-[24px] flex flex-col sm:flex-row items-center p-4 gap-6 sm:pr-6">
+                            <div key={product.id} className="rounded-xl border border-gray-100 bg-white flex flex-col sm:flex-row items-center p-3 gap-3 hover:bg-gray-50 transition-colors group">
                                 <ImageHoverPreview imageUrl={product.image_url} name={product.name} code={product.code}>
-                                <div className="relative h-32 w-full sm:w-32 shrink-0 rounded-[20px] overflow-hidden bg-brand-navy/[0.02] shadow-inner">
+                                <div className="relative h-14 w-14 shrink-0 rounded-lg overflow-hidden bg-brand-navy/[0.02]">
                                     {product.image_url ? (
-                                        <img src={product.image_url} alt={product.name} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                                        <img src={product.image_url} alt={product.name} className="h-full w-full object-cover" />
                                     ) : (
                                         <div className="flex items-center justify-center h-full w-full text-brand-navy/10">
-                                            <ImageIcon className="w-10 h-10" />
+                                            <ImageIcon className="w-6 h-6" />
                                         </div>
                                     )}
                                     {!product.active && (
                                         <div className="absolute inset-0 bg-brand-navy/40 backdrop-blur-[2px] flex items-center justify-center">
-                                            <Badge variant="secondary" className="bg-brand-white text-brand-navy font-bold text-[10px] px-3 py-1 rounded-full shadow-sm">INACTIVE</Badge>
+                                            <span className="text-[8px] font-semibold text-white">OFF</span>
                                         </div>
                                     )}
                                 </div>
                                 </ImageHoverPreview>
 
-                                <div className="flex-1 min-w-0 space-y-2 w-full">
-                                    <div className="flex items-start gap-3">
-                                        <TruncatedText as="h3" text={product.name} className="text-lg sm:text-xl font-bold text-brand-navy leading-snug line-clamp-2 break-words min-w-0 flex-1" />
-                                        <TruncatedText as="span" text={product.label || 'Regular'} className="inline-flex items-center rounded-full border border-brand-navy/10 bg-transparent px-2.5 py-0.5 text-[10px] font-bold text-brand-navy/60 uppercase shrink-0 mt-0.5 max-w-[10rem] truncate" />
+                                <div className="flex-1 min-w-0 space-y-0.5 w-full">
+                                    <div className="flex items-start gap-2 flex-wrap">
+                                        <TruncatedText as="h3" text={product.name} className="text-[12px] font-semibold text-brand-navy leading-snug min-w-0 flex-1" />
+                                        <Badge
+                                            className={cn(
+                                                "h-5 px-1.5 text-[9px] border-none shrink-0",
+                                                (product.stock || 0) > 10
+                                                    ? "bg-emerald-50 text-emerald-700"
+                                                    : (product.stock || 0) > 0
+                                                    ? "bg-amber-50 text-amber-700"
+                                                    : "bg-red-50 text-red-600"
+                                            )}
+                                        >
+                                            {product.stock || 0} in stock
+                                        </Badge>
+                                        {!product.active && <Badge variant="secondary" className="h-5 px-1.5 text-[9px]">Inactive</Badge>}
                                     </div>
-                                    <TruncatedText as="p" text={product.code} className="text-xs font-black uppercase tracking-widest text-brand-navy/40 truncate" />
-
-                                    <div className="flex flex-wrap items-center gap-4 sm:gap-6 pt-2">
-                                        <div className="flex items-center gap-2">
-                                            <div className={cn("w-2 h-2 rounded-full", (product.stock || 0) > 10 ? "bg-emerald-500" : (product.stock || 0) > 0 ? "bg-amber-500" : "bg-red-500")} />
-                                            <span className="text-[10px] font-black text-brand-navy/60 tracking-wider uppercase">{product.stock || 0} in stock</span>
-                                        </div>
-                                        <div className="hidden sm:block h-4 w-px bg-brand-navy/10"></div>
-                                        <div className="flex flex-wrap gap-x-4 gap-y-1">
-                                            <span className="text-xs font-bold text-muted-foreground/60"><span className="text-[10px] uppercase font-black mr-1 text-brand-navy/40">Cost</span> {product.cost_price} DH</span>
-                                            <span className="text-xs font-bold text-brand-navy"><span className="text-[10px] uppercase font-black mr-1 text-brand-navy/40">Sell</span> {product.selling_price} DH</span>
-                                            <span className="text-xs font-bold text-brand-navy tabular-nums w-full sm:w-auto basis-full sm:basis-auto">
-                                                <span className="text-[10px] uppercase font-black mr-1 text-brand-navy/40">Total cost</span>
-                                                {formatProductDhAggregate(inv.totalCost)}
-                                            </span>
-                                            <span className="text-xs font-bold text-emerald-700 tabular-nums">
-                                                <span className="text-[10px] uppercase font-black mr-1 text-brand-navy/40">Total value</span>
-                                                {formatProductDhAggregate(inv.totalValue)}
-                                            </span>
-                                        </div>
+                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                                        <span className="text-[10px] text-gray-400 font-mono">{product.code}</span>
+                                        <span className="text-[10px] text-brand-navy/80 tabular-nums">Cost {product.cost_price} DH</span>
+                                        <span className="text-[10px] text-brand-navy tabular-nums font-semibold">Sell {product.selling_price} DH</span>
+                                        <span className="text-[10px] text-brand-navy/70 tabular-nums">Inv. cost {formatProductDhAggregate(inv.totalCost)}</span>
+                                        <span className="text-[10px] text-emerald-700 tabular-nums font-semibold">Value {formatProductDhAggregate(inv.totalValue)}</span>
                                     </div>
                                 </div>
 
-                                <div className="shrink-0 flex items-center gap-2 mt-4 sm:mt-0 w-full sm:w-auto justify-end border-t sm:border-t-0 border-brand-navy/5 sm:pt-0 pt-4">
+                                <div className="shrink-0 flex items-center gap-1 mt-2 sm:mt-0 w-full sm:w-auto justify-end">
                                     <Button
                                         type="button"
                                         size="icon"
                                         title="Create order with this product"
                                         onClick={() => navigate(`/orders?addProductId=${product.id}`)}
-                                        className="h-12 w-12 rounded-2xl bg-brand-navy text-white hover:bg-brand-navy/90 shadow-md shadow-brand-navy/20 transition-all"
+                                        className="h-8 w-8 rounded-md bg-brand-navy text-white hover:bg-brand-navy/90"
                                     >
-                                        <ShoppingCart className="w-5 h-5" />
+                                        <ShoppingCart className="w-3.5 h-3.5" />
                                     </Button>
                                     <Button
                                         variant="ghost"
                                         size="icon"
                                         title="Preview"
                                         onClick={() => setPreviewProduct(product)}
-                                        className="h-12 w-12 rounded-2xl bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy hover:text-white transition-all"
+                                        className="h-8 w-8 rounded-md text-brand-navy hover:bg-brand-navy/[0.06]"
                                     >
-                                        <Eye className="w-5 h-5" />
+                                        <Eye className="w-3.5 h-3.5" />
                                     </Button>
                                     <Button
                                         variant="ghost"
                                         size="icon"
-                                        onClick={() => {
-                                            setProductToResetStock(product);
-                                        }}
+                                        onClick={() => setProductToResetStock(product)}
                                         title="Clear Stock (0)"
-                                        className="h-12 w-12 rounded-2xl bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy hover:text-white transition-all">
-                                        <RotateCcw className="w-5 h-5" />
+                                        className="h-8 w-8 rounded-md text-brand-navy hover:bg-brand-navy/[0.06]">
+                                        <RotateCcw className="w-3.5 h-3.5" />
                                     </Button>
                                     <Button
                                         variant="ghost"
@@ -896,18 +783,18 @@ const Products = () => {
                                         onClick={() => toggleProductActiveMutation.mutate({ id: product.id, active: !product.active })}
                                         disabled={toggleProductActiveMutation.isPending}
                                         title={product.active ? 'Deactivate' : 'Activate'}
-                                        className="h-12 w-12 rounded-2xl bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy hover:text-white transition-all"
+                                        className="h-8 w-8 rounded-md text-brand-navy hover:bg-brand-navy/[0.06]"
                                     >
-                                        <Power className="w-5 h-5" />
+                                        <Power className="w-3.5 h-3.5" />
                                     </Button>
-                                    <Button variant="ghost" size="icon" onClick={() => openModal(product)} className="h-12 w-12 rounded-2xl bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy hover:text-white transition-all">
-                                        <Edit2 className="w-5 h-5" />
+                                    <Button variant="ghost" size="icon" onClick={() => openModal(product)} className="h-8 w-8 rounded-md text-brand-navy hover:bg-brand-navy/[0.06]">
+                                        <Edit2 className="w-3.5 h-3.5" />
                                     </Button>
-                                    <Button variant="ghost" size="icon" onClick={() => setProductToDelete(product)} className="h-12 w-12 rounded-2xl bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all">
-                                        <Trash2 className="w-5 h-5" />
+                                    <Button variant="ghost" size="icon" onClick={() => setProductToDelete(product)} className="h-8 w-8 rounded-md text-red-500 hover:bg-red-50">
+                                        <Trash2 className="w-3.5 h-3.5" />
                                     </Button>
                                 </div>
-                            </Card>
+                            </div>
                         );
                     })}
                 </div>
@@ -942,53 +829,49 @@ const Products = () => {
                     setEditingProduct(null);
                 }
             }}>
-                <DialogContent className="max-w-2xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                <DialogContent className="max-w-2xl p-0 overflow-hidden flex flex-col max-h-[90vh]">
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
-                            <DialogHeader className="p-8 pb-4 shrink-0">
-                                <DialogTitle className="text-3xl font-bold text-brand-navy">
+                            <DialogHeader className="p-6 pb-3 shrink-0 border-b border-gray-100">
+                                <DialogTitle className="text-[15px] font-semibold text-brand-navy">
                                     {editingProduct ? 'Edit Product' : 'Add New Product'}
                                 </DialogTitle>
-                                <DialogDescription className="text-muted-foreground text-lg">
+                                <DialogDescription className="text-[11px] text-gray-500">
                                     Fill in the details below to {editingProduct ? 'update' : 'publish'} this product.
                                 </DialogDescription>
                             </DialogHeader>
 
-                            <div className="overflow-y-auto p-8 pt-4 space-y-8 flex-1 min-h-0 custom-scrollbar">
+                            <div className="overflow-y-auto p-6 space-y-5 flex-1 min-h-0 custom-scrollbar">
                                 {/* Image Upload & Basic Info Grid */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                                     {/* Image Upload Area */}
-                                    <div className="md:col-span-1 space-y-4">
-                                        <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Product Image</FormLabel>
+                                    <div className="md:col-span-1 space-y-2">
+                                        <FormLabel className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Product Image</FormLabel>
                                         <div
                                             onClick={() => !isUploading && fileInputRef.current?.click()}
                                             className={cn(
-                                                "relative aspect-square rounded-[32px] border-4 border-dashed cursor-pointer transition-all flex flex-col items-center justify-center gap-3 overflow-hidden group",
+                                                "relative aspect-square rounded-xl border-2 border-dashed cursor-pointer transition-all flex flex-col items-center justify-center gap-2 overflow-hidden group",
                                                 form.watch('image_url')
                                                     ? "border-brand-navy/10 hover:border-brand-navy/30"
-                                                    : "border-brand-navy/10 bg-brand-navy/[0.02] hover:bg-brand-navy/[0.04] hover:border-brand-navy/20"
+                                                    : "border-gray-200 bg-gray-50 hover:bg-gray-100 hover:border-gray-300"
                                             )}
                                         >
                                             {form.watch('image_url') ? (
                                                 <>
                                                     <img src={form.getValues('image_url')!} className="w-full h-full object-cover" alt="Preview" />
                                                     <div className="absolute inset-0 bg-brand-navy/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                                        <div className="bg-white/20 backdrop-blur-md px-4 py-2 rounded-xl text-white font-bold text-xs">Change Image</div>
+                                                        <span className="text-white text-[11px] font-semibold">Change Image</span>
                                                     </div>
                                                 </>
                                             ) : (
                                                 <>
-                                                    <div className="w-12 h-12 rounded-2xl bg-brand-navy/5 flex items-center justify-center text-brand-navy/40">
-                                                        <ImageIcon className="w-6 h-6" />
-                                                    </div>
-                                                    <div className="text-center">
-                                                        <p className="text-xs font-bold text-brand-navy/60 italic uppercase tracking-widest">Click to upload</p>
-                                                    </div>
+                                                    <ImageIcon className="w-6 h-6 text-gray-400" />
+                                                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Click to upload</p>
                                                 </>
                                             )}
                                             {isUploading && (
-                                                <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center">
-                                                    <Loader2 className="w-8 h-8 animate-spin text-brand-navy" />
+                                                <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
+                                                    <Loader2 className="w-5 h-5 animate-spin text-brand-navy" />
                                                 </div>
                                             )}
                                             <input
@@ -1002,36 +885,36 @@ const Products = () => {
                                     </div>
 
                                     {/* Name & Code Fields */}
-                                    <div className="md:col-span-2 space-y-6">
+                                    <div className="md:col-span-2 space-y-4">
                                         <FormField
                                             control={form.control}
                                             name="name"
                                             render={({ field }) => (
-                                                <FormItem className="space-y-2">
-                                                    <div className="flex items-center gap-2 text-muted-foreground/70">
-                                                        <Tag className="w-3.5 h-3.5" />
-                                                        <FormLabel className="text-xs font-bold uppercase tracking-wider">Product Name</FormLabel>
+                                                <FormItem className="space-y-1.5">
+                                                    <div className="flex items-center gap-1.5 text-gray-400">
+                                                        <Tag className="w-3 h-3" />
+                                                        <FormLabel className="text-[10px] font-semibold uppercase tracking-wider">Product Name</FormLabel>
                                                     </div>
                                                     <FormControl>
-                                                        <Input placeholder="E.g. Wireless Headphones" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
+                                                        <Input placeholder="E.g. Wireless Headphones" {...field} className="h-9 rounded-md text-[12px]" />
                                                     </FormControl>
                                                     <FormMessage />
                                                 </FormItem>
                                             )}
                                         />
 
-                                        <div className="grid grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-2 gap-3">
                                             <FormField
                                                 control={form.control}
                                                 name="code"
                                                 render={({ field }) => (
-                                                    <FormItem className="space-y-2">
-                                                        <div className="flex items-center gap-2 text-muted-foreground/70">
-                                                            <Hash className="w-3.5 h-3.5" />
-                                                            <FormLabel className="text-xs font-bold uppercase tracking-wider">SKU / Code</FormLabel>
+                                                    <FormItem className="space-y-1.5">
+                                                        <div className="flex items-center gap-1.5 text-gray-400">
+                                                            <Hash className="w-3 h-3" />
+                                                            <FormLabel className="text-[10px] font-semibold uppercase tracking-wider">SKU / Code</FormLabel>
                                                         </div>
                                                         <FormControl>
-                                                            <Input placeholder="PROD-001" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
+                                                            <Input placeholder="PROD-001" {...field} className="h-9 rounded-md text-[12px]" />
                                                         </FormControl>
                                                         <FormMessage />
                                                     </FormItem>
@@ -1041,13 +924,10 @@ const Products = () => {
                                                 control={form.control}
                                                 name="label"
                                                 render={({ field }) => (
-                                                    <FormItem className="space-y-2">
-                                                        <div className="flex items-center gap-2 text-muted-foreground/70">
-                                                            <ImageIcon className="w-3.5 h-3.5" />
-                                                            <FormLabel className="text-xs font-bold uppercase tracking-wider">Short Label</FormLabel>
-                                                        </div>
+                                                    <FormItem className="space-y-1.5">
+                                                        <FormLabel className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Short Label</FormLabel>
                                                         <FormControl>
-                                                            <Input placeholder="Best Seller" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
+                                                            <Input placeholder="Best Seller" {...field} className="h-9 rounded-md text-[12px]" />
                                                         </FormControl>
                                                         <FormMessage />
                                                     </FormItem>
@@ -1058,16 +938,16 @@ const Products = () => {
                                 </div>
 
                                 {/* pricing and description */}
-                                <div className="space-y-6">
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <FormField
                                             control={form.control}
                                             name="cost_price"
                                             render={({ field }) => (
-                                                <FormItem className="space-y-2">
-                                                    <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Cost Price (DH)</FormLabel>
+                                                <FormItem className="space-y-1.5">
+                                                    <FormLabel className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Cost Price (DH)</FormLabel>
                                                     <FormControl>
-                                                        <Input type="number" step="0.01" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
+                                                        <Input type="number" step="0.01" {...field} className="h-9 rounded-md text-[12px]" />
                                                     </FormControl>
                                                     <FormMessage />
                                                 </FormItem>
@@ -1077,17 +957,17 @@ const Products = () => {
                                             control={form.control}
                                             name="selling_price"
                                             render={({ field }) => (
-                                                <FormItem className="space-y-2">
+                                                <FormItem className="space-y-1.5">
                                                     <div className="flex items-center justify-between">
-                                                        <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Selling Price (DH)</FormLabel>
+                                                        <FormLabel className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Selling Price (DH)</FormLabel>
                                                         {form.watch('cost_price') > 0 && form.watch('selling_price') > 0 && (
-                                                            <Badge className="bg-emerald-50 text-emerald-600 border-none font-bold">
-                                                                Margin: {((form.watch('selling_price') - form.watch('cost_price')) / form.watch('selling_price') * 100).toFixed(0)}%
+                                                            <Badge className="bg-emerald-50 text-emerald-600 border-none text-[9px] h-4 px-1.5">
+                                                                {((form.watch('selling_price') - form.watch('cost_price')) / form.watch('selling_price') * 100).toFixed(0)}% margin
                                                             </Badge>
                                                         )}
                                                     </div>
                                                     <FormControl>
-                                                        <Input type="number" step="0.01" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
+                                                        <Input type="number" step="0.01" {...field} className="h-9 rounded-md text-[12px]" />
                                                     </FormControl>
                                                     <FormMessage />
                                                 </FormItem>
@@ -1099,12 +979,12 @@ const Products = () => {
                                         control={form.control}
                                         name="description"
                                         render={({ field }) => (
-                                            <FormItem className="space-y-2">
-                                                <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Description</FormLabel>
+                                            <FormItem className="space-y-1.5">
+                                                <FormLabel className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Description</FormLabel>
                                                 <FormControl>
                                                     <Textarea
                                                         placeholder="Detailed product specifications, notes, and information..."
-                                                        className="min-h-[120px] rounded-2xl border-none bg-brand-navy/[0.04] text-base font-medium text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner resize-none p-4"
+                                                        className="min-h-[80px] rounded-md text-[12px] resize-none"
                                                         {...field}
                                                     />
                                                 </FormControl>
@@ -1117,10 +997,10 @@ const Products = () => {
                                         control={form.control}
                                         name="active"
                                         render={({ field }) => (
-                                            <FormItem className="flex items-center justify-between p-6 rounded-3xl bg-brand-navy/[0.02] border border-brand-navy/[0.03]">
-                                                <div className="space-y-1">
-                                                    <FormLabel className="text-base font-bold text-brand-navy">Active Status</FormLabel>
-                                                    <FormDescription>Toggle off to hide this product from sales channels.</FormDescription>
+                                            <FormItem className="flex items-center justify-between p-3 rounded-xl border border-gray-100 bg-gray-50/50">
+                                                <div className="space-y-0.5">
+                                                    <FormLabel className="text-[12px] font-semibold text-brand-navy">Active Status</FormLabel>
+                                                    <FormDescription className="text-[10px]">Toggle off to hide this product from sales channels.</FormDescription>
                                                 </div>
                                                 <FormControl>
                                                     <Switch
@@ -1135,7 +1015,7 @@ const Products = () => {
                                 </div>
                             </div>
 
-                            <DialogFooter className="p-8 pt-0 shrink-0 bg-brand-white">
+                            <DialogFooter className="p-4 shrink-0 border-t border-gray-100 gap-2">
                                 <Button
                                     type="button"
                                     variant="ghost"
@@ -1143,16 +1023,16 @@ const Products = () => {
                                         setIsModalOpen(false);
                                         setEditingProduct(null);
                                     }}
-                                    className="rounded-2xl h-14 px-8 font-bold text-brand-navy hover:bg-muted"
+                                    className="h-8 rounded-md text-[11px] font-semibold"
                                 >
                                     Cancel
                                 </Button>
                                 <Button
                                     type="submit"
                                     disabled={upsertProductMutation.isPending || isUploading}
-                                    className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-14 px-10 font-bold shadow-2xl shadow-brand-navy/30 transition-all active:scale-95 flex items-center gap-3"
+                                    className="h-8 rounded-md text-[11px] font-semibold gap-1.5"
                                 >
-                                    {(upsertProductMutation.isPending || isUploading) && <Loader2 className="w-5 h-5 animate-spin" />}
+                                    {(upsertProductMutation.isPending || isUploading) && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                                     {editingProduct ? 'Update Product' : 'Publish Product'}
                                 </Button>
                             </DialogFooter>
@@ -1163,59 +1043,45 @@ const Products = () => {
 
             {/* Delete Confirmation */}
             <AlertDialog open={!!productToDelete} onOpenChange={() => setProductToDelete(null)}>
-                <AlertDialogContent className="rounded-[40px] border-none p-10 max-w-md">
-                    <div className="flex flex-col items-center text-center space-y-6">
-                        <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center text-red-500">
-                            <Trash2 className="w-10 h-10" />
-                        </div>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle className="text-3xl font-bold text-brand-navy">Permanently Delete?</AlertDialogTitle>
-                            <AlertDialogDescription className="text-lg text-muted-foreground pt-2">
-                                You are about to remove <span className="font-black text-brand-navy italic">"{productToDelete?.name}"</span>. This action cannot be reversed.
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter className="w-full flex flex-col sm:flex-row gap-3 mt-4">
-                            <AlertDialogCancel className="w-full rounded-2xl h-14 font-bold border-none bg-brand-navy/[0.04] hover:bg-brand-navy/[0.08] text-brand-navy m-0">
-                                Back to Safety
-                            </AlertDialogCancel>
-                            <AlertDialogAction
-                                onClick={() => deleteProductMutation.mutate(productToDelete.id)}
-                                className="w-full rounded-2xl h-14 font-bold bg-red-500 hover:bg-red-600 text-brand-white shadow-xl shadow-red-500/20 m-0"
-                            >
-                                {deleteProductMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                                Confirm Removal
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </div>
+                <AlertDialogContent className="max-w-sm rounded-xl">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="text-[15px] font-semibold text-brand-navy">Permanently Delete?</AlertDialogTitle>
+                        <AlertDialogDescription className="text-[11px] text-gray-500">
+                            You are about to remove <span className="font-semibold text-brand-navy">"{productToDelete?.name}"</span>. This action cannot be reversed.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="gap-2">
+                        <AlertDialogCancel className="h-8 rounded-md text-[11px] font-semibold">Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => deleteProductMutation.mutate(productToDelete.id)}
+                            className="h-8 rounded-md text-[11px] font-semibold bg-red-500 hover:bg-red-600 text-white gap-1.5"
+                        >
+                            {deleteProductMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                            Confirm Delete
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
 
             {/* Reset Stock Confirmation */}
             <AlertDialog open={!!productToResetStock} onOpenChange={() => setProductToResetStock(null)}>
-                <AlertDialogContent className="rounded-[40px] border-none p-10 max-w-md">
-                    <div className="flex flex-col items-center text-center space-y-6">
-                        <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center text-amber-500">
-                            <RotateCcw className="w-10 h-10" />
-                        </div>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle className="text-3xl font-bold text-brand-navy">Clear Stock?</AlertDialogTitle>
-                            <AlertDialogDescription className="text-lg text-muted-foreground pt-2">
-                                This will instantly reset the stock for <span className="font-black text-brand-navy italic">"{productToResetStock?.name}"</span> to 0.
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter className="w-full flex flex-col sm:flex-row gap-3 mt-4">
-                            <AlertDialogCancel className="w-full rounded-2xl h-14 font-bold border-none bg-brand-navy/[0.04] hover:bg-brand-navy/[0.08] text-brand-navy m-0">
-                                Cancel
-                            </AlertDialogCancel>
-                            <AlertDialogAction
-                                onClick={() => productToResetStock && updateStockMutation.mutate({ id: productToResetStock.id, stock: 0 })}
-                                className="w-full rounded-2xl h-14 font-bold bg-amber-500 hover:bg-amber-600 text-brand-white shadow-xl shadow-amber-500/20 m-0"
-                            >
-                                {updateStockMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                                Yes, Clear Stock
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </div>
+                <AlertDialogContent className="max-w-sm rounded-xl">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="text-[15px] font-semibold text-brand-navy">Clear Stock?</AlertDialogTitle>
+                        <AlertDialogDescription className="text-[11px] text-gray-500">
+                            This will reset stock for <span className="font-semibold text-brand-navy">"{productToResetStock?.name}"</span> to 0.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="gap-2">
+                        <AlertDialogCancel className="h-8 rounded-md text-[11px] font-semibold">Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => productToResetStock && updateStockMutation.mutate({ id: productToResetStock.id, stock: 0 })}
+                            className="h-8 rounded-md text-[11px] font-semibold bg-amber-500 hover:bg-amber-600 text-white gap-1.5"
+                        >
+                            {updateStockMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                            Yes, Clear Stock
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
         </div>

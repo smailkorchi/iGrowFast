@@ -361,73 +361,61 @@ const Businesses = () => {
     };
 
     return (
-        <div className="space-y-6">
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
             {/* Header */}
-            <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-                <div className="relative p-8">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div>
-                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Business Units</h1>
-                            <p className="text-gray-500 font-light">Manage business units, licenses and branches.</p>
+            <header className="space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Business Units</h1>
+                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Manage tenants, licenses and branches</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="relative">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                            <Input
+                                placeholder="Search businesses..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-7 h-8 rounded-md border-gray-200 bg-white text-[11px] w-48"
+                            />
                         </div>
-                        <div className="flex flex-col sm:flex-row gap-3 items-center">
-                            <div className="relative group sm:w-80">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
-                                <Input
-                                    placeholder="Search businesses..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="pl-11 h-12 rounded-2xl border-gray-100 bg-white"
-                                />
-                            </div>
-                            <Button
-                                onClick={() => { setSelectedBusiness(null); setIsAddEditModalOpen(true); }}
-                                className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group flex items-center gap-2 w-full sm:w-auto"
+                        <div className="flex items-center gap-0.5 bg-gray-100 p-0.5 rounded-md">
+                            <button
+                                onClick={() => setViewMode('grid')}
+                                className={cn("h-7 px-2.5 rounded text-[10px] font-semibold flex items-center gap-1 transition-all", viewMode === 'grid' ? "bg-white text-brand-navy shadow-sm" : "text-gray-500 hover:text-gray-700")}
                             >
-                                <Plus className="w-5 h-5" />
-                                New Business
-                            </Button>
+                                <LayoutGrid className="w-3 h-3" /> Grid
+                            </button>
+                            <button
+                                onClick={() => setViewMode('list')}
+                                className={cn("h-7 px-2.5 rounded text-[10px] font-semibold flex items-center gap-1 transition-all", viewMode === 'list' ? "bg-white text-brand-navy shadow-sm" : "text-gray-500 hover:text-gray-700")}
+                            >
+                                <List className="w-3 h-3" /> List
+                            </button>
                         </div>
+                        <Button
+                            onClick={() => { setSelectedBusiness(null); setIsAddEditModalOpen(true); }}
+                            className="h-8 rounded-md text-[11px] font-semibold bg-brand-navy hover:bg-brand-navy/90 text-white gap-1.5 px-3"
+                        >
+                            <Plus className="w-3.5 h-3.5" />
+                            New Business
+                        </Button>
                     </div>
                 </div>
-            </div>
-
-            {/* View Toggle */}
-            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg w-fit">
-                <button
-                    onClick={() => setViewMode('grid')}
-                    className={cn(
-                        "h-7 px-3 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all",
-                        viewMode === 'grid' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                    )}
-                >
-                    <LayoutGrid className="w-3.5 h-3.5" /> Grid
-                </button>
-                <button
-                    onClick={() => setViewMode('list')}
-                    className={cn(
-                        "h-7 px-3 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all",
-                        viewMode === 'list' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                    )}
-                >
-                    <List className="w-3.5 h-3.5" /> List
-                </button>
-            </div>
+            </header>
 
             {/* Content */}
             {isLoading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {[1, 2, 3].map(i => <Skeleton key={i} className="h-48 rounded-xl w-full" />)}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {[1, 2, 3].map(i => <Skeleton key={i} className="h-36 rounded-xl w-full" />)}
                 </div>
             ) : filteredBusinesses.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 rounded-xl border border-dashed border-slate-200 bg-slate-50/50">
-                    <Building2 className="w-10 h-10 text-slate-300 mb-3" />
-                    <p className="text-sm font-medium text-slate-500">No businesses yet</p>
-                    <p className="text-xs text-slate-400 mt-1">Create your first business to get started.</p>
+                <div className="flex flex-col items-center justify-center py-10 rounded-xl border border-dashed border-gray-200 bg-white">
+                    <Building2 className="w-6 h-6 text-gray-300 mb-2" />
+                    <p className="text-[11px] font-medium text-gray-500">No businesses found</p>
                 </div>
             ) : viewMode === 'grid' ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {filteredBusinesses.map(business => (
                         <BusinessCard
                             key={business.id}
@@ -438,15 +426,28 @@ const Businesses = () => {
                     ))}
                 </div>
             ) : (
-                <div className="space-y-2">
-                    {filteredBusinesses.map(business => (
-                        <BusinessListItem
-                            key={business.id}
-                            business={business}
-                            onEdit={() => handleEdit(business)}
-                            onDelete={() => handleDeleteClick(business)}
-                        />
-                    ))}
+                <div className="rounded-xl border border-gray-100 bg-white overflow-hidden">
+                    <table className="w-full text-sm">
+                        <thead>
+                            <tr className="border-b border-gray-100">
+                                <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Business</th>
+                                <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold hidden sm:table-cell">Plan</th>
+                                <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold hidden md:table-cell">Status</th>
+                                <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold hidden lg:table-cell">Creator</th>
+                                <th className="px-3 py-2 w-20" />
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                            {filteredBusinesses.map(business => (
+                                <BusinessListItem
+                                    key={business.id}
+                                    business={business}
+                                    onEdit={() => handleEdit(business)}
+                                    onDelete={() => handleDeleteClick(business)}
+                                />
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
             )}
 
@@ -513,22 +514,16 @@ const LicenseMeta = ({ business }: { business: BusinessRow }) => {
     const planName = business.plan?.name;
 
     return (
-        <div className="flex items-center gap-2 text-xs text-slate-500">
+        <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
             <StatusDot status={status} />
             <span className="capitalize">{status}</span>
-            <span className="text-slate-300">·</span>
-            <span>{planName || type}</span>
             {type !== 'lifetime' && daysLeft !== null && (
-                <>
-                    <span className="text-slate-300">·</span>
-                    <span className={isExpired ? 'text-red-500 font-medium' : ''}>
-                        {isExpired ? 'Expired' : `${daysLeft}d left`}
-                    </span>
-                </>
+                <span className={cn('tabular-nums', isExpired ? 'text-red-500' : '')}>
+                    · {isExpired ? 'Expired' : `${daysLeft}d`}
+                </span>
             )}
-            <span className="text-slate-300">·</span>
-            <span className={cn('font-medium', paid ? 'text-emerald-600' : 'text-red-500')}>
-                {paid ? 'Paid' : 'Unpaid'}
+            <span className={cn(paid ? 'text-emerald-600' : 'text-red-500')}>
+                · {paid ? 'Paid' : 'Unpaid'}
             </span>
         </div>
     );
@@ -537,91 +532,99 @@ const LicenseMeta = ({ business }: { business: BusinessRow }) => {
 type CardProps = { business: BusinessRow; onEdit: () => void; onDelete: () => void };
 
 const BusinessCard = ({ business, onEdit, onDelete }: CardProps) => (
-    <Card className="group border border-slate-200/60 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow">
-        <CardContent className="p-4 space-y-3">
-            <div className="flex items-start justify-between">
-                <div className="w-11 h-11 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden shrink-0">
+    <div className="rounded-xl border border-gray-100 bg-white p-3.5 space-y-3">
+        <div className="flex items-start justify-between">
+            <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center overflow-hidden shrink-0">
                     {business.logo ? (
-                        <img src={business.logo} alt="" className="w-full h-full object-contain p-1.5" />
+                        <img src={business.logo} alt="" className="w-full h-full object-contain p-1" />
                     ) : (
-                        <Building2 className="w-5 h-5 text-slate-300" />
+                        <Building2 className="w-4 h-4 text-gray-300" />
                     )}
                 </div>
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100">
-                            <MoreVertical className="h-4 w-4" />
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="rounded-lg border border-slate-200 shadow-lg p-1 min-w-[140px]">
-                        <DropdownMenuItem onClick={onEdit} className="rounded-md px-2.5 py-1.5 text-xs font-medium cursor-pointer gap-2">
-                            <Edit2 className="w-3.5 h-3.5" /> Manage
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={onDelete} className="rounded-md px-2.5 py-1.5 text-xs font-medium cursor-pointer gap-2 text-red-600 focus:text-red-600 focus:bg-red-50">
-                            <Trash2 className="w-3.5 h-3.5" /> Delete
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-            </div>
-
-            <div>
-                <h3 className="text-sm font-semibold text-slate-900 leading-tight">{business.name}</h3>
-                <div className="mt-1">
-                    <LicenseMeta business={business} />
+                <div className="min-w-0">
+                    <p className="text-[12px] font-semibold text-brand-navy truncate leading-tight">{business.name}</p>
+                    <span className="inline-flex items-center h-5 px-1.5 rounded text-[9px] font-semibold bg-gray-100 text-gray-500 uppercase tracking-wide mt-0.5">
+                        {business.plan?.name || business.license_type}
+                    </span>
                 </div>
             </div>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 p-0 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100">
+                        <MoreVertical className="h-3.5 w-3.5" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="rounded-lg border border-gray-200 shadow-md p-1 min-w-[130px]">
+                    <DropdownMenuItem onClick={onEdit} className="rounded px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer gap-2">
+                        <Edit2 className="w-3 h-3" /> Manage
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={onDelete} className="rounded px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer gap-2 text-red-600 focus:text-red-600 focus:bg-red-50">
+                        <Trash2 className="w-3 h-3" /> Delete
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+        </div>
 
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <Avatar className="h-6 w-6">
-                        <AvatarImage src={business.creator?.avatar_url} />
-                        <AvatarFallback className="bg-slate-100 text-slate-500 text-[9px] font-medium">
-                            {business.creator?.name?.substring(0, 2) || '??'}
-                        </AvatarFallback>
-                    </Avatar>
-                    <span className="text-xs text-slate-500">{business.creator?.name || 'N/A'}</span>
-                </div>
-                <span className="text-[11px] text-slate-400 capitalize">{business.creator?.role || 'Admin'}</span>
-            </div>
-        </CardContent>
-    </Card>
+        <div>
+            <LicenseMeta business={business} />
+        </div>
+
+        <div className="pt-2.5 border-t border-gray-50 flex items-center gap-2">
+            <Avatar className="h-5 w-5">
+                <AvatarImage src={business.creator?.avatar_url} />
+                <AvatarFallback className="bg-gray-100 text-gray-500 text-[8px] font-medium">
+                    {business.creator?.name?.substring(0, 2) || '??'}
+                </AvatarFallback>
+            </Avatar>
+            <span className="text-[10px] text-gray-500 truncate">{business.creator?.name || 'N/A'}</span>
+        </div>
+    </div>
 );
 
 const BusinessListItem = ({ business, onEdit, onDelete }: CardProps) => (
-    <div className="group flex items-center justify-between px-4 py-3 rounded-lg border border-slate-200/60 bg-white hover:bg-slate-50/50 transition-colors">
-        <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden shrink-0">
-                {business.logo ? (
-                    <img src={business.logo} alt="" className="w-full h-full object-contain p-1" />
-                ) : (
-                    <Building2 className="w-4 h-4 text-slate-300" />
-                )}
+    <tr className="hover:bg-gray-50/50 transition-colors">
+        <td className="px-3 py-2">
+            <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center overflow-hidden shrink-0">
+                    {business.logo ? (
+                        <img src={business.logo} alt="" className="w-full h-full object-contain p-1" />
+                    ) : (
+                        <Building2 className="w-4 h-4 text-gray-300" />
+                    )}
+                </div>
+                <span className="text-[11px] font-semibold text-brand-navy">{business.name}</span>
             </div>
-            <div className="min-w-0">
-                <h4 className="text-sm font-medium text-slate-900 truncate">{business.name}</h4>
-                <LicenseMeta business={business} />
-            </div>
-        </div>
-
-        <div className="flex items-center gap-6 shrink-0">
-            <div className="hidden md:flex items-center gap-2">
+        </td>
+        <td className="px-3 py-2 hidden sm:table-cell">
+            <span className="inline-flex items-center h-5 px-1.5 rounded text-[9px] font-semibold bg-gray-100 text-gray-500 uppercase tracking-wide">
+                {business.plan?.name || business.license_type}
+            </span>
+        </td>
+        <td className="px-3 py-2 hidden md:table-cell">
+            <LicenseMeta business={business} />
+        </td>
+        <td className="px-3 py-2 hidden lg:table-cell">
+            <div className="flex items-center gap-1.5">
                 <Avatar className="h-5 w-5">
                     <AvatarImage src={business.creator?.avatar_url} />
-                    <AvatarFallback className="text-[8px]">{business.creator?.name?.substring(0, 2)}</AvatarFallback>
+                    <AvatarFallback className="text-[8px] bg-gray-100">{business.creator?.name?.substring(0, 2)}</AvatarFallback>
                 </Avatar>
-                <span className="text-xs text-slate-500">{business.creator?.name}</span>
+                <span className="text-[10px] text-gray-500 truncate">{business.creator?.name}</span>
             </div>
-            <div className="flex items-center gap-1">
-                <Button variant="ghost" size="icon" onClick={onEdit} className="h-8 w-8 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100">
-                    <Edit2 className="w-3.5 h-3.5" />
+        </td>
+        <td className="px-3 py-2">
+            <div className="flex items-center gap-1 justify-end">
+                <Button variant="ghost" size="icon" onClick={onEdit} className="h-7 w-7 p-0 rounded text-gray-400 hover:text-brand-navy hover:bg-gray-100">
+                    <Edit2 className="w-3 h-3" />
                 </Button>
-                <Button variant="ghost" size="icon" onClick={onDelete} className="h-8 w-8 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50">
-                    <Trash2 className="w-3.5 h-3.5" />
+                <Button variant="ghost" size="icon" onClick={onDelete} className="h-7 w-7 p-0 rounded text-gray-400 hover:text-red-500 hover:bg-red-50">
+                    <Trash2 className="w-3 h-3" />
                 </Button>
             </div>
-        </div>
-    </div>
+        </td>
+    </tr>
 );
 
 type DeleteDialogProps = {

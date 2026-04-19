@@ -13,7 +13,6 @@ import {
     X,
     TrendingUp,
 } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -152,14 +151,23 @@ const Couriers = () => {
 
     const filtered = useMemo(() => {
         const q = search.toLowerCase().trim();
-        if (!q) return couriers;
-        return couriers.filter(
-            (c) =>
-                c.name.toLowerCase().includes(q) ||
-                c.email.toLowerCase().includes(q) ||
-                (c.phone || '').toLowerCase().includes(q)
-        );
-    }, [couriers, search]);
+        const list = q
+            ? couriers.filter(
+                (c) =>
+                    c.name.toLowerCase().includes(q) ||
+                    c.email.toLowerCase().includes(q) ||
+                    (c.phone || '').toLowerCase().includes(q)
+            )
+            : [...couriers];
+        // Sort by delivery rate descending
+        return list.sort((a, b) => {
+            const sa = stats.get(a.id);
+            const sb = stats.get(b.id);
+            const ra = sa && sa.totalOrders > 0 ? sa.delivered / sa.totalOrders : 0;
+            const rb = sb && sb.totalOrders > 0 ? sb.delivered / sb.totalOrders : 0;
+            return rb - ra;
+        });
+    }, [couriers, search, stats]);
 
     const totals = useMemo(() => {
         let totalOrders = 0;
@@ -176,226 +184,227 @@ const Couriers = () => {
     }, [stats]);
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
             {/* Header */}
-            <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-                <div className="relative p-8">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div>
-                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Couriers</h1>
-                            <p className="text-gray-500 font-light">Manage couriers, deliveries, and shipping fees.</p>
-                        </div>
-                        <div className="relative group sm:w-80">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                            <Input
-                                placeholder="Search by name, email, phone..."
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                                className="pl-11 h-12 rounded-2xl border-gray-100 bg-white"
-                            />
-                        </div>
+            <header className="space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Couriers</h1>
+                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Deliveries, shipments & shipping fees</p>
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-6">
-                        <div className="rounded-3xl border border-gray-100/80 bg-white/90 p-5 shadow-sm">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Couriers</p>
-                            <p className="text-2xl font-black text-gray-900 tracking-tight">{couriers.length}</p>
-                        </div>
-                        <div className="rounded-3xl border border-gray-100/80 bg-white/90 p-5 shadow-sm">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Total orders</p>
-                            <p className="text-2xl font-black text-gray-900 tracking-tight">{fmtNum(totals.totalOrders)}</p>
-                        </div>
-                        <div className="rounded-3xl border border-gray-100/80 bg-white/90 p-5 shadow-sm">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Delivered</p>
-                            <p className="text-2xl font-black text-emerald-600 tracking-tight">{fmtNum(totals.totalDelivered)}</p>
-                        </div>
-                        <div className="rounded-3xl border border-gray-100/80 bg-white/90 p-5 shadow-sm">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Unpaid notes</p>
-                            <p className="text-2xl font-black text-amber-600 tracking-tight" title={fmtCurFull(totals.totalUnpaid)}>
-                                {fmtCur(totals.totalUnpaid)}
-                            </p>
-                        </div>
+                    <div className="relative sm:w-64">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                        <Input
+                            placeholder="Search name, email, phone..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="pl-8 h-8 rounded-md border-gray-200 text-[11px]"
+                        />
                     </div>
                 </div>
+            </header>
+
+            {/* KPI tiles */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {[
+                    { label: 'Couriers', value: couriers.length, accent: '#3b5e5e' },
+                    { label: 'Total Orders', value: fmtNum(totals.totalOrders), accent: '#3b5e5e' },
+                    { label: 'Delivered', value: fmtNum(totals.totalDelivered), accent: '#059669' },
+                    { label: 'Unpaid Notes', value: fmtCur(totals.totalUnpaid), accent: '#d97706' },
+                ].map((stat, i) => (
+                    <div key={i} className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
+                        <span className="w-[3px] self-stretch rounded-full" style={{ background: stat.accent }} />
+                        <div className="flex-1 min-w-0">
+                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{stat.label}</p>
+                            <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{stat.value}</p>
+                        </div>
+                    </div>
+                ))}
             </div>
 
             {/* Listing */}
             {loadingCouriers ? (
-                <div className="flex justify-center py-20">
-                    <Loader2 className="w-8 h-8 animate-spin text-brand-navy/40" />
+                <div className="flex justify-center py-16">
+                    <Loader2 className="w-5 h-5 animate-spin text-brand-navy/40" />
                 </div>
             ) : filtered.length === 0 ? (
-                <div className="flex flex-col items-center py-24 gap-4 bg-white/50 rounded-[32px]">
-                    <div className="w-20 h-20 bg-brand-navy/[0.04] rounded-full flex items-center justify-center">
-                        <Truck className="w-10 h-10 text-brand-navy/20" />
-                    </div>
-                    <p className="text-lg font-bold text-brand-navy">No couriers found</p>
-                    <p className="text-sm text-muted-foreground">Create a courier via Users → Add New User.</p>
+                <div className="rounded-xl border border-gray-100 bg-white p-12 text-center">
+                    <Truck className="w-8 h-8 text-gray-200 mx-auto mb-3" />
+                    <p className="text-[11px] text-gray-400">No couriers found. Create a courier via Users → Add New User.</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {filtered.map((c) => {
-                        const s = stats.get(c.id);
-                        return (
-                            <Card
-                                key={c.id}
-                                onClick={() => setSelected(c)}
-                                className="border-none rounded-[24px] bg-white/90 backdrop-blur-sm shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 cursor-pointer overflow-hidden"
-                            >
-                                <CardContent className="p-6 space-y-4">
-                                    <div className="flex items-center gap-4">
-                                        <Avatar className="h-14 w-14 border-2 border-brand-white shadow-sm">
-                                            <AvatarImage src={c.avatar_url || ''} />
-                                            <AvatarFallback className="bg-brand-navy text-white font-bold">
-                                                {c.name.substring(0, 2).toUpperCase()}
-                                            </AvatarFallback>
-                                        </Avatar>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="font-bold text-brand-navy truncate">{c.name}</p>
-                                            <p className="text-xs text-muted-foreground truncate">{c.email}</p>
-                                        </div>
-                                        <Badge
-                                            className={cn(
-                                                'rounded-full text-[9px] font-black uppercase px-2 py-0.5 border-none',
-                                                c.active !== false ? 'bg-emerald-500/10 text-emerald-600' : 'bg-gray-300/40 text-gray-500'
-                                            )}
-                                        >
-                                            {c.active !== false ? 'Active' : 'Inactive'}
-                                        </Badge>
-                                    </div>
-                                    <div className="grid grid-cols-3 gap-2">
-                                        <div className="p-3 rounded-2xl bg-brand-navy/[0.03]">
-                                            <p className="text-[9px] font-bold uppercase text-muted-foreground">Orders</p>
-                                            <p className="text-lg font-black text-brand-navy tabular-nums">{fmtNum(s?.totalOrders || 0)}</p>
-                                        </div>
-                                        <div className="p-3 rounded-2xl bg-emerald-500/[0.06]">
-                                            <p className="text-[9px] font-bold uppercase text-emerald-700/70">Delivered</p>
-                                            <p className="text-lg font-black text-emerald-600 tabular-nums">{fmtNum(s?.delivered || 0)}</p>
-                                        </div>
-                                        <div className="p-3 rounded-2xl bg-blue-500/[0.06]">
-                                            <p className="text-[9px] font-bold uppercase text-blue-700/70">In-transit</p>
-                                            <p className="text-lg font-black text-blue-600 tabular-nums">{fmtNum(s?.inTransit || 0)}</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center justify-between pt-2 border-t border-brand-navy/5">
-                                        <div>
-                                            <p className="text-[9px] font-bold uppercase text-muted-foreground">Shipping fees earned</p>
-                                            <p className="text-sm font-black text-brand-navy tabular-nums" title={fmtCurFull(s?.totalShippingFees || 0)}>
-                                                {fmtCur(s?.totalShippingFees || 0)}
-                                            </p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-[9px] font-bold uppercase text-muted-foreground">Unpaid</p>
-                                            <p className={cn('text-sm font-black tabular-nums', (s?.totalUnpaid || 0) > 0 ? 'text-amber-600' : 'text-brand-navy/40')} title={fmtCurFull(s?.totalUnpaid || 0)}>
-                                                {fmtCur(s?.totalUnpaid || 0)}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        );
-                    })}
+                <div className="rounded-xl border border-gray-100 bg-white overflow-hidden">
+                    <table className="w-full">
+                        <thead className="border-b border-gray-100">
+                            <tr>
+                                {['Courier', 'Status', 'Orders', 'Delivered', 'In-Transit', 'Del. Rate', 'Shipping Fees', 'Unpaid'].map(h => (
+                                    <th key={h} className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold whitespace-nowrap">{h}</th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filtered.map((c) => {
+                                const s = stats.get(c.id);
+                                const deliveryRate = s && s.totalOrders > 0 ? (s.delivered / s.totalOrders) * 100 : 0;
+                                const rateColor = deliveryRate > 70 ? '#059669' : deliveryRate > 40 ? '#d97706' : '#ef4444';
+                                return (
+                                    <tr
+                                        key={c.id}
+                                        onClick={() => setSelected(c)}
+                                        className="border-b border-gray-100 hover:bg-gray-50/50 cursor-pointer transition-colors"
+                                    >
+                                        <td className="px-3 py-2">
+                                            <div className="flex items-center gap-2.5">
+                                                <Avatar className="h-7 w-7 shrink-0">
+                                                    <AvatarImage src={c.avatar_url || ''} />
+                                                    <AvatarFallback className="bg-gray-100 text-brand-navy/60 text-[9px] font-semibold">
+                                                        {c.name.substring(0, 2).toUpperCase()}
+                                                    </AvatarFallback>
+                                                </Avatar>
+                                                <div className="min-w-0">
+                                                    <p className="text-[12px] font-semibold text-brand-navy truncate leading-none">{c.name}</p>
+                                                    <p className="text-[10px] text-gray-500 truncate mt-0.5">{c.email}</p>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-3 py-2">
+                                            <span className={cn(
+                                                'h-5 px-1.5 inline-flex items-center rounded text-[9px] font-semibold',
+                                                c.active !== false ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'
+                                            )}>
+                                                {c.active !== false ? 'Active' : 'Inactive'}
+                                            </span>
+                                        </td>
+                                        <td className="px-3 py-2 text-[11px] text-brand-navy/80 tabular-nums">{fmtNum(s?.totalOrders || 0)}</td>
+                                        <td className="px-3 py-2 text-[11px] text-brand-navy/80 tabular-nums">{fmtNum(s?.delivered || 0)}</td>
+                                        <td className="px-3 py-2 text-[11px] text-brand-navy/80 tabular-nums">{fmtNum(s?.inTransit || 0)}</td>
+                                        <td className="px-3 py-2 text-[11px] font-semibold tabular-nums" style={{ color: rateColor }}>
+                                            {deliveryRate.toFixed(1)}%
+                                        </td>
+                                        <td className="px-3 py-2 text-[11px] text-brand-navy/80 tabular-nums" title={fmtCurFull(s?.totalShippingFees || 0)}>
+                                            {fmtCur(s?.totalShippingFees || 0)}
+                                        </td>
+                                        <td className="px-3 py-2 text-[11px] tabular-nums" style={{ color: (s?.totalUnpaid || 0) > 0 ? '#d97706' : undefined }}>
+                                            {fmtCur(s?.totalUnpaid || 0)}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
                 </div>
             )}
 
             {/* Detail drawer */}
             <Sheet open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
-                <SheetContent className="sm:max-w-xl overflow-y-auto rounded-l-[32px] border-none">
+                <SheetContent className="sm:max-w-md overflow-y-auto border-l border-gray-100 shadow-none bg-white">
                     {selected && (() => {
                         const s = stats.get(selected.id);
                         const notes = paymentNotes.filter((n) => n.courier_id === selected.id);
+                        const totalFees = s?.totalShippingFees || 0;
+                        const paidFees = s?.totalPaid || 0;
+                        const pendingFees = s?.totalUnpaid || 0;
                         return (
-                            <div className="space-y-6">
-                                <div className="flex items-start justify-between gap-4">
-                                    <div className="flex items-center gap-4 min-w-0">
-                                        <Avatar className="h-16 w-16 border-2 border-brand-white shadow-lg shrink-0">
+                            <div className="space-y-4 pt-2">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                        <Avatar className="h-7 w-7 shrink-0">
                                             <AvatarImage src={selected.avatar_url || ''} />
-                                            <AvatarFallback className="bg-brand-navy text-white font-bold text-lg">
+                                            <AvatarFallback className="bg-gray-100 text-brand-navy/60 text-[9px] font-semibold">
                                                 {selected.name.substring(0, 2).toUpperCase()}
                                             </AvatarFallback>
                                         </Avatar>
                                         <div className="min-w-0">
-                                            <h2 className="text-xl font-bold text-brand-navy truncate">{selected.name}</h2>
-                                            <p className="text-xs text-muted-foreground truncate">{selected.email}</p>
+                                            <p className="text-[12px] font-semibold text-brand-navy truncate leading-none">{selected.name}</p>
+                                            <p className="text-[10px] text-gray-500 truncate mt-0.5">{selected.email}</p>
                                         </div>
                                     </div>
-                                    <Button variant="ghost" size="icon" onClick={() => setSelected(null)} className="rounded-xl shrink-0">
-                                        <X className="w-4 h-4" />
+                                    <Button variant="ghost" size="icon" onClick={() => setSelected(null)} className="h-7 w-7 rounded-md shrink-0">
+                                        <X className="w-3.5 h-3.5" />
                                     </Button>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-3">
-                                    <Kv icon={Phone} label="Phone" value={selected.phone || '—'} />
-                                    <Kv icon={Mail} label="Email" value={selected.email} />
-                                </div>
-
-                                <div className="grid grid-cols-4 gap-2">
-                                    <Metric label="Orders" value={fmtNum(s?.totalOrders || 0)} />
-                                    <Metric label="Delivered" value={fmtNum(s?.delivered || 0)} tone="text-emerald-600" icon={PackageCheck} />
-                                    <Metric label="In-transit" value={fmtNum(s?.inTransit || 0)} tone="text-blue-600" icon={Truck} />
-                                    <Metric label="Returned" value={fmtNum(s?.returned || 0)} tone="text-red-600" icon={RotateCcw} />
-                                </div>
-
-                                {/* ── Profit summary ──
-                                    The courier's profit is the shipping fees earned from delivered orders.
-                                    These fees are deducted from the cash the courier collected on COD orders
-                                    (net_amount on each payment note = collected cash - shipping fees the courier
-                                    keeps). So lifetime profit = Σ shipping fees on delivered orders. */}
-                                {(() => {
-                                    const totalFees = s?.totalShippingFees || 0;
-                                    const paidFees = s?.totalPaid || 0; // net cash already settled — the fees portion is what's left in courier's pocket after COD split
-                                    const pendingFees = s?.totalUnpaid || 0;
-                                    return (
-                                        <div className="rounded-2xl p-5 bg-gradient-to-br from-emerald-500/10 via-emerald-50 to-white border border-emerald-100/60 space-y-3">
-                                            <div className="flex items-center justify-between">
-                                                <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-700/70">Profit (delivery fees)</p>
-                                                <TrendingUp className="w-4 h-4 text-emerald-600" />
+                                <div className="border-b border-gray-100 pb-4 space-y-2">
+                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Contact</p>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {[
+                                            { icon: Phone, label: 'Phone', value: selected.phone || '—' },
+                                            { icon: Mail, label: 'Email', value: selected.email },
+                                        ].map(({ icon: Icon, label, value }) => (
+                                            <div key={label} className="rounded-xl border border-gray-100 p-2.5 flex items-center gap-2">
+                                                <Icon className="w-3 h-3 text-gray-400 shrink-0" />
+                                                <div className="min-w-0">
+                                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{label}</p>
+                                                    <p className="text-[10px] font-semibold text-brand-navy truncate">{value}</p>
+                                                </div>
                                             </div>
-                                            <p className="text-3xl font-black text-emerald-800 tabular-nums leading-none break-words" title={fmtCurFull(totalFees)}>
-                                                {fmtCur(totalFees)}
-                                            </p>
-                                            <p className="text-[11px] text-emerald-800/70 font-medium">
-                                                Sum of shipping fees from every delivered order. Deducted from the company's COD collection; this is what the courier keeps.
-                                            </p>
-                                            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-emerald-200/40">
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="border-b border-gray-100 pb-4 space-y-2">
+                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Performance</p>
+                                    <div className="grid grid-cols-4 gap-2">
+                                        {[
+                                            { label: 'Orders', value: fmtNum(s?.totalOrders || 0), accent: '#3b5e5e' },
+                                            { label: 'Delivered', value: fmtNum(s?.delivered || 0), accent: '#059669' },
+                                            { label: 'In-Transit', value: fmtNum(s?.inTransit || 0), accent: '#3b82f6' },
+                                            { label: 'Returned', value: fmtNum(s?.returned || 0), accent: '#ef4444' },
+                                        ].map(t => (
+                                            <div key={t.label} className="rounded-xl border border-gray-100 p-2.5 flex items-start gap-1.5">
+                                                <span className="w-[3px] self-stretch rounded-full shrink-0" style={{ background: t.accent }} />
                                                 <div>
-                                                    <p className="text-[9px] font-bold uppercase tracking-widest text-emerald-700/50">Paid out</p>
-                                                    <p className="text-sm font-black text-emerald-700 tabular-nums" title={fmtCurFull(paidFees)}>
-                                                        {fmtCur(paidFees)}
-                                                    </p>
+                                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{t.label}</p>
+                                                    <p className="text-[15px] font-semibold tabular-nums text-brand-navy mt-0.5 leading-none">{t.value}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="border-b border-gray-100 pb-4 space-y-2">
+                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400 flex items-center gap-1">
+                                        <TrendingUp className="w-3 h-3" /> Profit (delivery fees)
+                                    </p>
+                                    <div className="rounded-xl border border-gray-100 p-3 flex items-start gap-2.5">
+                                        <span className="w-[3px] self-stretch rounded-full" style={{ background: '#059669' }} />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Total fees earned</p>
+                                            <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1" title={fmtCurFull(totalFees)}>{fmtCur(totalFees)}</p>
+                                            <p className="text-[9px] text-gray-400 mt-1">Shipping fees from delivered orders deducted from COD collection.</p>
+                                            <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-gray-100">
+                                                <div>
+                                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Paid out</p>
+                                                    <p className="text-[12px] font-semibold text-brand-navy tabular-nums" title={fmtCurFull(paidFees)}>{fmtCur(paidFees)}</p>
                                                 </div>
                                                 <div>
-                                                    <p className="text-[9px] font-bold uppercase tracking-widest text-amber-700/60">Pending</p>
-                                                    <p className={cn('text-sm font-black tabular-nums', pendingFees > 0 ? 'text-amber-700' : 'text-emerald-700/40')} title={fmtCurFull(pendingFees)}>
-                                                        {fmtCur(pendingFees)}
-                                                    </p>
+                                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Pending</p>
+                                                    <p className={cn('text-[12px] font-semibold tabular-nums', pendingFees > 0 ? 'text-amber-600' : 'text-brand-navy/40')} title={fmtCurFull(pendingFees)}>{fmtCur(pendingFees)}</p>
                                                 </div>
                                             </div>
                                         </div>
-                                    );
-                                })()}
+                                    </div>
+                                </div>
 
-                                <div>
-                                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Payment notes · {notes.length}</p>
+                                <div className="space-y-2">
+                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Payment notes · {notes.length}</p>
                                     {notes.length === 0 ? (
-                                        <p className="text-sm text-muted-foreground">No payment notes yet.</p>
+                                        <p className="text-[10px] text-gray-400">No payment notes yet.</p>
                                     ) : (
-                                        <div className="space-y-2">
+                                        <div className="space-y-1.5">
                                             {notes.slice(0, 10).map((n) => (
-                                                <div key={n.id} className="flex items-center gap-3 p-3 rounded-2xl bg-brand-navy/[0.03] border border-brand-navy/5">
-                                                    <CreditCard className="w-4 h-4 text-brand-navy/50 shrink-0" />
+                                                <div key={n.id} className="flex items-center gap-2.5 px-3 py-2 rounded-xl border border-gray-100">
+                                                    <CreditCard className="w-3 h-3 text-gray-400 shrink-0" />
                                                     <div className="flex-1 min-w-0">
-                                                        <p className="text-xs font-bold text-brand-navy">{fmtCurFull(Number(n.net_amount || 0))}</p>
-                                                        <p className="text-[10px] text-muted-foreground">{n.order_count} orders · {new Date(n.created_at).toLocaleDateString()}</p>
+                                                        <p className="text-[11px] font-semibold text-brand-navy">{fmtCurFull(Number(n.net_amount || 0))}</p>
+                                                        <p className="text-[9px] text-gray-400">{n.order_count} orders · {new Date(n.created_at).toLocaleDateString()}</p>
                                                     </div>
-                                                    <Badge
-                                                        className={cn(
-                                                            'rounded-full text-[9px] font-black uppercase border-none',
-                                                            n.status === 'paid' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600'
-                                                        )}
-                                                    >
+                                                    <span className={cn(
+                                                        'h-5 px-1.5 inline-flex items-center rounded text-[9px] font-semibold',
+                                                        n.status === 'paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                                                    )}>
                                                         {n.status}
-                                                    </Badge>
+                                                    </span>
                                                 </div>
                                             ))}
                                         </div>
@@ -409,25 +418,5 @@ const Couriers = () => {
         </div>
     );
 };
-
-const Kv: React.FC<{ icon: React.ComponentType<{ className?: string }>; label: string; value: string }> = ({ icon: Icon, label, value }) => (
-    <div className="rounded-2xl p-3 bg-brand-navy/[0.03] border border-brand-navy/5 flex items-center gap-3">
-        <Icon className="w-4 h-4 text-brand-navy/40 shrink-0" />
-        <div className="min-w-0">
-            <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">{label}</p>
-            <p className="text-xs font-bold text-brand-navy truncate">{value}</p>
-        </div>
-    </div>
-);
-
-const Metric: React.FC<{ label: string; value: string; tone?: string; icon?: React.ComponentType<{ className?: string }> }> = ({ label, value, tone = 'text-brand-navy', icon: Icon }) => (
-    <div className="rounded-2xl p-3 bg-brand-navy/[0.03] border border-brand-navy/5">
-        <div className="flex items-center gap-1 mb-1">
-            {Icon && <Icon className="w-3 h-3 text-brand-navy/40" />}
-            <p className="text-[9px] font-bold uppercase text-muted-foreground">{label}</p>
-        </div>
-        <p className={cn('text-lg font-black tabular-nums', tone)}>{value}</p>
-    </div>
-);
 
 export default Couriers;

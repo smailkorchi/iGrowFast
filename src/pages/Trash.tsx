@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
     Tabs,
     TabsContent,
@@ -138,213 +138,167 @@ const Trash = () => {
         );
     });
 
-    if (isLoading) {
-        return (
-            <div className="flex h-[80vh] items-center justify-center">
-                <div className="flex flex-col items-center gap-4">
-                    <Loader2 className="w-12 h-12 animate-spin text-brand-navy" />
-                    <p className="text-muted-foreground animate-pulse font-medium">Loading trash...</p>
-                </div>
-            </div>
-        );
-    }
-
     return (
-        <div className="space-y-8 animate-in fade-in duration-500 pb-20">
-            {/* Header */}
-            <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-red-500/5 to-transparent rounded-3xl" />
-                <div className="relative p-8">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div>
-                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Trash</h1>
-                            <p className="text-gray-500 font-light">Items are permanently deleted after 14 days.</p>
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+            <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                    <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Trash</h1>
+                    <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Items permanently deleted after 14 days</p>
+                </div>
+            </header>
+
+            {/* KPI strip */}
+            <div className="grid grid-cols-3 gap-2">
+                {[
+                    { label: 'Trashed Orders', value: trashedOrders.length, accent: '#d97706' },
+                    { label: 'Expiring Soon', value: trashedOrders.filter(o => getDaysRemaining(o.date_deleted) <= 3).length, accent: '#ef4444' },
+                    { label: 'Total Value', value: `${trashedOrders.reduce((sum, o) => sum + (o.price || 0), 0).toLocaleString()} MAD`, accent: '#9ca3af' },
+                ].map((kpi, i) => (
+                    <div key={i} className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
+                        <span className="w-[3px] self-stretch rounded-full" style={{ background: kpi.accent }} />
+                        <div className="flex-1 min-w-0">
+                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{kpi.label}</p>
+                            <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{kpi.value}</p>
                         </div>
                     </div>
-                </div>
-            </div>
-
-            {/* Stats Card */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card className="rounded-[32px] border-none shadow-lg bg-gradient-to-br from-brand-navy to-brand-navy/90 text-white">
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-lg font-medium opacity-80">Trashed Orders</CardTitle>
-                        <Trash2 className="w-6 h-6 opacity-60" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-4xl font-black">{trashedOrders.length}</div>
-                        <p className="text-sm opacity-60 mt-1">Pending permanent deletion</p>
-                    </CardContent>
-                </Card>
-                <Card className="rounded-[32px] border-none shadow-lg bg-white">
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-lg font-medium text-brand-navy/60">Expiring Soon</CardTitle>
-                        <Clock className="w-6 h-6 text-brand-navy/40" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-4xl font-black text-brand-navy">
-                            {trashedOrders.filter(o => getDaysRemaining(o.date_deleted) <= 3).length}
-                        </div>
-                        <p className="text-sm text-brand-navy/40 mt-1">Less than 3 days remaining</p>
-                    </CardContent>
-                </Card>
-                <Card className="rounded-[32px] border-none shadow-lg bg-white">
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-lg font-medium text-brand-navy/60">Total Value</CardTitle>
-                        <ShoppingBag className="w-6 h-6 text-brand-navy/40" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-4xl font-black text-brand-navy">
-                            {trashedOrders.reduce((sum, o) => sum + (o.price || 0), 0).toLocaleString()} MAD
-                        </div>
-                        <p className="text-sm text-brand-navy/40 mt-1">In trashed orders</p>
-                    </CardContent>
-                </Card>
+                ))}
             </div>
 
             {/* Tabs + Content */}
-            <Tabs defaultValue="orders" className="w-full space-y-6">
-                <TabsList className="bg-white rounded-2xl p-1.5 h-auto shadow-sm border border-brand-navy/5">
-                    <TabsTrigger
-                        value="orders"
-                        className="rounded-xl px-6 py-2.5 font-bold text-sm data-[state=active]:bg-brand-navy data-[state=active]:text-white data-[state=active]:shadow-md text-brand-navy/50 transition-all"
-                    >
-                        Orders
+            <Tabs defaultValue="orders" className="w-full space-y-3">
+                <TabsList className="h-8">
+                    <TabsTrigger value="orders" className="text-[11px] h-6 px-3 gap-1.5">
+                        <Trash2 className="w-3 h-3" /> Orders
                         {trashedOrders.length > 0 && (
-                            <span className="ml-2 bg-white/20 data-[state=active]:bg-white/20 rounded-full px-2 py-0.5 text-xs font-bold">
+                            <span className="ml-1 bg-gray-200 text-gray-700 rounded-full px-1.5 text-[9px] font-bold">
                                 {trashedOrders.length}
                             </span>
                         )}
                     </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="orders" className="space-y-4">
-                    {/* Controls */}
-                    <div className="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center justify-between bg-white p-4 rounded-[24px] shadow-sm border border-brand-navy/5">
-                        <div className="relative w-full sm:w-96 shrink-0">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <TabsContent value="orders" className="space-y-3 mt-0">
+                    <div className="flex items-center gap-2">
+                        <div className="relative flex-1 max-w-xs">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
                             <Input
                                 placeholder="Search by name or phone..."
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                className="pl-11 h-12 rounded-xl border-brand-navy/10 focus:border-brand-navy focus:ring-brand-navy bg-brand-navy/[0.02]"
+                                className="pl-7 h-8 rounded-md border-gray-200 bg-white text-[11px]"
                             />
                         </div>
                         {filteredOrders.length !== trashedOrders.length && (
-                            <p className="text-xs font-medium text-muted-foreground px-1 shrink-0">
-                                Showing <span className="font-bold text-brand-navy">{filteredOrders.length}</span> of {trashedOrders.length} orders
+                            <p className="text-[10px] text-gray-400">
+                                Showing <span className="font-semibold text-brand-navy">{filteredOrders.length}</span> of {trashedOrders.length}
                             </p>
                         )}
                     </div>
 
-                    {/* Content */}
-                    {filteredOrders.length === 0 ? (
-                        <Card className="rounded-[32px] border-none shadow-lg bg-white">
-                            <CardContent className="flex flex-col items-center justify-center py-24">
-                                <div className="w-20 h-20 rounded-3xl bg-brand-navy/5 flex items-center justify-center mb-6">
-                                    <Trash2 className="w-10 h-10 text-brand-navy/20" />
-                                </div>
-                                <p className="text-xl font-bold text-brand-navy/70">Trash is empty</p>
-                                <p className="text-sm font-light text-gray-500 mt-2">Deleted orders will appear here</p>
+                    {isLoading ? (
+                        <div className="space-y-2">
+                            {[1,2,3].map(i => <div key={i} className="h-12 rounded-xl bg-white border border-gray-100 animate-pulse" />)}
+                        </div>
+                    ) : filteredOrders.length === 0 ? (
+                        <Card className="border border-gray-100 shadow-none rounded-xl">
+                            <CardContent className="flex flex-col items-center justify-center py-10 gap-2">
+                                <Trash2 className="w-5 h-5 text-gray-300" />
+                                <p className="text-[11px] font-semibold text-brand-navy">Trash is empty</p>
+                                <p className="text-[10px] text-gray-400">Deleted orders will appear here</p>
                             </CardContent>
                         </Card>
                     ) : (
-                        <Card className="rounded-[32px] border-none shadow-lg bg-white overflow-hidden">
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead>
-                                        <tr className="border-b border-brand-navy/[0.06]">
-                                            <th className="text-left px-6 py-4 text-xs font-bold text-brand-navy/40 uppercase tracking-wider">Customer</th>
-                                            <th className="text-left px-6 py-4 text-xs font-bold text-brand-navy/40 uppercase tracking-wider">Phone</th>
-                                            <th className="text-left px-6 py-4 text-xs font-bold text-brand-navy/40 uppercase tracking-wider">Price</th>
-                                            <th className="text-left px-6 py-4 text-xs font-bold text-brand-navy/40 uppercase tracking-wider">Status</th>
-                                            <th className="text-left px-6 py-4 text-xs font-bold text-brand-navy/40 uppercase tracking-wider">Deleted</th>
-                                            <th className="text-left px-6 py-4 text-xs font-bold text-brand-navy/40 uppercase tracking-wider">Days Left</th>
-                                            <th className="text-right px-6 py-4 text-xs font-bold text-brand-navy/40 uppercase tracking-wider">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {filteredOrders.map((order) => {
-                                            const daysLeft = getDaysRemaining(order.date_deleted);
-                                            return (
-                                                <tr key={order.id} className="border-b border-brand-navy/[0.04] last:border-0 hover:bg-brand-navy/[0.015] transition-colors">
-                                                    <td className="px-6 py-4">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-9 h-9 rounded-xl bg-brand-navy/5 flex items-center justify-center text-brand-navy font-bold text-sm shrink-0">
-                                                                {(order.name || '?').charAt(0).toUpperCase()}
+                        <Card className="border border-gray-100 shadow-none rounded-xl overflow-hidden">
+                            <CardContent className="p-0">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                        <thead>
+                                            <tr className="border-b border-gray-100 bg-gray-50/60">
+                                                <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Customer</th>
+                                                <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Phone</th>
+                                                <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Price</th>
+                                                <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Status</th>
+                                                <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Deleted</th>
+                                                <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Days Left</th>
+                                                <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {filteredOrders.map((order) => {
+                                                const daysLeft = getDaysRemaining(order.date_deleted);
+                                                return (
+                                                    <tr key={order.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors">
+                                                        <td className="px-3 py-2 text-[11px] font-semibold text-brand-navy/80">
+                                                            {order.name || '---'}
+                                                        </td>
+                                                        <td className="px-3 py-2">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <Phone className="w-3 h-3 text-gray-400" />
+                                                                <span className="text-[11px] font-mono text-brand-navy/70">{order.phone || '---'}</span>
                                                             </div>
-                                                            <span className="text-sm font-bold text-brand-navy">{order.name || '---'}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <div className="flex items-center gap-2">
-                                                            <Phone className="w-3.5 h-3.5 text-brand-navy/30" />
-                                                            <span className="text-sm font-mono tracking-tight text-brand-navy/70">{order.phone || '---'}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <span className="text-sm font-bold text-brand-navy">{order.price != null ? `${order.price.toLocaleString()} MAD` : '---'}</span>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        {order.status?.label ? (
-                                                            <Badge
-                                                                className="rounded-lg text-xs font-bold px-2.5 py-1 border-0"
-                                                                style={{
-                                                                    backgroundColor: order.status.color ? `${order.status.color}20` : undefined,
-                                                                    color: order.status.color || undefined,
-                                                                }}
-                                                            >
-                                                                {order.status.label}
-                                                            </Badge>
-                                                        ) : (
-                                                            <span className="text-sm text-brand-navy/30">---</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <span className="text-sm font-medium text-brand-navy/60">
+                                                        </td>
+                                                        <td className="px-3 py-2 text-[11px] tabular-nums font-semibold text-brand-navy/80">
+                                                            {order.price != null ? `${order.price.toLocaleString()} MAD` : '---'}
+                                                        </td>
+                                                        <td className="px-3 py-2">
+                                                            {order.status?.label ? (
+                                                                <Badge
+                                                                    className="h-5 px-1.5 text-[9px] font-semibold border-0"
+                                                                    style={{
+                                                                        backgroundColor: order.status.color ? `${order.status.color}20` : undefined,
+                                                                        color: order.status.color || undefined,
+                                                                    }}
+                                                                >
+                                                                    {order.status.label}
+                                                                </Badge>
+                                                            ) : (
+                                                                <span className="text-[11px] text-gray-400">---</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-3 py-2 text-[10px] tabular-nums text-gray-400">
                                                             {order.date_deleted
                                                                 ? new Date(order.date_deleted).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
                                                                 : '---'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <span className={`inline-flex items-center rounded-full text-xs font-bold px-3 py-1 ${getDaysRemainingColor(daysLeft)}`}>
-                                                            {daysLeft}d remaining
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <div className="flex items-center justify-end gap-2">
-                                                            <Button
-                                                                variant="outline"
-                                                                size="sm"
-                                                                className="rounded-xl h-9 px-4 text-xs font-bold text-emerald-600 border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300"
-                                                                disabled={restoreMutation.isPending}
-                                                                onClick={() => restoreMutation.mutate(order.id)}
-                                                            >
-                                                                {restoreMutation.isPending ? (
-                                                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                                                ) : (
-                                                                    <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
-                                                                )}
-                                                                Restore
-                                                            </Button>
-                                                            <Button
-                                                                variant="outline"
-                                                                size="sm"
-                                                                className="rounded-xl h-9 px-4 text-xs font-bold text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600 hover:border-red-300"
-                                                                onClick={() => setPendingPermanentDelete({ id: order.id, name: order.name || 'Unknown' })}
-                                                            >
-                                                                <Trash2 className="w-3.5 h-3.5 mr-1.5" />
-                                                                Delete
-                                                            </Button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
+                                                        </td>
+                                                        <td className="px-3 py-2">
+                                                            <span className={`inline-flex items-center rounded-md text-[9px] font-bold px-1.5 py-0.5 ${getDaysRemainingColor(daysLeft)}`}>
+                                                                {daysLeft}d left
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-3 py-2">
+                                                            <div className="flex items-center justify-end gap-1.5">
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    className="h-7 px-2 rounded-md text-[10px] font-semibold text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+                                                                    disabled={restoreMutation.isPending}
+                                                                    onClick={() => restoreMutation.mutate(order.id)}
+                                                                >
+                                                                    {restoreMutation.isPending ? (
+                                                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                                                    ) : (
+                                                                        <RotateCcw className="w-3 h-3 mr-1" />
+                                                                    )}
+                                                                    Restore
+                                                                </Button>
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    className="h-7 px-2 rounded-md text-[10px] font-semibold text-red-500 border-red-200 hover:bg-red-50"
+                                                                    onClick={() => setPendingPermanentDelete({ id: order.id, name: order.name || 'Unknown' })}
+                                                                >
+                                                                    <Trash2 className="w-3 h-3 mr-1" />
+                                                                    Delete
+                                                                </Button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </CardContent>
                         </Card>
                     )}
                 </TabsContent>
@@ -352,31 +306,31 @@ const Trash = () => {
 
             {/* Permanent Delete Confirmation */}
             <AlertDialog open={!!pendingPermanentDelete} onOpenChange={(open) => { if (!open) setPendingPermanentDelete(null); }}>
-                <AlertDialogContent className="rounded-[32px] border-none shadow-2xl max-w-md p-8">
-                    <AlertDialogHeader className="space-y-3">
-                        <AlertDialogTitle className="text-2xl font-black text-brand-navy tracking-tight">
+                <AlertDialogContent className="max-w-sm rounded-xl border border-gray-100 p-4">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="text-[13px] font-semibold text-brand-navy">
                             Permanently delete?
                         </AlertDialogTitle>
-                        <AlertDialogDescription className="text-base text-brand-navy/60 font-medium leading-relaxed">
+                        <AlertDialogDescription className="text-[11px] text-gray-500">
                             {pendingPermanentDelete
                                 ? `This will permanently delete the order for "${pendingPermanentDelete.name}". This action cannot be undone.`
                                 : null}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
-                    <AlertDialogFooter className="flex-col-reverse sm:flex-row gap-2 sm:gap-3 pt-2">
-                        <AlertDialogCancel className="rounded-2xl h-12 font-bold border border-brand-navy/10 bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy/[0.08] m-0">
+                    <AlertDialogFooter className="gap-2 mt-3">
+                        <AlertDialogCancel className="h-8 px-3 rounded-md text-[11px] font-semibold border-gray-200">
                             Cancel
                         </AlertDialogCancel>
                         <Button
                             type="button"
                             variant="destructive"
-                            className="rounded-2xl h-12 font-bold shadow-lg m-0 w-full sm:w-auto"
+                            className="h-8 px-3 rounded-md text-[11px] font-semibold"
                             disabled={permanentDeleteMutation.isPending}
                             onClick={() => {
                                 if (pendingPermanentDelete) permanentDeleteMutation.mutate(pendingPermanentDelete.id);
                             }}
                         >
-                            {permanentDeleteMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                            {permanentDeleteMutation.isPending && <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />}
                             Delete permanently
                         </Button>
                     </AlertDialogFooter>

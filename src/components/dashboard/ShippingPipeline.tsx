@@ -14,9 +14,9 @@ interface ShippingPipelineProps {
     dateFilter: DateFilter;
 }
 
-const COLOR_DELIVERED = '#10b981';
-const COLOR_RETURNED = '#ef4444';
-const COLOR_IN_TRANSIT = '#6366f1';
+const COLOR_DELIVERED = '#788c5d'; // ant green
+const COLOR_RETURNED = '#c96356'; // ant rose
+const COLOR_IN_TRANSIT = '#6a9bcc'; // ant blue
 
 export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelineProps) => {
     const { getPkgStatusColor, shippedPkgIds, deliveredPkgIds, returnedPkgIds } = useStatusCategories();
@@ -210,16 +210,17 @@ export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelinePro
         metrics.total > 0 ? Math.min(100, (metrics.delivered / metrics.total) * 100) : 0;
 
     return (
-        <Card className="border border-gray-100 shadow-none rounded-xl">
-            <CardHeader className="px-3.5 pt-2.5 pb-1.5">
-                <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5">
-                        <Truck className="w-3 h-3 text-gray-400" />
-                        <CardTitle className="text-[12px] font-semibold text-brand-navy">
+        <Card className="ant-surface border border-ant-line bg-ant-paper shadow-none rounded-xl">
+            <CardHeader className="px-4 pt-3 pb-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2">
+                        <span className="w-1 h-1 rounded-full bg-ant-orange" />
+                        <CardTitle className="font-display text-[13px] font-semibold text-ant-ink tracking-tight">
                             Shipping pipeline
                         </CardTitle>
+                        <Truck className="hidden" />
                     </div>
-                    <div className="flex items-center gap-2.5 text-[9px] tabular-nums">
+                    <div className="flex items-center gap-3 text-[10px] tabular-nums">
                         <HeaderChip label="Total" value={metrics.total} tone="navy" />
                         <HeaderChip label="In transit" value={metrics.inTransit} tone="indigo" />
                         <HeaderChip label="Delivered" value={metrics.delivered} tone="emerald" />
@@ -227,9 +228,9 @@ export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelinePro
                     </div>
                 </div>
             </CardHeader>
-            <CardContent className="px-3.5 pb-3 pt-0 space-y-2.5">
+            <CardContent className="px-4 pb-4 pt-0 space-y-3">
                 {metrics.total === 0 ? (
-                    <p className="text-[11px] text-gray-400 italic py-8 text-center">
+                    <p className="font-serif-display text-[12px] text-ant-muted italic py-8 text-center">
                         No orders in shipping lifecycle
                     </p>
                 ) : (
@@ -244,23 +245,23 @@ export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelinePro
                                 total={metrics.total}
                                 height={6}
                             />
-                            <div className="flex items-center justify-between text-[9px] text-gray-400">
+                            <div className="flex items-center justify-between text-[10px] text-ant-mid">
                                 <span className="tabular-nums">
                                     Overall delivery rate{' '}
                                     <span
                                         className={cn(
                                             'font-semibold tabular-nums ml-0.5',
                                             overallDeliveryRate >= 50
-                                                ? 'text-emerald-600'
+                                                ? 'text-ant-green'
                                                 : overallDeliveryRate >= 25
-                                                    ? 'text-amber-600'
-                                                    : 'text-red-500',
+                                                    ? 'text-ant-orange'
+                                                    : 'text-ant-rose',
                                         )}
                                     >
                                         {overallDeliveryRate.toFixed(1)}%
                                     </span>
                                 </span>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2.5">
                                     <LegendDot color={COLOR_IN_TRANSIT} label="In transit" />
                                     <LegendDot color={COLOR_DELIVERED} label="Delivered" />
                                     <LegendDot color={COLOR_RETURNED} label="Returned" />
@@ -268,34 +269,34 @@ export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelinePro
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-5 gap-y-3 pt-1">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-3 pt-2">
                             {/* By status */}
                             <div className="space-y-2">
                                 <div className="flex items-baseline justify-between">
-                                    <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.16em]">
+                                    <h4 className="text-[10px] font-medium text-ant-mid uppercase tracking-[0.2em]">
                                         By status
                                     </h4>
-                                    <span className="text-[10px] text-gray-400 tabular-nums">
+                                    <span className="text-[10px] text-ant-mid tabular-nums">
                                         {metrics.statusChart.length} statuses
                                     </span>
                                 </div>
-                                <div className="space-y-0.5 max-h-[220px] overflow-y-auto pr-0.5 -mr-0.5">
+                                <div className="space-y-0.5 max-h-[220px] overflow-y-auto pr-1 ant-scroll">
                                     {metrics.statusChart.map((s) => {
                                         const pct = metrics.total > 0 ? (s.count / metrics.total) * 100 : 0;
                                         return (
                                             <div
                                                 key={s.id}
-                                                className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-gray-50/60 transition-colors"
+                                                className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-ant-line-soft transition-colors"
                                             >
                                                 <span
                                                     className="w-1 h-3.5 rounded-full shrink-0"
                                                     style={{ backgroundColor: s.color }}
                                                     aria-hidden
                                                 />
-                                                <span className="text-[11px] font-medium text-gray-700 flex-1 min-w-0 truncate">
+                                                <span className="text-[11.5px] font-medium text-ant-ink flex-1 min-w-0 truncate">
                                                     {s.label}
                                                 </span>
-                                                <div className="w-16 h-1 rounded-full bg-gray-100 overflow-hidden shrink-0">
+                                                <div className="w-20 h-1 rounded-full bg-ant-line overflow-hidden shrink-0">
                                                     <div
                                                         className="h-full rounded-full"
                                                         style={{
@@ -304,10 +305,10 @@ export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelinePro
                                                         }}
                                                     />
                                                 </div>
-                                                <span className="text-[11px] font-semibold text-brand-navy tabular-nums w-7 text-right shrink-0">
+                                                <span className="text-[11.5px] font-semibold text-ant-ink tabular-nums w-7 text-right shrink-0">
                                                     {s.count}
                                                 </span>
-                                                <span className="text-[10px] text-gray-400 tabular-nums w-9 text-right shrink-0">
+                                                <span className="text-[10px] text-ant-mid tabular-nums w-9 text-right shrink-0">
                                                     {pct.toFixed(1)}%
                                                 </span>
                                             </div>
@@ -319,17 +320,17 @@ export const ShippingPipeline = ({ businessId, dateFilter }: ShippingPipelinePro
                             {/* By fulfiller (providers + in-house couriers) */}
                             <div className="space-y-2">
                                 <div className="flex items-baseline justify-between">
-                                    <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.16em]">
+                                    <h4 className="text-[10px] font-medium text-ant-mid uppercase tracking-[0.2em]">
                                         By fulfiller
                                     </h4>
-                                    <span className="text-[10px] text-gray-400 tabular-nums">
+                                    <span className="text-[10px] text-ant-mid tabular-nums">
                                         {metrics.providerShipments.toLocaleString('fr-MA')} via providers ·{' '}
                                         {metrics.courierShipments.toLocaleString('fr-MA')} via couriers
                                     </span>
                                 </div>
                                 <div className="space-y-1.5">
                                     {metrics.fulfillerList.length === 0 ? (
-                                        <p className="text-[11px] text-gray-400 italic py-3 text-center">
+                                        <p className="font-serif-display text-[11px] text-ant-muted italic py-3 text-center">
                                             No fulfiller-assigned shipments
                                         </p>
                                     ) : (
@@ -358,15 +359,15 @@ function HeaderChip({
 }) {
     const toneClass =
         tone === 'emerald'
-            ? 'text-emerald-600'
+            ? 'text-ant-green'
             : tone === 'red'
-                ? 'text-red-500'
+                ? 'text-ant-rose'
                 : tone === 'indigo'
-                    ? 'text-indigo-500'
-                    : 'text-brand-navy';
+                    ? 'text-ant-blue'
+                    : 'text-ant-ink';
     return (
         <span className="flex items-baseline gap-1">
-            <span className="text-gray-400 uppercase tracking-[0.14em]">{label}</span>
+            <span className="text-ant-mid uppercase tracking-[0.18em]">{label}</span>
             <span className={cn('font-semibold tabular-nums', toneClass)}>
                 {value.toLocaleString('fr-MA')}
             </span>
@@ -377,8 +378,8 @@ function HeaderChip({
 function LegendDot({ color, label }: { color: string; label: string }) {
     return (
         <span className="inline-flex items-center gap-1">
-            <span className="w-1 h-1 rounded-full" style={{ backgroundColor: color }} />
-            <span className="text-[9px] text-gray-500">{label}</span>
+            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
+            <span className="text-[10px] text-ant-muted">{label}</span>
         </span>
     );
 }
@@ -397,53 +398,53 @@ interface FulfillerStats {
 
 function FulfillerRow({ fulfiller: f }: { fulfiller: FulfillerStats }) {
     const rateTone =
-        f.deliveryRate >= 50 ? 'text-emerald-600' : f.deliveryRate >= 25 ? 'text-amber-600' : 'text-red-500';
+        f.deliveryRate >= 50 ? 'text-ant-green' : f.deliveryRate >= 25 ? 'text-ant-orange' : 'text-ant-rose';
     const isCourier = f.kind === 'courier';
     const kindLabel = isCourier ? 'Courier' : 'Provider';
     const FallbackIcon = isCourier ? Bike : Building2;
     return (
-        <div className="rounded-md border border-gray-100 px-2 py-1.5 transition-colors hover:border-gray-200">
-            <div className="flex items-center gap-1.5">
+        <div className="rounded-lg border border-ant-line px-2.5 py-2 transition-colors hover:border-ant-ink/20">
+            <div className="flex items-center gap-2">
                 {f.imageUrl ? (
                     <img
                         src={f.imageUrl}
                         alt={f.name}
                         className={cn(
-                            'w-5 h-5 shrink-0 border border-gray-100 bg-white',
-                            isCourier ? 'rounded-full object-cover' : 'rounded-sm object-contain',
+                            'w-6 h-6 shrink-0 border border-ant-line bg-ant-paper',
+                            isCourier ? 'rounded-full object-cover' : 'rounded-md object-contain p-0.5',
                         )}
                     />
                 ) : (
                     <div
                         className={cn(
-                            'w-5 h-5 flex items-center justify-center shrink-0',
-                            isCourier ? 'rounded-full bg-indigo-50' : 'rounded-sm bg-gray-100',
+                            'w-6 h-6 flex items-center justify-center shrink-0',
+                            isCourier ? 'rounded-full bg-ant-blue/10' : 'rounded-md bg-ant-line-soft',
                         )}
                     >
                         <FallbackIcon
-                            className={cn('w-2.5 h-2.5', isCourier ? 'text-indigo-500' : 'text-gray-400')}
+                            className={cn('w-3 h-3', isCourier ? 'text-ant-blue' : 'text-ant-mid')}
                         />
                     </div>
                 )}
                 <div className="flex-1 min-w-0">
                     <div className="flex items-baseline justify-between gap-2">
-                        <div className="flex items-baseline gap-1 min-w-0">
-                            <span className="text-[11px] font-semibold text-brand-navy truncate">{f.name}</span>
+                        <div className="flex items-baseline gap-1.5 min-w-0">
+                            <span className="text-[11.5px] font-semibold text-ant-ink truncate">{f.name}</span>
                             <span
                                 className={cn(
-                                    'text-[8px] uppercase tracking-[0.12em] font-bold shrink-0',
-                                    isCourier ? 'text-indigo-500' : 'text-gray-400',
+                                    'text-[8.5px] uppercase tracking-[0.18em] font-medium shrink-0',
+                                    isCourier ? 'text-ant-blue' : 'text-ant-mid',
                                 )}
                             >
                                 {kindLabel}
                             </span>
                         </div>
-                        <span className={cn('text-[11px] font-semibold tabular-nums shrink-0', rateTone)}>
+                        <span className={cn('text-[11.5px] font-semibold tabular-nums shrink-0', rateTone)}>
                             {f.deliveryRate.toFixed(1)}%
                         </span>
                     </div>
                     <StackedProportionBar
-                        className="mt-0.5"
+                        className="mt-1"
                         height={2}
                         total={f.total}
                         segments={[
@@ -452,7 +453,7 @@ function FulfillerRow({ fulfiller: f }: { fulfiller: FulfillerStats }) {
                             { id: 'r', label: 'Returned', count: f.returned, color: COLOR_RETURNED },
                         ]}
                     />
-                    <div className="flex items-center justify-between text-[8px] text-gray-400 tabular-nums mt-0.5">
+                    <div className="flex items-center justify-between text-[9px] text-ant-mid tabular-nums mt-1">
                         <span>{f.total} shipments</span>
                         <span>
                             {f.delivered} del · {f.returned} ret · {f.inTransit} in transit

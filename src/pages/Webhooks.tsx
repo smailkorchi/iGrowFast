@@ -207,45 +207,43 @@ const Webhooks = () => {
     };
 
     return (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-5 duration-700">
-            {/* Header */}
-            <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-                <div className="relative p-8">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div>
-                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Webhook Gateway</h1>
-                            <p className="text-gray-500 font-light">Manage real-time data ingestion from your delivery partners.</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <Button
-                                onClick={() => {
-                                    setEditingItem(null);
-                                    setIsHookModalOpen(true);
-                                }}
-                                className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group"
-                            >
-                                <Plus className="w-5 h-5 mr-3 group-hover:rotate-90 transition-transform duration-500" /> New Gateway
-                            </Button>
-                        </div>
-                    </div>
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+            {/* Header — compact Analytics style */}
+            <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                    <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">
+                        Webhook Gateway
+                    </h1>
+                    <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">
+                        Real-time ingestion from delivery partners
+                    </p>
                 </div>
-            </div>
+                <Button
+                    size="sm"
+                    onClick={() => {
+                        setEditingItem(null);
+                        setIsHookModalOpen(true);
+                    }}
+                    className="bg-brand-navy hover:bg-brand-navy/90 text-white h-8 px-3 rounded-md text-[11px] font-semibold gap-1.5 shrink-0"
+                >
+                    <Plus className="w-3.5 h-3.5" /> New gateway
+                </Button>
+            </header>
 
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="bg-brand-navy/5 p-1.5 rounded-[24px] mb-8 h-auto flex flex-wrap gap-1">
-                    <TabsTrigger value="endpoints" className="rounded-2xl px-8 py-3.5 data-[state=active]:bg-white data-[state=active]:shadow-lg font-bold text-brand-navy transition-all flex items-center gap-2">
-                        <Zap className="w-4 h-4" /> Provider Gateways
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-3">
+                <TabsList className="h-8">
+                    <TabsTrigger value="endpoints" className="text-[11px] h-6 px-3 gap-1.5">
+                        <Zap className="w-3 h-3" /> Provider gateways
                     </TabsTrigger>
-                    <TabsTrigger value="logs" className="rounded-2xl px-8 py-3.5 data-[state=active]:bg-white data-[state=active]:shadow-lg font-bold text-brand-navy transition-all flex items-center gap-2">
-                        <History className="w-4 h-4" /> Live Event Log
+                    <TabsTrigger value="logs" className="text-[11px] h-6 px-3 gap-1.5">
+                        <History className="w-3 h-3" /> Live event log
                     </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="endpoints" className="m-0 space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <TabsContent value="endpoints" className="m-0">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
                         {hooksLoading ? (
-                            [1, 2, 3].map(i => <div key={i} className="h-64 rounded-[32px] bg-white animate-pulse" />)
+                            [1, 2, 3].map(i => <div key={i} className="h-36 rounded-xl bg-white border border-gray-100 animate-pulse" />)
                         ) : webhooks?.length ? (
                             webhooks.map(hook => (
                                 <WebhookCard
@@ -257,46 +255,50 @@ const Webhooks = () => {
                                 />
                             ))
                         ) : (
-                            <EmptyState icon={<Webhook className="w-12 h-12" />} title="No Gateways Found" description="Connect your first delivery partner to start receiving automated updates." />
+                            <EmptyState icon={<Webhook className="w-5 h-5" />} title="No gateways found" description="Connect your first delivery partner to start receiving automated updates." />
                         )}
                     </div>
                 </TabsContent>
 
                 <TabsContent value="logs" className="m-0">
-                    <div className="bg-white rounded-[32px] overflow-hidden shadow-sm border border-slate-100 font-bold">
+                    <div className="bg-white rounded-xl overflow-hidden border border-gray-100">
                         <table className="w-full text-left border-collapse">
                             <thead>
-                                <tr className="bg-slate-50/50">
-                                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Timestamp</th>
-                                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Provider</th>
-                                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Object / tracking</th>
-                                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Result</th>
-                                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Raw Data</th>
+                                <tr className="bg-gray-50/60">
+                                    <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400">Timestamp</th>
+                                    <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400">Provider</th>
+                                    <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400">Object / tracking</th>
+                                    <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400">Result</th>
+                                    <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400 text-right">Raw data</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {logsLoading ? (
-                                    <tr><td colSpan={5} className="p-8 text-center text-slate-400">Accessing logs...</td></tr>
+                                    <tr><td colSpan={5} className="p-6 text-center text-[11px] text-gray-400">Accessing logs…</td></tr>
                                 ) : logs?.length ? (
                                     logs.map(log => (
-                                        <tr key={log.id} className="border-t border-slate-50 hover:bg-slate-50/30 transition-colors">
-                                            <td className="px-8 py-6 text-xs font-bold text-slate-400">{format(new Date(log.created_at), 'MMM dd, HH:mm:ss')}</td>
-                                            <td className="px-8 py-6 font-bold text-brand-navy">{log.providers?.name || 'Unknown'}</td>
-                                            <td className="px-8 py-6 font-mono text-xs text-brand-navy/60">{log.tracking_code || '---'}</td>
-                                            <td className="px-8 py-6">
-                                                <Badge className={cn(
-                                                    "border-none font-bold uppercase tracking-widest px-2.5",
-                                                    log.processed ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"
-                                                )}>
+                                        <tr key={log.id} className="border-t border-gray-50 hover:bg-gray-50/40 transition-colors">
+                                            <td className="px-3 py-2 text-[10px] text-gray-500 tabular-nums">{format(new Date(log.created_at), 'MMM dd, HH:mm:ss')}</td>
+                                            <td className="px-3 py-2 text-[11px] font-semibold text-brand-navy">{log.providers?.name || 'Unknown'}</td>
+                                            <td className="px-3 py-2 font-mono text-[10px] text-brand-navy/70">{log.tracking_code || '—'}</td>
+                                            <td className="px-3 py-2">
+                                                <Badge
+                                                    variant="outline"
+                                                    className={cn(
+                                                        "text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0 h-5 border",
+                                                        log.processed ? "bg-emerald-50 text-emerald-700 border-emerald-100" : "bg-red-50 text-red-700 border-red-100"
+                                                    )}
+                                                >
                                                     {log.processed ? 'Processed' : 'Failed'}
                                                 </Badge>
-                                                {log.error_message && <p className="text-[10px] text-red-400 mt-1 font-bold">{log.error_message}</p>}
+                                                {log.error_message && <p className="text-[9px] text-red-500 mt-0.5">{log.error_message}</p>}
                                             </td>
-                                            <td className="px-8 py-6 text-right">
+                                            <td className="px-3 py-2 text-right">
                                                 <Button
-                                                    onClick={() => { console.log(log.payload); toast({ title: "Payload Logged", description: "The full JSON payload is visible in the browser console." }); }}
+                                                    size="sm"
+                                                    onClick={() => { console.log(log.payload); toast({ title: "Payload logged", description: "Full JSON is in the browser console." }); }}
                                                     variant="ghost"
-                                                    className="rounded-xl h-10 px-4 font-bold text-brand-navy hover:bg-slate-200 hover:text-brand-navy"
+                                                    className="h-6 px-2 rounded-md text-[10px] font-semibold text-brand-navy/70 hover:text-brand-navy hover:bg-gray-100"
                                                 >
                                                     Debug JSON
                                                 </Button>
@@ -304,7 +306,7 @@ const Webhooks = () => {
                                         </tr>
                                     ))
                                 ) : (
-                                    <tr><td colSpan={5} className="p-20 text-center text-slate-300 font-bold">Waiting for incoming triggers...</td></tr>
+                                    <tr><td colSpan={5} className="p-10 text-center text-[11px] text-gray-400">Waiting for incoming triggers…</td></tr>
                                 )}
                             </tbody>
                         </table>
@@ -339,27 +341,27 @@ const WebhookCard = ({ hook, projectUrl, onEdit, onDelete }: any) => {
     };
 
     return (
-        <Card className="group relative overflow-hidden border-none bg-white hover:shadow-[0_40px_80px_-15px_rgba(0,0,0,0.1)] transition-all duration-500 rounded-[32px] border border-slate-100 flex flex-col h-full ring-1 ring-slate-100">
+        <Card className="relative overflow-hidden border border-gray-100 shadow-none bg-white rounded-xl flex flex-col h-full">
             <div className={cn(
-                "absolute top-0 left-0 w-full h-1.5 transition-all duration-500",
-                hook.is_active ? "bg-emerald-500 shadow-[0_4px_12px_rgba(16,185,129,0.3)]" : "bg-slate-200"
+                "absolute top-0 left-0 w-full h-[3px]",
+                hook.is_active ? "bg-emerald-500" : "bg-gray-200"
             )} />
 
-            <CardHeader className="flex flex-row items-start justify-between p-6">
-                <div className="flex flex-col gap-4">
-                    <div className="h-14 w-14 rounded-2xl bg-slate-50 border border-slate-100 p-2 flex items-center justify-center overflow-hidden shadow-inner group-hover:scale-110 transition-transform">
+            <CardHeader className="flex flex-row items-start justify-between p-3 pb-2 space-y-0">
+                <div className="flex items-center gap-2 min-w-0">
+                    <div className="h-8 w-8 rounded-md bg-gray-50 border border-gray-100 p-1 flex items-center justify-center overflow-hidden shrink-0">
                         {hook.providers?.logo_url ? (
                             <img src={hook.providers.logo_url} alt="" className="max-w-full max-h-full object-contain" />
                         ) : (
-                            <Building2 className="w-6 h-6 text-brand-navy/10" />
+                            <Building2 className="w-4 h-4 text-brand-navy/20" />
                         )}
                     </div>
-                    <div>
-                        <CardTitle className="text-xl font-black text-brand-navy tracking-tight leading-none mb-1">{hook.providers?.name}</CardTitle>
-                        <div className="flex items-center gap-2">
-                            <div className={cn("w-2 h-2 rounded-full", hook.is_active ? "bg-emerald-500 animate-pulse" : "bg-slate-300")} />
-                            <span className={cn("text-[10px] font-black uppercase tracking-widest", hook.is_active ? "text-emerald-500" : "text-slate-400")}>
-                                {hook.is_active ? 'Live Listener' : 'Ignored'}
+                    <div className="min-w-0">
+                        <CardTitle className="text-[12px] font-semibold text-brand-navy tracking-tight leading-tight truncate">{hook.providers?.name}</CardTitle>
+                        <div className="flex items-center gap-1 mt-0.5">
+                            <div className={cn("w-1.5 h-1.5 rounded-full", hook.is_active ? "bg-emerald-500 animate-pulse" : "bg-gray-300")} />
+                            <span className={cn("text-[9px] font-bold uppercase tracking-[0.14em]", hook.is_active ? "text-emerald-600" : "text-gray-400")}>
+                                {hook.is_active ? 'Live' : 'Ignored'}
                             </span>
                         </div>
                     </div>
@@ -367,53 +369,53 @@ const WebhookCard = ({ hook, projectUrl, onEdit, onDelete }: any) => {
 
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="rounded-xl h-10 w-10 hover:bg-slate-50 shadow-none">
-                            <MoreVertical className="w-5 h-5 text-slate-300" />
+                        <Button variant="ghost" size="icon" className="rounded-md h-6 w-6 hover:bg-gray-50 shadow-none -mr-1 -mt-1">
+                            <MoreVertical className="w-3.5 h-3.5 text-gray-400" />
                         </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[180px]">
-                        <DropdownMenuItem onClick={onEdit} className="rounded-xl p-3 cursor-pointer font-bold text-brand-navy focus:bg-slate-50">
-                            <Edit2 className="w-4 h-4 mr-3 text-slate-400" /> Gateway Configuration
+                    <DropdownMenuContent align="end" className="rounded-md min-w-[160px]">
+                        <DropdownMenuItem onClick={onEdit} className="text-[11px] font-medium text-brand-navy">
+                            <Edit2 className="w-3 h-3 mr-2 text-gray-400" /> Configure
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={onDelete} className="rounded-xl p-3 cursor-pointer font-bold text-red-500 hover:bg-red-50 focus:bg-red-50">
-                            <Trash2 className="w-4 h-4 mr-3 text-red-400" /> Delete Gateway
+                        <DropdownMenuItem onClick={onDelete} className="text-[11px] font-medium text-red-600 hover:bg-red-50 focus:bg-red-50">
+                            <Trash2 className="w-3 h-3 mr-2" /> Delete
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
             </CardHeader>
 
-            <CardContent className="px-6 pb-6 space-y-5">
-                <div className="flex flex-col gap-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Callback Gateway</label>
-                    <div className="p-3.5 rounded-2xl bg-slate-50/80 border border-slate-100 flex items-center justify-between gap-3 group/link">
-                        <span className="text-[11px] font-bold text-brand-navy/50 truncate italic select-all">
+            <CardContent className="px-3 pb-3 space-y-2">
+                <div className="flex flex-col gap-1">
+                    <label className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400">Callback URL</label>
+                    <div className="px-2 py-1.5 rounded-md bg-gray-50 border border-gray-100 flex items-center justify-between gap-1.5">
+                        <span className="text-[10px] font-mono text-brand-navy/70 truncate select-all">
                             {fullUrl}
                         </span>
                         <Button
                             onClick={handleCopy}
                             variant="ghost"
                             size="icon"
-                            className="shrink-0 h-8 w-8 rounded-lg hover:bg-white hover:shadow-sm"
+                            className="shrink-0 h-6 w-6 rounded-md hover:bg-white"
                         >
-                            {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 text-brand-navy/30" />}
+                            {copied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3 text-gray-400" />}
                         </Button>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                    <div className="p-4 rounded-2xl bg-brand-navy/5 border border-brand-navy/[0.03]">
-                        <p className="text-[9px] font-black text-brand-navy/20 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                <div className="grid grid-cols-2 gap-1.5">
+                    <div className="px-2 py-1.5 rounded-md bg-gray-50 border border-gray-100">
+                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.14em] mb-0.5 flex items-center gap-1">
                             <Key className="w-2.5 h-2.5" /> Secret
                         </p>
-                        <p className="text-xs font-black text-brand-navy tracking-widest opacity-50">••••••••</p>
+                        <p className="text-[11px] font-semibold text-brand-navy/50 tracking-widest">••••••••</p>
                     </div>
-                    <div className="p-4 rounded-2xl bg-brand-navy/5 border border-brand-navy/[0.03]">
-                        <p className="text-[9px] font-black text-brand-navy/20 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                            <Clock className="w-2.5 h-2.5" /> Last Beat
+                    <div className="px-2 py-1.5 rounded-md bg-gray-50 border border-gray-100">
+                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.14em] mb-0.5 flex items-center gap-1">
+                            <Clock className="w-2.5 h-2.5" /> Last beat
                         </p>
-                        <p className="text-xs font-black text-brand-navy">
-                            {hook.last_received_at ? format(new Date(hook.last_received_at), 'MMM dd, HH:mm:ss') : 'Waiting for Data...'}
+                        <p className="text-[11px] font-semibold text-brand-navy tabular-nums truncate">
+                            {hook.last_received_at ? format(new Date(hook.last_received_at), 'MMM dd, HH:mm:ss') : '—'}
                         </p>
                     </div>
                 </div>
@@ -524,10 +526,10 @@ const WebhookModal = ({ isOpen, onClose, onSubmit, initialData, providers, loadi
 };
 
 const EmptyState = ({ icon, title, description }: any) => (
-    <div className="col-span-full py-20 bg-white/50 backdrop-blur-sm rounded-[44px] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-center">
-        <div className="bg-white p-5 rounded-3xl shadow-sm mb-5 text-slate-300">{icon}</div>
-        <h3 className="text-2xl font-black text-brand-navy">{title}</h3>
-        <p className="text-slate-500 mt-2 max-w-xs">{description}</p>
+    <div className="col-span-full py-8 bg-white rounded-xl border border-dashed border-gray-200 flex flex-col items-center justify-center text-center">
+        <div className="w-9 h-9 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 mb-2.5">{icon}</div>
+        <h3 className="text-[14px] font-semibold text-brand-navy">{title}</h3>
+        <p className="text-[11px] text-gray-500 mt-0.5 max-w-xs">{description}</p>
     </div>
 );
 

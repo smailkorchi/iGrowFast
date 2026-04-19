@@ -156,173 +156,163 @@ const Profile = () => {
     const initials = (profile?.name || 'U').split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2);
 
     return (
-        <div className="max-w-xl mx-auto animate-in fade-in duration-500 py-6 pb-16">
-            <div className="bg-white rounded-[36px] shadow-[0_8px_40px_-12px_rgba(0,0,0,0.06)] overflow-hidden">
-
-                {/* ── Hero + Avatar ── */}
-                <div className="relative">
-                    <div className="h-40 bg-brand-navy relative overflow-hidden">
-                        <div className="absolute inset-0 opacity-[0.07]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'1\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")' }} />
-
-                        {/* Edit toggle */}
-                        <button
-                            onClick={() => {
-                                if (isEditing) { setIsEditing(false); setAvatarFile(null); }
-                                else setIsEditing(true);
-                            }}
-                            className={cn(
-                                "absolute top-4 right-4 z-20 h-9 px-4 rounded-full flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest transition-all duration-300",
-                                isEditing
-                                    ? "bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm"
-                                    : "bg-white/10 text-white/70 hover:text-white hover:bg-white/20 backdrop-blur-sm"
-                            )}
-                        >
-                            <Pen className="w-3 h-3" />
-                            <span>{isEditing ? 'Cancel' : 'Edit'}</span>
-                        </button>
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+            {/* Header */}
+            <header className="space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Profile</h1>
+                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Account settings</p>
                     </div>
-
-                    {/* Centered avatar */}
-                    <div className="flex justify-center -mt-14 relative z-10">
-                        <div
-                            {...getRootProps()}
-                            className={cn(
-                                "relative w-28 h-28 rounded-full overflow-hidden border-[5px] border-white shadow-lg",
-                                isEditing && "cursor-pointer group ring-4 ring-brand-navy/10"
-                            )}
-                        >
-                            <input {...getInputProps()} />
-                            {avatarPreview ? (
-                                <img src={avatarPreview} className="w-full h-full object-cover" alt="" />
-                            ) : (
-                                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-brand-navy/[0.08] to-brand-navy/[0.03]">
-                                    <span className="text-2xl font-black text-brand-navy/25">{initials}</span>
-                                </div>
-                            )}
-                            {isEditing && (
-                                <div className="absolute inset-0 bg-brand-navy/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 backdrop-blur-[2px]">
-                                    <Camera className="w-5 h-5 text-white" />
-                                </div>
-                            )}
-                        </div>
-                    </div>
+                    <Button
+                        variant={isEditing ? 'outline' : 'outline'}
+                        onClick={() => {
+                            if (isEditing) { setIsEditing(false); setAvatarFile(null); }
+                            else setIsEditing(true);
+                        }}
+                        className="h-8 rounded-md text-[11px] font-semibold gap-1.5"
+                    >
+                        <Pen className="w-3.5 h-3.5" />
+                        {isEditing ? 'Cancel' : 'Edit Profile'}
+                    </Button>
                 </div>
+            </header>
 
-                {/* ── Identity ── */}
-                <div className="text-center pt-4 pb-2 px-8">
-                    <h1 className="text-[22px] font-black text-brand-navy tracking-tight">{profile?.name}</h1>
-                    <div className="flex items-center justify-center gap-2.5 mt-2">
-                        <span className="text-[10px] font-black uppercase tracking-[0.15em] text-white bg-brand-navy px-3 py-1 rounded-full">
-                            {profile?.role || 'Admin'}
-                        </span>
-                        <span className="text-[13px] text-slate-400 font-medium">@{profile?.username}</span>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                {/* Avatar + Identity card */}
+                <div className="rounded-xl border border-gray-100 bg-white p-3.5 flex flex-col items-center gap-3">
+                    <div
+                        {...getRootProps()}
+                        className={cn(
+                            "relative h-14 w-14 rounded-full overflow-hidden border-2 border-gray-100",
+                            isEditing && "cursor-pointer group ring-2 ring-brand-navy/10"
+                        )}
+                    >
+                        <input {...getInputProps()} />
+                        {avatarPreview ? (
+                            <img src={avatarPreview} className="w-full h-full object-cover" alt="" />
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                                <span className="text-[15px] font-semibold text-brand-navy/40">{initials}</span>
+                            </div>
+                        )}
+                        {isEditing && (
+                            <div className="absolute inset-0 bg-brand-navy/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200">
+                                <Camera className="w-4 h-4 text-white" />
+                            </div>
+                        )}
                     </div>
-                </div>
 
-                {/* ── Business strip ── */}
-                {business && (
-                    <div className="mx-8 mt-4 mb-2 flex items-center gap-3.5 px-4 py-3 rounded-2xl bg-slate-50/80 border border-slate-100/80">
-                        <div className="w-9 h-9 rounded-xl bg-white border border-slate-100 flex items-center justify-center overflow-hidden shrink-0 p-1.5 shadow-sm">
-                            {business.logo ? (
-                                <img src={business.logo} alt="" className="max-w-full max-h-full object-contain" />
-                            ) : (
-                                <Building2 className="w-4 h-4 text-brand-navy/15" />
-                            )}
-                        </div>
-                        <span className="text-[13px] font-bold text-brand-navy truncate flex-1">{business.name}</span>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                            <div className={cn("w-[6px] h-[6px] rounded-full", business.active ? "bg-emerald-500" : "bg-slate-300")} />
-                            <span className={cn("text-[10px] font-black uppercase tracking-widest", business.active ? "text-emerald-600" : "text-slate-400")}>
-                                {business.active ? 'Active' : 'Inactive'}
+                    <div className="text-center">
+                        <p className="text-[13px] font-semibold text-brand-navy">{profile?.name}</p>
+                        <div className="flex items-center justify-center gap-2 mt-1">
+                            <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-white bg-brand-navy px-2 py-0.5 rounded">
+                                {profile?.role || 'Admin'}
                             </span>
+                            <span className="text-[11px] text-gray-400">@{profile?.username}</span>
                         </div>
                     </div>
-                )}
 
-                {/* ── Fields ── */}
-                <div className="px-8 pt-6 pb-2">
+                    {/* Business strip */}
+                    {business && (
+                        <div className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg bg-gray-50 border border-gray-100">
+                            <div className="w-7 h-7 rounded-md bg-white border border-gray-100 flex items-center justify-center overflow-hidden shrink-0 p-1">
+                                {business.logo ? (
+                                    <img src={business.logo} alt="" className="max-w-full max-h-full object-contain" />
+                                ) : (
+                                    <Building2 className="w-3.5 h-3.5 text-gray-300" />
+                                )}
+                            </div>
+                            <span className="text-[11px] font-semibold text-brand-navy truncate flex-1">{business.name}</span>
+                            <div className="flex items-center gap-1 shrink-0">
+                                <div className={cn("w-1.5 h-1.5 rounded-full", business.active ? "bg-emerald-500" : "bg-gray-300")} />
+                                <span className={cn("text-[9px] font-bold uppercase tracking-wider", business.active ? "text-emerald-600" : "text-gray-400")}>
+                                    {business.active ? 'Active' : 'Inactive'}
+                                </span>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Fields card */}
+                <div className="lg:col-span-2 rounded-xl border border-gray-100 bg-white p-3.5 space-y-1">
+                    <p className="text-[11px] font-semibold text-brand-navy mb-3">Personal Information</p>
                     <FieldRow icon={User} label="Full Name" value={formData.name} onChange={set('name')} editing={isEditing} />
                     <FieldRow icon={AtSign} label="Username" value={formData.username} onChange={set('username')} editing={isEditing} />
                     <FieldRow icon={Mail} label="Email" value={formData.email} editing={false} locked />
                     <FieldRow icon={Phone} label="Phone" value={formData.phone} onChange={set('phone')} editing={isEditing} placeholder="Add phone number" last />
+
+                    {isEditing && (
+                        <div className="pt-3">
+                            <Button
+                                onClick={() => updateMutation.mutate()}
+                                disabled={updateMutation.isPending}
+                                className="h-8 rounded-md text-[11px] font-semibold"
+                            >
+                                {updateMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />}
+                                Save Changes
+                            </Button>
+                        </div>
+                    )}
                 </div>
 
-                {/* ── Save ── */}
-                {isEditing && (
-                    <div className="px-8 pb-6 pt-2">
-                        <Button
-                            onClick={() => updateMutation.mutate()}
-                            disabled={updateMutation.isPending}
-                            className="w-full bg-brand-navy hover:bg-brand-navy/90 text-white rounded-2xl h-[52px] text-sm font-black shadow-lg shadow-brand-navy/10 transition-all active:scale-[0.98]"
-                        >
-                            {updateMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
-                            Save Changes
-                        </Button>
-                    </div>
-                )}
-
-                {/* ── Divider ── */}
-                <div className="mx-8 h-px bg-slate-100" />
-
-                {/* ── Security ── */}
-                <div className="px-8 py-6">
+                {/* Security card */}
+                <div className="lg:col-span-3 rounded-xl border border-gray-100 bg-white p-3.5">
+                    <p className="text-[11px] font-semibold text-brand-navy mb-3">Security</p>
                     {isChangingPassword ? (
-                        <div className="space-y-3">
-                            <p className="text-[10px] font-black uppercase tracking-[0.15em] text-brand-navy/30 mb-4">Change Password</p>
+                        <div className="space-y-2.5 max-w-sm">
                             <div className="relative">
-                                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-navy/20" />
+                                <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-300" />
                                 <Input
                                     type="password" placeholder="New password"
                                     value={passwordData.new_password}
                                     onChange={e => setPasswordData(p => ({ ...p, new_password: e.target.value }))}
-                                    className="h-[48px] pl-11 rounded-xl border-slate-200 bg-slate-50/50 font-semibold text-brand-navy focus-visible:ring-brand-navy/15 placeholder:text-slate-300"
+                                    className="h-9 pl-8 text-[12px] rounded-md border-gray-100 bg-gray-50/50"
                                 />
                             </div>
                             <div className="relative">
-                                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-navy/20" />
+                                <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-300" />
                                 <Input
                                     type="password" placeholder="Confirm password"
                                     value={passwordData.confirm}
                                     onChange={e => setPasswordData(p => ({ ...p, confirm: e.target.value }))}
-                                    className="h-[48px] pl-11 rounded-xl border-slate-200 bg-slate-50/50 font-semibold text-brand-navy focus-visible:ring-brand-navy/15 placeholder:text-slate-300"
+                                    className="h-9 pl-8 text-[12px] rounded-md border-gray-100 bg-gray-50/50"
                                 />
                             </div>
                             {passwordData.new_password && passwordData.confirm && passwordData.new_password !== passwordData.confirm && (
-                                <p className="text-xs font-semibold text-red-500 flex items-center gap-1.5 pl-1">
+                                <p className="text-[10px] font-semibold text-red-500 flex items-center gap-1.5">
                                     <AlertCircle className="w-3 h-3" /> Passwords do not match
                                 </p>
                             )}
-                            <div className="flex gap-3 pt-2">
+                            <div className="flex gap-2 pt-1">
                                 <Button
                                     variant="ghost"
                                     onClick={() => { setIsChangingPassword(false); setPasswordData({ new_password: '', confirm: '' }); }}
-                                    className="flex-1 rounded-xl h-11 font-bold text-slate-500"
+                                    className="h-8 rounded-md text-[11px] font-semibold text-gray-500"
                                 >
                                     Cancel
                                 </Button>
                                 <Button
                                     onClick={() => passwordMutation.mutate()}
                                     disabled={passwordMutation.isPending || !passwordData.new_password || passwordData.new_password !== passwordData.confirm}
-                                    className="flex-1 bg-brand-navy hover:bg-brand-navy/90 text-white rounded-xl h-11 font-bold"
+                                    className="h-8 rounded-md text-[11px] font-semibold"
                                 >
-                                    {passwordMutation.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                                    Update
+                                    {passwordMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
+                                    Update Password
                                 </Button>
                             </div>
                         </div>
                     ) : (
                         <button
                             onClick={() => setIsChangingPassword(true)}
-                            className="w-full flex items-center gap-4 py-1 group transition-all"
+                            className="flex items-center gap-3 px-3 py-2 rounded-lg border border-gray-100 hover:border-gray-200 hover:bg-gray-50 transition-colors text-left"
                         >
-                            <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0 group-hover:bg-brand-navy/5 group-hover:border-brand-navy/10 transition-colors">
-                                <Shield className="w-[18px] h-[18px] text-brand-navy/25 group-hover:text-brand-navy/40 transition-colors" />
+                            <Shield className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                            <div>
+                                <p className="text-[11px] font-semibold text-brand-navy">Change Password</p>
+                                <p className="text-[9px] text-gray-400">Secure your account</p>
                             </div>
-                            <div className="flex-1 text-left">
-                                <p className="text-[13px] font-bold text-brand-navy">Change Password</p>
-                                <p className="text-[11px] text-slate-400 font-medium">Secure your account</p>
-                            </div>
-                            <Lock className="w-4 h-4 text-slate-200 group-hover:text-slate-400 transition-colors" />
+                            <Lock className="w-3 h-3 text-gray-300 ml-4" />
                         </button>
                     )}
                 </div>
@@ -342,29 +332,25 @@ function FieldRow({ icon: Icon, label, value, onChange, editing, locked, placeho
     last?: boolean;
 }) {
     return (
-        <div className={cn("flex items-center gap-4 py-4", !last && "border-b border-slate-50")}>
-            <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100/80 flex items-center justify-center shrink-0">
-                <Icon className="w-[18px] h-[18px] text-brand-navy/25" />
-            </div>
-
+        <div className={cn("flex items-center gap-3 py-2.5", !last && "border-b border-gray-50")}>
+            <Icon className="w-3.5 h-3.5 text-gray-300 shrink-0" />
             <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-[0.12em] text-brand-navy/25 mb-0.5">{label}</p>
+                <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-gray-400 mb-0.5">{label}</p>
                 {editing && !locked ? (
                     <Input
                         value={value}
                         onChange={onChange}
                         placeholder={placeholder || label}
-                        className="h-8 px-0 py-0 border-0 shadow-none bg-transparent font-semibold text-[15px] text-brand-navy focus-visible:ring-0 placeholder:text-slate-300"
+                        className="h-7 px-0 py-0 border-0 shadow-none bg-transparent font-medium text-[12px] text-brand-navy focus-visible:ring-0 placeholder:text-gray-300"
                     />
                 ) : (
-                    <p className={cn("text-[15px] font-semibold truncate leading-snug", value ? "text-brand-navy" : "text-slate-300")}>
+                    <p className={cn("text-[12px] font-medium truncate leading-snug", value ? "text-brand-navy" : "text-gray-300")}>
                         {value || placeholder || 'Not set'}
                     </p>
                 )}
             </div>
-
             {locked && (
-                <span className="text-[9px] font-black uppercase tracking-wider text-slate-300 shrink-0">Fixed</span>
+                <span className="text-[9px] font-bold uppercase tracking-wider text-gray-300 shrink-0">Fixed</span>
             )}
         </div>
     );

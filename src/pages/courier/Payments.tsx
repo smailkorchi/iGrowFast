@@ -12,7 +12,6 @@ import { saveBlob, canDirectSave } from '@/lib/saveBlob';
 import { useToast } from '@/hooks/use-toast';
 import {
     Wallet,
-    TrendingUp,
     Package,
     CheckCircle2,
     Eye,
@@ -21,13 +20,11 @@ import {
     SearchX,
     Loader2,
     Hash,
-    Calendar,
     X,
-    Sparkles,
-    ArrowDown,
     Receipt,
     FileText,
     Save,
+    Calendar,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -137,19 +134,6 @@ const CourierPayments = () => {
     }, [notes, searchQuery]);
 
     // ─── PDF save flow ───────────────────────────────────────────────────
-    // Strategy:
-    //   1. Pre-resolve business logo + courier avatar into data URIs at
-    //      page mount, so the click→save path has ZERO await latency for
-    //      image fetching. This is critical on iOS Safari where user
-    //      activation expires quickly and navigator.share() is rejected
-    //      if called after long awaits.
-    //   2. On click: build the PDF blob, then call saveBlob() which tries
-    //      the Web Share API (→ iOS Files / AirDrop / Android share sheet),
-    //      falling back to classic <a download> on desktop.
-    //   3. If save cannot guarantee a clean "save to device" outcome
-    //      (iOS Safari share failed or wasn't available, or user needs a
-    //      second gesture), open a "PDF ready" modal with an explicit
-    //      Save button that fires a guaranteed fresh user gesture.
     const { toast } = useToast();
     const [downloadingId, setDownloadingId] = useState<string | null>(null);
     const [readyBlob, setReadyBlob] = useState<{
@@ -175,8 +159,6 @@ const CourierPayments = () => {
     });
 
     // ── Pre-resolve remote images into data URIs ───────────────────────
-    // This runs ONCE on mount and caches the result. No image fetch
-    // latency at click time — critical for iOS user activation.
     const { data: resolvedImages } = useQuery({
         queryKey: [
             'courier-payments-pdf-images',
@@ -235,31 +217,17 @@ const CourierPayments = () => {
 
             switch (result.status) {
                 case 'shared':
-                    toast({
-                        title: 'Enregistré',
-                        description: `${filename} a été enregistré via le partage système.`,
-                    });
+                    toast({ title: 'Enregistré', description: `${filename} a été enregistré via le partage système.` });
                     break;
-
                 case 'downloaded':
-                    toast({
-                        title: 'Téléchargé',
-                        description: `${filename} est dans vos téléchargements.`,
-                    });
+                    toast({ title: 'Téléchargé', description: `${filename} est dans vos téléchargements.` });
                     break;
-
                 case 'cancelled':
-                    // User cancelled the share sheet — no toast, no modal.
                     break;
-
                 case 'opened':
                 case 'unsupported':
                 case 'failed':
                 default:
-                    // iOS Safari fell back to opening in the viewer, OR the
-                    // share sheet expired, OR we couldn't trigger a save.
-                    // Surface a modal with a big "Save" button that fires a
-                    // fresh user gesture — guaranteed to work on the second tap.
                     setReadyBlob({ blob, filename, noteRef: note.reference });
                     break;
             }
@@ -275,7 +243,6 @@ const CourierPayments = () => {
         }
     };
 
-    // ── Retry save from the "PDF ready" modal — this is a fresh user gesture ──
     const handleRetrySave = async () => {
         if (!readyBlob) return;
         const result = await saveBlob(readyBlob.blob, {
@@ -294,7 +261,6 @@ const CourierPayments = () => {
         } else if (result.status === 'cancelled') {
             // keep modal open
         } else {
-            // Still failing — offer the direct URL as last resort
             toast({
                 title: 'Ouvrez le PDF manuellement',
                 description: 'Utilisez le bouton "Ouvrir" puis le menu Partager.',
@@ -311,141 +277,134 @@ const CourierPayments = () => {
     };
 
     return (
-        <div className="space-y-5 sm:space-y-6 pb-28 sm:pb-6">
-            {/* ─── Hero: lifetime earnings ─── */}
-            <div className="relative overflow-hidden rounded-[28px] sm:rounded-[36px] bg-gradient-to-br from-brand-navy via-[#2d4747] to-[#1f3535] text-white shadow-2xl">
-                <div className="absolute -top-20 -right-20 w-[280px] h-[280px] rounded-full bg-emerald-300/20 blur-3xl" />
-                <div className="absolute -bottom-24 -left-10 w-[220px] h-[220px] rounded-full bg-brand-white/5 blur-3xl" />
-
-                <div className="relative p-6 sm:p-10 space-y-6 sm:space-y-8">
-                    <div className="flex items-start justify-between gap-4">
-                        <div className="space-y-1">
-                            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-emerald-200/75">
-                                Lifetime Earnings
-                            </p>
-                            <h1 className="text-xs sm:text-sm font-semibold text-white/50">
-                                {me?.name || 'Courier'}
-                            </h1>
-                        </div>
-                        <div className="shrink-0 w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-emerald-300/15 backdrop-blur-md border border-emerald-300/20 flex items-center justify-center">
-                            <TrendingUp className="w-5 h-5 text-emerald-200" />
-                        </div>
-                    </div>
-
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+            {/* Header */}
+            <header className="space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
-                        <div className="flex items-baseline gap-2">
-                            <span className="text-5xl sm:text-7xl font-black tracking-tight text-emerald-200 tabular-nums leading-none">
-                                {fmtMAD(stats.lifetimeEarnings)}
-                            </span>
-                            <span className="text-lg sm:text-2xl font-bold text-emerald-200/50">MAD</span>
-                        </div>
-                        <p className="mt-3 text-[11px] sm:text-xs font-semibold text-white/40 flex items-center gap-1.5">
-                            <Sparkles className="w-3 h-3 text-emerald-300/60" />
-                            From {stats.lifetimeDelivered} delivered parcels across {stats.totalNotes} payout{stats.totalNotes !== 1 ? 's' : ''}
+                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Payout History</h1>
+                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">
+                            {me?.name || 'Courier'} · Settled payments
                         </p>
                     </div>
+                </div>
+            </header>
 
-                    {/* Mini stats grid */}
-                    <div className="grid grid-cols-2 gap-3 pt-5 border-t border-white/10">
-                        <div>
-                            <div className="flex items-center gap-1.5 mb-1.5">
-                                <Calendar className="w-3 h-3 text-white/30" />
-                                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-white/40">
-                                    This Month
-                                </p>
-                            </div>
-                            <p className="text-xl sm:text-2xl font-black text-white tabular-nums">
-                                {fmtMAD(stats.thisMonthEarnings)}
-                                <span className="text-[10px] font-bold text-white/30 ml-1">MAD</span>
-                            </p>
-                            <p className="text-[10px] font-semibold text-white/30 mt-0.5">
-                                {stats.thisMonthDelivered} parcels
-                            </p>
-                        </div>
-                        <div>
-                            <div className="flex items-center gap-1.5 mb-1.5">
-                                <Package className="w-3 h-3 text-white/30" />
-                                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-white/40">
-                                    Gross Collected
-                                </p>
-                            </div>
-                            <p className="text-xl sm:text-2xl font-black text-white tabular-nums">
-                                {fmtMAD(stats.lifetimeGross)}
-                                <span className="text-[10px] font-bold text-white/30 ml-1">MAD</span>
-                            </p>
-                            <p className="text-[10px] font-semibold text-white/30 mt-0.5">Handled lifetime</p>
+            {/* KPI strip */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {[
+                    { label: 'Lifetime Earned', value: `${fmtMAD(stats.lifetimeEarnings)} MAD`, accent: '#059669' },
+                    { label: 'This Month', value: `${fmtMAD(stats.thisMonthEarnings)} MAD`, accent: '#3b5e5e' },
+                    { label: 'Total Delivered', value: String(stats.lifetimeDelivered), accent: '#059669' },
+                    { label: 'Payouts', value: String(stats.totalNotes), accent: '#3b5e5e' },
+                ].map((s) => (
+                    <div key={s.label} className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
+                        <span className="w-[3px] self-stretch rounded-full shrink-0" style={{ background: s.accent }} />
+                        <div className="flex-1 min-w-0">
+                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400 truncate">{s.label}</p>
+                            <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1 leading-none truncate">{s.value}</p>
                         </div>
                     </div>
-                </div>
+                ))}
             </div>
 
-            {/* ─── Title + search ─── */}
-            <div className="space-y-3">
-                <div className="flex items-end justify-between gap-3 px-1">
-                    <div>
-                        <h2 className="text-lg sm:text-2xl font-black text-brand-navy tracking-tight">
-                            Payout History
-                        </h2>
-                        <p className="text-[11px] sm:text-xs font-semibold text-brand-navy/45">
-                            Settled payments from the business
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-100">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700">
-                            Paid Only
-                        </span>
-                    </div>
-                </div>
-
-                <div className="relative">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-navy/30" />
-                    <Input
-                        placeholder="Search by ref or tracking code..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="h-12 sm:h-14 pl-11 sm:pl-12 pr-4 rounded-2xl sm:rounded-[20px] border-none bg-white shadow-sm font-bold text-brand-navy placeholder:text-brand-navy/30 focus-visible:ring-brand-navy/10"
-                    />
-                </div>
+            {/* Search */}
+            <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                <Input
+                    placeholder="Search by ref or tracking code..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="h-8 pl-8 rounded-md border-gray-200 bg-white text-[11px]"
+                />
             </div>
 
-            {/* ─── List ─── */}
+            {/* List */}
             {isLoading ? (
-                <div className="flex flex-col items-center justify-center py-20 gap-3">
-                    <Loader2 className="w-8 h-8 text-brand-navy/40 animate-spin" />
-                    <p className="text-xs font-bold text-brand-navy/40 uppercase tracking-widest">Chargement…</p>
+                <div className="flex flex-col items-center justify-center py-16 gap-3">
+                    <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
+                    <p className="text-[11px] text-gray-400 uppercase tracking-widest">Chargement…</p>
                 </div>
             ) : filteredNotes.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 sm:py-20 gap-4 text-center px-6">
-                    <div className="w-16 h-16 rounded-3xl bg-brand-navy/[0.04] flex items-center justify-center">
-                        <SearchX className="w-7 h-7 text-brand-navy/30" />
-                    </div>
-                    <div className="space-y-1">
-                        <p className="text-sm font-bold text-brand-navy">
-                            {searchQuery ? 'Aucun paiement trouvé' : 'Aucun paiement pour le moment'}
-                        </p>
-                        <p className="text-xs text-brand-navy/40 font-medium max-w-xs">
-                            {searchQuery
-                                ? 'Essayez un autre terme de recherche.'
-                                : 'Vos payouts apparaîtront ici une fois versés par le business.'}
-                        </p>
-                    </div>
+                <div className="rounded-xl border border-dashed border-gray-200 bg-white py-10 flex flex-col items-center gap-2 text-center">
+                    <SearchX className="w-6 h-6 text-gray-400" />
+                    <p className="text-[12px] font-semibold text-brand-navy">
+                        {searchQuery ? 'Aucun paiement trouvé' : 'Aucun paiement pour le moment'}
+                    </p>
+                    <p className="text-[11px] text-gray-400 max-w-xs">
+                        {searchQuery
+                            ? 'Essayez un autre terme de recherche.'
+                            : 'Vos payouts apparaîtront ici une fois versés par le business.'}
+                    </p>
                 </div>
             ) : (
-                <div className="space-y-3">
-                    {filteredNotes.map((note) => (
-                        <PayoutCard
-                            key={note.id}
-                            note={note}
-                            onOpen={() => setSelectedNote(note)}
-                            onPrint={() => handlePrint(note)}
-                            isDownloading={downloadingId === note.id}
-                        />
-                    ))}
+                <div className="rounded-xl border border-gray-100 bg-white overflow-hidden">
+                    <table className="w-full">
+                        <thead>
+                            <tr className="border-b border-gray-100">
+                                <th className="text-left px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-gray-400">Reference</th>
+                                <th className="text-left px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-gray-400 hidden sm:table-cell">Paid on</th>
+                                <th className="text-right px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-gray-400">Delivered</th>
+                                <th className="text-right px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-gray-400">Earned</th>
+                                <th className="px-3 py-2"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filteredNotes.map((note) => {
+                                const dateStr = note.paid_at
+                                    ? format(new Date(note.paid_at), 'dd MMM yyyy')
+                                    : format(new Date(note.created_at), 'dd MMM yyyy');
+                                return (
+                                    <tr key={note.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                                        <td className="px-3 py-2">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="inline-flex items-center h-5 px-1.5 rounded bg-emerald-50 text-emerald-700 text-[9px] font-semibold">
+                                                    <CheckCircle2 className="w-2.5 h-2.5 mr-0.5" />
+                                                    Paid
+                                                </span>
+                                            </div>
+                                            <p className="text-[11px] font-mono font-semibold text-brand-navy mt-0.5 truncate">{note.reference}</p>
+                                        </td>
+                                        <td className="px-3 py-2 text-[11px] text-brand-navy/80 tabular-nums hidden sm:table-cell">{dateStr}</td>
+                                        <td className="text-right px-3 py-2 text-[11px] text-brand-navy/80 tabular-nums">{note.order_count}</td>
+                                        <td className="text-right px-3 py-2">
+                                            <p className="text-[12px] font-semibold tabular-nums text-emerald-600">+{fmtMAD(note.total_shipping_fees)}</p>
+                                            <p className="text-[9px] text-gray-400 tabular-nums">MAD</p>
+                                        </td>
+                                        <td className="px-3 py-2">
+                                            <div className="flex items-center justify-end gap-1">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-7 w-7 p-0 rounded text-gray-400 hover:text-brand-navy hover:bg-gray-100"
+                                                    onClick={() => setSelectedNote(note)}
+                                                    title="View"
+                                                >
+                                                    <Eye className="w-3.5 h-3.5" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-7 w-7 p-0 rounded text-gray-400 hover:text-brand-navy hover:bg-gray-100"
+                                                    disabled={downloadingId === note.id}
+                                                    onClick={() => handlePrint(note)}
+                                                    title="Download PDF"
+                                                >
+                                                    {downloadingId === note.id
+                                                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                        : <Download className="w-3.5 h-3.5" />}
+                                                </Button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
                 </div>
             )}
 
-            {/* ─── Detail sheet ─── */}
+            {/* Detail sheet */}
             <PayoutDetailSheet
                 note={selectedNote}
                 onClose={() => setSelectedNote(null)}
@@ -453,7 +412,7 @@ const CourierPayments = () => {
                 isDownloading={!!selectedNote && downloadingId === selectedNote.id}
             />
 
-            {/* ─── PDF ready modal (iOS Safari fallback for a fresh gesture) ─── */}
+            {/* PDF ready modal */}
             <PdfReadyModal
                 ready={readyBlob}
                 onClose={() => setReadyBlob(null)}
@@ -467,113 +426,7 @@ const CourierPayments = () => {
 export default CourierPayments;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Payout card
-// ─────────────────────────────────────────────────────────────────────────────
-function PayoutCard({
-    note,
-    onOpen,
-    onPrint,
-    isDownloading,
-}: {
-    note: PaymentNote;
-    onOpen: () => void;
-    onPrint: () => void;
-    isDownloading: boolean;
-}) {
-    const dateStr = note.paid_at
-        ? format(new Date(note.paid_at), 'dd MMM yyyy')
-        : format(new Date(note.created_at), 'dd MMM yyyy');
-
-    return (
-        <div className="group relative bg-white rounded-[22px] sm:rounded-[28px] border border-brand-navy/[0.05] shadow-sm hover:shadow-lg hover:border-brand-navy/15 transition-all duration-300 overflow-hidden">
-            <div className="h-[3px] w-full bg-gradient-to-r from-emerald-400 via-emerald-500 to-emerald-600" />
-
-            <button
-                type="button"
-                onClick={onOpen}
-                className="w-full text-left p-4 sm:p-5 active:scale-[0.995] transition-transform"
-            >
-                {/* Row 1 */}
-                <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[9px] font-black uppercase tracking-wider">
-                                <CheckCircle2 className="w-2.5 h-2.5" />
-                                Paid
-                            </span>
-                            <span className="text-[10px] font-bold text-brand-navy/40">{dateStr}</span>
-                        </div>
-                        <p className="mt-1.5 font-mono text-sm sm:text-base font-black text-brand-navy tracking-tight truncate">
-                            {note.reference}
-                        </p>
-                    </div>
-
-                    <div className="text-right shrink-0">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-brand-navy/35">Earned</p>
-                        <div className="flex items-baseline gap-1 justify-end">
-                            <span className="text-xl sm:text-2xl font-black text-emerald-600 tabular-nums leading-none">
-                                +{fmtMAD(note.total_shipping_fees)}
-                            </span>
-                            <span className="text-[10px] font-bold text-emerald-600/50">MAD</span>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Row 2 */}
-                <div className="mt-3 flex items-center gap-2 flex-wrap">
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-brand-navy/[0.04] text-[10px] font-bold text-brand-navy/65">
-                        <Package className="w-3 h-3 text-brand-navy/35" />
-                        {note.order_count} delivered
-                    </span>
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-brand-navy/[0.04] text-[10px] font-bold text-brand-navy/65">
-                        <Wallet className="w-3 h-3 text-brand-navy/35" />
-                        {fmtMAD(note.total_amount)} collected
-                    </span>
-                </div>
-            </button>
-
-            {/* Actions — 44px+ touch targets */}
-            <div className="px-3 pb-3 sm:px-4 sm:pb-4 grid grid-cols-2 gap-2">
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onOpen();
-                    }}
-                    className="h-11 rounded-xl font-bold text-xs border-brand-navy/10 text-brand-navy hover:bg-brand-navy/5"
-                >
-                    <Eye className="w-3.5 h-3.5 mr-1.5" />
-                    View
-                </Button>
-                <Button
-                    size="sm"
-                    disabled={isDownloading}
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onPrint();
-                    }}
-                    className="h-11 rounded-xl font-bold text-xs bg-brand-navy hover:bg-brand-navy/90 text-white disabled:opacity-60"
-                >
-                    {isDownloading ? (
-                        <>
-                            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                            Génération…
-                        </>
-                    ) : (
-                        <>
-                            <Download className="w-3.5 h-3.5 mr-1.5" />
-                            PDF
-                        </>
-                    )}
-                </Button>
-            </div>
-        </div>
-    );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Detail sheet (mobile bottom sheet / desktop dialog)
+// Detail sheet
 // ─────────────────────────────────────────────────────────────────────────────
 function PayoutDetailSheet({
     note,
@@ -590,204 +443,140 @@ function PayoutDetailSheet({
         <Dialog open={!!note} onOpenChange={(v) => !v && onClose()}>
             <DialogContent
                 className={cn(
-                    'p-0 border-none bg-brand-white overflow-hidden flex flex-col gap-0',
-                    'sm:max-w-[600px] sm:rounded-[32px] sm:max-h-[90vh]',
+                    'p-0 border-none bg-white overflow-hidden flex flex-col gap-0',
+                    'sm:max-w-[600px] sm:rounded-xl sm:max-h-[90vh]',
                     'max-sm:!left-0 max-sm:!right-0 max-sm:!top-auto max-sm:!bottom-0',
                     'max-sm:!translate-x-0 max-sm:!translate-y-0',
                     'max-sm:!w-full max-sm:!max-w-none',
                     'max-sm:!h-[94dvh] max-sm:!max-h-[94dvh]',
-                    'max-sm:!rounded-t-[28px] max-sm:!rounded-b-none'
+                    'max-sm:!rounded-t-xl max-sm:!rounded-b-none'
                 )}
             >
                 {note && (
                     <div className="flex flex-col h-full max-h-[inherit]">
                         {/* Mobile drag handle */}
                         <div className="sm:hidden flex justify-center pt-3 pb-1 shrink-0">
-                            <div className="w-12 h-1.5 rounded-full bg-brand-navy/10" />
+                            <div className="w-10 h-1 rounded-full bg-gray-200" />
                         </div>
 
                         {/* Header */}
-                        <DialogHeader className="px-5 sm:px-8 pt-3 sm:pt-8 pb-4 shrink-0 border-b border-brand-navy/5">
+                        <DialogHeader className="px-5 pt-4 pb-3 shrink-0 border-b border-gray-100">
                             <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-2 mb-1">
-                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[9px] font-black uppercase tracking-wider">
-                                            <CheckCircle2 className="w-2.5 h-2.5" />
+                                        <span className="inline-flex items-center h-5 px-1.5 rounded bg-emerald-50 text-emerald-700 text-[9px] font-semibold">
+                                            <CheckCircle2 className="w-2.5 h-2.5 mr-0.5" />
                                             Paid
                                         </span>
-                                        <DialogDescription className="text-[10px] font-bold text-brand-navy/40 m-0">
+                                        <DialogDescription className="text-[10px] text-gray-400 m-0">
                                             {note.paid_at
                                                 ? format(new Date(note.paid_at), 'dd MMM yyyy • HH:mm')
                                                 : '—'}
                                         </DialogDescription>
                                     </div>
-                                    <DialogTitle className="font-mono text-lg sm:text-2xl font-black text-brand-navy truncate">
+                                    <DialogTitle className="font-mono text-[14px] font-semibold text-brand-navy truncate">
                                         {note.reference}
                                     </DialogTitle>
                                 </div>
                                 <button
                                     type="button"
                                     onClick={onClose}
-                                    className="hidden sm:flex w-10 h-10 shrink-0 items-center justify-center rounded-full hover:bg-brand-navy/5 text-brand-navy/50 hover:text-brand-navy transition"
+                                    className="hidden sm:flex w-8 h-8 shrink-0 items-center justify-center rounded-md hover:bg-gray-100 text-gray-400 hover:text-brand-navy transition"
                                 >
-                                    <X className="w-5 h-5" />
+                                    <X className="w-4 h-4" />
                                 </button>
                             </div>
                         </DialogHeader>
 
                         {/* Body */}
-                        <div className="flex-1 overflow-y-auto px-5 sm:px-8 py-5 space-y-5">
-                            {/* Earnings hero */}
-                            <div className="relative overflow-hidden rounded-[24px] bg-gradient-to-br from-brand-navy via-[#2d4747] to-[#1f3535] text-white p-6 sm:p-7">
-                                <div className="absolute -top-16 -right-16 w-[200px] h-[200px] rounded-full bg-emerald-300/15 blur-3xl" />
-                                <div className="relative">
-                                    <p className="text-[10px] font-black uppercase tracking-[0.25em] text-emerald-200/75 mb-3">
-                                        Your Earnings
-                                    </p>
-                                    <div className="flex items-baseline gap-2">
-                                        <span className="text-4xl sm:text-5xl font-black text-emerald-200 tabular-nums leading-none">
-                                            {fmtMAD(note.total_shipping_fees)}
-                                        </span>
-                                        <span className="text-base sm:text-xl font-bold text-emerald-200/50">MAD</span>
+                        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+                            {/* KPI tiles */}
+                            <div className="grid grid-cols-3 gap-2">
+                                {[
+                                    { label: 'Earned', value: `${fmtMAD(note.total_shipping_fees)} MAD`, accent: '#059669' },
+                                    { label: 'Delivered', value: String(note.order_count), accent: '#3b5e5e' },
+                                    { label: 'Gross', value: `${fmtMAD(note.total_amount)} MAD`, accent: '#3b5e5e' },
+                                ].map((s) => (
+                                    <div key={s.label} className="rounded-xl border border-gray-100 bg-white p-2.5 flex items-start gap-2">
+                                        <span className="w-[3px] self-stretch rounded-full shrink-0" style={{ background: s.accent }} />
+                                        <div className="min-w-0">
+                                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{s.label}</p>
+                                            <p className="text-[12px] font-semibold tabular-nums text-brand-navy mt-0.5 leading-none break-all">{s.value}</p>
+                                        </div>
                                     </div>
-                                    <p className="mt-3 text-[11px] font-semibold text-white/40">
-                                        Delivery fees for {note.order_count} successfully delivered parcel
-                                        {note.order_count !== 1 ? 's' : ''}
-                                    </p>
-                                </div>
-                            </div>
-
-                            {/* Context stats */}
-                            <div className="grid grid-cols-2 gap-2.5">
-                                <div className="p-3.5 rounded-2xl bg-white border border-brand-navy/[0.06]">
-                                    <div className="flex items-center gap-1 mb-1">
-                                        <Package className="w-3 h-3 text-brand-navy/30" />
-                                        <p className="text-[9px] font-black uppercase tracking-widest text-brand-navy/40">
-                                            Delivered
-                                        </p>
-                                    </div>
-                                    <p className="text-lg font-black text-brand-navy tabular-nums">{note.order_count}</p>
-                                </div>
-                                <div className="p-3.5 rounded-2xl bg-white border border-brand-navy/[0.06]">
-                                    <div className="flex items-center gap-1 mb-1">
-                                        <Wallet className="w-3 h-3 text-brand-navy/30" />
-                                        <p className="text-[9px] font-black uppercase tracking-widest text-brand-navy/40">
-                                            Gross
-                                        </p>
-                                    </div>
-                                    <p className="text-lg font-black text-brand-navy tabular-nums">
-                                        {fmtMAD(note.total_amount)}
-                                        <span className="text-[9px] font-bold text-brand-navy/30 ml-1">MAD</span>
-                                    </p>
-                                </div>
+                                ))}
                             </div>
 
                             {/* Flow breakdown */}
-                            <div className="rounded-2xl bg-white border border-brand-navy/[0.06] p-4 sm:p-5 space-y-3.5">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <Receipt className="w-3.5 h-3.5 text-brand-navy/40" />
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">
-                                        Flow Breakdown
-                                    </p>
-                                </div>
-
+                            <div className="rounded-xl border border-gray-100 bg-white p-3.5 space-y-2.5">
+                                <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Flow Breakdown</p>
                                 <div className="flex items-center justify-between">
-                                    <span className="text-xs font-bold text-brand-navy/60">Total collected</span>
-                                    <span className="text-sm font-black text-brand-navy tabular-nums">
-                                        {fmtMAD(note.total_amount)}{' '}
-                                        <span className="text-[10px] font-bold text-brand-navy/30">MAD</span>
-                                    </span>
+                                    <span className="text-[11px] text-gray-500">Total collected</span>
+                                    <span className="text-[11px] font-semibold tabular-nums text-brand-navy">{fmtMAD(note.total_amount)} MAD</span>
                                 </div>
-
-                                <div className="relative pl-6">
-                                    <ArrowDown className="absolute left-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-navy/25" />
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-xs font-bold text-emerald-700">Your delivery fees</span>
-                                        <span className="text-sm font-black text-emerald-600 tabular-nums">
-                                            +{fmtMAD(note.total_shipping_fees)}{' '}
-                                            <span className="text-[10px] font-bold text-emerald-600/50">MAD</span>
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <div className="h-px bg-brand-navy/5" />
-
                                 <div className="flex items-center justify-between">
-                                    <span className="text-xs font-bold text-brand-navy/50">Settled to business</span>
-                                    <span className="text-sm font-black text-brand-navy/50 tabular-nums">
-                                        {fmtMAD(note.net_amount)}{' '}
-                                        <span className="text-[10px] font-bold text-brand-navy/25">MAD</span>
-                                    </span>
+                                    <span className="text-[11px] text-emerald-700">Your delivery fees</span>
+                                    <span className="text-[11px] font-semibold tabular-nums text-emerald-600">+{fmtMAD(note.total_shipping_fees)} MAD</span>
+                                </div>
+                                <div className="h-px bg-gray-100" />
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[11px] text-gray-400">Settled to business</span>
+                                    <span className="text-[11px] font-semibold tabular-nums text-gray-400">{fmtMAD(note.net_amount)} MAD</span>
                                 </div>
                             </div>
 
-                            {/* Parcels */}
-                            <div>
-                                <div className="flex items-center justify-between mb-2.5 px-1">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/50">
-                                        Parcels ({note.line_items.length})
-                                    </p>
+                            {/* Parcels table */}
+                            <div className="rounded-xl border border-gray-100 bg-white overflow-hidden">
+                                <div className="px-3 py-2 border-b border-gray-100">
+                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Parcels ({note.line_items.length})</p>
                                 </div>
-                                <div className="space-y-2">
-                                    {note.line_items.map((li, i) => (
-                                        <div
-                                            key={li.id}
-                                            className="flex items-center gap-3 p-3 rounded-2xl bg-white border border-brand-navy/[0.05]"
-                                        >
-                                            <div className="w-8 h-8 shrink-0 rounded-xl bg-brand-navy/[0.04] flex items-center justify-center">
-                                                <span className="text-[10px] font-black text-brand-navy/40 tabular-nums">
-                                                    {String(i + 1).padStart(2, '0')}
-                                                </span>
-                                            </div>
-                                            <div className="min-w-0 flex-1">
-                                                <div className="flex items-center gap-1">
-                                                    <Hash className="w-3 h-3 text-brand-navy/30 shrink-0" />
-                                                    <p className="font-mono text-xs font-black text-brand-navy truncate">
-                                                        {li.tracking_code || '—'}
-                                                    </p>
-                                                </div>
-                                                <p className="text-[10px] font-semibold text-brand-navy/40 tabular-nums mt-0.5">
-                                                    {fmtMAD(li.amount)} MAD order
-                                                </p>
-                                            </div>
-                                            <div className="text-right shrink-0">
-                                                <p className="text-[9px] font-black uppercase tracking-wider text-emerald-600/60">
-                                                    Earned
-                                                </p>
-                                                <p className="text-sm font-black text-emerald-600 tabular-nums">
-                                                    +{fmtMAD(li.shipping_fee)}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
+                                <table className="w-full">
+                                    <thead>
+                                        <tr className="border-b border-gray-100">
+                                            <th className="text-left px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-gray-400">#</th>
+                                            <th className="text-left px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-gray-400">Tracking</th>
+                                            <th className="text-right px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-gray-400">Earned</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {note.line_items.map((li, i) => (
+                                            <tr key={li.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                                                <td className="px-3 py-2 text-[11px] text-gray-400 tabular-nums">{String(i + 1).padStart(2, '0')}</td>
+                                                <td className="px-3 py-2">
+                                                    <div className="flex items-center gap-1">
+                                                        <Hash className="w-3 h-3 text-gray-400" />
+                                                        <span className="text-[11px] font-mono text-brand-navy">{li.tracking_code || '—'}</span>
+                                                    </div>
+                                                    <p className="text-[9px] text-gray-400 tabular-nums mt-0.5">{fmtMAD(li.amount)} MAD order</p>
+                                                </td>
+                                                <td className="text-right px-3 py-2">
+                                                    <p className="text-[11px] font-semibold tabular-nums text-emerald-600">+{fmtMAD(li.shipping_fee)}</p>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
 
                         {/* Sticky footer */}
-                        <div className="shrink-0 border-t border-brand-navy/5 bg-white p-4 sm:p-5 pb-[max(1rem,env(safe-area-inset-bottom))] flex gap-2">
+                        <div className="shrink-0 border-t border-gray-100 bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] flex gap-2">
                             <Button
                                 variant="outline"
                                 onClick={onClose}
-                                className="flex-1 h-12 rounded-2xl font-bold border-brand-navy/10 text-brand-navy hover:bg-brand-navy/5 sm:hidden"
+                                className="flex-1 h-8 rounded-md text-[11px] font-semibold border-gray-200 text-brand-navy hover:bg-gray-50 sm:hidden"
                             >
                                 Close
                             </Button>
                             <Button
                                 onClick={onPrint}
                                 disabled={isDownloading}
-                                className="flex-1 h-12 rounded-2xl font-bold bg-brand-navy hover:bg-brand-navy/90 text-white shadow-xl shadow-brand-navy/20 disabled:opacity-60"
+                                className="flex-1 h-8 rounded-md text-[11px] font-semibold bg-brand-navy hover:bg-brand-navy/90 text-white disabled:opacity-60"
                             >
                                 {isDownloading ? (
-                                    <>
-                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                        Génération du PDF…
-                                    </>
+                                    <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Génération…</>
                                 ) : (
-                                    <>
-                                        <Download className="w-4 h-4 mr-2" />
-                                        Télécharger le PDF
-                                    </>
+                                    <><Download className="w-3.5 h-3.5 mr-1.5" />Télécharger PDF</>
                                 )}
                             </Button>
                         </div>
@@ -800,16 +589,6 @@ function PayoutDetailSheet({
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PDF ready modal
-//
-// Shown when the direct save path couldn't guarantee a clean "save to
-// device" outcome — typically iOS Safari when the first Web Share
-// attempt failed or when `<a download>` would just open the blob inline.
-//
-// The big primary button is a **fresh user gesture**, which satisfies
-// iOS Safari's navigator.share() activation requirements on the retry.
-// The secondary "Open in viewer" button is the absolute last resort —
-// the PDF opens inline and the user taps Safari's own share button to
-// save it manually.
 // ─────────────────────────────────────────────────────────────────────────────
 function PdfReadyModal({
     ready,
@@ -828,71 +607,63 @@ function PdfReadyModal({
         <Dialog open={!!ready} onOpenChange={(v) => !v && onClose()}>
             <DialogContent
                 className={cn(
-                    'p-0 border-none bg-brand-white overflow-hidden flex flex-col gap-0',
-                    'sm:max-w-[440px] sm:rounded-[32px]',
+                    'p-0 border-none bg-white overflow-hidden flex flex-col gap-0',
+                    'sm:max-w-[440px] sm:rounded-xl',
                     'max-sm:!left-0 max-sm:!right-0 max-sm:!top-auto max-sm:!bottom-0',
                     'max-sm:!translate-x-0 max-sm:!translate-y-0',
                     'max-sm:!w-full max-sm:!max-w-none',
-                    'max-sm:!rounded-t-[28px] max-sm:!rounded-b-none'
+                    'max-sm:!rounded-t-xl max-sm:!rounded-b-none'
                 )}
             >
                 {ready && (
                     <div className="flex flex-col">
-                        {/* Mobile drag handle */}
                         <div className="sm:hidden flex justify-center pt-3 pb-1">
-                            <div className="w-12 h-1.5 rounded-full bg-brand-navy/10" />
+                            <div className="w-10 h-1 rounded-full bg-gray-200" />
                         </div>
 
-                        <div className="px-6 pt-5 sm:pt-8 pb-6 sm:pb-8">
-                            {/* Hero icon */}
-                            <div className="flex justify-center mb-5">
-                                <div className="relative">
-                                    <div className="absolute inset-0 bg-emerald-300/30 blur-2xl rounded-full" />
-                                    <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
-                                        <FileText className="w-7 h-7 text-white" />
-                                    </div>
+                        <div className="px-5 pt-5 pb-5">
+                            <div className="flex justify-center mb-4">
+                                <div className="w-12 h-12 rounded-xl bg-brand-navy/5 border border-gray-100 flex items-center justify-center">
+                                    <FileText className="w-5 h-5 text-brand-navy/60" />
                                 </div>
                             </div>
 
-                            <DialogTitle className="text-center text-xl sm:text-2xl font-black text-brand-navy tracking-tight">
+                            <DialogTitle className="text-center text-[14px] font-semibold text-brand-navy">
                                 PDF prêt
                             </DialogTitle>
-                            <DialogDescription className="text-center text-xs sm:text-sm font-semibold text-brand-navy/50 mt-1.5">
+                            <DialogDescription className="text-center text-[11px] text-gray-400 mt-0.5">
                                 {ready.filename}
                             </DialogDescription>
 
-                            {/* Explainer */}
-                            <div className="mt-5 p-4 rounded-2xl bg-brand-navy/[0.03] border border-brand-navy/5">
-                                <p className="text-[11px] sm:text-xs text-brand-navy/65 font-semibold leading-relaxed text-center">
+                            <div className="mt-4 p-3 rounded-lg bg-gray-50 border border-gray-100">
+                                <p className="text-[11px] text-gray-500 leading-relaxed text-center">
                                     {directSupported
                                         ? 'Touchez « Enregistrer » pour sauvegarder le PDF dans vos fichiers.'
                                         : 'Touchez « Enregistrer » pour ouvrir la feuille de partage et choisir « Enregistrer dans Fichiers ».'}
                                 </p>
                             </div>
 
-                            {/* Primary action — fresh user gesture */}
                             <Button
                                 onClick={onSave}
-                                className="w-full mt-5 h-14 rounded-2xl font-black text-sm bg-brand-navy hover:bg-brand-navy/90 text-white shadow-xl shadow-brand-navy/25"
+                                className="w-full mt-4 h-8 rounded-md text-[11px] font-semibold bg-brand-navy hover:bg-brand-navy/90 text-white"
                             >
-                                <Save className="w-4 h-4 mr-2" />
+                                <Save className="w-3.5 h-3.5 mr-1.5" />
                                 Enregistrer
                             </Button>
 
-                            {/* Escape hatch */}
                             <Button
                                 variant="ghost"
                                 onClick={onOpen}
-                                className="w-full mt-2 h-12 rounded-2xl font-bold text-xs text-brand-navy/70 hover:bg-brand-navy/5"
+                                className="w-full mt-1.5 h-8 rounded-md text-[11px] font-semibold text-brand-navy/60 hover:bg-gray-50"
                             >
-                                <Eye className="w-3.5 h-3.5 mr-2" />
+                                <Eye className="w-3.5 h-3.5 mr-1.5" />
                                 Ouvrir dans le visualiseur
                             </Button>
 
                             <Button
                                 variant="ghost"
                                 onClick={onClose}
-                                className="w-full mt-1 h-11 rounded-2xl font-semibold text-[11px] text-brand-navy/40 hover:bg-transparent hover:text-brand-navy/60"
+                                className="w-full mt-1 h-8 rounded-md text-[11px] text-gray-400 hover:bg-transparent hover:text-gray-500"
                             >
                                 Annuler
                             </Button>

@@ -66,7 +66,7 @@ export default function SellerWhatsAppInbox() {
   if (loading) {
     return (
       <div className="h-[calc(100vh-100px)] flex items-center justify-center">
-        <Loader2 className="w-7 h-7 text-emerald-500 animate-spin" />
+        <Loader2 className="w-5 h-5 text-brand-navy animate-spin" />
       </div>
     );
   }
@@ -74,18 +74,22 @@ export default function SellerWhatsAppInbox() {
   if (error) {
     return (
       <div className="h-[calc(100vh-100px)] flex items-center justify-center">
-        <p className="text-sm text-red-600 font-medium">{error}</p>
+        <p className="text-[11px] font-semibold text-red-600">{error}</p>
       </div>
     );
   }
 
   if (allowedIds && allowedIds.length === 0) {
     return (
-      <div className="h-[calc(100vh-100px)] flex flex-col items-center justify-center gap-2 px-6 text-center">
-        <p className="text-sm font-medium text-gray-700">No WhatsApp access</p>
-        <p className="text-xs text-gray-500 max-w-sm">
-          You haven't been assigned any WhatsApp devices yet. Ask your administrator to grant access.
-        </p>
+      <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5">
+        <div className="rounded-xl border border-gray-100 bg-white p-3.5 flex flex-col items-center justify-center py-16 gap-3">
+          <div className="text-center">
+            <p className="text-[13px] font-semibold text-brand-navy">No WhatsApp Access</p>
+            <p className="text-[11px] text-gray-400 mt-1 max-w-xs">
+              You haven't been assigned any WhatsApp devices yet. Ask your administrator to grant access.
+            </p>
+          </div>
+        </div>
       </div>
     );
   }

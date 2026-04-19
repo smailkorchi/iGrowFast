@@ -557,21 +557,22 @@ export const DashboardProductsPerformance = ({
     const hasMore = totalProducts > TOP_N;
 
     return (
-        <Card className="border border-gray-100 shadow-none rounded-xl">
-            <CardHeader className="px-3.5 pt-2.5 pb-1.5">
+        <Card className="ant-surface border border-ant-line bg-ant-paper shadow-none rounded-xl">
+            <CardHeader className="px-4 pt-3 pb-2">
                 <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                        <ShoppingBag className="w-3 h-3 text-gray-400" />
-                        <CardTitle className="text-[12px] font-semibold text-brand-navy">Products performance</CardTitle>
+                    <div className="flex items-center gap-2 min-w-0">
+                        <span className="w-1 h-1 rounded-full bg-ant-orange" />
+                        <CardTitle className="font-display text-[13px] font-semibold text-ant-ink tracking-tight">Products performance</CardTitle>
+                        <ShoppingBag className="hidden" />
                     </div>
-                    <span className="text-[9px] text-gray-400 uppercase tracking-[0.14em] tabular-nums truncate">
+                    <span className="text-[10px] text-ant-mid uppercase tracking-[0.18em] tabular-nums truncate">
                         {hasMore && !showAll
                             ? `Top ${Math.min(TOP_N, totalProducts)} of ${totalProducts}`
                             : `${totalProducts} in period`}
                     </span>
                 </div>
             </CardHeader>
-            <CardContent className="px-2.5 pb-2.5 pt-0 space-y-1">
+            <CardContent className="px-3 pb-3 pt-0 space-y-1.5">
                 {visibleProducts.map((p) => {
                     const isExpanded = expanded.has(p.id);
                     const stages: FunnelStage[] = [
@@ -580,24 +581,24 @@ export const DashboardProductsPerformance = ({
                             label: 'Ordered',
                             count: p.orderedUnits,
                             sub: 'units',
-                            accent: '#6b7280',
-                            fillClass: 'bg-gray-50',
+                            accent: '#b0aea5',
+                            fillClass: 'bg-ant-line-soft',
                         },
                         {
                             key: 'confirmed',
                             label: 'Confirmed',
                             count: p.confirmedUnits,
                             ratePct: p.confirmedPercent,
-                            accent: '#3b82f6',
-                            fillClass: 'bg-blue-50/70',
+                            accent: '#6a9bcc',
+                            fillClass: 'bg-ant-blue/10',
                         },
                         {
                             key: 'delivered',
                             label: 'Delivered',
                             count: p.deliveredUnits,
                             ratePct: p.deliveredPercent,
-                            accent: '#10b981',
-                            fillClass: 'bg-emerald-50/70',
+                            accent: '#788c5d',
+                            fillClass: 'bg-ant-green/10',
                         },
                     ];
 
@@ -605,8 +606,8 @@ export const DashboardProductsPerformance = ({
                         <div
                             key={p.id}
                             className={cn(
-                                'border rounded-xl overflow-hidden transition-colors bg-white',
-                                isExpanded ? 'border-gray-200' : 'border-gray-100',
+                                'border rounded-xl overflow-hidden transition-colors bg-ant-paper',
+                                isExpanded ? 'border-ant-ink/20' : 'border-ant-line',
                             )}
                         >
                             <ProductHeaderRow
@@ -617,14 +618,14 @@ export const DashboardProductsPerformance = ({
                             />
 
                             {isExpanded && (
-                                <div className="px-3 pb-3 pt-2 border-t border-gray-100 bg-gray-50/30 space-y-2">
+                                <div className="px-3 pb-3 pt-2 border-t border-ant-line bg-ant-light space-y-2">
                                     <div className="grid grid-cols-1 lg:grid-cols-[1.15fr,1fr] gap-2">
-                                        <section className="rounded-lg bg-white border border-gray-100 p-3 space-y-3">
+                                        <section className="rounded-lg bg-ant-paper border border-ant-line p-3 space-y-3">
                                             <header className="flex items-baseline justify-between">
-                                                <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.16em]">
+                                                <h4 className="text-[10px] font-medium text-ant-mid uppercase tracking-[0.2em]">
                                                     Funnel dropoff
                                                 </h4>
-                                                <span className="text-[10px] text-gray-400 tabular-nums">
+                                                <span className="text-[10px] text-ant-mid tabular-nums">
                                                     {(p.totalOrders - p.deliveredOrdersCount).toLocaleString('fr-MA')} / {p.totalOrders.toLocaleString('fr-MA')}
                                                 </span>
                                             </header>
@@ -635,7 +636,7 @@ export const DashboardProductsPerformance = ({
                                                 entries={p.preConfEntries}
                                                 emptyText="All cohort orders confirmed"
                                             />
-                                            <div className="h-px bg-gray-100" />
+                                            <div className="h-px bg-ant-line" />
                                             <StatusQueuePane
                                                 title="After confirmation"
                                                 totalLost={p.confirmedOrdersCount - p.deliveredOrdersCount}
@@ -645,12 +646,12 @@ export const DashboardProductsPerformance = ({
                                             />
                                         </section>
 
-                                        <section className="rounded-lg bg-white border border-gray-100 p-3 space-y-2">
+                                        <section className="rounded-lg bg-ant-paper border border-ant-line p-3 space-y-2">
                                             <header className="flex items-baseline justify-between">
-                                                <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.16em]">
+                                                <h4 className="text-[10px] font-medium text-ant-mid uppercase tracking-[0.2em]">
                                                     Financials
                                                 </h4>
-                                                <span className="text-[10px] text-gray-400 tabular-nums">
+                                                <span className="text-[10px] text-ant-mid tabular-nums">
                                                     on {p.deliveredUnits.toLocaleString('fr-MA')} delivered units
                                                 </span>
                                             </header>
@@ -667,12 +668,12 @@ export const DashboardProductsPerformance = ({
                                         </section>
                                     </div>
 
-                                    <section className="rounded-lg bg-white border border-gray-100 p-3">
+                                    <section className="rounded-lg bg-ant-paper border border-ant-line p-3">
                                         <header className="flex items-baseline justify-between mb-2">
-                                            <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.16em]">
+                                            <h4 className="text-[10px] font-medium text-ant-mid uppercase tracking-[0.2em]">
                                                 Unit economics
                                             </h4>
-                                            <span className="text-[10px] text-gray-400">per delivered unit</span>
+                                            <span className="text-[10px] text-ant-mid">per delivered unit</span>
                                         </header>
                                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-1.5">
                                             <UnitCell label="Selling" value={p.sellingPrice} positive />
@@ -689,8 +690,8 @@ export const DashboardProductsPerformance = ({
                                         </div>
                                     </section>
 
-                                    <section className="rounded-lg bg-white border border-gray-100 px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                                        <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.16em] shrink-0">
+                                    <section className="rounded-lg bg-ant-paper border border-ant-line px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                                        <h4 className="text-[10px] font-medium text-ant-mid uppercase tracking-[0.2em] shrink-0">
                                             Sources
                                         </h4>
                                         <div className="flex-1 min-w-[200px]">
@@ -703,7 +704,7 @@ export const DashboardProductsPerformance = ({
                     );
                 })}
                 {totalProducts === 0 && (
-                    <p className="text-center py-8 text-gray-400 text-xs">
+                    <p className="text-center py-8 font-serif-display text-ant-muted text-xs italic">
                         No products with activity in this period
                     </p>
                 )}
@@ -711,7 +712,7 @@ export const DashboardProductsPerformance = ({
                     <button
                         type="button"
                         onClick={() => setShowAll((v) => !v)}
-                        className="w-full flex items-center justify-center gap-1 py-2 text-[11px] font-bold text-brand-navy/60 hover:text-brand-navy hover:bg-gray-50 rounded-xl transition-colors"
+                        className="w-full flex items-center justify-center gap-1.5 py-2 text-[11px] font-semibold text-ant-ink hover:text-ant-orange hover:bg-ant-line-soft rounded-xl transition-colors"
                     >
                         {showAll ? `Show top ${TOP_N} only` : `Show all ${totalProducts} products`}
                         <ChevronRight className={cn('w-3.5 h-3.5 transition-transform', showAll && 'rotate-90')} />
@@ -746,26 +747,26 @@ function ProductHeaderRow({
 }) {
     const netPositive = product.netProfit >= 0;
     const stockTone =
-        product.stock > 10 ? 'text-emerald-600' : product.stock > 0 ? 'text-amber-600' : 'text-red-600';
+        product.stock > 10 ? 'text-ant-green' : product.stock > 0 ? 'text-ant-orange' : 'text-ant-rose';
     return (
         <button
             type="button"
             onClick={onToggle}
-            className="w-full grid grid-cols-[minmax(140px,170px)_1fr_minmax(100px,120px)_14px] items-center gap-2.5 px-2.5 py-1.5 hover:bg-gray-50/50 transition-colors text-left"
+            className="w-full grid grid-cols-[minmax(140px,170px)_1fr_minmax(100px,120px)_14px] items-center gap-3 px-3 py-2 hover:bg-ant-line-soft transition-colors text-left"
         >
-            <div className="flex items-center gap-1.5 min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
                 {product.image_url ? (
-                    <img src={product.image_url} alt="" className="w-6 h-6 rounded-sm object-cover bg-gray-100 shrink-0" />
+                    <img src={product.image_url} alt="" className="w-7 h-7 rounded-md object-cover bg-ant-line-soft shrink-0 border border-ant-line" />
                 ) : (
-                    <div className="w-6 h-6 rounded-sm bg-gray-100 flex items-center justify-center shrink-0">
-                        <Box className="w-3 h-3 text-gray-400" />
+                    <div className="w-7 h-7 rounded-md bg-ant-line-soft flex items-center justify-center shrink-0 border border-ant-line">
+                        <Box className="w-3.5 h-3.5 text-ant-mid" />
                     </div>
                 )}
                 <div className="min-w-0">
-                    <p className="font-semibold text-brand-navy text-[11px] truncate leading-tight">{product.name}</p>
-                    <p className="text-[8px] text-gray-400 uppercase tracking-[0.14em] mt-0.5">
-                        Stock <span className={cn('font-bold tabular-nums ml-0.5', stockTone)}>{product.stock}</span>
-                        {product.active === false && <span className="ml-1 text-red-500">· Inactive</span>}
+                    <p className="font-semibold text-ant-ink text-[11.5px] truncate leading-tight">{product.name}</p>
+                    <p className="text-[9px] text-ant-mid uppercase tracking-[0.18em] mt-0.5">
+                        Stock <span className={cn('font-semibold tabular-nums ml-0.5', stockTone)}>{product.stock}</span>
+                        {product.active === false && <span className="ml-1 text-ant-rose">· Inactive</span>}
                     </p>
                 </div>
             </div>
@@ -774,26 +775,26 @@ function ProductHeaderRow({
                 <PerformanceFunnel stages={stages} dense />
             </div>
 
-            <div className="min-w-0 border-l border-gray-100 pl-2.5">
-                <p className="text-[8px] text-gray-400 font-bold uppercase tracking-[0.14em]">Net</p>
+            <div className="min-w-0 border-l border-ant-line pl-3">
+                <p className="text-[9px] text-ant-mid font-medium uppercase tracking-[0.2em]">Net</p>
                 <p
                     className={cn(
-                        'text-[12px] font-semibold leading-tight tabular-nums',
-                        netPositive ? 'text-emerald-600' : 'text-red-600',
+                        'font-display text-[14px] font-semibold leading-tight tabular-nums tracking-[-0.02em]',
+                        netPositive ? 'text-ant-green' : 'text-ant-rose',
                     )}
                 >
                     {Math.round(product.netProfit).toLocaleString('fr-MA')}
-                    <span className="text-[8px] text-gray-400 font-medium ml-0.5">MAD</span>
+                    <span className="text-[9px] text-ant-mid font-medium ml-0.5">MAD</span>
                 </p>
-                <p className="text-[8px] text-gray-400 mt-0.5 tabular-nums">
+                <p className="text-[9px] text-ant-mid mt-0.5 tabular-nums">
                     {Math.round(product.commission).toLocaleString('fr-MA')} comm
                 </p>
             </div>
 
             <ChevronDown
                 className={cn(
-                    'w-3 h-3 text-gray-300 transition-transform justify-self-end',
-                    isExpanded && 'rotate-180 text-gray-500',
+                    'w-3.5 h-3.5 text-ant-mid transition-transform justify-self-end',
+                    isExpanded && 'rotate-180 text-ant-ink',
                 )}
             />
         </button>
@@ -812,16 +813,16 @@ function UnitCell({
     highlight?: 'positive' | 'negative';
 }) {
     const toneClass = highlight === 'positive'
-        ? 'text-emerald-600'
+        ? 'text-ant-green'
         : highlight === 'negative'
-            ? 'text-red-600'
+            ? 'text-ant-rose'
             : positive
-                ? 'text-brand-navy'
-                : 'text-gray-700';
+                ? 'text-ant-ink'
+                : 'text-ant-muted';
     return (
-        <div className="rounded-md px-2 py-1.5 border border-gray-100">
-            <p className="text-[9px] text-gray-400 font-bold uppercase tracking-[0.14em] truncate">{label}</p>
-            <p className={cn('text-[12px] font-semibold leading-tight tabular-nums mt-0.5', toneClass)}>
+        <div className="rounded-md px-2.5 py-1.5 border border-ant-line">
+            <p className="text-[9.5px] text-ant-mid font-medium uppercase tracking-[0.18em] truncate">{label}</p>
+            <p className={cn('font-display text-[13px] font-semibold leading-tight tabular-nums mt-0.5 tracking-[-0.01em]', toneClass)}>
                 {value.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
         </div>

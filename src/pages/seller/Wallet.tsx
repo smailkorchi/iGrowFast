@@ -4,21 +4,15 @@ import {
     Wallet as WalletIcon,
     TrendingUp,
     Calendar,
-    DollarSign,
-    ArrowUpRight,
-    History,
-    ChevronRight,
-    ChevronLeft,
     Search,
-    Download,
-    PieChart,
-    ArrowDownRight,
-    Clock
+    Clock,
+    ChevronLeft,
+    ChevronRight,
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useNavigate } from 'react-router-dom';
+import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
 import { format, startOfMonth, endOfMonth, addMonths } from 'date-fns';
 
 interface DailyEarning {
@@ -31,7 +25,6 @@ interface DailyEarning {
 }
 
 const SellerWallet = () => {
-    const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
     const [earnings, setEarnings] = useState<DailyEarning[]>([]);
     const [monthStats, setMonthStats] = useState({
@@ -78,15 +71,15 @@ const SellerWallet = () => {
 
                 const stats = currentMonthLogs.reduce((acc, curr) => ({
                     total: acc.total + Number(curr.total_earned),
+                    salary: 0,
                     commission: acc.commission + Number(curr.commission_earned),
                     days: acc.days + (Number(curr.commission_earned) > 0 || Number(curr.delivered_count) > 0 ? 1 : 0),
                     delivered: acc.delivered + Number(curr.delivered_count)
-                }), { total: 0, commission: 0, days: 0, delivered: 0 });
+                }), { total: 0, salary: 0, commission: 0, days: 0, delivered: 0 });
 
                 setMonthStats(stats);
             }
 
-            // Fetch actual presence days from seller_presences
             const { data: presenceData, error: presenceError } = await supabase
                 .from('seller_presences')
                 .select('id, date')
@@ -115,208 +108,156 @@ const SellerWallet = () => {
     );
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-700 max-w-6xl mx-auto pb-12">
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
             {/* Header */}
-            <div className="relative group">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-transparent rounded-3xl opacity-50 group-hover:opacity-100 transition-opacity duration-700" />
-                <div className="relative p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                    <div className="flex items-center gap-6">
-                        <div className="w-16 h-16 bg-white shadow-2xl rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-500">
-                            <WalletIcon className="w-8 h-8 text-primary" />
-                        </div>
-                        <div>
-                            <h1 className="text-4xl font-extralight text-gray-900 mb-1 tracking-tight">Financial Wallet</h1>
-                            <p className="text-gray-500 font-light flex items-center gap-2">
-                                <Calendar className="w-4 h-4 text-gray-400" />
-                                {format(new Date(), 'MMMM yyyy')} · Live Earnings Pulse
-                            </p>
-                        </div>
+            <header className="space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Financial Wallet</h1>
+                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">{format(new Date(), 'MMMM yyyy')} · Earnings Overview</p>
                     </div>
                 </div>
+            </header>
+
+            {/* KPI Tiles */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                {loading ? (
+                    <>
+                        {[1,2,3,4].map(i => <Skeleton key={i} className="h-16 rounded-xl" />)}
+                    </>
+                ) : (
+                    <>
+                        <div className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
+                            <span className="w-[3px] self-stretch rounded-full" style={{ background: '#059669' }} />
+                            <div className="flex-1 min-w-0">
+                                <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Month Total</p>
+                                <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{monthStats.total.toFixed(2)} <span className="text-[11px] text-gray-400">MAD</span></p>
+                            </div>
+                        </div>
+                        <div className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
+                            <span className="w-[3px] self-stretch rounded-full" style={{ background: '#3b5e5e' }} />
+                            <div className="flex-1 min-w-0">
+                                <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Presence Days</p>
+                                <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{presenceDays} <span className="text-[11px] text-gray-400">Days</span></p>
+                            </div>
+                        </div>
+                        <div className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
+                            <span className="w-[3px] self-stretch rounded-full" style={{ background: '#059669' }} />
+                            <div className="flex-1 min-w-0">
+                                <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Delivered</p>
+                                <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{monthStats.delivered} <span className="text-[11px] text-gray-400">Orders</span></p>
+                            </div>
+                        </div>
+                        <div className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
+                            <span className="w-[3px] self-stretch rounded-full" style={{ background: '#d97706' }} />
+                            <div className="flex-1 min-w-0">
+                                <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Next Payout</p>
+                                <p className="text-[13px] font-semibold tabular-nums text-brand-navy mt-1">{format(startOfMonth(addMonths(new Date(), 1)), 'MMM d, yyyy')}</p>
+                            </div>
+                        </div>
+                    </>
+                )}
             </div>
 
-            {/* Quick Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <Card className="border-0 shadow-xl rounded-3xl overflow-hidden bg-white hover:shadow-2xl transition-all duration-500 group">
-                    <CardContent className="p-6">
-                        <div className="flex items-center justify-between mb-4">
-                            <div className="w-12 h-12 bg-primary/5 rounded-2xl flex items-center justify-center group-hover:bg-primary/10 transition-colors">
-                                <DollarSign className="w-6 h-6 text-primary" />
-                            </div>
-                            <Badge variant="secondary" className="bg-primary/10 text-primary border-0 font-medium">Month Pot</Badge>
+            {/* Earnings History Table */}
+            <Card className="border border-gray-100 shadow-none rounded-xl">
+                <CardContent className="p-0">
+                    {/* Card header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3.5 pt-3 pb-2.5 border-b border-gray-100">
+                        <div className="flex items-center gap-2">
+                            <TrendingUp className="w-3.5 h-3.5 text-brand-navy/50" />
+                            <span className="text-[11px] font-semibold text-brand-navy">Earning Timeline</span>
                         </div>
-                        <div className="space-y-1">
-                            <p className="text-3xl font-medium text-gray-900 tracking-tight">{monthStats.total.toFixed(2)} <span className="text-lg font-light text-gray-400">MAD</span></p>
-                            <p className="text-sm text-gray-500 font-light">Accumulated Earnings</p>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card className="border-0 shadow-xl rounded-3xl overflow-hidden bg-white hover:shadow-2xl transition-all duration-500 group">
-                    <CardContent className="p-6">
-                        <div className="flex items-center justify-between mb-4">
-                            <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center group-hover:bg-blue-100 transition-colors">
-                                <Clock className="w-6 h-6 text-blue-600" />
-                            </div>
-                            <Badge variant="secondary" className="bg-blue-50 text-blue-600 border-0 font-medium">Presence</Badge>
-                        </div>
-                        <div className="space-y-1">
-                            <p className="text-3xl font-medium text-gray-900 tracking-tight">{presenceDays} <span className="text-lg font-light text-gray-400">Days</span></p>
-                            <p className="text-sm text-gray-500 font-light">Verified attendance</p>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card className="border-0 shadow-xl rounded-3xl overflow-hidden bg-white hover:shadow-2xl transition-all duration-500 group">
-                    <CardContent className="p-6">
-                        <div className="flex items-center justify-between mb-4">
-                            <div className="w-12 h-12 bg-green-50 rounded-2xl flex items-center justify-center group-hover:bg-green-100 transition-colors">
-                                <TrendingUp className="w-6 h-6 text-green-600" />
-                            </div>
-                            <Badge variant="secondary" className="bg-green-50 text-green-600 border-0 font-medium">Sales</Badge>
-                        </div>
-                        <div className="space-y-1">
-                            <p className="text-3xl font-medium text-gray-900 tracking-tight">{monthStats.delivered} <span className="text-lg font-light text-gray-400">Orders</span></p>
-                            <p className="text-sm text-gray-500 font-light">Total delivered</p>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card className="border-0 shadow-xl rounded-3xl overflow-hidden bg-white hover:shadow-2xl transition-all duration-500 group">
-                    <CardContent className="p-6">
-                        <div className="flex items-center justify-between mb-4">
-                            <div className="w-12 h-12 bg-purple-50 rounded-2xl flex items-center justify-center group-hover:bg-purple-100 transition-colors">
-                                <PieChart className="w-6 h-6 text-purple-600" />
-                            </div>
-                            <Badge variant="secondary" className="bg-purple-50 text-purple-600 border-0 font-medium">Monthly Stats</Badge>
-                        </div>
-                        <div className="space-y-1">
-                            <p className="text-3xl font-medium text-gray-900 tracking-tight">{monthStats.delivered} <span className="text-lg font-light text-gray-400">Orders</span></p>
-                            <p className="text-sm text-gray-500 font-light">Performance overview</p>
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
-
-            {/* Daily History */}
-            <Card className="border-0 shadow-2xl rounded-[2rem] overflow-hidden bg-white">
-                <CardHeader className="border-b border-gray-50 bg-gradient-to-r from-gray-50/50 to-transparent p-8">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center">
-                                <History className="w-6 h-6 text-primary" />
-                            </div>
-                            <div>
-                                <CardTitle className="text-2xl font-light text-gray-900">Earning Timeline</CardTitle>
-                                <CardDescription className="font-light">Daily breakdown of your financial performance</CardDescription>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <div className="relative group">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
-                                <input
-                                    type="text"
-                                    placeholder="Search days..."
-                                    value={searchQuery}
-                                    onChange={(e) => {
-                                        setSearchQuery(e.target.value);
-                                        setCurrentPage(1);
-                                    }}
-                                    className="pl-11 pr-4 h-11 w-64 rounded-2xl border-gray-100 bg-gray-50/50 focus:bg-white focus:ring-2 focus:ring-primary/5 transition-all duration-300 outline-none text-sm font-light"
-                                />
-                            </div>
+                        <div className="relative">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                            <Input
+                                type="text"
+                                placeholder="Search days..."
+                                value={searchQuery}
+                                onChange={(e) => {
+                                    setSearchQuery(e.target.value);
+                                    setCurrentPage(1);
+                                }}
+                                className="pl-7 h-8 w-52 text-[11px] rounded-md border-gray-100 bg-gray-50"
+                            />
                         </div>
                     </div>
-                </CardHeader>
-                <CardContent className="p-0">
+
                     <div className="overflow-x-auto">
                         <table className="w-full border-collapse">
                             <thead>
-                                <tr className="text-left border-b border-gray-50/50 bg-gray-50/30">
-                                    <th className="p-6 text-[10px] uppercase tracking-widest font-medium text-gray-400">Date Log</th>
-                                    <th className="p-6 text-[10px] uppercase tracking-widest font-medium text-gray-400">Earnings Details</th>
-                                    <th className="p-6 text-[10px] uppercase tracking-widest font-medium text-gray-400">Activity Status</th>
-                                    <th className="p-6 text-[10px] uppercase tracking-widest font-medium text-gray-400 text-right">Day Total</th>
+                                <tr className="border-b border-gray-100">
+                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Date</th>
+                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Commission</th>
+                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Activity</th>
+                                    <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Total</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-50">
+                            <tbody>
                                 {loading ? (
                                     [1, 2, 3, 4, 5].map((i) => (
-                                        <tr key={i} className="animate-pulse">
-                                            <td colSpan={5} className="p-8">
-                                                <div className="h-4 bg-gray-50 rounded-full w-full" />
+                                        <tr key={i}>
+                                            <td colSpan={4} className="px-3 py-2">
+                                                <Skeleton className="h-6 w-full rounded" />
                                             </td>
                                         </tr>
                                     ))
                                 ) : paginatedEarnings.length > 0 ? (
                                     paginatedEarnings.map((log) => (
-                                        <tr key={log.id} className="group hover:bg-gray-50/50 transition-colors duration-300">
-                                            <td className="p-6">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-xl bg-white border border-gray-100 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-300">
-                                                        <Calendar className="w-4 h-4 text-gray-400" />
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-sm font-medium text-gray-900">{format(new Date(log.date), 'EEEE, MMM d')}</p>
-                                                        <p className="text-[10px] text-gray-400 uppercase tracking-tighter">Verified presence</p>
-                                                    </div>
+                                        <tr key={log.id} className="hover:bg-gray-50 transition-colors border-b border-gray-100">
+                                            <td className="px-3 py-2 text-[11px] text-brand-navy/80 tabular-nums">
+                                                <div className="flex items-center gap-1.5">
+                                                    <Calendar className="w-3 h-3 text-gray-400 shrink-0" />
+                                                    {format(new Date(log.date), 'EEE, MMM d')}
                                                 </div>
                                             </td>
-                                            <td className="p-6">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-2 h-2 rounded-full bg-purple-400" />
-                                                    <span className="text-sm text-gray-600 font-mono tracking-tighter">+{Number(log.commission_earned).toFixed(2)} MAD Portfolio</span>
-                                                </div>
+                                            <td className="px-3 py-2 text-[11px] text-brand-navy/80 tabular-nums">
+                                                +{Number(log.commission_earned).toFixed(2)} MAD
                                             </td>
-                                            <td className="p-6">
-                                                <Badge variant="outline" className="rounded-lg border-gray-200 text-gray-500 font-light px-2 h-6">
-                                                    {log.delivered_count} Units Delivered
-                                                </Badge>
+                                            <td className="px-3 py-2">
+                                                <span className="inline-flex items-center gap-1 h-5 px-1.5 rounded text-[9px] font-semibold bg-gray-100 text-gray-500">
+                                                    <Clock className="w-2.5 h-2.5" />
+                                                    {log.delivered_count} delivered
+                                                </span>
                                             </td>
-                                            <td className="p-6 text-right">
-                                                <div className="inline-flex items-center gap-2 px-4 py-2 bg-white rounded-2xl border border-gray-100 shadow-sm group-hover:border-primary/20 group-hover:shadow-md transition-all duration-300">
-                                                    <span className="text-base font-semibold text-gray-900">{Number(log.total_earned).toFixed(2)}</span>
-                                                    <span className="text-[10px] text-gray-400 font-light">MAD</span>
-                                                    <ArrowUpRight className="w-3 h-3 text-primary opacity-0 group-hover:opacity-100 -translate-x-1 group-hover:translate-x-0 transition-all duration-300" />
-                                                </div>
+                                            <td className="px-3 py-2 text-right text-[11px] font-semibold text-brand-navy tabular-nums">
+                                                {Number(log.total_earned).toFixed(2)} MAD
                                             </td>
                                         </tr>
                                     ))
                                 ) : (
                                     <tr>
-                                        <td colSpan={5} className="p-20 text-center">
-                                            <div className="flex flex-col items-center justify-center text-gray-400 font-light">
-                                                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
-                                                    <WalletIcon className="w-8 h-8 text-gray-200" />
-                                                </div>
-                                                <p className="text-lg">No earnings records found.</p>
-                                                <p className="text-sm opacity-60 mt-1">Start working to see your wallet grow!</p>
+                                        <td colSpan={4}>
+                                            <div className="border border-dashed border-gray-200 rounded-xl py-8 mx-3 my-3 flex flex-col items-center justify-center text-center">
+                                                <WalletIcon className="w-6 h-6 text-gray-400 mb-2" />
+                                                <p className="text-[11px] font-medium text-gray-400">No earnings records found.</p>
                                             </div>
                                         </td>
                                     </tr>
                                 )}
+
                                 {totalPages > 1 && (
                                     <tr>
-                                        <td colSpan={5} className="p-6 bg-gray-50/30">
+                                        <td colSpan={4} className="px-3 py-2">
                                             <div className="flex items-center justify-between">
-                                                <p className="text-xs text-gray-400 font-light">
-                                                    Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredEarnings.length)} of {filteredEarnings.length} entries
+                                                <p className="text-[10px] text-gray-400">
+                                                    {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, filteredEarnings.length)} of {filteredEarnings.length}
                                                 </p>
-                                                <div className="flex items-center gap-2">
+                                                <div className="flex items-center gap-1.5">
                                                     <Button
                                                         variant="outline"
                                                         disabled={currentPage === 1}
                                                         onClick={() => setCurrentPage(prev => prev - 1)}
-                                                        className="h-8 w-8 p-0 rounded-lg border-gray-200"
+                                                        className="h-8 w-8 p-0 rounded-md border-gray-200"
                                                     >
-                                                        <ChevronLeft className="w-4 h-4" />
+                                                        <ChevronLeft className="w-3.5 h-3.5" />
                                                     </Button>
                                                     {[...Array(totalPages)].map((_, i) => (
                                                         <Button
                                                             key={i + 1}
                                                             variant={currentPage === i + 1 ? "default" : "outline"}
                                                             onClick={() => setCurrentPage(i + 1)}
-                                                            className={`h-8 w-8 p-0 rounded-lg text-xs ${currentPage === i + 1 ? 'bg-primary border-0' : 'border-gray-200 text-gray-400'}`}
+                                                            className={`h-8 w-8 p-0 rounded-md text-[11px] ${currentPage === i + 1 ? 'bg-brand-navy border-0 text-white' : 'border-gray-200 text-gray-400'}`}
                                                         >
                                                             {i + 1}
                                                         </Button>
@@ -325,9 +266,9 @@ const SellerWallet = () => {
                                                         variant="outline"
                                                         disabled={currentPage === totalPages}
                                                         onClick={() => setCurrentPage(prev => prev + 1)}
-                                                        className="h-8 w-8 p-0 rounded-lg border-gray-200"
+                                                        className="h-8 w-8 p-0 rounded-md border-gray-200"
                                                     >
-                                                        <ChevronRight className="w-4 h-4" />
+                                                        <ChevronRight className="w-3.5 h-3.5" />
                                                     </Button>
                                                 </div>
                                             </div>
@@ -339,59 +280,6 @@ const SellerWallet = () => {
                     </div>
                 </CardContent>
             </Card>
-
-            {/* Bottom Insight Card */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="md:col-span-2">
-                    <Card className="h-full border-0 shadow-xl rounded-3xl overflow-hidden bg-white">
-                        <CardHeader className="p-8 pb-0">
-                            <CardTitle className="text-xl font-light text-gray-900 flex items-center gap-2">
-                                <TrendingUp className="w-5 h-5 text-primary" />
-                                Earnings Distribution
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-8 pt-6">
-                            <div className="flex items-center gap-8 h-40">
-                                <div className="flex-1 space-y-4">
-                                    <div className="space-y-1">
-                                        <div className="flex justify-between text-xs text-gray-500 mb-1.5">
-                                            <span>Commission Earned</span>
-                                            <span className="font-mono">{monthStats.total > 0 ? 100 : 0}%</span>
-                                        </div>
-                                        <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
-                                            <div className="h-full bg-primary transition-all duration-1000" style={{ width: `${monthStats.total > 0 ? 100 : 0}%` }} />
-                                        </div>
-                                    </div>
-                                    <div className="text-xs text-gray-400 font-light leading-relaxed">
-                                        Your monthly revenue is derived from successfully delivered orders and performance milestones.
-                                    </div>
-                                </div>
-                                <div className="w-32 h-32 flex items-center justify-center relative">
-                                    <div className="absolute inset-0 border-[12px] border-gray-50 rounded-full" />
-                                    <div className="text-center">
-                                        <p className="text-xs text-gray-400 uppercase tracking-tighter">Total</p>
-                                        <p className="text-xl font-medium">{monthStats.total.toFixed(0)}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-                <Card className="border-0 shadow-xl rounded-3xl overflow-hidden bg-primary group">
-                    <CardContent className="p-8 h-full flex flex-col justify-between relative">
-                        <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-125 transition-transform duration-700">
-                            <PieChart className="w-32 h-32 text-white" />
-                        </div>
-                        <div className="relative">
-                            <h4 className="text-white/80 text-sm font-light uppercase tracking-widest mb-2">Next Payout</h4>
-                            <p className="text-white text-3xl font-medium tracking-tight">{format(startOfMonth(addMonths(new Date(), 1)), 'MMMM d, yyyy')}</p>
-                            <p className="text-white/60 text-xs font-light mt-4 leading-relaxed">
-                                Your balance will be automatically finalized at the end of the month.
-                            </p>
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
         </div>
     );
 };

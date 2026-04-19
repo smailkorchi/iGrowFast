@@ -10,7 +10,6 @@ import {
   X,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -40,19 +39,16 @@ type PaymentRow = {
   reviewer: { id: string; name: string | null } | null;
 };
 
-const STATUS: Record<string, { label: string; class: string }> = {
-  pending: {
-    label: 'Pending',
-    class: 'bg-amber-50 text-amber-800 border-amber-100',
-  },
-  approved: {
-    label: 'Approved',
-    class: 'bg-emerald-50 text-emerald-800 border-emerald-100',
-  },
-  denied: {
-    label: 'Denied',
-    class: 'bg-red-50 text-red-800 border-red-100',
-  },
+const STATUS_ACCENT: Record<string, string> = {
+  pending: '#d97706',
+  approved: '#059669',
+  denied: '#ef4444',
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  pending: 'Pending',
+  approved: 'Approved',
+  denied: 'Denied',
 };
 
 const METHOD_LABEL: Record<string, string> = {
@@ -130,247 +126,194 @@ const BusinessPayments = () => {
 
   if (!activeBusinessId) {
     return (
-      <div className="space-y-8 pb-8">
+      <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
         <PaymentsHeader />
-        <Card className="border-0 shadow-sm rounded-3xl bg-white">
-          <CardContent className="p-12 text-center">
-            <p className="text-sm text-gray-400 font-light">No active business selected.</p>
-          </CardContent>
-        </Card>
+        <div className="rounded-xl border border-gray-100 bg-white p-12 text-center">
+          <p className="text-[11px] text-gray-400">No active business selected.</p>
+        </div>
       </div>
     );
   }
 
   if (isLoading) {
     return (
-      <div className="space-y-8 pb-8">
+      <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
         <PaymentsHeader />
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Skeleton className="h-24 rounded-3xl" />
-          <Skeleton className="h-24 rounded-3xl" />
-          <Skeleton className="h-24 rounded-3xl" />
+        <div className="grid gap-2 sm:grid-cols-3">
+          <Skeleton className="h-20 rounded-xl" />
+          <Skeleton className="h-20 rounded-xl" />
+          <Skeleton className="h-20 rounded-xl" />
         </div>
-        <Skeleton className="h-64 rounded-3xl" />
+        <Skeleton className="h-56 rounded-xl" />
       </div>
     );
   }
 
   if (isError) {
     return (
-      <div className="space-y-8 pb-8">
+      <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
         <PaymentsHeader />
-        <Card className="border-0 shadow-sm rounded-3xl bg-white">
-          <CardContent className="p-12 text-center">
-            <p className="text-sm text-gray-500 font-light">Could not load payments.</p>
-          </CardContent>
-        </Card>
+        <div className="rounded-xl border border-gray-100 bg-white p-12 text-center">
+          <p className="text-[11px] text-gray-500">Could not load payments.</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8 pb-8">
-      <div className="relative">
-        <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-        <div className="relative p-8 flex flex-col lg:flex-row lg:items-end justify-between gap-8">
+    <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+      {/* Header */}
+      <header className="space-y-2.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 mb-2">Payments</p>
-            <h1 className="text-3xl sm:text-4xl font-extralight text-gray-900 tracking-tight mb-2">
-              Billing history
-            </h1>
-            <p className="text-gray-500 font-light text-sm max-w-md">
-              Submissions and renewals for your workspace, in one calm timeline.
-            </p>
-          </div>
-          <div className="hidden sm:flex w-14 h-14 rounded-2xl bg-primary/10 items-center justify-center shrink-0">
-            <Wallet className="w-7 h-7 text-primary/80" />
+            <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Billing History</h1>
+            <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Submissions and renewals for your workspace</p>
           </div>
         </div>
-      </div>
+      </header>
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <StatTile
-          label="Recorded payments"
-          value={String(stats.total)}
-          hint="All submissions"
-        />
-        <StatTile
-          label="Approved total"
-          value={`${stats.approvedSum.toLocaleString()} ${stats.currency}`}
-          hint="Successful charges"
-        />
-        <StatTile
-          label="In review"
-          value={String(stats.byStatus.pending ?? 0)}
-          hint="Awaiting platform"
-        />
+      {/* KPI tiles */}
+      <div className="grid gap-2 sm:grid-cols-3">
+        {[
+          { label: 'Recorded payments', value: String(stats.total), hint: 'All submissions', accent: '#3b5e5e' },
+          { label: 'Approved total', value: `${stats.approvedSum.toLocaleString()} ${stats.currency}`, hint: 'Successful charges', accent: '#059669' },
+          { label: 'In review', value: String(stats.byStatus.pending ?? 0), hint: 'Awaiting platform', accent: '#d97706' },
+        ].map((stat, i) => (
+          <div key={i} className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
+            <span className="w-[3px] self-stretch rounded-full" style={{ background: stat.accent }} />
+            <div className="flex-1 min-w-0">
+              <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{stat.label}</p>
+              <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{stat.value}</p>
+              <p className="text-[9px] text-gray-400 mt-0.5">{stat.hint}</p>
+            </div>
+          </div>
+        ))}
       </div>
 
       {!payments?.length ? (
-        <Card className="border-0 shadow-sm rounded-3xl bg-white">
-          <CardContent className="p-16 text-center">
-            <Receipt className="w-10 h-10 text-gray-200 mx-auto mb-4" />
-            <p className="text-sm text-gray-400 font-light">No payments yet.</p>
-          </CardContent>
-        </Card>
+        <div className="rounded-xl border border-gray-100 bg-white p-12 text-center">
+          <Receipt className="w-6 h-6 text-gray-200 mx-auto mb-3" />
+          <p className="text-[11px] text-gray-400">No payments yet.</p>
+        </div>
       ) : (
-        <div className="space-y-3">
-          {payments.map((p, i) => {
-            const st = STATUS[p.status] ?? {
-              label: p.status,
-              class: 'bg-gray-50 text-gray-700 border-gray-100',
-            };
-            return (
-              <Card
-                key={p.id}
-                className="border-0 shadow-sm rounded-3xl bg-white overflow-hidden transition-shadow hover:shadow-md"
-              >
-                <CardContent className="p-0">
-                  <div className="flex flex-col lg:flex-row lg:items-stretch">
-                    <div className="lg:w-[220px] px-6 py-5 bg-gradient-to-br from-gray-50/80 to-transparent border-b lg:border-b-0 lg:border-r border-gray-100 flex flex-col justify-center">
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">
-                        Amount
-                      </p>
-                      <p className="text-2xl font-extralight text-gray-900 tabular-nums">
-                        {Number(p.amount).toLocaleString()}{' '}
-                        <span className="text-sm font-medium text-gray-400">{p.currency}</span>
-                      </p>
-                      <Badge
-                        variant="outline"
-                        className={cn('mt-3 w-fit rounded-full text-[10px] font-bold uppercase border', st.class)}
+        <div className="rounded-xl border border-gray-100 bg-white overflow-hidden">
+          <table className="w-full">
+            <thead className="border-b border-gray-100">
+              <tr>
+                {['#', 'Submitted', 'Amount', 'Method', 'License', 'Period', 'Status', 'Submitted by', ''].map(h => (
+                  <th key={h} className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {payments.map((p, i) => {
+                const accent = STATUS_ACCENT[p.status] ?? '#9ca3af';
+                const label = STATUS_LABEL[p.status] ?? p.status;
+                return (
+                  <tr key={p.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                    <td className="px-3 py-2 text-[10px] text-gray-400 tabular-nums">{String(i + 1).padStart(2, '0')}</td>
+                    <td className="px-3 py-2 text-[11px] text-brand-navy/80 tabular-nums whitespace-nowrap">
+                      {format(parseISO(p.created_at), 'MMM d, yyyy')}
+                      <span className="block text-[9px] text-gray-400">{format(parseISO(p.created_at), 'HH:mm')}</span>
+                    </td>
+                    <td className="px-3 py-2 text-[11px] font-semibold text-brand-navy tabular-nums whitespace-nowrap">
+                      {Number(p.amount).toLocaleString()} <span className="text-[9px] text-gray-400 font-normal">{p.currency}</span>
+                    </td>
+                    <td className="px-3 py-2 text-[11px] text-brand-navy/80">{methodLabel(p.payment_method)}</td>
+                    <td className="px-3 py-2 text-[11px] text-brand-navy/80">{licenseLabel(p.license_type)}</td>
+                    <td className="px-3 py-2 text-[11px] text-brand-navy/80 whitespace-nowrap">
+                      {p.period_end
+                        ? `${format(parseISO(p.period_start), 'MMM d')} → ${format(parseISO(p.period_end), 'MMM d, yyyy')}`
+                        : p.license_type !== 'lifetime'
+                        ? `From ${format(parseISO(p.period_start), 'MMM d, yyyy')}`
+                        : '—'
+                      }
+                    </td>
+                    <td className="px-3 py-2">
+                      <span
+                        className="h-5 px-1.5 inline-flex items-center rounded text-[9px] font-semibold"
+                        style={{ background: `${accent}18`, color: accent }}
                       >
-                        {st.label}
-                      </Badge>
-                    </div>
-                    <div className="flex-1 px-6 py-5 flex flex-col justify-center gap-3">
-                      <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-gray-500 font-light">
-                        <span>
-                          <span className="text-gray-400 font-bold uppercase tracking-wider text-[10px] mr-2">
-                            Submitted
-                          </span>
-                          {format(parseISO(p.created_at), 'MMM d, yyyy · HH:mm')}
-                        </span>
-                        <span>
-                          <span className="text-gray-400 font-bold uppercase tracking-wider text-[10px] mr-2">
-                            Method
-                          </span>
-                          {methodLabel(p.payment_method)}
-                        </span>
-                        <span>
-                          <span className="text-gray-400 font-bold uppercase tracking-wider text-[10px] mr-2">
-                            License
-                          </span>
-                          {licenseLabel(p.license_type)}
-                        </span>
-                      </div>
-                      {p.period_end && (
-                        <p className="text-xs text-gray-400 font-light">
-                          Period: {format(parseISO(p.period_start), 'MMM d, yyyy')} —{' '}
-                          {format(parseISO(p.period_end), 'MMM d, yyyy')}
-                        </p>
-                      )}
-                      {!p.period_end && p.license_type !== 'lifetime' && (
-                        <p className="text-xs text-gray-400 font-light">
-                          From {format(parseISO(p.period_start), 'MMM d, yyyy')}
-                        </p>
-                      )}
-                      {p.submitter?.name && (
-                        <p className="text-xs text-gray-400">
-                          By <span className="text-gray-600 font-medium">{p.submitter.name}</span>
-                        </p>
-                      )}
-                      {p.notes && (
-                        <p className="text-xs text-gray-500 font-light line-clamp-2 border-l-2 border-primary/20 pl-3">
-                          {p.notes}
-                        </p>
-                      )}
-                      {p.status === 'denied' && p.denial_message && (
-                        <p className="text-xs text-red-600/90 font-light">{p.denial_message}</p>
-                      )}
+                        {label}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-[10px] text-gray-500">
+                      {p.submitter?.name || '—'}
                       {p.reviewer?.name && p.reviewed_at && (
-                        <p className="text-[10px] uppercase tracking-wider text-gray-400">
-                          Reviewed by {p.reviewer.name} · {format(parseISO(p.reviewed_at), 'MMM d, yyyy')}
-                        </p>
+                        <span className="block text-[9px] text-gray-400">
+                          Rev. {p.reviewer.name}
+                        </span>
                       )}
-                      {p.proof_url && (
-                        <div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-1.5">
+                        {p.notes && (
+                          <span className="h-5 px-1.5 inline-flex items-center rounded text-[9px] text-gray-500 bg-gray-100 max-w-[120px] truncate" title={p.notes}>
+                            {p.notes}
+                          </span>
+                        )}
+                        {p.status === 'denied' && p.denial_message && (
+                          <span className="h-5 px-1.5 inline-flex items-center rounded text-[9px] font-semibold bg-red-50 text-red-700 max-w-[120px] truncate" title={p.denial_message}>
+                            {p.denial_message}
+                          </span>
+                        )}
+                        {p.proof_url && (
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="h-9 px-3 rounded-xl text-xs font-bold gap-1 text-primary hover:text-primary hover:bg-primary/5 -ml-3"
+                            className="h-6 px-2 rounded text-[9px] font-semibold gap-1 text-brand-navy/60 hover:text-brand-navy hover:bg-gray-100"
                             onClick={() => openProof(p)}
                           >
-                            <FileImage className="w-3.5 h-3.5" />
+                            <FileImage className="w-3 h-3" />
                             Proof
-                            <ChevronRight className="w-3.5 h-3.5 opacity-50" />
+                            <ChevronRight className="w-3 h-3 opacity-50" />
                           </Button>
-                        </div>
-                      )}
-                    </div>
-                    <div className="hidden xl:flex w-12 items-center justify-center border-l border-gray-50 text-[10px] font-bold text-gray-300">
-                      {String(i + 1).padStart(2, '0')}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
       <Dialog open={!!proofFor} onOpenChange={(o) => !o && setProofFor(null)}>
-        <DialogContent className="sm:max-w-lg rounded-3xl border-0 shadow-2xl">
+        <DialogContent className="sm:max-w-lg rounded-xl border border-gray-100 shadow-lg">
           <DialogHeader>
-            <DialogTitle className="font-light text-xl">Payment proof</DialogTitle>
+            <DialogTitle className="text-[13px] font-semibold text-brand-navy">Payment proof</DialogTitle>
           </DialogHeader>
-          <div className="relative rounded-2xl overflow-hidden bg-gray-50 min-h-[200px] flex items-center justify-center">
-            {proofLoading && <Loader2 className="w-8 h-8 animate-spin text-primary/40" />}
+          <div className="relative rounded-xl overflow-hidden bg-gray-50 min-h-[180px] flex items-center justify-center">
+            {proofLoading && <Loader2 className="w-5 h-5 animate-spin text-brand-navy/40" />}
             {!proofLoading && signedUrl && (
-              <img src={signedUrl} alt="Payment proof" className="max-h-[70vh] w-full object-contain" />
+              <img src={signedUrl} alt="Payment proof" className="max-h-[65vh] w-full object-contain" />
             )}
             {!proofLoading && !signedUrl && proofFor?.proof_url && (
-              <p className="text-sm text-gray-400 p-6">Could not load file.</p>
+              <p className="text-[11px] text-gray-400 p-6">Could not load file.</p>
             )}
           </div>
-          <Button variant="ghost" size="sm" className="rounded-xl gap-2" onClick={() => setProofFor(null)}>
-            <X className="w-4 h-4" />
+          <Button variant="ghost" size="sm" className="h-8 rounded-md text-[11px] font-semibold gap-1.5" onClick={() => setProofFor(null)}>
+            <X className="w-3.5 h-3.5" />
             Close
           </Button>
         </DialogContent>
       </Dialog>
     </div>
   );
-}
-
-function StatTile({ label, value, hint }: { label: string; value: string; hint: string }) {
-  return (
-    <Card className="border-0 shadow-sm rounded-3xl bg-white">
-      <CardContent className="p-5">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">{label}</p>
-        <p className="text-xl font-light text-gray-900 tabular-nums">{value}</p>
-        <p className="text-[10px] text-gray-400 mt-2 font-light">{hint}</p>
-      </CardContent>
-    </Card>
-  );
-}
+};
 
 function PaymentsHeader() {
   return (
-    <div className="relative">
-      <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-      <div className="relative p-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Payments</h1>
-            <p className="text-gray-500 font-light">Business payments and billing</p>
-          </div>
-          <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-primary/10 items-center justify-center">
-            <Wallet className="w-6 h-6 text-primary" />
-          </div>
+    <header className="space-y-2.5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div>
+          <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Billing History</h1>
+          <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Submissions and renewals for your workspace</p>
         </div>
       </div>
-    </div>
+    </header>
   );
 }
 

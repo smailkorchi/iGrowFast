@@ -13,15 +13,17 @@ export interface SourceStat {
   delivered: number;
 }
 
+// Muted warm tones on an Anthropic palette — each source gets a soft wash with
+// ink-tinted text. Keeps visual weight consistent with the rest of the dashboard.
 const SOURCE_COLORS: Record<string, string> = {
-  facebook: 'bg-blue-50 text-blue-700',
-  instagram: 'bg-pink-50 text-pink-700',
-  tiktok: 'bg-slate-100 text-slate-800',
-  whatsapp: 'bg-emerald-50 text-emerald-700',
-  'phone call': 'bg-sky-50 text-sky-700',
-  connaissance: 'bg-amber-50 text-amber-700',
-  reorder: 'bg-teal-50 text-teal-700',
-  other: 'bg-gray-100 text-gray-600',
+  facebook: 'bg-ant-blue/15 text-ant-ink',
+  instagram: 'bg-ant-orange/15 text-ant-ink',
+  tiktok: 'bg-ant-ink/[0.06] text-ant-ink',
+  whatsapp: 'bg-ant-green/15 text-ant-ink',
+  'phone call': 'bg-ant-blue/10 text-ant-ink',
+  connaissance: 'bg-ant-orange/[0.12] text-ant-ink',
+  reorder: 'bg-ant-green/10 text-ant-ink',
+  other: 'bg-ant-line-soft text-ant-muted',
 };
 
 interface SourcePillsProps {
@@ -38,7 +40,7 @@ export function SourcePills({ sources, limit = 0, className, emptyText = 'No sou
   const overflow = limit > 0 ? sorted.length - visible.length : 0;
 
   if (sorted.length === 0) {
-    return <span className="text-[9px] text-gray-400 italic">{emptyText}</span>;
+    return <span className="font-serif-display text-[10px] text-ant-muted italic">{emptyText}</span>;
   }
 
   return (
@@ -52,30 +54,30 @@ export function SourcePills({ sources, limit = 0, className, emptyText = 'No sou
               <TooltipTrigger asChild>
                 <span
                   className={cn(
-                    'inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full cursor-help',
+                    'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full cursor-help capitalize',
                     SOURCE_COLORS[s.source] || SOURCE_COLORS.other,
                   )}
                 >
-                  {s.source}: {s.assigned}
+                  {s.source}: <span className="font-semibold tabular-nums">{s.assigned}</span>
                 </span>
               </TooltipTrigger>
               <TooltipContent className="text-[11px] space-y-0.5">
-                <div className="font-bold capitalize">{s.source}</div>
-                <div className="text-gray-500">Assigned: <span className="font-semibold text-brand-navy">{s.assigned}</span></div>
-                <div className="text-gray-500">
-                  Confirmed: <span className="font-semibold text-brand-navy">{s.confirmed}</span>
-                  <span className="ml-1 text-emerald-600">({confRate.toFixed(1)}%)</span>
+                <div className="font-semibold capitalize">{s.source}</div>
+                <div className="text-ant-muted">Assigned: <span className="font-semibold text-ant-ink">{s.assigned}</span></div>
+                <div className="text-ant-muted">
+                  Confirmed: <span className="font-semibold text-ant-ink">{s.confirmed}</span>
+                  <span className="ml-1 text-ant-green">({confRate.toFixed(1)}%)</span>
                 </div>
-                <div className="text-gray-500">
-                  Delivered: <span className="font-semibold text-brand-navy">{s.delivered}</span>
-                  <span className="ml-1 text-emerald-600">({delRate.toFixed(1)}%)</span>
+                <div className="text-ant-muted">
+                  Delivered: <span className="font-semibold text-ant-ink">{s.delivered}</span>
+                  <span className="ml-1 text-ant-green">({delRate.toFixed(1)}%)</span>
                 </div>
               </TooltipContent>
             </Tooltip>
           );
         })}
         {overflow > 0 && (
-          <span className="inline-flex items-center text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">
+          <span className="inline-flex items-center text-[10px] font-medium px-2 py-0.5 rounded-full bg-ant-line-soft text-ant-muted">
             +{overflow} more
           </span>
         )}

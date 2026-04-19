@@ -523,61 +523,97 @@ const AdsHistory = () => {
         return 'bg-red-50 border-red-200';
     };
 
+    // KPI totals
+    const totalSpend = filteredHistory?.reduce((s: number, h: any) => s + Number(h.amount || 0), 0) || 0;
+    const platformTotals = (filteredHistory || []).reduce((acc: Record<string, number>, h: any) => {
+        const key = h.method || 'Other';
+        acc[key] = (acc[key] || 0) + Number(h.amount || 0);
+        return acc;
+    }, {} as Record<string, number>);
+    const topPlatforms = Object.entries(platformTotals).sort((a, b) => b[1] - a[1]).slice(0, 3);
+
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
             {/* Header */}
-            <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-                <div className="relative p-8">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div>
-                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Ads Performance</h1>
-                            <p className="text-gray-500 font-light">Auto-calculated metrics from real order data.</p>
+            <header className="space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Ads Performance</h1>
+                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Auto-calculated metrics from real order data</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="relative">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                            <Input
+                                placeholder="Search campaigns..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-7 h-8 rounded-md border-gray-200 bg-white text-[11px] w-52"
+                            />
                         </div>
-                        <div className="flex flex-col sm:flex-row gap-3 items-center">
-                            <div className="relative group sm:w-80">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
-                                <Input
-                                    placeholder="Search campaigns..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="pl-11 h-12 rounded-2xl border-gray-100 bg-white"
-                                />
-                            </div>
-                            <Button
-                                onClick={() => openUpsert()}
-                                className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group flex items-center gap-2 w-full sm:w-auto"
-                            >
-                                <Plus className="w-5 h-5" />
-                                Log Campaign
-                            </Button>
-                        </div>
+                        <Button
+                            onClick={() => openUpsert()}
+                            className="bg-brand-navy hover:bg-brand-navy/90 text-white h-8 px-3 rounded-md text-[11px] font-semibold gap-1.5 shrink-0"
+                        >
+                            <Plus className="w-3.5 h-3.5" /> Log Campaign
+                        </Button>
                     </div>
                 </div>
+            </header>
+
+            {/* KPI strip */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <div className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
+                    <span className="w-[3px] self-stretch rounded-full" style={{ background: '#ef4444' }} />
+                    <div className="flex-1 min-w-0">
+                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Total Spend</p>
+                        <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{fmtNum(totalSpend)} DH</p>
+                    </div>
+                </div>
+                {topPlatforms.map(([platform, spend], i) => {
+                    const accent = i === 0 ? '#d97706' : i === 1 ? '#059669' : '#3b5e5e';
+                    return (
+                        <div key={platform} className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
+                            <span className="w-[3px] self-stretch rounded-full" style={{ background: accent }} />
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                    <span className="text-[9px] text-gray-400">{getPlatformIcon(platform)}</span>
+                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400 truncate">{platform}</p>
+                                </div>
+                                <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{fmtNum(spend)} DH</p>
+                            </div>
+                        </div>
+                    );
+                })}
+                {topPlatforms.length < 3 && Array.from({ length: 3 - topPlatforms.length }).map((_, i) => (
+                    <div key={`empty-${i}`} className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5 opacity-40">
+                        <span className="w-[3px] self-stretch rounded-full bg-gray-200" />
+                        <div className="flex-1 min-w-0">
+                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">—</p>
+                            <p className="text-[18px] font-semibold text-gray-200 mt-1">—</p>
+                        </div>
+                    </div>
+                ))}
             </div>
 
-            {/* Grid */}
+            {/* Campaign cards */}
             {isLoading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
                     {Array.from({ length: 6 }).map((_, i) => (
-                        <Skeleton key={i} className="h-[240px] rounded-[32px] bg-brand-navy/5" />
+                        <Skeleton key={i} className="h-44 w-full rounded-xl" />
                     ))}
                 </div>
             ) : filteredHistory?.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-32 space-y-6 bg-white/50 backdrop-blur-sm rounded-[40px] shadow-sm border border-brand-navy/[0.03]">
-                    <div className="w-24 h-24 bg-brand-navy/[0.04] rounded-full flex items-center justify-center text-brand-navy/20">
-                        <Megaphone className="w-12 h-12" />
-                    </div>
-                    <div className="text-center">
-                        <h3 className="text-2xl font-bold text-brand-navy">No campaigns logged</h3>
-                        <p className="text-muted-foreground max-w-xs mx-auto">Start tracking your ads to see auto-calculated performance metrics.</p>
-                    </div>
-                    <Button variant="outline" onClick={() => openUpsert()} className="rounded-xl font-bold hover:bg-brand-navy hover:text-brand-white transition-all">
-                        Log Your First Campaign
+                <div className="border border-dashed border-gray-200 rounded-xl py-8 flex flex-col items-center justify-center text-center gap-2">
+                    <Megaphone className="w-5 h-5 text-gray-300" />
+                    <p className="text-[11px] font-semibold text-brand-navy">No campaigns logged</p>
+                    <p className="text-[10px] text-gray-400">Start tracking ads to see auto-calculated performance metrics.</p>
+                    <Button variant="outline" onClick={() => openUpsert()} className="h-7 px-3 rounded-md text-[11px] font-semibold mt-1">
+                        Log First Campaign
                     </Button>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
                     {filteredHistory?.map((h: any) => {
                         const m = getCampaignMetrics(h);
                         const canEdit = canEditRow(h);
@@ -585,120 +621,95 @@ const AdsHistory = () => {
                         return (
                             <Card
                                 key={h.id}
-                                className="group relative overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-2xl transition-all duration-300 rounded-[32px] cursor-pointer"
+                                className="border border-gray-100 shadow-none rounded-xl cursor-pointer hover:border-gray-200 transition-colors"
                                 onClick={() => openDetails(h)}
                             >
-                                <CardContent className="p-8 space-y-5">
+                                <CardContent className="p-3.5 space-y-3">
                                     <div className="flex justify-between items-start">
-                                        <div className="flex gap-4 items-start">
+                                        <div className="flex gap-2.5 items-start">
                                             {h.products?.image_url ? (
-                                                <img src={h.products.image_url} alt={h.products.name || 'product'} className="w-14 h-14 rounded-[18px] object-cover border border-brand-navy/5 shadow-sm shrink-0" />
+                                                <img src={h.products.image_url} alt={h.products.name || 'product'} className="w-10 h-10 rounded-lg object-cover border border-gray-100 shrink-0" />
                                             ) : (
-                                                <div className="w-14 h-14 bg-brand-navy/5 border border-brand-navy/5 rounded-[18px] flex items-center justify-center shadow-sm shrink-0">
-                                                    <Package className="w-5 h-5 text-brand-navy/20" />
+                                                <div className="w-10 h-10 bg-gray-50 border border-gray-100 rounded-lg flex items-center justify-center shrink-0">
+                                                    <Package className="w-4 h-4 text-gray-300" />
                                                 </div>
                                             )}
-                                            <div className="space-y-1">
-                                                <div className="flex items-center gap-1.5 text-brand-navy/60">
+                                            <div>
+                                                <div className="flex items-center gap-1 text-brand-navy/60 mb-0.5">
                                                     {getPlatformIcon(h.method)}
-                                                    <p className="text-[10px] font-black uppercase tracking-widest leading-none mt-0.5">{h.method}</p>
+                                                    <Badge className="h-5 px-1.5 text-[9px] bg-gray-100 text-gray-500 border-none font-semibold">{h.method}</Badge>
                                                 </div>
-                                                <h3 className="text-lg leading-tight font-bold text-brand-navy line-clamp-1 max-w-[180px]">{h.products?.name}</h3>
+                                                <h3 className="text-[12px] font-semibold text-brand-navy line-clamp-1 max-w-[160px]">{h.products?.name}</h3>
+                                                {!isMediaBuyerView && (
+                                                    <span className="text-[10px] text-gray-400 truncate block max-w-[160px]">
+                                                        {creator?.name || (h.created_by ? 'Unknown user' : 'Admin (legacy)')}
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                         {canEdit ? (
                                             <DropdownMenu>
                                                 <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                                                    <Button variant="ghost" size="icon" className="rounded-xl hover:bg-brand-navy/5">
-                                                        <MoreVertical className="w-5 h-5" />
+                                                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md hover:bg-gray-100 text-gray-400">
+                                                        <MoreVertical className="w-3.5 h-3.5" />
                                                     </Button>
                                                 </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[160px]">
-                                                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openUpsert(h); }} className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3">
-                                                        <Edit2 className="w-4 h-4" />
-                                                        <span className="font-bold">Edit</span>
+                                                <DropdownMenuContent align="end" className="rounded-lg border border-gray-100 shadow-sm p-1 min-w-[130px]">
+                                                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openUpsert(h); }} className="rounded-md px-2 py-1.5 cursor-pointer text-[11px] font-medium gap-2">
+                                                        <Edit2 className="w-3.5 h-3.5 text-gray-400" /> Edit
                                                     </DropdownMenuItem>
-                                                    <DropdownMenuSeparator />
-                                                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setHistoryToDelete(h); }} className="rounded-xl p-3 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-3">
-                                                        <Trash2 className="w-4 h-4" />
-                                                        <span className="font-bold">Delete</span>
+                                                    <DropdownMenuSeparator className="my-1" />
+                                                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setHistoryToDelete(h); }} className="rounded-md px-2 py-1.5 cursor-pointer text-[11px] font-medium gap-2 text-red-500">
+                                                        <Trash2 className="w-3.5 h-3.5" /> Delete
                                                     </DropdownMenuItem>
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
                                         ) : (
                                             <div
-                                                className="flex items-center gap-1.5 px-2.5 h-8 rounded-xl bg-brand-navy/[0.04] text-brand-navy/50 shrink-0"
-                                                title="Created by a media buyer — read only"
+                                                className="flex items-center gap-1 px-1.5 h-5 rounded bg-gray-100 text-gray-400 shrink-0"
+                                                title="Read only"
                                                 onClick={(e) => e.stopPropagation()}
                                             >
-                                                <Lock className="w-3 h-3" />
-                                                <span className="text-[9px] font-black uppercase tracking-wider">Read only</span>
+                                                <Lock className="w-2.5 h-2.5" />
+                                                <span className="text-[9px] font-semibold uppercase">Read only</span>
                                             </div>
                                         )}
                                     </div>
 
-                                    {/* Created by (admin view only — media buyer sees only their own) */}
-                                    {!isMediaBuyerView && (
-                                        <div className="flex items-center gap-2 -mt-1">
-                                            <div className="w-5 h-5 rounded-full bg-brand-navy/5 border border-brand-navy/10 flex items-center justify-center overflow-hidden shrink-0">
-                                                {creator?.avatar_url ? (
-                                                    <img src={creator.avatar_url} alt="" className="w-full h-full object-cover" />
-                                                ) : (
-                                                    <UserIcon className="w-3 h-3 text-brand-navy/40" />
-                                                )}
+                                    <div className="grid grid-cols-4 gap-2 pt-1">
+                                        {[
+                                            { label: 'Spend', value: fmtNum(Number(h.amount)), color: 'text-brand-navy' },
+                                            { label: 'Orders', value: m?.totalOrders ?? '—', color: 'text-brand-navy' },
+                                            { label: 'Delivered', value: m?.deliveredOrders ?? '—', color: 'text-emerald-600' },
+                                            { label: 'CPD', value: m && m.cpd > 0 ? fmtDec(m.cpd) : '—', color: m && m.cpd > 0 ? getHealthColor(m.roas, { green: 1, amber: 0.5 }) : 'text-gray-300' },
+                                        ].map((item) => (
+                                            <div key={item.label} className="space-y-0.5">
+                                                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">{item.label}</p>
+                                                <p className={cn("text-[13px] font-semibold tabular-nums", item.color)}>{item.value}</p>
                                             </div>
-                                            <span className="text-[10px] font-bold text-brand-navy/50 truncate">
-                                                {creator?.name || (h.created_by ? 'Unknown user' : 'Admin (legacy)')}
-                                            </span>
-                                            {creator?.role && (
-                                                <span className="text-[8px] font-black uppercase tracking-widest text-brand-navy/30 bg-brand-navy/[0.04] px-1.5 py-0.5 rounded-md">
-                                                    {creator.role.replace(/_/g, ' ')}
-                                                </span>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    <div className="grid grid-cols-4 gap-3">
-                                        <div className="space-y-0.5">
-                                            <p className="text-[9px] font-black uppercase tracking-widest text-brand-navy/40">Spend</p>
-                                            <p className="text-lg font-black text-brand-navy">{fmtNum(Number(h.amount))}</p>
-                                        </div>
-                                        <div className="space-y-0.5">
-                                            <p className="text-[9px] font-black uppercase tracking-widest text-brand-navy/40">Orders</p>
-                                            <p className="text-lg font-black text-brand-navy">{m?.totalOrders ?? '—'}</p>
-                                        </div>
-                                        <div className="space-y-0.5">
-                                            <p className="text-[9px] font-black uppercase tracking-widest text-emerald-600/60">Delivered</p>
-                                            <p className="text-lg font-black text-emerald-600">{m?.deliveredOrders ?? '—'}</p>
-                                        </div>
-                                        <div className="space-y-0.5">
-                                            <p className="text-[9px] font-black uppercase tracking-widest text-brand-navy/40">CPD</p>
-                                            <p className={cn("text-lg font-black", m && m.cpd > 0 ? getHealthColor(m.roas, { green: 1, amber: 0.5 }) : 'text-brand-navy/30')}>
-                                                {m && m.cpd > 0 ? fmtDec(m.cpd) : '—'}
-                                            </p>
-                                        </div>
+                                        ))}
                                     </div>
 
                                     {m && m.totalOrders > 0 && (
-                                        <div className="space-y-1.5">
-                                            <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest text-brand-navy/40">
+                                        <div className="space-y-1">
+                                            <div className="flex items-center justify-between text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">
                                                 <span>Funnel</span>
                                                 <span>{m.fulfillmentRate.toFixed(0)}% fulfilled</span>
                                             </div>
-                                            <div className="h-1.5 bg-brand-navy/5 rounded-full overflow-hidden flex">
-                                                <div className="bg-emerald-500 rounded-full transition-all" style={{ width: `${m.fulfillmentRate}%` }} />
-                                                <div className="bg-blue-400 rounded-full transition-all" style={{ width: `${Math.max(0, m.confirmRate - m.fulfillmentRate)}%` }} />
+                                            <div className="h-1 bg-gray-100 rounded-full overflow-hidden flex">
+                                                <div className="bg-emerald-500 rounded-full" style={{ width: `${m.fulfillmentRate}%` }} />
+                                                <div className="bg-blue-300 rounded-full" style={{ width: `${Math.max(0, m.confirmRate - m.fulfillmentRate)}%` }} />
                                             </div>
                                         </div>
                                     )}
 
-                                    <div className="flex items-center justify-between pt-3 border-t border-brand-navy/5">
-                                        <div className="flex items-center gap-2 text-brand-navy/60">
-                                            <Calendar className="w-3.5 h-3.5" />
-                                            <span className="text-xs font-bold">{format(new Date(h.start_date), 'MMM d')} – {format(new Date(h.end_date), 'MMM d')}</span>
+                                    <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                                        <div className="flex items-center gap-1.5 text-gray-400">
+                                            <Calendar className="w-3 h-3" />
+                                            <span className="text-[10px] font-medium">{format(new Date(h.start_date), 'MMM d')} – {format(new Date(h.end_date), 'MMM d')}</span>
                                         </div>
                                         {m && m.profit !== 0 && (
-                                            <div className={cn("flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase", m.profit > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500')}>
+                                            <div className={cn("flex items-center gap-0.5 px-1.5 h-5 rounded text-[9px] font-semibold", m.profit > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500')}>
                                                 {m.profit > 0 ? <ArrowUpRight className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
                                                 {m.profit > 0 ? '+' : ''}{fmtNum(m.profit)} DH
                                             </div>
@@ -713,35 +724,35 @@ const AdsHistory = () => {
 
             {/* Upsert Modal */}
             <Dialog open={isUpsertOpen} onOpenChange={setIsUpsertOpen}>
-                <DialogContent className="max-w-xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden">
+                <DialogContent className="max-w-md border border-gray-100 rounded-xl shadow-none p-0 overflow-hidden">
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit(handleUpsert)}>
-                            <DialogHeader className="p-8 pb-4">
-                                <DialogTitle className="text-3xl font-bold text-brand-navy">
+                            <DialogHeader className="px-4 pt-4 pb-3 border-b border-gray-100">
+                                <DialogTitle className="text-[13px] font-semibold text-brand-navy">
                                     {editingHistory ? 'Update Campaign' : 'Log New Campaign'}
                                 </DialogTitle>
-                                <DialogDescription className="text-muted-foreground text-lg">
-                                    Enter platform, product, date range and spend. Metrics auto-calculate from orders.
+                                <DialogDescription className="text-[10px] text-gray-400">
+                                    Platform, product, date range and spend. Metrics auto-calculate from orders.
                                 </DialogDescription>
                             </DialogHeader>
 
-                            <div className="p-8 pt-4 space-y-6 max-h-[70vh] overflow-y-auto">
-                                <div className="grid grid-cols-2 gap-6">
+                            <div className="px-4 py-3 space-y-3 max-h-[70vh] overflow-y-auto">
+                                <div className="grid grid-cols-2 gap-3">
                                     <FormField
                                         control={form.control}
                                         name="product_id"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Product</FormLabel>
+                                                <FormLabel className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Product</FormLabel>
                                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                                                     <FormControl>
-                                                        <SelectTrigger className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner">
+                                                        <SelectTrigger className="h-8 rounded-md border-gray-200 text-[11px] font-medium text-brand-navy">
                                                             <SelectValue placeholder="Select Product" />
                                                         </SelectTrigger>
                                                     </FormControl>
-                                                    <SelectContent className="rounded-2xl border-none shadow-2xl p-2 min-w-[200px]">
+                                                    <SelectContent className="rounded-lg border border-gray-100 shadow-sm">
                                                         {products?.map((p) => (
-                                                            <SelectItem key={p.id} value={p.id} className="rounded-xl p-3 font-bold text-brand-navy focus:bg-brand-navy focus:text-brand-white">
+                                                            <SelectItem key={p.id} value={p.id} className="text-[11px]">
                                                                 {p.name}
                                                             </SelectItem>
                                                         ))}
@@ -756,16 +767,16 @@ const AdsHistory = () => {
                                         name="method"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Platform</FormLabel>
+                                                <FormLabel className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Platform</FormLabel>
                                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                                                     <FormControl>
-                                                        <SelectTrigger className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner">
+                                                        <SelectTrigger className="h-8 rounded-md border-gray-200 text-[11px] font-medium text-brand-navy">
                                                             <SelectValue placeholder="Select Platform" />
                                                         </SelectTrigger>
                                                     </FormControl>
-                                                    <SelectContent className="rounded-2xl border-none shadow-2xl p-2 min-w-[200px]">
+                                                    <SelectContent className="rounded-lg border border-gray-100 shadow-sm">
                                                         {PLATFORMS.map((p) => (
-                                                            <SelectItem key={p} value={p} className="rounded-xl p-3 font-bold text-brand-navy focus:bg-brand-navy focus:text-brand-white">
+                                                            <SelectItem key={p} value={p} className="text-[11px]">
                                                                 {p}
                                                             </SelectItem>
                                                         ))}
@@ -782,38 +793,38 @@ const AdsHistory = () => {
                                     name="amount"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Total Ad Spend (DH)</FormLabel>
+                                            <FormLabel className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Total Ad Spend (DH)</FormLabel>
                                             <FormControl>
-                                                <Input type="number" step="0.01" placeholder="0" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-lg font-black text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
+                                                <Input type="number" step="0.01" placeholder="0" {...field} className="h-8 rounded-md border-gray-200 text-[11px] font-medium text-brand-navy" />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
                                     )}
                                 />
 
-                                <div className="grid grid-cols-2 gap-6">
+                                <div className="grid grid-cols-2 gap-3">
                                     <FormField
                                         control={form.control}
                                         name="start_date"
                                         render={({ field }) => (
                                             <FormItem className="flex flex-col">
-                                                <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70 mb-2">Start Date</FormLabel>
+                                                <FormLabel className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 mb-1">Start Date</FormLabel>
                                                 <Popover>
                                                     <PopoverTrigger asChild>
                                                         <FormControl>
                                                             <Button
                                                                 variant={"outline"}
                                                                 className={cn(
-                                                                    "h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-left font-bold text-brand-navy shadow-inner",
-                                                                    !field.value && "text-muted-foreground"
+                                                                    "h-8 rounded-md border-gray-200 text-[11px] font-medium text-brand-navy text-left justify-start",
+                                                                    !field.value && "text-gray-400"
                                                                 )}
                                                             >
-                                                                {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                                                                <Calendar className="ml-auto h-4 w-4 opacity-50" />
+                                                                {field.value ? format(field.value, "PP") : <span>Pick a date</span>}
+                                                                <Calendar className="ml-auto h-3 w-3 opacity-50" />
                                                             </Button>
                                                         </FormControl>
                                                     </PopoverTrigger>
-                                                    <PopoverContent className="w-auto p-0 rounded-3xl overflow-hidden shadow-2xl border-none" align="start">
+                                                    <PopoverContent className="w-auto p-0 rounded-lg overflow-hidden shadow-sm border border-gray-100" align="start">
                                                         <CalendarComponent mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
                                                     </PopoverContent>
                                                 </Popover>
@@ -826,23 +837,23 @@ const AdsHistory = () => {
                                         name="end_date"
                                         render={({ field }) => (
                                             <FormItem className="flex flex-col">
-                                                <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70 mb-2">End Date</FormLabel>
+                                                <FormLabel className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 mb-1">End Date</FormLabel>
                                                 <Popover>
                                                     <PopoverTrigger asChild>
                                                         <FormControl>
                                                             <Button
                                                                 variant={"outline"}
                                                                 className={cn(
-                                                                    "h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-left font-bold text-brand-navy shadow-inner",
-                                                                    !field.value && "text-muted-foreground"
+                                                                    "h-8 rounded-md border-gray-200 text-[11px] font-medium text-brand-navy text-left justify-start",
+                                                                    !field.value && "text-gray-400"
                                                                 )}
                                                             >
-                                                                {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                                                                <Calendar className="ml-auto h-4 w-4 opacity-50" />
+                                                                {field.value ? format(field.value, "PP") : <span>Pick a date</span>}
+                                                                <Calendar className="ml-auto h-3 w-3 opacity-50" />
                                                             </Button>
                                                         </FormControl>
                                                     </PopoverTrigger>
-                                                    <PopoverContent className="w-auto p-0 rounded-3xl overflow-hidden shadow-2xl border-none" align="start">
+                                                    <PopoverContent className="w-auto p-0 rounded-lg overflow-hidden shadow-sm border border-gray-100" align="start">
                                                         <CalendarComponent mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
                                                     </PopoverContent>
                                                 </Popover>
@@ -853,9 +864,9 @@ const AdsHistory = () => {
                                 </div>
                             </div>
 
-                            <DialogFooter className="p-8 pt-4">
-                                <Button type="submit" disabled={upsertMutation.isPending} className="bg-brand-navy text-brand-white rounded-2xl h-14 w-full font-bold text-lg shadow-xl shadow-brand-navy/30 transition-all hover:scale-[1.02]">
-                                    {upsertMutation.isPending && <Loader2 className="w-5 h-5 mr-2 animate-spin" />}
+                            <DialogFooter className="px-4 pb-4 pt-3 border-t border-gray-100">
+                                <Button type="submit" disabled={upsertMutation.isPending} className="bg-brand-navy text-brand-white rounded-md h-8 px-4 text-[11px] font-semibold w-full">
+                                    {upsertMutation.isPending && <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />}
                                     {editingHistory ? 'Update Record' : 'Save Campaign'}
                                 </Button>
                             </DialogFooter>
@@ -866,195 +877,182 @@ const AdsHistory = () => {
 
             {/* Details Modal */}
             <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-                <DialogContent className="max-w-4xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+                <DialogContent className="max-w-3xl border border-gray-100 rounded-xl shadow-none p-0 overflow-hidden max-h-[90vh] flex flex-col">
                     {selectedHistory && (() => {
                         const m = getCampaignMetrics(selectedHistory);
                         return (
                             <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
                                 {/* Header */}
-                                <DialogHeader className="p-10 pb-6 bg-brand-navy text-brand-white relative overflow-hidden shrink-0">
-                                    <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-32 -mt-32" />
-                                    <div className="absolute bottom-0 left-0 w-48 h-48 bg-brand-blue/10 rounded-full blur-3xl -ml-24 -mb-24" />
-
-                                    <div className="relative z-10 flex flex-col sm:flex-row items-center sm:items-start gap-6 mt-2 text-center sm:text-left">
+                                <DialogHeader className="px-4 pt-4 pb-3 border-b border-gray-100 shrink-0">
+                                    <div className="flex items-center gap-3">
                                         {selectedHistory.products?.image_url ? (
-                                            <img src={selectedHistory.products.image_url} alt={selectedHistory.products.name} className="w-20 h-20 rounded-[24px] object-cover border-4 border-white/10 shadow-xl" />
+                                            <img src={selectedHistory.products.image_url} alt={selectedHistory.products.name} className="w-10 h-10 rounded-lg object-cover border border-gray-100 shrink-0" />
                                         ) : (
-                                            <div className="w-20 h-20 bg-white/10 border-4 border-white/5 rounded-[24px] flex items-center justify-center shadow-xl">
-                                                <Package className="w-8 h-8 text-brand-white/40" />
+                                            <div className="w-10 h-10 bg-gray-50 border border-gray-100 rounded-lg flex items-center justify-center shrink-0">
+                                                <Package className="w-4 h-4 text-gray-300" />
                                             </div>
                                         )}
-                                        <div className="space-y-2 flex-1 pt-1">
-                                            <div className="flex items-center justify-center sm:justify-start gap-2">
-                                                <span className="flex items-center gap-1.5 px-3 py-1 bg-white/10 rounded-full text-[10px] font-black uppercase tracking-[0.2em]">
-                                                    {getPlatformIcon(selectedHistory.method)}
-                                                    <span>{selectedHistory.method}</span>
-                                                </span>
-                                                <span className="px-3 py-1 bg-brand-white text-brand-navy rounded-full text-[10px] font-black uppercase tracking-[0.2em]">{selectedHistory.products?.code}</span>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-1.5 mb-0.5">
+                                                <Badge className="h-5 px-1.5 text-[9px] bg-gray-100 text-gray-500 border-none font-semibold">{selectedHistory.method}</Badge>
+                                                {selectedHistory.products?.code && (
+                                                    <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">{selectedHistory.products.code}</span>
+                                                )}
                                             </div>
-                                            <DialogTitle className="text-3xl font-black">{selectedHistory.products?.name}</DialogTitle>
-                                            <p className="text-brand-white/60 font-medium text-sm">{format(new Date(selectedHistory.start_date), 'MMM d')} – {format(new Date(selectedHistory.end_date), 'MMM d, yyyy')} ({m?.days} days)</p>
+                                            <DialogTitle className="text-[13px] font-semibold text-brand-navy truncate">{selectedHistory.products?.name}</DialogTitle>
+                                            <p className="text-[10px] text-gray-400">{format(new Date(selectedHistory.start_date), 'MMM d')} – {format(new Date(selectedHistory.end_date), 'MMM d, yyyy')} · {m?.days} days</p>
                                         </div>
+                                        <Button onClick={() => setIsDetailsOpen(false)} variant="ghost" size="icon" className="h-7 w-7 rounded-md hover:bg-gray-100 text-gray-400 shrink-0">
+                                            <span className="text-[11px] font-semibold">✕</span>
+                                        </Button>
                                     </div>
                                 </DialogHeader>
 
-                                <div className="p-8 space-y-8 bg-brand-white">
-                                    {/* Top Row: 4 Big Numbers */}
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                        <div className="p-5 rounded-[24px] bg-brand-navy/[0.03] space-y-1">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Ad Spend</p>
-                                            <p className="text-3xl font-black text-brand-navy">{fmtNum(Number(selectedHistory.amount))}<span className="text-sm ml-1 font-bold text-brand-navy/40">DH</span></p>
-                                        </div>
-                                        <div className="p-5 rounded-[24px] bg-brand-navy/[0.03] space-y-1">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Orders</p>
-                                            <p className="text-3xl font-black text-brand-navy">{m?.totalOrders ?? 0}</p>
-                                        </div>
-                                        <div className="p-5 rounded-[24px] bg-blue-50 space-y-1">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-blue-600/60">Confirmed</p>
-                                            <p className="text-3xl font-black text-blue-600">{m?.confirmedOrders ?? 0}</p>
-                                        </div>
-                                        <div className="p-5 rounded-[24px] bg-emerald-50 space-y-1">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600/60">Delivered</p>
-                                            <p className="text-3xl font-black text-emerald-600">{m?.deliveredOrders ?? 0}</p>
-                                        </div>
+                                <div className="p-4 space-y-4">
+                                    {/* Top Row: 4 KPI tiles */}
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                        {[
+                                            { label: 'Ad Spend', value: `${fmtNum(Number(selectedHistory.amount))} DH`, accent: 'bg-red-500' },
+                                            { label: 'Orders', value: String(m?.totalOrders ?? 0), accent: 'bg-brand-navy' },
+                                            { label: 'Confirmed', value: String(m?.confirmedOrders ?? 0), accent: 'bg-blue-500' },
+                                            { label: 'Delivered', value: String(m?.deliveredOrders ?? 0), accent: 'bg-emerald-500' },
+                                        ].map((tile) => (
+                                            <Card key={tile.label} className="border border-gray-100 shadow-none rounded-xl relative overflow-hidden">
+                                                <span className={`absolute left-0 top-0 bottom-0 w-[3px] ${tile.accent} rounded-l-xl`} />
+                                                <CardContent className="p-2.5 pl-4">
+                                                    <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 mb-0.5">{tile.label}</p>
+                                                    <p className="text-[15px] font-semibold tabular-nums text-brand-navy">{tile.value}</p>
+                                                </CardContent>
+                                            </Card>
+                                        ))}
                                     </div>
 
                                     {/* Funnel Progress */}
                                     {m && m.totalOrders > 0 && (
-                                        <div className="space-y-3">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40 flex items-center gap-2">
-                                                <BarChart3 className="w-3.5 h-3.5" /> Conversion Funnel
+                                        <div className="bg-gray-50 rounded-xl p-3 space-y-2">
+                                            <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 flex items-center gap-1.5">
+                                                <BarChart3 className="w-3 h-3" /> Conversion Funnel
                                             </p>
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex items-center gap-3">
                                                 <div className="flex-1 space-y-1">
-                                                    <div className="flex justify-between text-[10px] font-bold">
-                                                        <span className="text-brand-navy/60">Orders → Confirmed</span>
+                                                    <div className="flex justify-between text-[10px] font-semibold">
+                                                        <span className="text-gray-500">Orders → Confirmed</span>
                                                         <span className={getHealthColor(m.confirmRate, { green: 60, amber: 30 })}>{m.confirmRate.toFixed(1)}%</span>
                                                     </div>
-                                                    <div className="h-2 bg-brand-navy/5 rounded-full overflow-hidden">
-                                                        <div className="h-full bg-blue-500 rounded-full transition-all duration-700" style={{ width: `${m.confirmRate}%` }} />
+                                                    <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                                        <div className="h-full bg-blue-500 rounded-full" style={{ width: `${m.confirmRate}%` }} />
                                                     </div>
                                                 </div>
-                                                <div className="text-brand-navy/20 font-black">→</div>
+                                                <div className="text-gray-300 text-[11px] font-bold">→</div>
                                                 <div className="flex-1 space-y-1">
-                                                    <div className="flex justify-between text-[10px] font-bold">
-                                                        <span className="text-brand-navy/60">Confirmed → Delivered</span>
+                                                    <div className="flex justify-between text-[10px] font-semibold">
+                                                        <span className="text-gray-500">Confirmed → Delivered</span>
                                                         <span className={getHealthColor(m.deliveryRate, { green: 70, amber: 40 })}>{m.deliveryRate.toFixed(1)}%</span>
                                                     </div>
-                                                    <div className="h-2 bg-brand-navy/5 rounded-full overflow-hidden">
-                                                        <div className="h-full bg-emerald-500 rounded-full transition-all duration-700" style={{ width: `${m.deliveryRate}%` }} />
+                                                    <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                                        <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${m.deliveryRate}%` }} />
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div className="flex justify-center">
-                                                <div className={cn("px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wide border", getHealthBg(m.fulfillmentRate, { green: 40, amber: 20 }))}>
-                                                    Overall: {m.fulfillmentRate.toFixed(1)}% fulfilled
-                                                </div>
+                                            <div className="flex justify-end">
+                                                <span className={cn("px-2 h-5 rounded text-[9px] font-semibold flex items-center", getHealthBg(m.fulfillmentRate, { green: 40, amber: 20 }))}>
+                                                    {m.fulfillmentRate.toFixed(1)}% fulfilled overall
+                                                </span>
                                             </div>
                                         </div>
                                     )}
 
                                     {/* Cost Efficiency */}
-                                    <div className="space-y-3">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40 flex items-center gap-2">
-                                            <Target className="w-3.5 h-3.5" /> Cost Efficiency
+                                    <div className="space-y-2">
+                                        <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 flex items-center gap-1.5">
+                                            <Target className="w-3 h-3" /> Cost Efficiency
                                         </p>
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                            <div className="p-4 rounded-[20px] bg-white border border-brand-navy/5 shadow-sm space-y-2">
-                                                <p className="text-[9px] font-black uppercase tracking-widest text-brand-navy/40">CPA</p>
-                                                <p className="text-2xl font-black text-brand-navy">{m && m.cpa > 0 ? fmtDec(m.cpa) : '—'}<span className="text-xs ml-1 text-brand-navy/40">DH</span></p>
-                                                <p className="text-[9px] text-brand-navy/40 font-bold">Cost per order</p>
-                                            </div>
-                                            <div className="p-4 rounded-[20px] bg-white border border-brand-navy/5 shadow-sm space-y-2">
-                                                <p className="text-[9px] font-black uppercase tracking-widest text-blue-600/60">CPC</p>
-                                                <p className="text-2xl font-black text-blue-600">{m && m.cpc > 0 ? fmtDec(m.cpc) : '—'}<span className="text-xs ml-1 text-blue-600/40">DH</span></p>
-                                                <p className="text-[9px] text-brand-navy/40 font-bold">Cost per confirmation</p>
-                                            </div>
-                                            <div className="p-4 rounded-[20px] bg-white border border-brand-navy/5 shadow-sm space-y-2">
-                                                <p className="text-[9px] font-black uppercase tracking-widest text-emerald-600/60">CPD</p>
-                                                <p className="text-2xl font-black text-emerald-600">{m && m.cpd > 0 ? fmtDec(m.cpd) : '—'}<span className="text-xs ml-1 text-emerald-600/40">DH</span></p>
-                                                <p className="text-[9px] text-brand-navy/40 font-bold">Cost per delivery</p>
-                                            </div>
-                                            <div className="p-4 rounded-[20px] bg-white border border-brand-navy/5 shadow-sm space-y-2">
-                                                <p className="text-[9px] font-black uppercase tracking-widest text-brand-navy/40">Daily Spend</p>
-                                                <p className="text-2xl font-black text-brand-navy">{m ? fmtDec(m.dailySpend) : '—'}<span className="text-xs ml-1 text-brand-navy/40">DH</span></p>
-                                                <p className="text-[9px] text-brand-navy/40 font-bold">Average per day</p>
-                                            </div>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                            {[
+                                                { label: 'CPA', sub: 'Cost per order', value: m && m.cpa > 0 ? `${fmtDec(m.cpa)} DH` : '—', color: 'text-brand-navy' },
+                                                { label: 'CPC', sub: 'Cost per confirm', value: m && m.cpc > 0 ? `${fmtDec(m.cpc)} DH` : '—', color: 'text-blue-600' },
+                                                { label: 'CPD', sub: 'Cost per delivery', value: m && m.cpd > 0 ? `${fmtDec(m.cpd)} DH` : '—', color: 'text-emerald-600' },
+                                                { label: 'Daily Spend', sub: 'Average per day', value: m ? `${fmtDec(m.dailySpend)} DH` : '—', color: 'text-brand-navy' },
+                                            ].map((s) => (
+                                                <div key={s.label} className="border border-gray-100 rounded-xl p-2.5 space-y-0.5">
+                                                    <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">{s.label}</p>
+                                                    <p className={cn("text-[13px] font-semibold tabular-nums", s.color)}>{s.value}</p>
+                                                    <p className="text-[9px] text-gray-400">{s.sub}</p>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
 
                                     {/* Revenue & Profit */}
-                                    <div className="space-y-3">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40 flex items-center gap-2">
-                                            <DollarSign className="w-3.5 h-3.5" /> Revenue & Profit
+                                    <div className="space-y-2">
+                                        <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 flex items-center gap-1.5">
+                                            <DollarSign className="w-3 h-3" /> Revenue & Profit
                                         </p>
-                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                                            <div className="p-4 rounded-[20px] bg-white border border-brand-navy/5 shadow-sm space-y-2">
-                                                <p className="text-[9px] font-black uppercase tracking-widest text-brand-navy/40">Gross Revenue</p>
-                                                <p className="text-2xl font-black text-brand-navy">{m ? fmtNum(m.grossRevenue) : '0'}<span className="text-xs ml-1 text-brand-navy/40">DH</span></p>
+                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                            <div className="border border-gray-100 rounded-xl p-2.5 space-y-0.5">
+                                                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Gross Revenue</p>
+                                                <p className="text-[13px] font-semibold tabular-nums text-brand-navy">{m ? fmtNum(m.grossRevenue) : '0'} DH</p>
                                             </div>
-                                            <div className="p-4 rounded-[20px] bg-white border border-brand-navy/5 shadow-sm space-y-2">
-                                                <p className="text-[9px] font-black uppercase tracking-widest text-brand-navy/40">COGS</p>
-                                                <p className="text-2xl font-black text-brand-navy/60">{m ? fmtNum(m.cogs) : '0'}<span className="text-xs ml-1 text-brand-navy/40">DH</span></p>
+                                            <div className="border border-gray-100 rounded-xl p-2.5 space-y-0.5">
+                                                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">COGS</p>
+                                                <p className="text-[13px] font-semibold tabular-nums text-gray-500">{m ? fmtNum(m.cogs) : '0'} DH</p>
                                             </div>
-                                            <div className="p-4 rounded-[20px] bg-white border border-brand-navy/5 shadow-sm space-y-2">
-                                                <p className="text-[9px] font-black uppercase tracking-widest text-brand-navy/40">Shipping</p>
-                                                <p className="text-2xl font-black text-brand-navy/60">{m ? fmtNum(m.shippingCosts) : '0'}<span className="text-xs ml-1 text-brand-navy/40">DH</span></p>
+                                            <div className="border border-gray-100 rounded-xl p-2.5 space-y-0.5">
+                                                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Shipping</p>
+                                                <p className="text-[13px] font-semibold tabular-nums text-gray-500">{m ? fmtNum(m.shippingCosts) : '0'} DH</p>
                                             </div>
-                                            <div className={cn("p-4 rounded-[20px] border shadow-sm space-y-2", m && m.profit >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200')}>
-                                                <p className="text-[9px] font-black uppercase tracking-widest text-brand-navy/40">Net Profit</p>
-                                                <p className={cn("text-2xl font-black", m && m.profit >= 0 ? 'text-emerald-600' : 'text-red-500')}>{m ? (m.profit >= 0 ? '+' : '') + fmtNum(m.profit) : '0'}<span className="text-xs ml-1 opacity-60">DH</span></p>
+                                            <div className={cn("border rounded-xl p-2.5 space-y-0.5", m && m.profit >= 0 ? 'border-emerald-100 bg-emerald-50' : 'border-red-100 bg-red-50')}>
+                                                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Net Profit</p>
+                                                <p className={cn("text-[13px] font-semibold tabular-nums", m && m.profit >= 0 ? 'text-emerald-600' : 'text-red-500')}>{m ? (m.profit >= 0 ? '+' : '') + fmtNum(m.profit) : '0'} DH</p>
                                             </div>
-                                            <div className={cn("p-4 rounded-[20px] border shadow-sm space-y-2", m && m.roas >= 1 ? 'bg-emerald-50 border-emerald-200' : m && m.roas >= 0.5 ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200')}>
-                                                <p className="text-[9px] font-black uppercase tracking-widest text-brand-navy/40">ROAS</p>
-                                                <p className={cn("text-2xl font-black", m ? getHealthColor(m.roas, { green: 1, amber: 0.5 }) : 'text-brand-navy')}>{m ? fmtDec(m.roas) : '0'}<span className="text-xs ml-1 opacity-60">x</span></p>
-                                                <p className="text-[9px] text-brand-navy/40 font-bold">Gross return</p>
+                                            <div className={cn("border rounded-xl p-2.5 space-y-0.5", m && m.roas >= 1 ? 'border-emerald-100 bg-emerald-50' : m && m.roas >= 0.5 ? 'border-amber-100 bg-amber-50' : 'border-red-100 bg-red-50')}>
+                                                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">ROAS</p>
+                                                <p className={cn("text-[13px] font-semibold tabular-nums", m ? getHealthColor(m.roas, { green: 1, amber: 0.5 }) : 'text-brand-navy')}>{m ? fmtDec(m.roas) : '0'}x</p>
+                                                <p className="text-[9px] text-gray-400">Gross return</p>
                                             </div>
-                                            <div className="p-4 rounded-[20px] bg-white border border-brand-navy/5 shadow-sm space-y-2">
-                                                <p className="text-[9px] font-black uppercase tracking-widest text-brand-navy/40">Margin</p>
-                                                <p className={cn("text-2xl font-black", m && m.profitMargin > 0 ? 'text-emerald-600' : 'text-red-500')}>{m ? fmtDec(m.profitMargin) : '0'}<span className="text-xs ml-1 opacity-60">%</span></p>
+                                            <div className="border border-gray-100 rounded-xl p-2.5 space-y-0.5">
+                                                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Margin</p>
+                                                <p className={cn("text-[13px] font-semibold tabular-nums", m && m.profitMargin > 0 ? 'text-emerald-600' : 'text-red-500')}>{m ? fmtDec(m.profitMargin) : '0'}%</p>
                                             </div>
                                         </div>
                                     </div>
 
                                     {/* Waste & Quality */}
-                                    <div className="space-y-3">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40 flex items-center gap-2">
-                                            <ShieldCheck className="w-3.5 h-3.5" /> Quality & Waste
+                                    <div className="space-y-2">
+                                        <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 flex items-center gap-1.5">
+                                            <ShieldCheck className="w-3 h-3" /> Quality & Waste
                                         </p>
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                            <div className="p-4 rounded-[20px] bg-white border border-brand-navy/5 shadow-sm space-y-2">
-                                                <p className="text-[9px] font-black uppercase tracking-widest text-red-500/60">Cancelled</p>
-                                                <p className="text-2xl font-black text-red-500">{m?.cancelledOrders ?? 0}</p>
-                                                <p className="text-[9px] text-brand-navy/40 font-bold">{m ? m.cancelRate.toFixed(1) : 0}% of orders</p>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                            <div className="border border-gray-100 rounded-xl p-2.5 space-y-0.5">
+                                                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-red-400">Cancelled</p>
+                                                <p className="text-[13px] font-semibold tabular-nums text-red-500">{m?.cancelledOrders ?? 0}</p>
+                                                <p className="text-[9px] text-gray-400">{m ? m.cancelRate.toFixed(1) : 0}% of orders</p>
                                             </div>
-                                            <div className="p-4 rounded-[20px] bg-white border border-brand-navy/5 shadow-sm space-y-2">
-                                                <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Fake</p>
-                                                <p className="text-2xl font-black text-gray-500">{m?.fakeOrders ?? 0}</p>
-                                                <p className="text-[9px] text-brand-navy/40 font-bold">{m ? m.fakeRate.toFixed(1) : 0}% of orders</p>
+                                            <div className="border border-gray-100 rounded-xl p-2.5 space-y-0.5">
+                                                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Fake</p>
+                                                <p className="text-[13px] font-semibold tabular-nums text-gray-500">{m?.fakeOrders ?? 0}</p>
+                                                <p className="text-[9px] text-gray-400">{m ? m.fakeRate.toFixed(1) : 0}% of orders</p>
                                             </div>
-                                            <div className="p-4 rounded-[20px] bg-white border border-brand-navy/5 shadow-sm space-y-2">
-                                                <p className="text-[9px] font-black uppercase tracking-widest text-amber-600/60">Wasted Spend</p>
-                                                <p className="text-2xl font-black text-amber-600">{m ? fmtNum(m.wastedSpend) : '0'}<span className="text-xs ml-1 opacity-60">DH</span></p>
-                                                <p className="text-[9px] text-brand-navy/40 font-bold">Ads that didn't convert</p>
+                                            <div className="border border-gray-100 rounded-xl p-2.5 space-y-0.5">
+                                                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-amber-500">Wasted Spend</p>
+                                                <p className="text-[13px] font-semibold tabular-nums text-amber-600">{m ? fmtNum(m.wastedSpend) : '0'} DH</p>
+                                                <p className="text-[9px] text-gray-400">Ads didn't convert</p>
                                             </div>
-                                            <div className={cn("p-4 rounded-[20px] border shadow-sm space-y-2", m ? getHealthBg(m.qualityScore, { green: 40, amber: 20 }) : 'bg-white border-brand-navy/5')}>
-                                                <p className="text-[9px] font-black uppercase tracking-widest text-brand-navy/40">Quality Score</p>
-                                                <p className={cn("text-2xl font-black", m ? getHealthColor(m.qualityScore, { green: 40, amber: 20 }) : 'text-brand-navy')}>{m ? m.qualityScore.toFixed(0) : 0}<span className="text-xs ml-1 opacity-60">%</span></p>
-                                                <p className="text-[9px] text-brand-navy/40 font-bold">Orders → Delivered</p>
+                                            <div className={cn("border rounded-xl p-2.5 space-y-0.5", m ? getHealthBg(m.qualityScore, { green: 40, amber: 20 }) : 'border-gray-100')}>
+                                                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Quality Score</p>
+                                                <p className={cn("text-[13px] font-semibold tabular-nums", m ? getHealthColor(m.qualityScore, { green: 40, amber: 20 }) : 'text-brand-navy')}>{m ? m.qualityScore.toFixed(0) : 0}%</p>
+                                                <p className="text-[9px] text-gray-400">Orders → Delivered</p>
                                             </div>
                                         </div>
                                     </div>
 
                                     {/* Footer */}
-                                    <div className="pt-6 border-t border-brand-navy/5 flex items-center justify-between font-bold">
-                                        <div className="flex items-center gap-4 text-brand-navy/60 text-sm">
-                                            <div className="flex items-center gap-2">
-                                                <Layout className="w-4 h-4" />
-                                                <span>SKU: {selectedHistory.products?.code}</span>
-                                            </div>
+                                    <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
+                                        <div className="flex items-center gap-1.5 text-gray-400">
+                                            <Layout className="w-3 h-3" />
+                                            <span className="text-[10px] font-medium">SKU: {selectedHistory.products?.code}</span>
                                         </div>
-                                        <Button onClick={() => setIsDetailsOpen(false)} variant="secondary" className="rounded-2xl px-8 h-12 bg-brand-navy text-brand-white font-bold hover:bg-brand-navy/90">
+                                        <Button onClick={() => setIsDetailsOpen(false)} variant="outline" className="h-8 px-4 rounded-md text-[11px] font-semibold border-gray-200">
                                             Close
                                         </Button>
                                     </div>
@@ -1067,30 +1065,28 @@ const AdsHistory = () => {
 
             {/* Delete Confirmation */}
             <AlertDialog open={!!historyToDelete} onOpenChange={() => setHistoryToDelete(null)}>
-                <AlertDialogContent className="rounded-[40px] border-none p-10 max-w-md bg-brand-white">
-                    <div className="flex flex-col items-center text-center space-y-6">
-                        <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center text-red-500">
-                            <Trash2 className="w-10 h-10" />
+                <AlertDialogContent className="max-w-sm rounded-xl border border-gray-100 shadow-none p-4">
+                    <AlertDialogHeader className="space-y-1">
+                        <div className="flex items-center gap-2 mb-1">
+                            <Trash2 className="w-4 h-4 text-red-500" />
+                            <AlertDialogTitle className="text-[13px] font-semibold text-brand-navy">Permanently Delete?</AlertDialogTitle>
                         </div>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle className="text-3xl font-bold text-brand-navy">Permanently Delete?</AlertDialogTitle>
-                            <AlertDialogDescription className="text-lg text-muted-foreground pt-2">
-                                This campaign record will be permanently removed.
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter className="w-full flex flex-col sm:flex-row gap-3 mt-4">
-                            <AlertDialogCancel className="w-full rounded-2xl h-14 font-bold border-none bg-brand-navy/[0.04] hover:bg-brand-navy/[0.08] text-brand-navy m-0">
-                                Cancel
-                            </AlertDialogCancel>
-                            <AlertDialogAction
-                                onClick={() => deleteMutation.mutate(historyToDelete)}
-                                className="w-full rounded-2xl h-14 font-bold bg-red-500 hover:bg-red-600 text-brand-white shadow-xl shadow-red-500/20 m-0"
-                            >
-                                {deleteMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                                Delete
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </div>
+                        <AlertDialogDescription className="text-[11px] text-gray-400">
+                            This campaign record will be permanently removed.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="flex flex-row gap-2 mt-3">
+                        <AlertDialogCancel className="flex-1 rounded-md h-8 text-[11px] font-semibold border-gray-200 m-0">
+                            Cancel
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => deleteMutation.mutate(historyToDelete)}
+                            className="flex-1 rounded-md h-8 text-[11px] font-semibold bg-red-500 hover:bg-red-600 text-white m-0"
+                        >
+                            {deleteMutation.isPending && <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />}
+                            Delete
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
         </div>

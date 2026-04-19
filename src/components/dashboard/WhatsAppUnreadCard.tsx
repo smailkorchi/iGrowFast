@@ -112,66 +112,66 @@ export function WhatsAppUnreadCard({ businessId, restrictToInstanceIds, inboxPat
   return (
     <div
       onClick={() => navigate(inboxPath)}
-      className="group relative h-full w-full flex-1 flex flex-col overflow-hidden rounded-xl bg-gradient-to-br from-white via-emerald-50/30 to-teal-50/20 border border-emerald-100/60 transition-all cursor-pointer hover:border-emerald-200"
+      className="group ant-surface relative h-full w-full flex-1 flex flex-col overflow-hidden rounded-xl bg-ant-paper border border-ant-line transition-all cursor-pointer hover:border-ant-ink/20"
     >
-      <div className="absolute -top-10 -right-10 w-28 h-28 bg-emerald-200/20 rounded-full blur-3xl pointer-events-none" />
-
-      <div className="relative flex flex-col flex-1 min-h-0 p-3.5">
+      <div className="relative flex flex-col flex-1 min-h-0 p-4">
         <div className="flex items-start justify-between gap-3 mb-3">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-[#25D366]/10 flex items-center justify-center">
-              <FaWhatsapp className="w-3.5 h-3.5 text-[#25D366]" />
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-ant-green/10 ring-1 ring-ant-green/20 flex items-center justify-center">
+              <FaWhatsapp className="w-[15px] h-[15px] text-ant-green" />
             </div>
             <div>
-              <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-emerald-700/70">WhatsApp</p>
-              <p className="text-[11px] font-medium text-gray-800 leading-tight">Unread messages</p>
+              <p className="text-[9.5px] font-medium uppercase tracking-[0.2em] text-ant-mid">WhatsApp</p>
+              <p className="text-[12px] font-medium text-ant-ink leading-tight">Unread messages</p>
             </div>
           </div>
-          <ArrowRight className="w-3 h-3 text-gray-300 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition-all" />
+          <ArrowRight className="w-3.5 h-3.5 text-ant-mid group-hover:text-ant-orange group-hover:translate-x-0.5 transition-all" />
         </div>
 
-        <div className="flex items-baseline gap-1.5 mb-3">
+        <div className="flex items-baseline gap-2 mb-3">
           {loading ? (
-            <Loader2 className="w-5 h-5 animate-spin text-gray-300" />
+            <Loader2 className="w-5 h-5 animate-spin text-ant-mid" />
           ) : (
             <>
-              <span className="text-[28px] font-light text-gray-900 tabular-nums tracking-tight leading-none">
+              <span className="font-display text-[36px] font-semibold text-ant-ink tabular-nums tracking-[-0.03em] leading-none">
                 {total.toLocaleString()}
               </span>
-              <span className="text-[10px] font-medium text-gray-400">
+              <span className="text-[10.5px] font-medium text-ant-muted">
                 across {rows.length} {rows.length === 1 ? 'device' : 'devices'}
               </span>
             </>
           )}
         </div>
 
+        <div className="h-px bg-ant-line mb-2" />
+
         {!loading && rows.length > 0 && (
           <div
-            className="flex-1 min-h-0 -mx-1 overflow-y-auto pr-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none] [-ms-overflow-style:none]"
+            className="flex-1 min-h-0 -mx-1 overflow-y-auto pr-1 ant-scroll"
             onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
           >
             {activeInstances.length === 0 ? (
-              <p className="text-[10px] text-gray-400 font-light italic px-1.5">All caught up.</p>
+              <p className="font-serif-display text-[11px] text-ant-muted italic px-1.5">All caught up.</p>
             ) : (
               <div className="space-y-0.5">
                 {activeInstances.map(r => (
                   <div
                     key={r.id}
                     onClick={() => navigate(inboxPath)}
-                    className="flex items-center gap-2 px-1.5 py-1 rounded-md hover:bg-emerald-50/60 transition-colors cursor-pointer"
+                    className="flex items-center gap-2 px-1.5 py-1.5 rounded-md hover:bg-ant-line-soft transition-colors cursor-pointer"
                   >
-                    <div className="w-5 h-5 rounded-full overflow-hidden bg-emerald-100 flex items-center justify-center shrink-0 ring-1 ring-emerald-200/40">
+                    <div className="w-6 h-6 rounded-full overflow-hidden bg-ant-line-soft flex items-center justify-center shrink-0 ring-1 ring-ant-line">
                       {r.profile_pic ? (
                         <img src={r.profile_pic} alt="" className="w-full h-full object-cover" />
                       ) : (
-                        <span className="text-[8px] font-bold text-emerald-700">
+                        <span className="text-[9px] font-semibold text-ant-ink">
                           {r.instance_name.substring(0, 2).toUpperCase()}
                         </span>
                       )}
                     </div>
-                    <span className="text-[10px] text-gray-700 font-medium truncate flex-1">{r.instance_name}</span>
-                    <span className="text-[9px] font-bold text-white bg-[#25D366] rounded-full px-1.5 py-0.5 tabular-nums shrink-0 min-w-[20px] text-center">
+                    <span className="text-[11px] text-ant-ink font-medium truncate flex-1">{r.instance_name}</span>
+                    <span className="text-[10px] font-semibold text-ant-paper bg-ant-green rounded-full px-1.5 py-0.5 tabular-nums shrink-0 min-w-[22px] text-center">
                       {r.unread}
                     </span>
                   </div>
@@ -182,7 +182,7 @@ export function WhatsAppUnreadCard({ businessId, restrictToInstanceIds, inboxPat
         )}
 
         {!loading && rows.length === 0 && (
-          <p className="text-[10px] text-gray-400 font-light italic">No connected devices.</p>
+          <p className="font-serif-display text-[11px] text-ant-muted italic">No connected devices.</p>
         )}
       </div>
     </div>

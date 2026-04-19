@@ -9,6 +9,7 @@ import { DashboardSellersPerformance } from '@/components/dashboard/DashboardSel
 import { DashboardProductsPerformance } from '@/components/dashboard/DashboardProductsPerformance';
 import { DashboardCityStats } from '@/components/dashboard/DashboardCityStats';
 import { WhatsAppUnreadCard } from '@/components/dashboard/WhatsAppUnreadCard';
+import { format } from 'date-fns';
 
 const Dashboard = () => {
     const businessId = localStorage.getItem('activeBusinessId') || '';
@@ -21,29 +22,42 @@ const Dashboard = () => {
 
     if (!businessId) {
         return (
-            <div className="flex items-center justify-center h-[60vh]">
-                <p className="text-gray-400 text-sm">No business selected.</p>
+            <div className="ant-surface flex items-center justify-center h-[60vh]">
+                <p className="text-ant-mid text-sm">No business selected.</p>
             </div>
         );
     }
 
+    const today = format(new Date(), 'EEEE, MMMM d');
+
     return (
-        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-2.5">
-            <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div>
-                    <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">
+        <div className="ant-surface mx-auto max-w-[1440px] px-2 md:px-3 py-2 space-y-4">
+            {/* Editorial header */}
+            <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 pt-1">
+                <div className="space-y-1.5">
+                    <span className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                        <span className="w-1 h-1 rounded-full bg-ant-orange" />
+                        {today}
+                    </span>
+                    <h1 className="font-display text-[30px] md:text-[34px] font-semibold text-ant-ink leading-[1.05] tracking-[-0.02em]">
                         Dashboard
                     </h1>
-                    <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">
-                        {dateFilter.label}
+                    <p className="font-serif-display text-[13px] text-ant-muted italic">
+                        Viewing <span className="not-italic font-medium text-ant-ink">{dateFilter.label}</span>
                     </p>
                 </div>
-                <AnalyticsDateFilter dateFilter={dateFilter} onDateFilterChange={setDateFilter} />
+                <AnalyticsDateFilter
+                    dateFilter={dateFilter}
+                    onDateFilterChange={setDateFilter}
+                    variant="ant"
+                />
             </header>
+
+            <div className="h-px bg-ant-line" />
 
             <DashboardKPICards businessId={businessId} dateFilter={dateFilter} />
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-2.5 items-stretch">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-stretch">
                 <div className="lg:col-span-1 flex min-w-0">
                     <WhatsAppUnreadCard businessId={businessId} />
                 </div>
@@ -52,7 +66,7 @@ const Dashboard = () => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 <PendingOrdersBreakdown businessId={businessId} dateFilter={dateFilter} />
                 <ConfirmationPipeline businessId={businessId} dateFilter={dateFilter} />
             </div>

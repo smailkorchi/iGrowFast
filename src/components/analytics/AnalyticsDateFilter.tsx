@@ -27,9 +27,16 @@ const PRESETS = [
 interface AnalyticsDateFilterProps {
     dateFilter: DateFilter;
     onDateFilterChange: (filter: DateFilter) => void;
+    /**
+     * Visual variant.
+     * - 'default' (current/legacy) — teal brand-navy pill-group used across analytics pages.
+     * - 'ant' — Anthropic-brand variant: warm ink pills on light paper, orange active state.
+     *   Used by the redesigned Dashboard.
+     */
+    variant?: 'default' | 'ant';
 }
 
-export const AnalyticsDateFilter = ({ dateFilter, onDateFilterChange }: AnalyticsDateFilterProps) => {
+export const AnalyticsDateFilter = ({ dateFilter, onDateFilterChange, variant = 'default' }: AnalyticsDateFilterProps) => {
     const [open, setOpen] = useState(false);
     const [tempRange, setTempRange] = useState<DateRange | undefined>({
         from: dateFilter.from,
@@ -106,8 +113,18 @@ export const AnalyticsDateFilter = ({ dateFilter, onDateFilterChange }: Analytic
             : 'Custom';
     const customActive = !isPresetActive && !!dateFilter.from;
 
+    const isAnt = variant === 'ant';
+
+    const presetActiveClass = isAnt
+        ? 'bg-ant-ink text-ant-light hover:bg-ant-ink/90 hover:text-ant-light'
+        : 'bg-brand-navy text-white hover:bg-brand-navy/90 hover:text-white';
+    const presetIdleClass = isAnt
+        ? 'bg-transparent text-ant-ink hover:bg-ant-line/60 hover:text-ant-ink border border-ant-line'
+        : 'bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy/[0.08] hover:text-brand-navy';
+    const buttonShape = isAnt ? 'rounded-full text-[11px] font-medium h-8 px-3.5' : 'rounded-2xl text-xs font-semibold h-9 px-4';
+
     return (
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className={cn('flex items-center gap-1.5 flex-wrap', !isAnt && 'gap-2')}>
             {PRESETS.map((preset) => (
                 <Button
                     key={preset.label}
@@ -115,10 +132,9 @@ export const AnalyticsDateFilter = ({ dateFilter, onDateFilterChange }: Analytic
                     size="sm"
                     onClick={() => handlePreset(preset)}
                     className={cn(
-                        'rounded-2xl text-xs font-semibold h-9 px-4 transition-all',
-                        dateFilter.label === preset.label
-                            ? 'bg-brand-navy text-white hover:bg-brand-navy/90 hover:text-white'
-                            : 'bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy/[0.08] hover:text-brand-navy'
+                        buttonShape,
+                        'transition-all',
+                        dateFilter.label === preset.label ? presetActiveClass : presetIdleClass,
                     )}
                 >
                     {preset.label}
@@ -131,10 +147,9 @@ export const AnalyticsDateFilter = ({ dateFilter, onDateFilterChange }: Analytic
                         variant="ghost"
                         size="sm"
                         className={cn(
-                            'rounded-2xl text-xs font-semibold h-9 px-4 gap-2 transition-all',
-                            customActive
-                                ? 'bg-brand-navy text-white hover:bg-brand-navy/90 hover:text-white'
-                                : 'bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy/[0.08] hover:text-brand-navy'
+                            buttonShape,
+                            'gap-1.5 transition-all',
+                            customActive ? presetActiveClass : presetIdleClass,
                         )}
                     >
                         <CalendarDays className="w-3.5 h-3.5" />
@@ -142,7 +157,13 @@ export const AnalyticsDateFilter = ({ dateFilter, onDateFilterChange }: Analytic
                         <ChevronDown className="w-3 h-3" />
                     </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 rounded-2xl" align="end">
+                <PopoverContent
+                    className={cn(
+                        'w-auto p-0 rounded-2xl',
+                        isAnt && 'ant-surface ant-calendar border-ant-line bg-ant-paper shadow-[0_20px_50px_-18px_rgba(20,20,19,0.25)]',
+                    )}
+                    align="end"
+                >
                     <Calendar
                         mode="range"
                         selected={tempRange}
@@ -150,7 +171,11 @@ export const AnalyticsDateFilter = ({ dateFilter, onDateFilterChange }: Analytic
                         onDayMouseEnter={(day) => setHoveredDate(day)}
                         onDayMouseLeave={() => setHoveredDate(undefined)}
                         modifiers={previewRange ? { preview: previewRange } : undefined}
-                        modifiersClassNames={{ preview: 'bg-accent text-accent-foreground' }}
+                        modifiersClassNames={{
+                            preview: isAnt
+                                ? 'bg-ant-orange/15 text-ant-ink'
+                                : 'bg-accent text-accent-foreground',
+                        }}
                         numberOfMonths={2}
                         disabled={{ after: new Date() }}
                     />

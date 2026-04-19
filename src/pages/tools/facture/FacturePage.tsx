@@ -5,12 +5,12 @@ import { fr } from 'date-fns/locale';
 import { pdf } from '@react-pdf/renderer';
 import {
   Download,
+  Eye,
   Loader2,
   Pencil,
   Plus,
   Receipt,
   Trash2,
-  Eye,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { Json } from '@/lib/database.types';
@@ -19,7 +19,6 @@ import { registerPdfFonts } from '@/lib/documentPdf/registerFonts';
 import type { OrderDerivedClient } from '@/lib/devis/types';
 import type { FactureSnapshot } from '@/lib/facture/types';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -234,7 +233,7 @@ export default function FacturePage() {
       } catch (e) {
         console.error(e);
         toast({
-          title: 'Aperçu indisponible',
+          title: 'Apercu indisponible',
           description: 'Impossible de charger le PDF.',
           variant: 'destructive',
         });
@@ -322,7 +321,7 @@ export default function FacturePage() {
             .single();
           if (insErr) {
             if (customNumber && (insErr.code === '23505' || /duplicate|unique/i.test(insErr.message))) {
-              throw new Error(`Le numéro « ${customNumber} » existe déjà pour ce business.`);
+              throw new Error(`Le numero << ${customNumber} >> existe deja pour ce business.`);
             }
             throw insErr;
           }
@@ -379,12 +378,12 @@ export default function FacturePage() {
         setPreviewOpen(true);
         await queryClient.invalidateQueries({ queryKey: ['facture-list', activeBusinessId] });
 
-        toast({ title: wasEdit ? 'Facture mise à jour' : 'Facture enregistrée', description: factureNumber });
+        toast({ title: wasEdit ? 'Facture mise a jour' : 'Facture enregistree', description: factureNumber });
       } catch (e) {
         console.error(e);
         const msg = e instanceof Error ? e.message : 'Enregistrement impossible.';
         toast({
-          title: 'Échec',
+          title: 'Echec',
           description: msg,
           variant: 'destructive',
         });
@@ -400,7 +399,7 @@ export default function FacturePage() {
       try {
         const url = await resolvePreviewUrl(row);
         if (!url) {
-          toast({ title: 'Pas de fichier', description: 'PDF non généré pour cette facture.' });
+          toast({ title: 'Pas de fichier', description: 'PDF non genere pour cette facture.' });
           return;
         }
         const res = await fetch(url);
@@ -412,7 +411,7 @@ export default function FacturePage() {
         URL.revokeObjectURL(a.href);
       } catch (e) {
         console.error(e);
-        toast({ title: 'Téléchargement impossible', variant: 'destructive' });
+        toast({ title: 'Telechargement impossible', variant: 'destructive' });
       }
     },
     [resolvePreviewUrl, toast],
@@ -427,7 +426,7 @@ export default function FacturePage() {
       }
       const { error } = await supabase.from('factures').delete().eq('id', deleteTarget.id);
       if (error) throw error;
-      toast({ title: 'Facture supprimée' });
+      toast({ title: 'Facture supprimee' });
       setDeleteTarget(null);
       await queryClient.invalidateQueries({ queryKey: ['facture-list', activeBusinessId] });
     } catch (e) {
@@ -450,114 +449,82 @@ export default function FacturePage() {
 
   if (!activeBusinessId) {
     return (
-      <div className="space-y-8 pb-8">
-        <div className="relative">
-          <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-          <div className="relative p-8">
-            <h1 className="text-3xl font-extralight tracking-tight">Facture</h1>
-            <p className="text-gray-500 text-sm mt-2">Sélectionnez une entreprise active pour accéder aux factures.</p>
+      <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+        <header className="space-y-2.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Facture</h1>
+              <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Outils · PDF</p>
+            </div>
           </div>
-        </div>
+          <p className="text-[11px] text-gray-500">Selectionnez une entreprise active.</p>
+        </header>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8 pb-8">
-      <div className="relative">
-        <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-        <div className="relative p-8 flex flex-col sm:flex-row sm:items-end justify-between gap-6">
+    <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+      <header className="space-y-2.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 mb-2">Tools</p>
-            <h1 className="text-3xl sm:text-4xl font-extralight text-gray-900 tracking-tight mb-2">Facture</h1>
-            <p className="text-gray-500 font-light text-sm max-w-lg">
-              Factures PDF, TVA optionnelle, échéance et conditions de paiement, historique par entreprise.
-            </p>
+            <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Facture</h1>
+            <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Outils · PDF</p>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <Button className="rounded-2xl gap-2" onClick={openCreate}>
-              <Plus className="w-4 h-4" />
-              Nouvelle facture
-            </Button>
-            <div className="hidden sm:flex w-14 h-14 rounded-2xl bg-primary/10 items-center justify-center shrink-0">
-              <Receipt className="w-7 h-7 text-primary/80" />
-            </div>
-          </div>
+          <Button onClick={openCreate} className="h-8 rounded-md text-[11px] font-semibold gap-1.5">
+            <Plus className="w-3.5 h-3.5" /> Nouvelle facture
+          </Button>
         </div>
-      </div>
-
-      {/* Inline PDF removed — preview modal opens directly after generation */}
+      </header>
 
       {listLoading ? (
-        <Card className="border-0 shadow-sm rounded-3xl">
-          <CardContent className="p-16 flex justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-primary/40" />
-          </CardContent>
-        </Card>
+        <div className="rounded-xl border border-gray-100 bg-white p-10 flex flex-col items-center justify-center gap-2.5 text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-gray-300" />
+        </div>
       ) : emptyState ? (
-        <Card className="border-0 shadow-sm rounded-3xl bg-white">
-          <CardContent className="p-12 sm:p-16 min-h-[280px] flex flex-col items-center justify-center text-center gap-4">
-            <Receipt className="w-12 h-12 text-gray-200" />
-            <p className="text-sm text-gray-500 font-light max-w-md">
-              Aucune facture enregistrée. Assistant en 5 étapes, PDF A4, totaux HT / TVA / TTC.
-            </p>
-            <Button className="rounded-2xl" onClick={openCreate}>
-              <Plus className="w-4 h-4 mr-2" />
-              Nouvelle facture
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="rounded-xl border border-gray-100 bg-white p-10 flex flex-col items-center justify-center gap-2.5 text-center">
+          <Receipt className="w-8 h-8 text-gray-300" />
+          <p className="text-[11px] text-gray-500 max-w-sm">Aucune facture enregistree. Assistant en 5 etapes, PDF A4, totaux HT / TVA / TTC.</p>
+          <Button onClick={openCreate} className="h-8 rounded-md text-[11px] font-semibold gap-1.5">
+            <Plus className="w-3.5 h-3.5" />Nouvelle facture
+          </Button>
+        </div>
       ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
           {factureList.map((row) => (
-            <Card
+            <div
               key={row.id}
-              className="border-0 shadow-sm rounded-3xl cursor-pointer hover:shadow-md transition-shadow"
+              className="rounded-xl border border-gray-100 bg-white p-3 hover:border-gray-200 transition-colors cursor-pointer"
               onClick={() => void openPreview(row)}
             >
-              <CardContent className="p-6 space-y-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-lg font-light tracking-tight">{row.facture_number}</p>
-                    <p className="text-xs text-gray-400">
-                      {format(parseISO(row.issued_at), 'd MMM yyyy', { locale: fr })}
-                    </p>
-                  </div>
-                  {row.tva_rate > 0 ? (
-                    <Badge variant="secondary" className="rounded-lg text-[10px]">
-                      TVA {row.tva_rate}%
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="rounded-lg text-[10px]">
-                      HT
-                    </Badge>
-                  )}
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[12px] font-semibold text-brand-navy tabular-nums">{row.facture_number}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">{format(parseISO(row.issued_at), 'd MMM yyyy', { locale: fr })}</p>
                 </div>
-                <p className="text-sm text-gray-600 line-clamp-1">{clientLabel(row)}</p>
-                <p className="text-xl font-light">{Number(row.total_ttc).toFixed(2)} MAD</p>
-                <div className="flex flex-wrap gap-2 pt-2" onClick={(e) => e.stopPropagation()}>
-                  <Button size="sm" variant="secondary" className="rounded-xl gap-1" onClick={() => void openPreview(row)}>
-                    <Eye className="w-3.5 h-3.5" />
-                    Aperçu
-                  </Button>
-                  <Button size="sm" variant="outline" className="rounded-xl gap-1" onClick={() => openEdit(row)}>
-                    <Pencil className="w-3.5 h-3.5" />
-                    Modifier
-                  </Button>
-                  <Button size="sm" variant="outline" className="rounded-xl gap-1" onClick={() => void handleDownload(row)}>
-                    <Download className="w-3.5 h-3.5" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="rounded-xl text-red-600 hover:text-red-700"
-                    onClick={() => setDeleteTarget(row)}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+                <Badge className="h-5 px-1.5 text-[9px] font-semibold rounded-md" variant={row.tva_rate > 0 ? 'secondary' : 'outline'}>
+                  {row.tva_rate > 0 ? `TVA ${row.tva_rate}%` : 'HT'}
+                </Badge>
+              </div>
+              <p className="text-[11px] text-gray-600 line-clamp-1 mt-2">{clientLabel(row)}</p>
+              <p className="text-[15px] font-semibold tabular-nums text-brand-navy mt-1">
+                {Number(row.total_ttc).toFixed(2)} <span className="text-[10px] font-normal text-gray-400">MAD</span>
+              </p>
+              <div className="flex gap-1 mt-2.5 pt-2 border-t border-gray-100" onClick={(e) => e.stopPropagation()}>
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-[10px] font-semibold gap-1 rounded-md" onClick={() => void openPreview(row)}>
+                  <Eye className="w-3 h-3" />Apercu
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-[10px] font-semibold gap-1 rounded-md" onClick={() => openEdit(row)}>
+                  <Pencil className="w-3 h-3" />
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-[10px] font-semibold gap-1 rounded-md" onClick={() => void handleDownload(row)}>
+                  <Download className="w-3 h-3" />
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-[10px] font-semibold gap-1 rounded-md ml-auto text-red-500 hover:text-red-600" onClick={() => setDeleteTarget(row)}>
+                  <Trash2 className="w-3 h-3" />
+                </Button>
+              </div>
+            </div>
           ))}
         </div>
       )}
@@ -575,75 +542,79 @@ export default function FacturePage() {
       />
 
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0 gap-0 rounded-3xl">
-          <DialogHeader className="p-4 border-b shrink-0">
-            <DialogTitle className="font-light text-lg">
-              {previewRow?.facture_number || 'Aperçu de la facture'}
-              {previewRow ? (
-                <span className="text-sm font-normal text-gray-400 ml-2">{clientLabel(previewRow)}</span>
-              ) : null}
-            </DialogTitle>
-            <div className="flex gap-2 pt-2">
-              {previewRow ? (
-                <>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="rounded-xl"
-                    onClick={() => void handleDownload(previewRow)}
-                  >
-                    <Download className="w-4 h-4 mr-2" />
-                    Télécharger
+        <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0 gap-0 rounded-xl border border-gray-100">
+          <DialogHeader className="p-3 border-b border-gray-100 shrink-0">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <DialogTitle className="text-[14px] font-semibold text-brand-navy leading-none">
+                  {previewRow?.facture_number || 'Apercu de la facture'}
+                </DialogTitle>
+                {previewRow ? (
+                  <p className="text-[11px] text-gray-400 mt-0.5">{clientLabel(previewRow)}</p>
+                ) : null}
+              </div>
+              <div className="flex gap-1.5">
+                {previewRow ? (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 rounded-md text-[11px] font-semibold gap-1"
+                      onClick={() => void handleDownload(previewRow)}
+                    >
+                      <Download className="w-3 h-3" />
+                      Telecharger
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="h-7 rounded-md text-[11px] font-semibold gap-1"
+                      onClick={() => {
+                        if (!previewRow) return;
+                        setPreviewOpen(false);
+                        openEdit(previewRow);
+                      }}
+                    >
+                      <Pencil className="w-3 h-3" />
+                      Modifier
+                    </Button>
+                  </>
+                ) : inlinePdfUrl ? (
+                  <Button size="sm" variant="outline" className="h-7 rounded-md text-[11px] font-semibold gap-1" asChild>
+                    <a href={inlinePdfUrl} download="facture.pdf">
+                      <Download className="w-3 h-3" />
+                      Telecharger
+                    </a>
                   </Button>
-                  <Button
-                    size="sm"
-                    className="rounded-xl"
-                    onClick={() => {
-                      if (!previewRow) return;
-                      setPreviewOpen(false);
-                      openEdit(previewRow);
-                    }}
-                  >
-                    <Pencil className="w-4 h-4 mr-2" />
-                    Modifier
-                  </Button>
-                </>
-              ) : inlinePdfUrl ? (
-                <Button size="sm" variant="outline" className="rounded-xl" asChild>
-                  <a href={inlinePdfUrl} download="facture.pdf">
-                    <Download className="w-4 h-4 mr-2" />
-                    Télécharger
-                  </a>
-                </Button>
-              ) : null}
+                ) : null}
+              </div>
             </div>
           </DialogHeader>
-          <div className="flex-1 min-h-0 bg-gray-100 relative">
+          <div className="flex-1 min-h-0 bg-gray-50 relative">
             {previewLoading ? (
               <div className="absolute inset-0 flex items-center justify-center">
-                <Loader2 className="w-8 h-8 animate-spin text-primary/40" />
+                <Loader2 className="w-8 h-8 animate-spin text-gray-300" />
               </div>
             ) : previewUrl ? (
-              <iframe title="Aperçu facture" src={`${previewUrl}#toolbar=0&navpanes=0`} className="w-full h-full border-0" />
+              <iframe title="Apercu facture" src={`${previewUrl}#toolbar=0&navpanes=0`} className="w-full h-full border-0" />
             ) : (
-              <p className="p-8 text-sm text-gray-500">Aucun PDF.</p>
+              <p className="p-8 text-[11px] text-gray-500">Aucun PDF.</p>
             )}
           </div>
         </DialogContent>
       </Dialog>
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
-        <AlertDialogContent className="rounded-3xl">
+        <AlertDialogContent className="rounded-xl">
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer cette facture ?</AlertDialogTitle>
+            <AlertDialogTitle className="text-[14px] font-semibold text-brand-navy">Supprimer cette facture ?</AlertDialogTitle>
             <AlertDialogDescription>
-              Le fichier PDF et l&apos;entrée seront supprimés définitivement.
+              Le fichier PDF et l&apos;entree seront supprimes definitivement.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-xl">Annuler</AlertDialogCancel>
+            <AlertDialogCancel className="h-8 rounded-md text-[11px] font-semibold">Annuler</AlertDialogCancel>
             <AlertDialogAction
-              className="rounded-xl bg-red-600 hover:bg-red-700"
+              className="h-8 rounded-md text-[11px] font-semibold bg-red-600 hover:bg-red-700"
               disabled={deleting}
               onClick={() => void confirmDelete()}
             >

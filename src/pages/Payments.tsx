@@ -511,59 +511,61 @@ const Payments = () => {
     };
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
-            {/* Header */}
-            <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-                <div className="relative p-8">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div>
-                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Delivery Payments</h1>
-                            <p className="text-gray-500 font-light">Track and reconcile amounts owed by providers and courier agents.</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <Button onClick={() => { setIsWizardOpen(true); setWizardStep(0); setSelectedTarget(null); }}
-                                disabled={!activeGroups.length}
-                                className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group flex items-center gap-2">
-                                <Plus className="w-5 h-5 mr-3 group-hover:rotate-90 transition-transform duration-500" /> Generate Payment Note
-                            </Button>
-                        </div>
-                    </div>
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+            {/* Header — compact Analytics style */}
+            <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                    <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">
+                        Delivery Payments
+                    </h1>
+                    <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">
+                        Reconcile provider &amp; courier payouts
+                    </p>
                 </div>
-            </div>
+                <Button
+                    size="sm"
+                    onClick={() => { setIsWizardOpen(true); setWizardStep(0); setSelectedTarget(null); }}
+                    disabled={!activeGroups.length}
+                    className="bg-brand-navy hover:bg-brand-navy/90 text-white h-8 px-3 rounded-md text-[11px] font-semibold gap-1.5 shrink-0"
+                >
+                    <Plus className="w-3.5 h-3.5" /> Generate payment note
+                </Button>
+            </header>
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as 'company' | 'courier'); setSelectedTarget(null); }}>
-                <TabsList className="bg-white/50 backdrop-blur-md p-1.5 rounded-[18px] border border-brand-navy/5 shadow-sm h-auto">
-                    <TabsTrigger value="company" className="rounded-[14px] px-6 py-2.5 text-sm font-bold data-[state=active]:bg-brand-navy data-[state=active]:text-white data-[state=active]:shadow-lg text-brand-navy/60">
-                        <Building2 className="w-4 h-4 mr-2" /> Companies
+                <TabsList className="h-8">
+                    <TabsTrigger value="company" className="text-[11px] h-6 px-3 gap-1.5">
+                        <Building2 className="w-3 h-3" /> Companies
                     </TabsTrigger>
-                    <TabsTrigger value="courier" className="rounded-[14px] px-6 py-2.5 text-sm font-bold data-[state=active]:bg-brand-navy data-[state=active]:text-white data-[state=active]:shadow-lg text-brand-navy/60">
-                        <Truck className="w-4 h-4 mr-2" /> Couriers
+                    <TabsTrigger value="courier" className="text-[11px] h-6 px-3 gap-1.5">
+                        <Truck className="w-3 h-3" /> Couriers
                     </TabsTrigger>
                 </TabsList>
             </Tabs>
 
-            {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {/* Stats — dense KPI strip, left accent stripe */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 {[
-                    { label: 'Unpaid Orders', value: stats.totalUnpaidOrders, icon: Package, accent: 'amber' },
-                    { label: 'Pending Notes', value: stats.pendingNotes, icon: Clock, accent: 'orange' },
-                    { label: 'Paid Notes', value: stats.paidNotes, icon: CheckCircle2, accent: 'emerald' },
-                    { label: 'Pending Amount', value: `${stats.pendingAmount.toFixed(2)} MAD`, icon: DollarSign, accent: 'red' },
+                    { label: 'Unpaid orders', value: stats.totalUnpaidOrders, accent: '#d97706' },
+                    { label: 'Pending notes', value: stats.pendingNotes, accent: '#d97706' },
+                    { label: 'Paid notes', value: stats.paidNotes, accent: '#059669' },
+                    { label: 'Pending amount', value: `${stats.pendingAmount.toFixed(2)} MAD`, accent: '#ef4444' },
                 ].map((s, i) => (
-                    <Card key={i} className="group border-none bg-white/50 backdrop-blur-sm hover:shadow-xl transition-all duration-500 rounded-[24px]">
-                        <CardContent className="p-5 flex items-center gap-4">
-                            <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center",
-                                s.accent === 'amber' ? 'bg-amber-50 text-amber-600' : s.accent === 'orange' ? 'bg-orange-50 text-orange-600' :
-                                    s.accent === 'emerald' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600')}>
-                                <s.icon className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <p className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest">{s.label}</p>
-                                <p className={cn("text-xl font-black",
-                                    s.accent === 'amber' ? 'text-amber-700' : s.accent === 'orange' ? 'text-orange-700' :
-                                        s.accent === 'emerald' ? 'text-emerald-700' : 'text-red-700')}>{s.value}</p>
+                    <Card key={i} className="border border-gray-100 shadow-none rounded-xl overflow-hidden">
+                        <CardContent className="p-2.5 relative">
+                            <span
+                                className="absolute top-2.5 left-0 w-[3px] h-8 rounded-r-full"
+                                style={{ backgroundColor: s.accent }}
+                                aria-hidden
+                            />
+                            <div className="pl-2">
+                                <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400 truncate">
+                                    {s.label}
+                                </p>
+                                <p className="text-[18px] font-semibold text-brand-navy tabular-nums leading-tight mt-0.5 truncate">
+                                    {s.value}
+                                </p>
                             </div>
                         </CardContent>
                     </Card>
@@ -571,19 +573,29 @@ const Payments = () => {
             </div>
 
             {/* Filters */}
-            <div className="flex flex-col sm:flex-row gap-4 items-center">
-                <div className="relative w-full sm:w-96">
-                    <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground/60" />
-                    <Input placeholder={activeTab === 'courier' ? "Search by reference or courier..." : "Search by reference or provider..."}
-                        value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                        className="h-14 pl-14 pr-6 rounded-[20px] border-none bg-white shadow-sm font-bold text-brand-navy placeholder:text-muted-foreground/40 focus-visible:ring-brand-navy/10" />
+            <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+                <div className="relative w-full sm:w-72">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                    <Input
+                        placeholder={activeTab === 'courier' ? 'Search by reference or courier…' : 'Search by reference or provider…'}
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        className="pl-7 h-8 rounded-md border-gray-200 bg-white text-[11px]"
+                    />
                 </div>
-                <div className="flex gap-2 bg-white/50 backdrop-blur-md p-1.5 rounded-[18px] border border-brand-navy/5 shadow-sm">
+                <div className="flex gap-0.5 bg-white p-0.5 rounded-md border border-gray-200 shrink-0">
                     {(['all', 'unpaid', 'paid'] as const).map(s => (
-                        <button key={s} onClick={() => setFilterStatus(s)}
-                            className={cn("px-5 py-2.5 rounded-[14px] text-sm font-bold transition-all",
-                                filterStatus === s ? "bg-brand-navy text-white shadow-lg" : "text-brand-navy/60 hover:bg-brand-navy/5")}>
-                            {s === 'all' ? 'All Notes' : s === 'unpaid' ? 'Unpaid' : 'Paid'}
+                        <button
+                            key={s}
+                            onClick={() => setFilterStatus(s)}
+                            className={cn(
+                                "px-2.5 h-7 rounded-[4px] text-[10px] font-semibold transition",
+                                filterStatus === s
+                                    ? "bg-brand-navy text-white"
+                                    : "text-gray-500 hover:text-brand-navy hover:bg-gray-50"
+                            )}
+                        >
+                            {s === 'all' ? 'All' : s === 'unpaid' ? 'Unpaid' : 'Paid'}
                         </button>
                     ))}
                 </div>
@@ -591,19 +603,21 @@ const Payments = () => {
 
             {/* Payment Notes List */}
             {isLoading ? (
-                <div className="space-y-5">{[1, 2, 3].map(i => <Skeleton key={i} className="h-36 w-full rounded-[32px]" />)}</div>
+                <div className="space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}</div>
             ) : filteredNotes.length === 0 ? (
-                <Card className="border-none bg-white/30 backdrop-blur-sm rounded-[32px]">
-                    <CardContent className="p-16 text-center">
-                        <div className="w-20 h-20 rounded-3xl bg-brand-navy/5 flex items-center justify-center mx-auto mb-6">
-                            <SearchX className="w-8 h-8 text-brand-navy/20" />
+                <Card className="border border-gray-100 shadow-none rounded-xl">
+                    <CardContent className="p-6 text-center">
+                        <div className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-gray-100 mb-2.5">
+                            <SearchX className="w-4 h-4 text-gray-400" />
                         </div>
-                        <h3 className="text-xl font-black text-brand-navy/40">No payment notes</h3>
-                        <p className="text-sm text-muted-foreground mt-2">Generate your first payment note from unpaid delivered orders.</p>
+                        <h3 className="text-[14px] font-semibold text-brand-navy">No payment notes</h3>
+                        <p className="text-[11px] text-gray-500 mt-0.5">
+                            Generate your first payment note from unpaid delivered orders.
+                        </p>
                     </CardContent>
                 </Card>
             ) : (
-                <div className="space-y-5">
+                <div className="space-y-2">
                     {filteredNotes.map((note: PaymentNote) => {
                         const isExpanded = expandedCards.has(note.id);
                         const isPaid = note.status === 'paid';

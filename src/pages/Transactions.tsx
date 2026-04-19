@@ -440,389 +440,185 @@ const Transactions = () => {
     };
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
-            {/* Header Section */}
-            <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-                <div className="relative p-8">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div>
-                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Supplier Transactions</h1>
-                            <p className="text-gray-500 font-light">Manage your inventory purchases and payments ledger.</p>
-                        </div>
-                        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
-                            <Button
-                                onClick={() => {
-                                    setEditingTransactionId(null);
-                                    transactionForm.reset(defaultTransactionFormValues);
-                                    setTransactionModalOpen(true);
-                                }}
-                                className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group flex items-center gap-2 w-full sm:w-auto"
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+            {/* Header */}
+            <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                    <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Supplier Transactions</h1>
+                    <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Inventory purchases &amp; payments ledger</p>
+                </div>
+                <Button
+                    onClick={() => {
+                        setEditingTransactionId(null);
+                        transactionForm.reset(defaultTransactionFormValues);
+                        setTransactionModalOpen(true);
+                    }}
+                    className="bg-brand-navy hover:bg-brand-navy/90 text-white h-8 px-3 rounded-md text-[11px] font-semibold gap-1.5 shrink-0"
+                >
+                    <PlusCircle className="w-3.5 h-3.5" />
+                    New Purchase
+                </Button>
+            </header>
+
+            {/* Filters */}
+            <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+                <div className="relative flex-1 min-w-0 max-w-sm">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
+                    <Input
+                        placeholder="Search supplier or phone..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-7 h-8 rounded-md border-gray-200 bg-white text-[11px]"
+                    />
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="flex gap-0.5 bg-white p-0.5 rounded-md border border-gray-200 shrink-0">
+                        {(['all', 'paid', 'partial', 'unpaid'] as const).map(s => (
+                            <button
+                                key={s}
+                                onClick={() => setStatusFilter(s)}
+                                className={cn(
+                                    "px-2 h-7 rounded-[4px] text-[10px] font-semibold transition capitalize",
+                                    statusFilter === s ? "bg-brand-navy text-white" : "text-gray-500 hover:text-brand-navy hover:bg-gray-50"
+                                )}
                             >
-                                <PlusCircle className="w-5 h-5" />
-                                New Purchase
-                            </Button>
-                        </div>
+                                {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
+                            </button>
+                        ))}
+                    </div>
+                    <Select value={sortOrder} onValueChange={(v) => setSortOrder(v as typeof sortOrder)}>
+                        <SelectTrigger className="h-8 w-[130px] rounded-md border-gray-200 text-[11px]">
+                            <SelectValue placeholder="Sort" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="newest">Newest first</SelectItem>
+                            <SelectItem value="oldest">Oldest first</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <div className="flex gap-0.5 bg-white p-0.5 rounded-md border border-gray-200 shrink-0">
+                        <button
+                            onClick={() => setViewMode('list')}
+                            className={cn("px-2.5 h-7 rounded-[4px] text-[10px] font-semibold transition flex items-center gap-1", viewMode === 'list' ? "bg-brand-navy text-white" : "text-gray-500 hover:text-brand-navy hover:bg-gray-50")}
+                        >
+                            <LayoutList className="w-3 h-3" /> List
+                        </button>
+                        <button
+                            onClick={() => setViewMode('grid')}
+                            className={cn("px-2.5 h-7 rounded-[4px] text-[10px] font-semibold transition flex items-center gap-1", viewMode === 'grid' ? "bg-brand-navy text-white" : "text-gray-500 hover:text-brand-navy hover:bg-gray-50")}
+                        >
+                            <LayoutGrid className="w-3 h-3" /> Grid
+                        </button>
                     </div>
                 </div>
             </div>
 
-            {/* Filters bar */}
-            <Card className="border border-brand-navy/[0.06] shadow-sm rounded-[28px] bg-white/80 backdrop-blur-sm">
-                <CardContent className="p-4 sm:p-5">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                        <div className="relative group flex-1 min-w-0 max-w-xl">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors pointer-events-none" />
-                            <Input
-                                placeholder="Search supplier or phone..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="pl-11 h-11 rounded-2xl border-gray-100 bg-white"
-                            />
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
-                                <SelectTrigger className="h-11 w-[140px] rounded-2xl border-gray-100 bg-white text-xs font-bold">
-                                    <SelectValue placeholder="Status" />
-                                </SelectTrigger>
-                                <SelectContent className="rounded-2xl">
-                                    <SelectItem value="all" className="rounded-xl">All statuses</SelectItem>
-                                    <SelectItem value="paid" className="rounded-xl">Paid</SelectItem>
-                                    <SelectItem value="partial" className="rounded-xl">Partial</SelectItem>
-                                    <SelectItem value="unpaid" className="rounded-xl">Unpaid</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <Select value={sortOrder} onValueChange={(v) => setSortOrder(v as typeof sortOrder)}>
-                                <SelectTrigger className="h-11 w-[150px] rounded-2xl border-gray-100 bg-white text-xs font-bold">
-                                    <SelectValue placeholder="Sort" />
-                                </SelectTrigger>
-                                <SelectContent className="rounded-2xl">
-                                    <SelectItem value="newest" className="rounded-xl">Newest first</SelectItem>
-                                    <SelectItem value="oldest" className="rounded-xl">Oldest first</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <div className="flex rounded-2xl border border-gray-100 bg-brand-navy/[0.03] p-1">
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setViewMode('list')}
-                                    className={cn(
-                                        'h-9 px-3 rounded-xl gap-2 font-bold text-xs',
-                                        viewMode === 'list'
-                                            ? 'bg-brand-navy text-white hover:bg-brand-navy hover:text-white shadow-sm'
-                                            : 'text-brand-navy/70 hover:bg-white/80'
-                                    )}
-                                >
-                                    <LayoutList className="w-4 h-4" />
-                                    List
-                                </Button>
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setViewMode('grid')}
-                                    className={cn(
-                                        'h-9 px-3 rounded-xl gap-2 font-bold text-xs',
-                                        viewMode === 'grid'
-                                            ? 'bg-brand-navy text-white hover:bg-brand-navy hover:text-white shadow-sm'
-                                            : 'text-brand-navy/70 hover:bg-white/80'
-                                    )}
-                                >
-                                    <LayoutGrid className="w-4 h-4" />
-                                    Grid
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-
-            {/* Content Section */}
+            {/* Content */}
             {isLoading ? (
-                viewMode === 'list' ? (
-                    <div className="rounded-[28px] border border-brand-navy/[0.06] bg-white overflow-hidden divide-y divide-brand-navy/[0.06]">
-                        {Array.from({ length: 8 }).map((_, i) => (
-                            <div key={i} className="p-4 sm:p-5">
-                                <Skeleton className="h-14 w-full rounded-2xl" />
-                            </div>
-                        ))}
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {Array.from({ length: 6 }).map((_, i) => (
-                            <Skeleton key={i} className="h-64 w-full rounded-[32px]" />
-                        ))}
-                    </div>
-                )
+                <div className="space-y-2">{[1,2,3,4,5].map(i => <Skeleton key={i} className="h-10 rounded-lg" />)}</div>
             ) : displayTransactions.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-32 space-y-6 bg-brand-white rounded-[40px] shadow-sm border border-brand-navy/[0.03]">
-                    <div className="w-24 h-24 bg-brand-navy/[0.04] rounded-full flex items-center justify-center">
-                        <History className="w-12 h-12 text-brand-navy/20" />
-                    </div>
-                    <div className="text-center space-y-2">
-                        <h3 className="text-2xl font-bold text-brand-navy">No transactions found</h3>
-                        <p className="text-muted-foreground max-w-xs mx-auto">
-                            {transactions?.length
-                                ? 'Try adjusting search or filters.'
-                                : 'Start logging your supplier purchases to track stock and payments.'}
-                        </p>
-                    </div>
+                <div className="border border-dashed border-gray-200 rounded-xl py-8 text-center">
+                    <p className="text-[14px] font-semibold text-brand-navy">No transactions found</p>
+                    <p className="text-[11px] text-gray-400 mt-1">
+                        {transactions?.length ? 'Try adjusting search or filters.' : 'Start logging your supplier purchases.'}
+                    </p>
                 </div>
             ) : viewMode === 'list' ? (
-                <div className="rounded-[32px] border border-brand-navy/[0.06] bg-white shadow-sm overflow-hidden divide-y divide-brand-navy/[0.06]">
-                    {displayTransactions.map((tx) => (
-                        <div
-                            key={tx.id}
-                            className="group grid grid-cols-1 items-center gap-4 p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,auto)_auto] lg:gap-6 hover:bg-brand-navy/[0.02] transition-colors"
-                        >
-                            <div className="flex min-w-0 items-start gap-3">
-                                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-navy/[0.06] text-brand-navy">
-                                    <User className="h-5 w-5" />
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <h3 className="truncate text-base font-bold text-brand-navy">{tx.name}</h3>
-                                        {getStatusBadge(tx)}
-                                    </div>
-                                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
-                                        <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider">
-                                            <Calendar className="h-3 w-3 shrink-0" />
-                                            {format(new Date(tx.date || tx.created_at), 'MMM dd, yyyy')}
-                                        </span>
-                                        {tx.phone ? (
-                                            <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider">
-                                                <Phone className="h-3 w-3 shrink-0" />
-                                                {tx.phone}
-                                            </span>
-                                        ) : null}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="flex w-full min-w-0 justify-center">
-                                <div className="grid w-full max-w-[20rem] grid-cols-2 gap-x-6 gap-y-3 xs:max-w-[22rem] sm:max-w-[26rem] sm:grid-cols-4 sm:gap-x-8 sm:gap-y-0">
-                                    <div className="flex min-w-0 flex-col items-center justify-center gap-1 text-center">
-                                        <p className="whitespace-nowrap text-[9px] font-black uppercase tracking-widest text-muted-foreground/70">
-                                            Total
-                                        </p>
-                                        <p className="w-full text-base font-bold tabular-nums tracking-tight text-brand-navy sm:text-lg">
-                                            {tx.total_price || 0}{' '}
-                                            <span className="text-[10px] font-bold text-muted-foreground/80">DH</span>
-                                        </p>
-                                    </div>
-                                    <div className="flex min-w-0 flex-col items-center justify-center gap-1 text-center">
-                                        <p className="whitespace-nowrap text-[9px] font-black uppercase tracking-widest text-muted-foreground/70">
-                                            Balance
-                                        </p>
-                                        <p
-                                            className={cn(
-                                                'w-full text-base font-bold tabular-nums tracking-tight sm:text-lg',
-                                                (tx.total_price || 0) - (tx.paid_price || 0) > 0 ? 'text-red-500' : 'text-emerald-600'
-                                            )}
-                                        >
-                                            {(tx.total_price || 0) - (tx.paid_price || 0)}{' '}
-                                            <span className="text-[10px] font-bold text-muted-foreground/80">DH</span>
-                                        </p>
-                                    </div>
-                                    <div className="flex min-w-0 flex-col items-center justify-center gap-1 text-center">
-                                        <p className="whitespace-nowrap text-[9px] font-black uppercase tracking-widest text-muted-foreground/70">
-                                            Items
-                                        </p>
-                                        <p className="w-full text-base font-bold tabular-nums text-brand-navy sm:text-lg">
-                                            {tx.items?.length || 0}
-                                        </p>
-                                    </div>
-                                    <div className="flex min-w-0 flex-col items-center justify-center gap-1 text-center">
-                                        <p className="whitespace-nowrap text-[9px] font-black uppercase tracking-widest text-muted-foreground/70">
-                                            Payments
-                                        </p>
-                                        <p className="w-full text-base font-bold tabular-nums text-brand-navy sm:text-lg">
-                                            {tx.payments?.length || 0}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="flex shrink-0 items-center justify-end gap-1.5 sm:gap-2 lg:justify-end">
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    title="View details"
-                                    onClick={() => {
-                                        setSelectedTransaction(tx);
-                                        setIsViewModalOpen(true);
-                                    }}
-                                    className="h-10 w-10 shrink-0 rounded-xl bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy hover:text-white"
-                                >
-                                    <Eye className="h-5 w-5" />
-                                </Button>
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    title="Edit transaction"
-                                    onClick={() => {
-                                        setEditingTransactionId(tx.id);
-                                        transactionForm.reset(mapTransactionToFormValues(tx));
-                                        setTransactionModalOpen(true);
-                                    }}
-                                    className="h-10 w-10 shrink-0 rounded-xl bg-brand-navy/[0.04] text-brand-navy hover:bg-amber-500 hover:text-white"
-                                >
-                                    <Pencil className="h-5 w-5" />
-                                </Button>
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    title="Record payment"
-                                    onClick={() => {
-                                        setSelectedTransaction(tx);
-                                        paymentForm.setValue('amount', (tx.total_price || 0) - (tx.paid_price || 0));
-                                        setIsPaymentModalOpen(true);
-                                    }}
-                                    className="h-10 w-10 shrink-0 rounded-xl bg-brand-navy/[0.04] text-brand-navy hover:bg-emerald-600 hover:text-white"
-                                >
-                                    <Wallet className="h-5 w-5" />
-                                </Button>
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    title="Delete"
-                                    onClick={() => {
-                                        setSelectedTransaction(tx);
-                                        setIsDeleteDialogOpen(true);
-                                    }}
-                                    className="h-10 w-10 shrink-0 rounded-xl bg-red-50 text-red-600 hover:bg-red-500 hover:text-white"
-                                >
-                                    <Trash2 className="h-5 w-5" />
-                                </Button>
-                            </div>
-                        </div>
-                    ))}
+                <div className="rounded-xl border border-gray-100 bg-white overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead>
+                                <tr className="border-b border-gray-100">
+                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Supplier</th>
+                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Date</th>
+                                    <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Total</th>
+                                    <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Balance</th>
+                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Status</th>
+                                    <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {displayTransactions.map((tx) => {
+                                    const balance = (tx.total_price || 0) - (tx.paid_price || 0);
+                                    return (
+                                        <tr key={tx.id} className="hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0">
+                                            <td className="px-3 py-2">
+                                                <p className="text-[12px] font-semibold text-brand-navy truncate">{tx.name}</p>
+                                                {tx.phone && <p className="text-[10px] text-gray-500 font-mono">{tx.phone}</p>}
+                                            </td>
+                                            <td className="px-3 py-2 text-[10px] text-gray-500 tabular-nums whitespace-nowrap">
+                                                {format(new Date(tx.date || tx.created_at), 'MMM dd, yyyy')}
+                                            </td>
+                                            <td className="px-3 py-2 text-right text-[11px] font-semibold text-brand-navy tabular-nums">{tx.total_price || 0} DH</td>
+                                            <td className={cn("px-3 py-2 text-right text-[11px] font-semibold tabular-nums", balance > 0 ? "text-red-500" : "text-emerald-600")}>
+                                                {balance} DH
+                                            </td>
+                                            <td className="px-3 py-2">{getStatusBadge(tx)}</td>
+                                            <td className="px-3 py-2">
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <Button type="button" variant="ghost" size="icon" title="View" onClick={() => { setSelectedTransaction(tx); setIsViewModalOpen(true); }} className="h-7 w-7 p-0 rounded-md hover:bg-brand-navy/5">
+                                                        <Eye className="h-3.5 w-3.5 text-brand-navy/60" />
+                                                    </Button>
+                                                    <Button type="button" variant="ghost" size="icon" title="Edit" onClick={() => { setEditingTransactionId(tx.id); transactionForm.reset(mapTransactionToFormValues(tx)); setTransactionModalOpen(true); }} className="h-7 w-7 p-0 rounded-md hover:bg-amber-50">
+                                                        <Pencil className="h-3.5 w-3.5 text-amber-600" />
+                                                    </Button>
+                                                    <Button type="button" variant="ghost" size="icon" title="Record payment" onClick={() => { setSelectedTransaction(tx); paymentForm.setValue('amount', balance); setIsPaymentModalOpen(true); }} className="h-7 w-7 p-0 rounded-md hover:bg-emerald-50">
+                                                        <Wallet className="h-3.5 w-3.5 text-emerald-600" />
+                                                    </Button>
+                                                    <Button type="button" variant="ghost" size="icon" title="Delete" onClick={() => { setSelectedTransaction(tx); setIsDeleteDialogOpen(true); }} className="h-7 w-7 p-0 rounded-md hover:bg-red-50">
+                                                        <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                                                    </Button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-                    {displayTransactions.map((tx) => (
-                        <Card
-                            key={tx.id}
-                            className="group relative overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm transition-all duration-500 hover:shadow-2xl rounded-[32px]"
-                        >
-                            <CardContent className="space-y-6 p-8">
-                                <div className="flex items-start justify-between">
-                                    <div className="space-y-1">
-                                        <div className="flex items-center gap-2">
-                                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-navy/[0.04] text-brand-navy">
-                                                <User className="h-5 w-5" />
-                                            </div>
-                                            <div>
-                                                <h3 className="truncate text-xl font-bold text-brand-navy">{tx.name}</h3>
-                                                <div className="flex items-center gap-1.5 text-muted-foreground">
-                                                    <Calendar className="h-3 w-3" />
-                                                    <span className="text-[10px] font-bold uppercase tracking-wider">
-                                                        {format(new Date(tx.date || tx.created_at), 'MMM dd, yyyy')}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {displayTransactions.map((tx) => {
+                        const balance = (tx.total_price || 0) - (tx.paid_price || 0);
+                        return (
+                            <div key={tx.id} className="rounded-xl border border-gray-100 bg-white p-3.5 flex flex-col gap-2.5">
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="min-w-0">
+                                        <p className="text-[12px] font-semibold text-brand-navy truncate">{tx.name}</p>
+                                        <p className="text-[10px] text-gray-500 tabular-nums">{format(new Date(tx.date || tx.created_at), 'MMM dd, yyyy')}</p>
                                     </div>
                                     {getStatusBadge(tx)}
                                 </div>
-
-                                <div className="grid grid-cols-2 gap-6 py-2">
-                                    <div className="space-y-1">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Total Bill</p>
-                                        <p className="text-2xl font-bold text-brand-navy">{tx.total_price || 0} DH</p>
+                                <div className="flex gap-4">
+                                    <div>
+                                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Total</p>
+                                        <p className="text-[15px] font-semibold text-brand-navy tabular-nums">{tx.total_price || 0} DH</p>
                                     </div>
-                                    <div className="space-y-1">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Debt Balance</p>
-                                        <p
-                                            className={cn(
-                                                'text-2xl font-bold',
-                                                (tx.total_price || 0) - (tx.paid_price || 0) > 0 ? 'text-red-500' : 'text-emerald-500'
-                                            )}
-                                        >
-                                            {(tx.total_price || 0) - (tx.paid_price || 0)} DH
-                                        </p>
+                                    <div>
+                                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Balance</p>
+                                        <p className={cn("text-[15px] font-semibold tabular-nums", balance > 0 ? "text-red-500" : "text-emerald-600")}>{balance} DH</p>
                                     </div>
                                 </div>
-
-                                <Separator className="bg-brand-navy/[0.05]" />
-
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-4">
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Items</span>
-                                            <span className="text-sm font-bold text-brand-navy">{tx.items?.length || 0} kinds</span>
-                                        </div>
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Payments</span>
-                                            <span className="text-sm font-bold text-brand-navy">{tx.payments?.length || 0} tranches</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex flex-wrap justify-end gap-1.5 sm:gap-2">
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="icon"
-                                            title="View details"
-                                            onClick={() => {
-                                                setSelectedTransaction(tx);
-                                                setIsViewModalOpen(true);
-                                            }}
-                                            className="h-10 w-10 rounded-xl bg-brand-navy/[0.04] text-brand-navy transition-all hover:bg-brand-navy hover:text-white"
-                                        >
-                                            <Eye className="h-5 w-5" />
+                                <div className="flex items-center justify-between border-t border-gray-100 pt-2">
+                                    <p className="text-[10px] text-gray-400">{tx.items?.length || 0} items · {tx.payments?.length || 0} payments</p>
+                                    <div className="flex items-center gap-1">
+                                        <Button type="button" variant="ghost" size="icon" title="View" onClick={() => { setSelectedTransaction(tx); setIsViewModalOpen(true); }} className="h-7 w-7 p-0 rounded-md hover:bg-brand-navy/5">
+                                            <Eye className="h-3.5 w-3.5 text-brand-navy/60" />
                                         </Button>
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="icon"
-                                            title="Edit transaction"
-                                            onClick={() => {
-                                                setEditingTransactionId(tx.id);
-                                                transactionForm.reset(mapTransactionToFormValues(tx));
-                                                setTransactionModalOpen(true);
-                                            }}
-                                            className="h-10 w-10 rounded-xl bg-brand-navy/[0.04] text-brand-navy hover:bg-amber-500 hover:text-white"
-                                        >
-                                            <Pencil className="h-5 w-5" />
+                                        <Button type="button" variant="ghost" size="icon" title="Edit" onClick={() => { setEditingTransactionId(tx.id); transactionForm.reset(mapTransactionToFormValues(tx)); setTransactionModalOpen(true); }} className="h-7 w-7 p-0 rounded-md hover:bg-amber-50">
+                                            <Pencil className="h-3.5 w-3.5 text-amber-600" />
                                         </Button>
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="icon"
-                                            title="Record payment"
-                                            onClick={() => {
-                                                setSelectedTransaction(tx);
-                                                paymentForm.setValue('amount', (tx.total_price || 0) - (tx.paid_price || 0));
-                                                setIsPaymentModalOpen(true);
-                                            }}
-                                            className="h-10 w-10 rounded-xl bg-brand-navy/[0.04] text-brand-navy hover:bg-emerald-600 hover:text-white"
-                                        >
-                                            <Wallet className="h-5 w-5" />
+                                        <Button type="button" variant="ghost" size="icon" title="Pay" onClick={() => { setSelectedTransaction(tx); paymentForm.setValue('amount', balance); setIsPaymentModalOpen(true); }} className="h-7 w-7 p-0 rounded-md hover:bg-emerald-50">
+                                            <Wallet className="h-3.5 w-3.5 text-emerald-600" />
                                         </Button>
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="icon"
-                                            title="Delete"
-                                            onClick={() => {
-                                                setSelectedTransaction(tx);
-                                                setIsDeleteDialogOpen(true);
-                                            }}
-                                            className="h-10 w-10 rounded-xl bg-red-50 text-red-600 hover:bg-red-500 hover:text-white"
-                                        >
-                                            <Trash2 className="h-5 w-5" />
+                                        <Button type="button" variant="ghost" size="icon" title="Delete" onClick={() => { setSelectedTransaction(tx); setIsDeleteDialogOpen(true); }} className="h-7 w-7 p-0 rounded-md hover:bg-red-50">
+                                            <Trash2 className="h-3.5 w-3.5 text-red-500" />
                                         </Button>
                                     </div>
                                 </div>
-                            </CardContent>
-                        </Card>
-                    ))}
+                            </div>
+                        );
+                    })}
                 </div>
             )}
 
@@ -837,7 +633,7 @@ const Transactions = () => {
                     }
                 }}
             >
-                <DialogContent className="max-w-4xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                <DialogContent className="max-w-4xl p-0 border border-gray-100 rounded-xl shadow-none overflow-hidden flex flex-col max-h-[90vh]">
                     <Form {...transactionForm}>
                         <form
                             onSubmit={transactionForm.handleSubmit((v) => {
@@ -849,47 +645,47 @@ const Transactions = () => {
                             })}
                             className="flex flex-col flex-1 min-h-0"
                         >
-                            <DialogHeader className="p-8 pb-4 shrink-0">
-                                <DialogTitle className="text-3xl font-bold text-brand-navy">
+                            <DialogHeader className="px-4 pt-4 pb-3 shrink-0 border-b border-gray-100">
+                                <DialogTitle className="text-[13px] font-semibold text-brand-navy">
                                     {editingTransactionId ? 'Edit purchase transaction' : 'New Purchase Transaction'}
                                 </DialogTitle>
-                                <DialogDescription className="text-muted-foreground text-lg">
+                                <DialogDescription className="text-[10px] text-gray-400">
                                     {editingTransactionId
                                         ? 'Update supplier details, dates, and line items. Payments on this transaction are unchanged.'
                                         : 'Log supplier invoices and update inventory stock instantly.'}
                                 </DialogDescription>
                             </DialogHeader>
 
-                            <div className="overflow-y-auto p-8 pt-4 space-y-8 flex-1 min-h-0 custom-scrollbar">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="space-y-6">
-                                        <h4 className="text-xs font-black uppercase tracking-widest text-brand-navy/40 border-b border-brand-navy/[0.05] pb-2">Supplier Profile</h4>
-                                        <div className="grid grid-cols-1 gap-4">
+                            <div className="overflow-y-auto p-4 space-y-4 flex-1 min-h-0">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-3">
+                                        <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Supplier Profile</p>
+                                        <div className="grid grid-cols-1 gap-3">
                                             <FormField
                                                 control={transactionForm.control}
                                                 name="name"
                                                 render={({ field }) => (
-                                                    <FormItem className="space-y-2">
-                                                        <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Supplier Name</FormLabel>
+                                                    <FormItem className="space-y-1.5">
+                                                        <FormLabel className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">Supplier Name</FormLabel>
                                                         <FormControl>
                                                             <div className="relative">
-                                                                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-navy/30" />
-                                                                <Input placeholder="E.g. Global Supplies Ltd" {...field} className="pl-11 h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
+                                                                <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                                                                <Input placeholder="E.g. Global Supplies Ltd" {...field} className="pl-8 h-8 rounded-md border-gray-200 text-[11px]" />
                                                             </div>
                                                         </FormControl>
                                                         <FormMessage />
                                                     </FormItem>
                                                 )}
                                             />
-                                            <div className="grid grid-cols-2 gap-4">
+                                            <div className="grid grid-cols-2 gap-3">
                                                 <FormField
                                                     control={transactionForm.control}
                                                     name="phone"
                                                     render={({ field }) => (
-                                                        <FormItem className="space-y-2">
-                                                            <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Phone</FormLabel>
+                                                        <FormItem className="space-y-1.5">
+                                                            <FormLabel className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">Phone</FormLabel>
                                                             <FormControl>
-                                                                <Input placeholder="+212..." {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
+                                                                <Input placeholder="+212..." {...field} className="h-8 rounded-md border-gray-200 text-[11px]" />
                                                             </FormControl>
                                                         </FormItem>
                                                     )}
@@ -898,10 +694,10 @@ const Transactions = () => {
                                                     control={transactionForm.control}
                                                     name="date"
                                                     render={({ field }) => (
-                                                        <FormItem className="space-y-2">
-                                                            <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Transaction Date</FormLabel>
+                                                        <FormItem className="space-y-1.5">
+                                                            <FormLabel className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">Transaction Date</FormLabel>
                                                             <FormControl>
-                                                                <Input type="date" {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner" />
+                                                                <Input type="date" {...field} className="h-8 rounded-md border-gray-200 text-[11px]" />
                                                             </FormControl>
                                                         </FormItem>
                                                     )}
@@ -910,17 +706,17 @@ const Transactions = () => {
                                         </div>
                                     </div>
 
-                                    <div className="space-y-6">
-                                        <h4 className="text-xs font-black uppercase tracking-widest text-brand-navy/40 border-b border-brand-navy/[0.05] pb-2">Logistics & Notes</h4>
-                                        <div className="grid grid-cols-1 gap-4">
+                                    <div className="space-y-3">
+                                        <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Logistics &amp; Notes</p>
+                                        <div className="grid grid-cols-1 gap-3">
                                             <FormField
                                                 control={transactionForm.control}
                                                 name="address"
                                                 render={({ field }) => (
-                                                    <FormItem className="space-y-2">
-                                                        <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Supplier Address</FormLabel>
+                                                    <FormItem className="space-y-1.5">
+                                                        <FormLabel className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">Supplier Address</FormLabel>
                                                         <FormControl>
-                                                            <Input placeholder="Warehouse location..." {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
+                                                            <Input placeholder="Warehouse location..." {...field} className="h-8 rounded-md border-gray-200 text-[11px]" />
                                                         </FormControl>
                                                     </FormItem>
                                                 )}
@@ -929,10 +725,10 @@ const Transactions = () => {
                                                 control={transactionForm.control}
                                                 name="note"
                                                 render={({ field }) => (
-                                                    <FormItem className="space-y-2">
-                                                        <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Internal Notes</FormLabel>
+                                                    <FormItem className="space-y-1.5">
+                                                        <FormLabel className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">Internal Notes</FormLabel>
                                                         <FormControl>
-                                                            <Input placeholder="Extra details about this order..." {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
+                                                            <Input placeholder="Extra details about this order..." {...field} className="h-8 rounded-md border-gray-200 text-[11px]" />
                                                         </FormControl>
                                                     </FormItem>
                                                 )}
@@ -941,15 +737,15 @@ const Transactions = () => {
                                     </div>
                                 </div>
 
-                                <div className="space-y-6">
-                                    <div className="flex items-center justify-between border-b border-brand-navy/[0.05] pb-2">
-                                        <h4 className="text-xs font-black uppercase tracking-widest text-brand-navy/40">Invoice Items</h4>
-                                        <div className="flex gap-2">
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+                                        <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Invoice Items</p>
+                                        <div className="flex gap-1.5">
                                             <Button
                                                 type="button"
                                                 variant="ghost"
                                                 onClick={() => append({ type: 'product' as const, product_id: '', accessory_id: '', quantity: 1, unit_price: 0 })}
-                                                className="text-xs font-bold text-brand-navy hover:bg-brand-navy/[0.05] gap-1.5 rounded-xl"
+                                                className="h-8 px-3 rounded-md text-[11px] font-semibold text-brand-navy hover:bg-brand-navy/[0.05] gap-1.5"
                                             >
                                                 <Package className="w-3.5 h-3.5" /> Add Product
                                             </Button>
@@ -957,26 +753,26 @@ const Transactions = () => {
                                                 type="button"
                                                 variant="ghost"
                                                 onClick={() => append({ type: 'accessory' as const, product_id: '', accessory_id: '', quantity: 1, unit_price: 0 })}
-                                                className="text-xs font-bold text-amber-700 hover:bg-amber-50 gap-1.5 rounded-xl"
+                                                className="h-8 px-3 rounded-md text-[11px] font-semibold text-amber-700 hover:bg-amber-50 gap-1.5"
                                             >
                                                 <Puzzle className="w-3.5 h-3.5" /> Add Accessory
                                             </Button>
                                         </div>
                                     </div>
 
-                                    <div className="space-y-4">
+                                    <div className="space-y-2">
                                         {fields.map((field, index) => {
                                             const itemType = transactionForm.watch(`items.${index}.type`);
                                             const lineSubtotal = (transactionForm.watch(`items.${index}.quantity`) || 0) * (transactionForm.watch(`items.${index}.unit_price`) || 0);
                                             const isProduct = itemType === 'product';
                                             return (
                                                 <div key={field.id} className={cn(
-                                                    "p-5 rounded-[24px] border space-y-1 animate-in slide-in-from-left-2 duration-300",
+                                                    "p-3 rounded-xl border space-y-1",
                                                     isProduct
-                                                        ? "bg-brand-navy/[0.015] border-brand-navy/[0.04]"
-                                                        : "bg-amber-50/50 border-amber-200/40"
+                                                        ? "bg-brand-navy/[0.015] border-gray-100"
+                                                        : "bg-amber-50/50 border-amber-100"
                                                 )}>
-                                                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                                                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
                                                         <div className="md:col-span-5">
                                                             {isProduct ? (
                                                                 <FormField
@@ -986,7 +782,7 @@ const Transactions = () => {
                                                                         const selectedProduct = products?.find(p => p.id === field.value);
                                                                         return (
                                                                         <FormItem className="space-y-1">
-                                                                            <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground/60 flex items-center gap-1.5"><Package className="w-3 h-3" /> Product</FormLabel>
+                                                                            <FormLabel className="text-[9px] uppercase font-bold text-gray-400 flex items-center gap-1"><Package className="w-3 h-3" /> Product</FormLabel>
                                                                             <Popover modal={true}>
                                                                                 <PopoverTrigger asChild>
                                                                                     <FormControl>
@@ -994,20 +790,20 @@ const Transactions = () => {
                                                                                             variant="outline"
                                                                                             role="combobox"
                                                                                             className={cn(
-                                                                                                "h-12 w-full justify-between rounded-2xl border-none bg-white text-base font-bold text-brand-navy shadow-sm hover:bg-white",
-                                                                                                !field.value && "text-brand-navy/30 font-medium"
+                                                                                                "h-8 w-full justify-between rounded-md border-gray-200 text-[11px] font-semibold text-brand-navy",
+                                                                                                !field.value && "text-gray-400 font-normal"
                                                                                             )}
                                                                                         >
                                                                                             <span className="truncate">
                                                                                                 {selectedProduct ? selectedProduct.name : "Select product"}
                                                                                             </span>
-                                                                                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                                                            <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
                                                                                         </Button>
                                                                                     </FormControl>
                                                                                 </PopoverTrigger>
-                                                                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0 rounded-2xl border-none shadow-2xl" align="start">
+                                                                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0 rounded-xl border border-gray-100 shadow-md" align="start">
                                                                                     <Command>
-                                                                                        <CommandInput placeholder="Search products..." className="h-11" />
+                                                                                        <CommandInput placeholder="Search products..." className="h-8 text-[11px]" />
                                                                                         <CommandList className="max-h-[200px] overflow-y-auto">
                                                                                             <CommandEmpty>No product found.</CommandEmpty>
                                                                                             <CommandGroup>
@@ -1018,11 +814,11 @@ const Transactions = () => {
                                                                                                         onSelect={() => {
                                                                                                             field.onChange(p.id);
                                                                                                         }}
-                                                                                                        className="rounded-xl font-medium cursor-pointer"
+                                                                                                        className="text-[11px] cursor-pointer"
                                                                                                     >
-                                                                                                        <Check className={cn("mr-2 h-4 w-4", field.value === p.id ? "opacity-100" : "opacity-0")} />
+                                                                                                        <Check className={cn("mr-2 h-3 w-3", field.value === p.id ? "opacity-100" : "opacity-0")} />
                                                                                                         {p.name}
-                                                                                                        <span className="text-muted-foreground ml-2 text-xs">({p.code})</span>
+                                                                                                        <span className="text-gray-400 ml-2 text-[10px]">({p.code})</span>
                                                                                                     </CommandItem>
                                                                                                 ))}
                                                                                             </CommandGroup>
@@ -1043,7 +839,7 @@ const Transactions = () => {
                                                                         const selectedAccessory = accessories?.find(a => a.id === field.value);
                                                                         return (
                                                                         <FormItem className="space-y-1">
-                                                                            <FormLabel className="text-[10px] uppercase font-bold text-amber-700/60 flex items-center gap-1.5"><Puzzle className="w-3 h-3" /> Accessory</FormLabel>
+                                                                            <FormLabel className="text-[9px] uppercase font-bold text-amber-600 flex items-center gap-1"><Puzzle className="w-3 h-3" /> Accessory</FormLabel>
                                                                             <Popover modal={true}>
                                                                                 <PopoverTrigger asChild>
                                                                                     <FormControl>
@@ -1051,20 +847,20 @@ const Transactions = () => {
                                                                                             variant="outline"
                                                                                             role="combobox"
                                                                                             className={cn(
-                                                                                                "h-12 w-full justify-between rounded-2xl border-none bg-white text-base font-bold text-brand-navy shadow-sm hover:bg-white",
-                                                                                                !field.value && "text-brand-navy/30 font-medium"
+                                                                                                "h-8 w-full justify-between rounded-md border-gray-200 text-[11px] font-semibold text-brand-navy",
+                                                                                                !field.value && "text-gray-400 font-normal"
                                                                                             )}
                                                                                         >
                                                                                             <span className="truncate">
                                                                                                 {selectedAccessory ? selectedAccessory.name : "Select accessory"}
                                                                                             </span>
-                                                                                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                                                            <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
                                                                                         </Button>
                                                                                     </FormControl>
                                                                                 </PopoverTrigger>
-                                                                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0 rounded-2xl border-none shadow-2xl" align="start">
+                                                                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0 rounded-xl border border-gray-100 shadow-md" align="start">
                                                                                     <Command>
-                                                                                        <CommandInput placeholder="Search accessories..." className="h-11" />
+                                                                                        <CommandInput placeholder="Search accessories..." className="h-8 text-[11px]" />
                                                                                         <CommandList className="max-h-[200px] overflow-y-auto">
                                                                                             <CommandEmpty>No accessory found.</CommandEmpty>
                                                                                             <CommandGroup>
@@ -1075,11 +871,11 @@ const Transactions = () => {
                                                                                                         onSelect={() => {
                                                                                                             field.onChange(a.id);
                                                                                                         }}
-                                                                                                        className="rounded-xl font-medium cursor-pointer"
+                                                                                                        className="text-[11px] cursor-pointer"
                                                                                                     >
-                                                                                                        <Check className={cn("mr-2 h-4 w-4", field.value === a.id ? "opacity-100" : "opacity-0")} />
+                                                                                                        <Check className={cn("mr-2 h-3 w-3", field.value === a.id ? "opacity-100" : "opacity-0")} />
                                                                                                         {a.name}
-                                                                                                        <span className="text-muted-foreground ml-2 text-xs">({a.code})</span>
+                                                                                                        <span className="text-gray-400 ml-2 text-[10px]">({a.code})</span>
                                                                                                     </CommandItem>
                                                                                                 ))}
                                                                                             </CommandGroup>
@@ -1100,8 +896,8 @@ const Transactions = () => {
                                                                 name={`items.${index}.quantity`}
                                                                 render={({ field }) => (
                                                                     <FormItem className="space-y-1">
-                                                                        <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground/60">Qty</FormLabel>
-                                                                        <Input type="number" placeholder="0" {...field} className="h-12 rounded-2xl border-none bg-white text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-sm" />
+                                                                        <FormLabel className="text-[9px] uppercase font-bold text-gray-400">Qty</FormLabel>
+                                                                        <Input type="number" placeholder="0" {...field} className="h-8 rounded-md border-gray-200 text-[11px]" />
                                                                     </FormItem>
                                                                 )}
                                                             />
@@ -1112,10 +908,10 @@ const Transactions = () => {
                                                                 name={`items.${index}.unit_price`}
                                                                 render={({ field }) => (
                                                                     <FormItem className="space-y-1">
-                                                                        <FormLabel className="text-[10px] uppercase font-bold text-muted-foreground/60">Unit Cost (DH)</FormLabel>
+                                                                        <FormLabel className="text-[9px] uppercase font-bold text-gray-400">Unit Cost (DH)</FormLabel>
                                                                         <div className="relative">
-                                                                            <Input type="number" step="0.01" placeholder="0" {...field} className="h-12 rounded-2xl border-none bg-white text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-sm" />
-                                                                            <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-brand-navy/30">{lineSubtotal.toFixed(1)} DH</div>
+                                                                            <Input type="number" step="0.01" placeholder="0" {...field} className="h-8 rounded-md border-gray-200 text-[11px] pr-16" />
+                                                                            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-bold text-gray-400">{lineSubtotal.toFixed(1)} DH</div>
                                                                         </div>
                                                                     </FormItem>
                                                                 )}
@@ -1128,9 +924,9 @@ const Transactions = () => {
                                                                 size="icon"
                                                                 onClick={() => remove(index)}
                                                                 disabled={fields.length === 1}
-                                                                className="h-12 w-12 rounded-2xl text-red-400 hover:text-red-600 hover:bg-red-50"
+                                                                className="h-8 w-8 rounded-md text-red-400 hover:text-red-600 hover:bg-red-50"
                                                             >
-                                                                <X className="w-5 h-5" />
+                                                                <X className="w-4 h-4" />
                                                             </Button>
                                                         </div>
                                                     </div>
@@ -1139,26 +935,21 @@ const Transactions = () => {
                                         })}
                                     </div>
 
-                                    <div className="p-6 rounded-[32px] bg-brand-navy/[0.02] border border-brand-navy/[0.03] flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-12 h-12 rounded-2xl bg-brand-navy flex items-center justify-center text-brand-white shadow-xl shadow-brand-navy/20">
-                                                <DollarSign className="w-6 h-6" />
-                                            </div>
-                                            <div>
-                                                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Grand Total Amount</p>
-                                                <h3 className="text-2xl font-black text-brand-navy">
-                                                    {transactionForm.watch('items').reduce((acc, item) => acc + (item.quantity * item.unit_price), 0).toFixed(2)} DH
-                                                </h3>
-                                            </div>
+                                    <div className="p-3 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-between">
+                                        <div>
+                                            <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Grand Total</p>
+                                            <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-0.5">
+                                                {transactionForm.watch('items').reduce((acc, item) => acc + (item.quantity * item.unit_price), 0).toFixed(2)} DH
+                                            </p>
                                         </div>
-                                        <Badge className="bg-emerald-50 text-emerald-600 border-none font-bold px-4 py-2 rounded-xl">
+                                        <span className="h-5 px-1.5 rounded text-[9px] font-bold uppercase tracking-[0.08em] inline-flex items-center bg-emerald-50 text-emerald-600">
                                             {editingTransactionId ? 'Edit invoice' : 'Invoice Draft'}
-                                        </Badge>
+                                        </span>
                                     </div>
                                 </div>
                             </div>
 
-                            <DialogFooter className="p-8 pt-0 shrink-0 bg-brand-white">
+                            <DialogFooter className="px-4 py-3 shrink-0 border-t border-gray-100 gap-2">
                                 <Button
                                     type="button"
                                     variant="ghost"
@@ -1167,17 +958,17 @@ const Transactions = () => {
                                         setEditingTransactionId(null);
                                         transactionForm.reset(defaultTransactionFormValues);
                                     }}
-                                    className="rounded-2xl h-14 px-8 font-bold text-brand-navy hover:bg-muted"
+                                    className="h-8 px-3 rounded-md text-[11px] font-semibold text-brand-navy hover:bg-gray-100"
                                 >
                                     Discard
                                 </Button>
                                 <Button
                                     type="submit"
                                     disabled={createTransactionMutation.isPending || updateTransactionMutation.isPending}
-                                    className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-14 px-10 font-bold shadow-2xl shadow-brand-navy/30 transition-all active:scale-95 flex items-center gap-3"
+                                    className="bg-brand-navy hover:bg-brand-navy/90 text-white h-8 px-4 rounded-md text-[11px] font-semibold gap-1.5"
                                 >
                                     {(createTransactionMutation.isPending || updateTransactionMutation.isPending) && (
-                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
                                     )}
                                     {editingTransactionId ? 'Save changes' : 'Finalize & Update Stock'}
                                 </Button>
@@ -1189,53 +980,56 @@ const Transactions = () => {
 
             {/* Add Payment Modal */}
             <Dialog open={isPaymentModalOpen} onOpenChange={setIsPaymentModalOpen}>
-                <DialogContent className="max-w-md p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden flex flex-col">
+                <DialogContent className="max-w-md p-0 border border-gray-100 rounded-xl shadow-none overflow-hidden flex flex-col">
                     <Form {...paymentForm}>
                         <form onSubmit={paymentForm.handleSubmit(v => addPaymentMutation.mutate(v))} className="flex flex-col h-full">
-                            <DialogHeader className="p-8 pb-4">
-                                <DialogTitle className="text-3xl font-bold text-brand-navy text-center">Record Payment</DialogTitle>
-                                <DialogDescription className="text-center">Add a payment tranche for {selectedTransaction?.name}.</DialogDescription>
+                            <DialogHeader className="px-4 pt-4 pb-3 border-b border-gray-100">
+                                <DialogTitle className="text-[13px] font-semibold text-brand-navy">Record Payment</DialogTitle>
+                                <DialogDescription className="text-[10px] text-gray-400">Add a payment tranche for {selectedTransaction?.name}.</DialogDescription>
                             </DialogHeader>
 
-                            <div className="p-8 space-y-6">
-                                <div className="p-6 rounded-[32px] bg-brand-navy/[0.04] text-center space-y-1">
-                                    <p className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest">Remaining Balance</p>
-                                    <h2 className="text-3xl font-black text-brand-navy">
-                                        {(selectedTransaction?.total_price || 0) - (selectedTransaction?.paid_price || 0)} DH
-                                    </h2>
+                            <div className="p-4 space-y-3">
+                                <div className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
+                                    <span className="w-[3px] self-stretch rounded-full" style={{ background: '#ef4444' }} />
+                                    <div>
+                                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Remaining Balance</p>
+                                        <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">
+                                            {(selectedTransaction?.total_price || 0) - (selectedTransaction?.paid_price || 0)} DH
+                                        </p>
+                                    </div>
                                 </div>
 
                                 <FormField
                                     control={paymentForm.control}
                                     name="amount"
                                     render={({ field }) => (
-                                        <FormItem className="space-y-2">
-                                            <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70 text-center block">Amount to Pay</FormLabel>
+                                        <FormItem className="space-y-1.5">
+                                            <FormLabel className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">Amount to Pay</FormLabel>
                                             <FormControl>
-                                                <Input type="number" step="0.01" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-2xl font-black text-brand-navy text-center shadow-inner" />
+                                                <Input type="number" step="0.01" {...field} className="h-8 rounded-md border-gray-200 text-[11px]" />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
                                     )}
                                 />
 
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-2 gap-3">
                                     <FormField
                                         control={paymentForm.control}
                                         name="method"
                                         render={({ field }) => (
-                                            <FormItem className="space-y-2">
-                                                <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Method</FormLabel>
+                                            <FormItem className="space-y-1.5">
+                                                <FormLabel className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">Method</FormLabel>
                                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                                                     <FormControl>
-                                                        <SelectTrigger className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] font-bold text-brand-navy">
+                                                        <SelectTrigger className="h-8 rounded-md border-gray-200 text-[11px]">
                                                             <SelectValue />
                                                         </SelectTrigger>
                                                     </FormControl>
-                                                    <SelectContent className="rounded-2xl border-none shadow-2xl">
-                                                        <SelectItem value="Cash" className="rounded-xl font-bold">Cash</SelectItem>
-                                                        <SelectItem value="Bank Transfer" className="rounded-xl font-bold">Transfer</SelectItem>
-                                                        <SelectItem value="Check" className="rounded-xl font-bold">Check</SelectItem>
+                                                    <SelectContent>
+                                                        <SelectItem value="Cash">Cash</SelectItem>
+                                                        <SelectItem value="Bank Transfer">Transfer</SelectItem>
+                                                        <SelectItem value="Check">Check</SelectItem>
                                                     </SelectContent>
                                                 </Select>
                                             </FormItem>
@@ -1245,10 +1039,10 @@ const Transactions = () => {
                                         control={paymentForm.control}
                                         name="date"
                                         render={({ field }) => (
-                                            <FormItem className="space-y-2">
-                                                <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Payment Date</FormLabel>
+                                            <FormItem className="space-y-1.5">
+                                                <FormLabel className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">Payment Date</FormLabel>
                                                 <FormControl>
-                                                    <Input type="date" {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] font-bold text-brand-navy shadow-inner" />
+                                                    <Input type="date" {...field} className="h-8 rounded-md border-gray-200 text-[11px]" />
                                                 </FormControl>
                                             </FormItem>
                                         )}
@@ -1256,22 +1050,22 @@ const Transactions = () => {
                                 </div>
                             </div>
 
-                            <DialogFooter className="p-8 pt-0 flex flex-col gap-3">
-                                <Button
-                                    type="submit"
-                                    disabled={addPaymentMutation.isPending}
-                                    className="w-full bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-14 font-bold shadow-2xl shadow-brand-navy/30 transition-all active:scale-95 flex items-center justify-center gap-3"
-                                >
-                                    {addPaymentMutation.isPending && <Loader2 className="w-5 h-5 animate-spin" />}
-                                    Confirm Payment
-                                </Button>
+                            <DialogFooter className="px-4 py-3 border-t border-gray-100 gap-2">
                                 <Button
                                     type="button"
                                     variant="ghost"
                                     onClick={() => setIsPaymentModalOpen(false)}
-                                    className="w-full rounded-2xl h-14 font-bold text-brand-navy"
+                                    className="h-8 px-3 rounded-md text-[11px] font-semibold text-brand-navy hover:bg-gray-100"
                                 >
                                     Cancel
+                                </Button>
+                                <Button
+                                    type="submit"
+                                    disabled={addPaymentMutation.isPending}
+                                    className="bg-brand-navy hover:bg-brand-navy/90 text-white h-8 px-4 rounded-md text-[11px] font-semibold gap-1.5"
+                                >
+                                    {addPaymentMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                                    Confirm Payment
                                 </Button>
                             </DialogFooter>
                         </form>
@@ -1281,92 +1075,77 @@ const Transactions = () => {
 
             {/* View Modal */}
             <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
-                <DialogContent className="max-w-4xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                <DialogContent className="max-w-4xl p-0 border border-gray-100 rounded-xl shadow-none overflow-hidden flex flex-col max-h-[90vh]">
                     {selectedTransaction && (
                         <>
-                            <DialogHeader className="p-10 pb-0">
-                                <div className="flex justify-between items-start">
-                                    <div className="space-y-2">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-16 h-16 rounded-[24px] bg-brand-navy/[0.04] flex items-center justify-center text-brand-navy">
-                                                <User className="w-8 h-8" />
-                                            </div>
-                                            <div>
-                                                <h2 className="text-4xl font-black text-brand-navy tracking-tight">{selectedTransaction.name}</h2>
-                                                <div className="flex items-center gap-4 text-muted-foreground font-bold text-sm tracking-wide">
-                                                    <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4" /> {format(new Date(selectedTransaction.date), 'MMMM dd, yyyy')}</span>
-                                                    {selectedTransaction.phone && <span className="flex items-center gap-1.5"><Phone className="w-4 h-4" /> {selectedTransaction.phone}</span>}
-                                                </div>
-                                            </div>
+                            <DialogHeader className="px-4 pt-4 pb-3 border-b border-gray-100">
+                                <div className="flex items-center justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <DialogTitle className="text-[13px] font-semibold text-brand-navy truncate">{selectedTransaction.name}</DialogTitle>
+                                        <div className="flex items-center gap-3 mt-0.5 text-[10px] text-gray-400">
+                                            <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {format(new Date(selectedTransaction.date), 'MMM dd, yyyy')}</span>
+                                            {selectedTransaction.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {selectedTransaction.phone}</span>}
                                         </div>
                                     </div>
-                                    <div className="text-right space-y-2">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Balance Status</p>
-                                        {getStatusBadge(selectedTransaction)}
-                                    </div>
+                                    {getStatusBadge(selectedTransaction)}
                                 </div>
                             </DialogHeader>
 
-                            <div className="overflow-y-auto p-10 space-y-10 flex-1 min-h-0 custom-scrollbar">
-                                {/* Dashboard Section */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    <div className="p-8 rounded-[32px] bg-brand-navy/[0.02] border border-brand-navy/[0.03] space-y-1 relative overflow-hidden group">
-                                        <Receipt className="absolute -right-4 -bottom-4 w-24 h-24 text-brand-navy/5 transition-transform group-hover:scale-110" />
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Total Invoiced</p>
-                                        <h3 className="text-3xl font-black text-brand-navy">{selectedTransaction.total_price || 0} DH</h3>
-                                    </div>
-                                    <div className="p-8 rounded-[32px] bg-emerald-50/50 border border-emerald-100 space-y-1 relative overflow-hidden group">
-                                        <CheckCircle2 className="absolute -right-4 -bottom-4 w-24 h-24 text-emerald-500/5 transition-transform group-hover:scale-110" />
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600/60">Total Paid</p>
-                                        <h3 className="text-3xl font-black text-emerald-600">{selectedTransaction.paid_price || 0} DH</h3>
-                                    </div>
-                                    <div className="p-8 rounded-[32px] bg-red-50/50 border border-red-100 space-y-1 relative overflow-hidden group">
-                                        <Clock className="absolute -right-4 -bottom-4 w-24 h-24 text-red-500/5 transition-transform group-hover:scale-110" />
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-red-600/60">Outstanding</p>
-                                        <h3 className="text-3xl font-black text-red-600">
-                                            {(selectedTransaction.total_price || 0) - (selectedTransaction.paid_price || 0)} DH
-                                        </h3>
-                                    </div>
+                            <div className="overflow-y-auto p-4 space-y-4 flex-1 min-h-0">
+                                {/* KPI tiles */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                    {[
+                                        { label: 'Total Invoiced', value: `${selectedTransaction.total_price || 0} DH`, accent: '#3b5e5e' },
+                                        { label: 'Total Paid', value: `${selectedTransaction.paid_price || 0} DH`, accent: '#059669' },
+                                        { label: 'Outstanding', value: `${(selectedTransaction.total_price || 0) - (selectedTransaction.paid_price || 0)} DH`, accent: '#ef4444' },
+                                    ].map((s) => (
+                                        <div key={s.label} className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
+                                            <span className="w-[3px] self-stretch rounded-full" style={{ background: s.accent }} />
+                                            <div>
+                                                <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{s.label}</p>
+                                                <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{s.value}</p>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
 
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                                    {/* Items History */}
-                                    <div className="space-y-6">
-                                        <div className="flex items-center gap-2">
-                                            <Package className="w-5 h-5 text-brand-navy" />
-                                            <h4 className="text-lg font-black text-brand-navy uppercase tracking-widest flex-1">Order Items</h4>
-                                            <Badge variant="outline" className="text-[10px] font-black border-brand-navy/10">{selectedTransaction.items?.length || 0} items</Badge>
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                    {/* Items */}
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Order Items</p>
+                                            <span className="h-5 px-1.5 bg-gray-100 rounded text-[9px] font-bold text-gray-500 inline-flex items-center">{selectedTransaction.items?.length || 0}</span>
                                         </div>
-                                        <div className="space-y-4">
+                                        <div className="rounded-xl border border-gray-100 overflow-hidden">
                                             {selectedTransaction.items?.map((item: any) => (
-                                                <div key={item.id} className="p-6 rounded-[24px] bg-brand-navy/[0.02] border border-brand-navy/[0.03] space-y-3 group hover:bg-brand-navy/[0.04] transition-colors">
+                                                <div key={item.id} className="px-3 py-2 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
                                                     {item.product && (
                                                         <div className="flex justify-between items-center">
-                                                            <div>
-                                                                <div className="flex items-center gap-1.5">
-                                                                    <Package className="w-3.5 h-3.5 text-brand-navy/40" />
-                                                                    <h5 className="font-bold text-brand-navy">{item.product.name}</h5>
+                                                            <div className="flex items-center gap-1.5 min-w-0">
+                                                                <Package className="w-3 h-3 text-gray-400 shrink-0" />
+                                                                <div className="min-w-0">
+                                                                    <p className="text-[11px] font-semibold text-brand-navy truncate">{item.product.name}</p>
+                                                                    <p className="text-[9px] text-gray-400">{item.product.code}</p>
                                                                 </div>
-                                                                <p className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest ml-5">{item.product.code}</p>
                                                             </div>
-                                                            <div className="text-right">
-                                                                <p className="text-sm font-black text-brand-navy">{item.quantity} units</p>
-                                                                <p className="text-[10px] font-bold text-emerald-600 uppercase">+{item.sub_total} DH</p>
+                                                            <div className="text-right shrink-0 ml-2">
+                                                                <p className="text-[11px] font-semibold text-brand-navy tabular-nums">{item.quantity} units</p>
+                                                                <p className="text-[9px] text-emerald-600 tabular-nums">+{item.sub_total} DH</p>
                                                             </div>
                                                         </div>
                                                     )}
                                                     {item.accessory && (
-                                                        <div className={cn("flex justify-between items-center", item.product && "border-t border-dashed border-brand-navy/[0.06] pt-3")}>
-                                                            <div>
-                                                                <div className="flex items-center gap-1.5">
-                                                                    <Puzzle className="w-3.5 h-3.5 text-brand-navy/40" />
-                                                                    <h5 className="font-bold text-brand-navy text-sm">{item.accessory.name}</h5>
+                                                        <div className={cn("flex justify-between items-center", item.product && "border-t border-gray-100 mt-2 pt-2")}>
+                                                            <div className="flex items-center gap-1.5 min-w-0">
+                                                                <Puzzle className="w-3 h-3 text-gray-400 shrink-0" />
+                                                                <div className="min-w-0">
+                                                                    <p className="text-[11px] font-semibold text-brand-navy truncate">{item.accessory.name}</p>
+                                                                    <p className="text-[9px] text-gray-400">{item.accessory.code}</p>
                                                                 </div>
-                                                                <p className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest ml-5">{item.accessory.code}</p>
                                                             </div>
-                                                            <div className="text-right">
-                                                                <p className="text-sm font-black text-brand-navy">{item.accessory_quantity} units</p>
-                                                                <p className="text-[10px] font-bold text-emerald-600 uppercase">+{item.accessory_sub_total} DH</p>
+                                                            <div className="text-right shrink-0 ml-2">
+                                                                <p className="text-[11px] font-semibold text-brand-navy tabular-nums">{item.accessory_quantity} units</p>
+                                                                <p className="text-[9px] text-emerald-600 tabular-nums">+{item.accessory_sub_total} DH</p>
                                                             </div>
                                                         </div>
                                                     )}
@@ -1376,48 +1155,38 @@ const Transactions = () => {
                                     </div>
 
                                     {/* Payment History */}
-                                    <div className="space-y-6">
-                                        <div className="flex items-center gap-2">
-                                            <History className="w-5 h-5 text-brand-navy" />
-                                            <h4 className="text-lg font-black text-brand-navy uppercase tracking-widest flex-1">Payment Log</h4>
-                                        </div>
-                                        <div className="space-y-4">
-                                            {selectedTransaction.payments?.length === 0 ? (
-                                                <div className="p-10 rounded-[24px] border-2 border-dashed border-brand-navy/10 flex flex-col items-center justify-center text-center opacity-60">
-                                                    <Wallet className="w-10 h-10 text-brand-navy/20 mb-3" />
-                                                    <p className="text-xs font-bold text-brand-navy italic uppercase tracking-widest">No payments recorded yet</p>
-                                                </div>
-                                            ) : (
-                                                selectedTransaction.payments?.map((payment: any) => (
-                                                    <div key={payment.id} className="p-6 rounded-[24px] bg-emerald-50/30 border border-emerald-100 flex justify-between items-center animate-in slide-in-from-right-2 duration-300">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-600">
-                                                                <CheckCircle2 className="w-5 h-5" />
-                                                            </div>
-                                                            <div>
-                                                                <h5 className="font-bold text-emerald-900">{payment.method}</h5>
-                                                                <p className="text-[10px] font-black text-emerald-600/60 uppercase tracking-widest">{format(new Date(payment.date), 'MMM dd, HH:mm')}</p>
-                                                            </div>
+                                    <div className="space-y-2">
+                                        <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Payment Log</p>
+                                        {selectedTransaction.payments?.length === 0 ? (
+                                            <div className="border border-dashed border-gray-200 rounded-xl py-6 text-center">
+                                                <Wallet className="w-5 h-5 text-gray-300 mx-auto mb-1" />
+                                                <p className="text-[11px] text-gray-400">No payments recorded yet</p>
+                                            </div>
+                                        ) : (
+                                            <div className="rounded-xl border border-gray-100 overflow-hidden">
+                                                {selectedTransaction.payments?.map((payment: any) => (
+                                                    <div key={payment.id} className="px-3 py-2 border-b border-gray-100 last:border-0 flex justify-between items-center hover:bg-gray-50 transition-colors">
+                                                        <div>
+                                                            <p className="text-[11px] font-semibold text-brand-navy">{payment.method}</p>
+                                                            <p className="text-[9px] text-gray-400 tabular-nums">{format(new Date(payment.date), 'MMM dd, HH:mm')}</p>
                                                         </div>
-                                                        <div className="text-right">
-                                                            <p className="text-lg font-black text-emerald-600">-{payment.amount} DH</p>
-                                                        </div>
+                                                        <p className="text-[12px] font-semibold text-emerald-600 tabular-nums">-{payment.amount} DH</p>
                                                     </div>
-                                                ))
-                                            )}
-                                        </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
                                 {selectedTransaction.note && (
-                                    <div className="p-6 rounded-[24px] bg-brand-navy/[0.04] border-l-4 border-brand-navy">
-                                        <h5 className="text-[10px] font-black uppercase text-brand-navy mb-2 tracking-widest">Order Note</h5>
-                                        <p className="text-brand-navy font-medium italic">"{selectedTransaction.note}"</p>
+                                    <div className="p-3 rounded-xl border-l-4 border-brand-navy bg-brand-navy/[0.02]">
+                                        <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 mb-1">Order Note</p>
+                                        <p className="text-[11px] text-brand-navy/80 italic">"{selectedTransaction.note}"</p>
                                     </div>
                                 )}
                             </div>
 
-                            <DialogFooter className="p-10 pt-0 shrink-0 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                            <DialogFooter className="px-4 py-3 border-t border-gray-100 gap-2 flex-row justify-end">
                                 <Button
                                     type="button"
                                     variant="outline"
@@ -1428,10 +1197,10 @@ const Transactions = () => {
                                         transactionForm.reset(mapTransactionToFormValues(t));
                                         setTransactionModalOpen(true);
                                     }}
-                                    className="order-2 h-14 rounded-2xl border-brand-navy/20 px-8 font-bold text-brand-navy hover:bg-brand-navy/[0.06] sm:order-1"
+                                    className="h-8 px-3 rounded-md border-gray-200 text-[11px] font-semibold text-brand-navy gap-1.5"
                                 >
-                                    <Pencil className="mr-2 h-5 w-5" />
-                                    Edit transaction
+                                    <Pencil className="h-3.5 w-3.5" />
+                                    Edit
                                 </Button>
                                 <Button
                                     type="button"
@@ -1443,10 +1212,10 @@ const Transactions = () => {
                                         );
                                         setIsPaymentModalOpen(true);
                                     }}
-                                    className="order-1 flex w-full items-center gap-3 rounded-2xl bg-brand-navy px-10 py-4 font-bold text-white shadow-2xl shadow-brand-navy/30 transition-all hover:bg-brand-navy/90 active:scale-95 sm:order-2 sm:w-auto"
+                                    className="bg-brand-navy hover:bg-brand-navy/90 text-white h-8 px-4 rounded-md text-[11px] font-semibold gap-1.5"
                                 >
-                                    <Wallet className="h-5 w-5" />
-                                    Make a Payment for this Order
+                                    <Wallet className="h-3.5 w-3.5" />
+                                    Record Payment
                                 </Button>
                             </DialogFooter>
                         </>
@@ -1454,18 +1223,18 @@ const Transactions = () => {
                 </DialogContent>
             </Dialog>
             <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-                <DialogContent className="max-w-md p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden flex flex-col">
-                    <DialogHeader className="p-8 pb-4">
-                        <DialogTitle className="text-3xl font-black text-brand-navy">Delete Transaction</DialogTitle>
-                        <DialogDescription className="text-base font-medium">
+                <DialogContent className="max-w-md p-0 border border-gray-100 rounded-xl shadow-none overflow-hidden flex flex-col">
+                    <DialogHeader className="px-4 pt-4 pb-3 border-b border-gray-100">
+                        <DialogTitle className="text-[13px] font-semibold text-brand-navy">Delete Transaction</DialogTitle>
+                        <DialogDescription className="text-[10px] text-gray-400">
                             Are you sure you want to delete this transaction record? This action cannot be undone.
                         </DialogDescription>
                     </DialogHeader>
-                    <DialogFooter className="p-8 pt-0 flex gap-3">
+                    <DialogFooter className="px-4 py-3 gap-2">
                         <Button
                             variant="ghost"
                             onClick={() => setIsDeleteDialogOpen(false)}
-                            className="w-full rounded-2xl h-14 font-bold text-brand-navy hover:bg-muted"
+                            className="h-8 px-3 rounded-md text-[11px] font-semibold text-brand-navy hover:bg-gray-100"
                         >
                             Cancel
                         </Button>
@@ -1476,9 +1245,9 @@ const Transactions = () => {
                                 }
                             }}
                             disabled={deleteTransactionMutation.isPending}
-                            className="w-full bg-red-500 hover:bg-red-600 text-white rounded-2xl h-14 font-bold shadow-2xl transition-all flex items-center justify-center gap-2"
+                            className="h-8 px-3 rounded-md bg-red-500 hover:bg-red-600 text-white text-[11px] font-semibold gap-1.5"
                         >
-                            {deleteTransactionMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+                            {deleteTransactionMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                             Yes, Delete
                         </Button>
                     </DialogFooter>

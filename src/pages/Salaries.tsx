@@ -53,40 +53,35 @@ const Salaries = () => {
     const [bulkOpen, setBulkOpen] = useState(false);
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500 pb-12">
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
             {/* Header */}
-            <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-                <div className="relative p-8">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div>
-                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Salaries</h1>
-                            <p className="text-gray-500 font-light">Bulk payouts for sellers and media buyers.</p>
-                        </div>
-                        <Button
-                            onClick={() => setBulkOpen(true)}
-                            className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group flex items-center gap-2"
-                        >
-                            <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-500" />
-                            Generate Payouts
-                        </Button>
-                    </div>
+            <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                    <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Salaries</h1>
+                    <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Bulk payouts for sellers and media buyers</p>
                 </div>
-            </div>
+                <Button
+                    onClick={() => setBulkOpen(true)}
+                    className="bg-brand-navy hover:bg-brand-navy/90 text-white h-8 px-3 rounded-md text-[11px] font-semibold gap-1.5 shrink-0"
+                >
+                    <Plus className="w-3.5 h-3.5" />
+                    Generate Payouts
+                </Button>
+            </header>
 
             <Tabs value={tab} onValueChange={(v) => setTab(v as Role)}>
-                <TabsList className="bg-brand-navy/[0.04] p-1 rounded-2xl h-auto inline-flex gap-1">
-                    <TabsTrigger value="seller" className="rounded-xl px-5 py-2.5 text-xs font-bold uppercase tracking-wider data-[state=active]:bg-white data-[state=active]:text-brand-navy text-brand-navy/50">
+                <TabsList className="h-8">
+                    <TabsTrigger value="seller" className="text-[11px] h-6 px-3 gap-1.5">
                         Sellers
                     </TabsTrigger>
-                    <TabsTrigger value="mediabuyer" className="rounded-xl px-5 py-2.5 text-xs font-bold uppercase tracking-wider data-[state=active]:bg-white data-[state=active]:text-brand-navy text-brand-navy/50">
+                    <TabsTrigger value="mediabuyer" className="text-[11px] h-6 px-3 gap-1.5">
                         Media Buyers
                     </TabsTrigger>
                 </TabsList>
-                <TabsContent value="seller" className="mt-6 outline-none">
+                <TabsContent value="seller" className="mt-3 outline-none">
                     <SellerPayoutsList />
                 </TabsContent>
-                <TabsContent value="mediabuyer" className="mt-6 outline-none">
+                <TabsContent value="mediabuyer" className="mt-3 outline-none">
                     <MediaBuyerPayoutsList />
                 </TabsContent>
             </Tabs>
@@ -133,7 +128,6 @@ const SellerPayoutsList: React.FC = () => {
                 .eq('DigiCom Business', activeBusinessId)
                 .order('created_at', { ascending: false });
             if (error) {
-                // Fallback: join may fail if FK naming differs. Try without the explicit FK name.
                 const { data: d2 } = await (supabase as any)
                     .from('seller_payments')
                     .select('*, seller:users(name, email, avatar_url)')
@@ -186,133 +180,155 @@ const SellerPayoutsList: React.FC = () => {
     }, [payouts]);
 
     return (
-        <div className="space-y-6">
-            {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <StatCard label="Total paid" value={fmtCur(stats.totalPaid)} valueTitle={fmtCurFull(stats.totalPaid)} icon={CheckCircle2} tone="bg-emerald-500/10 text-emerald-600" />
-                <StatCard label="Total pending" value={fmtCur(stats.totalPending)} valueTitle={fmtCurFull(stats.totalPending)} icon={Clock} tone="bg-amber-500/10 text-amber-600" />
-                <StatCard label="This month" value={String(stats.thisMonth)} icon={Sparkles} tone="bg-primary/10 text-primary" />
-                <StatCard label="Payouts total" value={String(payouts.length)} icon={Wallet} tone="bg-brand-navy/10 text-brand-navy" />
+        <div className="space-y-3">
+            {/* KPI tiles */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {[
+                    { label: 'Total paid', value: fmtCur(stats.totalPaid), accent: '#059669' },
+                    { label: 'Total pending', value: fmtCur(stats.totalPending), accent: '#d97706' },
+                    { label: 'This month', value: String(stats.thisMonth), accent: '#3b5e5e' },
+                    { label: 'Payouts total', value: String(payouts.length), accent: '#9ca3af' },
+                ].map((s) => (
+                    <div key={s.label} className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
+                        <span className="w-[3px] self-stretch rounded-full" style={{ background: s.accent }} />
+                        <div className="flex-1 min-w-0">
+                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{s.label}</p>
+                            <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1 truncate">{s.value}</p>
+                        </div>
+                    </div>
+                ))}
             </div>
 
             {/* Filters */}
-            <Card className="border-none rounded-[24px] bg-white/90 backdrop-blur-sm shadow-sm">
-                <CardContent className="p-4 flex flex-col md:flex-row gap-3 md:items-center">
-                    <div className="relative flex-1">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <Input placeholder="Search seller..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-11 h-11 rounded-2xl border-gray-100 bg-white" />
+            <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+                <div className="relative flex-1 min-w-0 max-w-sm">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
+                    <Input
+                        placeholder="Search seller..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="pl-7 h-8 rounded-md border-gray-200 bg-white text-[11px]"
+                    />
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="flex gap-0.5 bg-white p-0.5 rounded-md border border-gray-200 shrink-0">
+                        {(['all', 'pending', 'paid'] as const).map(s => (
+                            <button
+                                key={s}
+                                onClick={() => setStatusFilter(s)}
+                                className={cn(
+                                    "px-2.5 h-7 rounded-[4px] text-[10px] font-semibold transition capitalize",
+                                    statusFilter === s ? "bg-brand-navy text-white" : "text-gray-500 hover:text-brand-navy hover:bg-gray-50"
+                                )}
+                            >
+                                {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
+                            </button>
+                        ))}
                     </div>
-                    <Select value={statusFilter} onValueChange={(v: any) => setStatusFilter(v)}>
-                        <SelectTrigger className="w-[160px] h-11 rounded-2xl border-gray-100 bg-white font-bold">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-2xl">
-                            <SelectItem value="all">All statuses</SelectItem>
-                            <SelectItem value="pending">Pending</SelectItem>
-                            <SelectItem value="paid">Paid</SelectItem>
-                        </SelectContent>
-                    </Select>
                     {selected.length > 0 && (
-                        <Button onClick={() => markMutation.mutate({ ids: selected, status: 'paid' })} disabled={markMutation.isPending} className="h-11 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2">
-                            {markMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-                            <Check className="w-4 h-4" />
-                            Mark {selected.length} as paid
+                        <Button
+                            onClick={() => markMutation.mutate({ ids: selected, status: 'paid' })}
+                            disabled={markMutation.isPending}
+                            className="h-8 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold gap-1.5"
+                        >
+                            {markMutation.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
+                            <Check className="w-3 h-3" />
+                            Mark {selected.length} paid
                         </Button>
                     )}
-                </CardContent>
-            </Card>
+                </div>
+            </div>
 
             {/* Table */}
-            <Card className="border-none rounded-[28px] bg-white/90 backdrop-blur-sm shadow-sm overflow-hidden">
-                <CardContent className="p-0">
-                    {isLoading ? (
-                        <div className="p-16 flex justify-center">
-                            <Loader2 className="w-8 h-8 animate-spin text-brand-navy/40" />
-                        </div>
-                    ) : paginated.length === 0 ? (
-                        <div className="p-16 text-center text-muted-foreground">No payouts yet. Click "Generate Payouts" to create.</div>
-                    ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="border-b border-brand-navy/5 text-[10px] font-black uppercase tracking-widest text-brand-navy/40">
-                                        <th className="text-left px-4 py-3 w-10">
-                                            <Checkbox
-                                                checked={paginated.length > 0 && paginated.every((p) => selected.includes(p.id))}
-                                                onCheckedChange={(v) => {
-                                                    if (v) setSelected(Array.from(new Set([...selected, ...paginated.map((p) => p.id)])));
-                                                    else setSelected(selected.filter((id) => !paginated.some((p) => p.id === id)));
-                                                }}
-                                            />
-                                        </th>
-                                        <th className="text-left px-4 py-3">Seller</th>
-                                        <th className="text-left px-3 py-3">Month</th>
-                                        <th className="text-right px-3 py-3">Delivered</th>
-                                        <th className="text-right px-3 py-3">Days</th>
-                                        <th className="text-right px-3 py-3">Commission</th>
-                                        <th className="text-right px-3 py-3">Total</th>
-                                        <th className="text-left px-3 py-3">Status</th>
-                                        <th className="text-right px-4 py-3 pr-6">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {paginated.map((p) => (
-                                        <tr key={p.id} className="border-b border-brand-navy/[0.03] hover:bg-brand-navy/[0.02] tabular-nums">
-                                            <td className="px-4 py-3">
-                                                <Checkbox checked={selected.includes(p.id)} onCheckedChange={(v) => setSelected(v ? [...selected, p.id] : selected.filter((id) => id !== p.id))} />
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <div className="flex items-center gap-2">
-                                                    <Avatar className="h-8 w-8">
-                                                        <AvatarImage src={p.seller?.avatar_url || ''} />
-                                                        <AvatarFallback className="text-[10px] bg-brand-navy text-white">{(p.seller?.name || '??').substring(0, 2).toUpperCase()}</AvatarFallback>
-                                                    </Avatar>
-                                                    <div className="min-w-0">
-                                                        <p className="text-xs font-bold text-brand-navy truncate">{p.seller?.name || '—'}</p>
-                                                        <p className="text-[10px] text-muted-foreground truncate">{p.seller?.email}</p>
-                                                    </div>
+            {isLoading ? (
+                <div className="space-y-2">{[1,2,3,4,5].map(i => <div key={i} className="h-10 rounded-lg bg-gray-100 animate-pulse" />)}</div>
+            ) : paginated.length === 0 ? (
+                <div className="border border-dashed border-gray-200 rounded-xl py-8 text-center">
+                    <p className="text-[14px] font-semibold text-brand-navy">No payouts yet</p>
+                    <p className="text-[11px] text-gray-400 mt-1">Click "Generate Payouts" to create.</p>
+                </div>
+            ) : (
+                <div className="rounded-xl border border-gray-100 bg-white overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead>
+                                <tr className="border-b border-gray-100">
+                                    <th className="px-3 py-2 w-8">
+                                        <Checkbox
+                                            checked={paginated.length > 0 && paginated.every((p) => selected.includes(p.id))}
+                                            onCheckedChange={(v) => {
+                                                if (v) setSelected(Array.from(new Set([...selected, ...paginated.map((p) => p.id)])));
+                                                else setSelected(selected.filter((id) => !paginated.some((p) => p.id === id)));
+                                            }}
+                                        />
+                                    </th>
+                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Seller</th>
+                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Month</th>
+                                    <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Delivered</th>
+                                    <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Days</th>
+                                    <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Commission</th>
+                                    <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Total</th>
+                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Status</th>
+                                    <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {paginated.map((p) => (
+                                    <tr key={p.id} className="hover:bg-gray-50 transition-colors border-b border-gray-50 tabular-nums">
+                                        <td className="px-3 py-2">
+                                            <Checkbox checked={selected.includes(p.id)} onCheckedChange={(v) => setSelected(v ? [...selected, p.id] : selected.filter((id) => id !== p.id))} />
+                                        </td>
+                                        <td className="px-3 py-2">
+                                            <div className="flex items-center gap-2">
+                                                <Avatar className="h-6 w-6 shrink-0">
+                                                    <AvatarImage src={p.seller?.avatar_url || ''} />
+                                                    <AvatarFallback className="text-[9px] bg-brand-navy/10 text-brand-navy">{(p.seller?.name || '??').substring(0, 2).toUpperCase()}</AvatarFallback>
+                                                </Avatar>
+                                                <div className="min-w-0">
+                                                    <p className="text-[11px] font-semibold text-brand-navy truncate">{p.seller?.name || '—'}</p>
+                                                    <p className="text-[9px] text-gray-400 truncate">{p.seller?.email}</p>
                                                 </div>
-                                            </td>
-                                            <td className="px-3 py-3 text-xs text-brand-navy/70 font-medium">{format(new Date(p.payout_month), 'MMM yyyy')}</td>
-                                            <td className="text-right px-3 py-3 text-xs font-bold text-emerald-600">{fmtNum(p.delivered_orders)}</td>
-                                            <td className="text-right px-3 py-3 text-xs text-brand-navy/70">{fmtNum(p.days_present)}</td>
-                                            <td className="text-right px-3 py-3 text-xs font-bold text-brand-navy" title={fmtCurFull(Number(p.commission_earned))}>{fmtCur(Number(p.commission_earned))}</td>
-                                            <td className="text-right px-3 py-3 font-black text-brand-navy" title={fmtCurFull(Number(p.total_amount))}>{fmtCur(Number(p.total_amount))}</td>
-                                            <td className="px-3 py-3">
-                                                <Badge className={cn('rounded-full text-[9px] font-black uppercase border-none', p.status === 'paid' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600')}>
-                                                    {p.status}
-                                                </Badge>
-                                            </td>
-                                            <td className="text-right px-4 py-3 pr-6">
-                                                {p.status === 'pending' ? (
-                                                    <Button size="sm" variant="ghost" onClick={() => markMutation.mutate({ ids: [p.id], status: 'paid' })} className="h-8 rounded-xl text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700">
-                                                        Mark paid
-                                                    </Button>
-                                                ) : (
-                                                    <Button size="sm" variant="ghost" onClick={() => markMutation.mutate({ ids: [p.id], status: 'pending' })} className="h-8 rounded-xl text-amber-600 hover:bg-amber-50 hover:text-amber-700">
-                                                        Unmark
-                                                    </Button>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
+                                            </div>
+                                        </td>
+                                        <td className="px-3 py-2 text-[11px] text-brand-navy/80">{format(new Date(p.payout_month), 'MMM yyyy')}</td>
+                                        <td className="px-3 py-2 text-right text-[11px] font-semibold text-emerald-600 tabular-nums">{fmtNum(p.delivered_orders)}</td>
+                                        <td className="px-3 py-2 text-right text-[11px] text-brand-navy/70 tabular-nums">{fmtNum(p.days_present)}</td>
+                                        <td className="px-3 py-2 text-right text-[11px] font-semibold text-brand-navy tabular-nums" title={fmtCurFull(Number(p.commission_earned))}>{fmtCur(Number(p.commission_earned))}</td>
+                                        <td className="px-3 py-2 text-right text-[11px] font-semibold text-brand-navy tabular-nums" title={fmtCurFull(Number(p.total_amount))}>{fmtCur(Number(p.total_amount))}</td>
+                                        <td className="px-3 py-2">
+                                            <span className={cn('h-5 px-1.5 text-[9px] font-semibold rounded inline-flex items-center uppercase tracking-[0.08em]', p.status === 'paid' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600')}>
+                                                {p.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-3 py-2 text-right">
+                                            {p.status === 'pending' ? (
+                                                <Button size="sm" variant="ghost" onClick={() => markMutation.mutate({ ids: [p.id], status: 'paid' })} className="h-7 rounded-md text-[10px] font-semibold text-emerald-600 hover:bg-emerald-50">
+                                                    Mark paid
+                                                </Button>
+                                            ) : (
+                                                <Button size="sm" variant="ghost" onClick={() => markMutation.mutate({ ids: [p.id], status: 'pending' })} className="h-7 rounded-md text-[10px] font-semibold text-amber-600 hover:bg-amber-50">
+                                                    Unmark
+                                                </Button>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
 
             {totalPages > 1 && (
                 <div className="flex items-center justify-center gap-2">
-                    <Button variant="outline" size="icon" disabled={page <= 1} onClick={() => setPage(page - 1)} className="h-9 w-9 rounded-xl">
-                        <ChevronLeft className="w-4 h-4" />
+                    <Button variant="outline" size="icon" disabled={page <= 1} onClick={() => setPage(page - 1)} className="h-8 w-8 rounded-md border-gray-200">
+                        <ChevronLeft className="w-3.5 h-3.5" />
                     </Button>
-                    <span className="text-xs font-bold text-brand-navy/60 px-3">
-                        Page {page} / {totalPages}
+                    <span className="text-[11px] font-semibold text-brand-navy px-2">
+                        {page} / {totalPages}
                     </span>
-                    <Button variant="outline" size="icon" disabled={page >= totalPages} onClick={() => setPage(page + 1)} className="h-9 w-9 rounded-xl">
-                        <ChevronRight className="w-4 h-4" />
+                    <Button variant="outline" size="icon" disabled={page >= totalPages} onClick={() => setPage(page + 1)} className="h-8 w-8 rounded-md border-gray-200">
+                        <ChevronRight className="w-3.5 h-3.5" />
                     </Button>
                 </div>
             )}
@@ -411,134 +427,159 @@ const MediaBuyerPayoutsList: React.FC = () => {
     }, [payouts]);
 
     return (
-        <div className="space-y-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <StatCard label="Total paid" value={fmtCur(stats.totalPaid)} valueTitle={fmtCurFull(stats.totalPaid)} icon={CheckCircle2} tone="bg-emerald-500/10 text-emerald-600" />
-                <StatCard label="Total pending" value={fmtCur(stats.totalPending)} valueTitle={fmtCurFull(stats.totalPending)} icon={Clock} tone="bg-amber-500/10 text-amber-600" />
-                <StatCard label="This month" value={String(stats.thisMonth)} icon={Sparkles} tone="bg-primary/10 text-primary" />
-                <StatCard label="Payouts total" value={String(payouts.length)} icon={Wallet} tone="bg-brand-navy/10 text-brand-navy" />
+        <div className="space-y-3">
+            {/* KPI tiles */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {[
+                    { label: 'Total paid', value: fmtCur(stats.totalPaid), accent: '#059669' },
+                    { label: 'Total pending', value: fmtCur(stats.totalPending), accent: '#d97706' },
+                    { label: 'This month', value: String(stats.thisMonth), accent: '#3b5e5e' },
+                    { label: 'Payouts total', value: String(payouts.length), accent: '#9ca3af' },
+                ].map((s) => (
+                    <div key={s.label} className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
+                        <span className="w-[3px] self-stretch rounded-full" style={{ background: s.accent }} />
+                        <div className="flex-1 min-w-0">
+                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{s.label}</p>
+                            <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1 truncate">{s.value}</p>
+                        </div>
+                    </div>
+                ))}
             </div>
 
-            <Card className="border-none rounded-[24px] bg-white/90 backdrop-blur-sm shadow-sm">
-                <CardContent className="p-4 flex flex-col md:flex-row gap-3 md:items-center">
-                    <div className="relative flex-1">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <Input placeholder="Search media buyer..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-11 h-11 rounded-2xl border-gray-100 bg-white" />
+            {/* Filters */}
+            <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+                <div className="relative flex-1 min-w-0 max-w-sm">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
+                    <Input
+                        placeholder="Search media buyer..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="pl-7 h-8 rounded-md border-gray-200 bg-white text-[11px]"
+                    />
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="flex gap-0.5 bg-white p-0.5 rounded-md border border-gray-200 shrink-0">
+                        {(['all', 'pending', 'paid'] as const).map(s => (
+                            <button
+                                key={s}
+                                onClick={() => setStatusFilter(s)}
+                                className={cn(
+                                    "px-2.5 h-7 rounded-[4px] text-[10px] font-semibold transition capitalize",
+                                    statusFilter === s ? "bg-brand-navy text-white" : "text-gray-500 hover:text-brand-navy hover:bg-gray-50"
+                                )}
+                            >
+                                {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
+                            </button>
+                        ))}
                     </div>
-                    <Select value={statusFilter} onValueChange={(v: any) => setStatusFilter(v)}>
-                        <SelectTrigger className="w-[160px] h-11 rounded-2xl border-gray-100 bg-white font-bold">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-2xl">
-                            <SelectItem value="all">All statuses</SelectItem>
-                            <SelectItem value="pending">Pending</SelectItem>
-                            <SelectItem value="paid">Paid</SelectItem>
-                        </SelectContent>
-                    </Select>
                     {selected.length > 0 && (
-                        <Button onClick={() => markMutation.mutate({ ids: selected, status: 'paid' })} disabled={markMutation.isPending} className="h-11 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2">
-                            {markMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-                            <Check className="w-4 h-4" />
-                            Mark {selected.length} as paid
+                        <Button
+                            onClick={() => markMutation.mutate({ ids: selected, status: 'paid' })}
+                            disabled={markMutation.isPending}
+                            className="h-8 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold gap-1.5"
+                        >
+                            {markMutation.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
+                            <Check className="w-3 h-3" />
+                            Mark {selected.length} paid
                         </Button>
                     )}
-                </CardContent>
-            </Card>
+                </div>
+            </div>
 
-            <Card className="border-none rounded-[28px] bg-white/90 backdrop-blur-sm shadow-sm overflow-hidden">
-                <CardContent className="p-0">
-                    {isLoading ? (
-                        <div className="p-16 flex justify-center">
-                            <Loader2 className="w-8 h-8 animate-spin text-brand-navy/40" />
-                        </div>
-                    ) : paginated.length === 0 ? (
-                        <div className="p-16 text-center text-muted-foreground">No payouts yet. Click "Generate Payouts" to create.</div>
-                    ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="border-b border-brand-navy/5 text-[10px] font-black uppercase tracking-widest text-brand-navy/40">
-                                        <th className="text-left px-4 py-3 w-10">
-                                            <Checkbox
-                                                checked={paginated.length > 0 && paginated.every((p) => selected.includes(p.id))}
-                                                onCheckedChange={(v) => {
-                                                    if (v) setSelected(Array.from(new Set([...selected, ...paginated.map((p) => p.id)])));
-                                                    else setSelected(selected.filter((id) => !paginated.some((p) => p.id === id)));
-                                                }}
-                                            />
-                                        </th>
-                                        <th className="text-left px-4 py-3">Media buyer</th>
-                                        <th className="text-left px-3 py-3">Month</th>
-                                        <th className="text-left px-3 py-3">Type</th>
-                                        <th className="text-right px-3 py-3">Delivered</th>
-                                        <th className="text-right px-3 py-3">Spend</th>
-                                        <th className="text-right px-3 py-3">Total</th>
-                                        <th className="text-left px-3 py-3">Status</th>
-                                        <th className="text-right px-4 py-3 pr-6">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {paginated.map((p) => (
-                                        <tr key={p.id} className="border-b border-brand-navy/[0.03] hover:bg-brand-navy/[0.02] tabular-nums">
-                                            <td className="px-4 py-3">
-                                                <Checkbox checked={selected.includes(p.id)} onCheckedChange={(v) => setSelected(v ? [...selected, p.id] : selected.filter((id) => id !== p.id))} />
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <div className="flex items-center gap-2">
-                                                    <Avatar className="h-8 w-8">
-                                                        <AvatarImage src={p.mediabuyer?.avatar_url || ''} />
-                                                        <AvatarFallback className="text-[10px] bg-brand-navy text-white">{(p.mediabuyer?.name || '??').substring(0, 2).toUpperCase()}</AvatarFallback>
-                                                    </Avatar>
-                                                    <div className="min-w-0">
-                                                        <p className="text-xs font-bold text-brand-navy truncate">{p.mediabuyer?.name || '—'}</p>
-                                                        <p className="text-[10px] text-muted-foreground truncate">{p.mediabuyer?.email}</p>
-                                                    </div>
+            {/* Table */}
+            {isLoading ? (
+                <div className="space-y-2">{[1,2,3,4,5].map(i => <div key={i} className="h-10 rounded-lg bg-gray-100 animate-pulse" />)}</div>
+            ) : paginated.length === 0 ? (
+                <div className="border border-dashed border-gray-200 rounded-xl py-8 text-center">
+                    <p className="text-[14px] font-semibold text-brand-navy">No payouts yet</p>
+                    <p className="text-[11px] text-gray-400 mt-1">Click "Generate Payouts" to create.</p>
+                </div>
+            ) : (
+                <div className="rounded-xl border border-gray-100 bg-white overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead>
+                                <tr className="border-b border-gray-100">
+                                    <th className="px-3 py-2 w-8">
+                                        <Checkbox
+                                            checked={paginated.length > 0 && paginated.every((p) => selected.includes(p.id))}
+                                            onCheckedChange={(v) => {
+                                                if (v) setSelected(Array.from(new Set([...selected, ...paginated.map((p) => p.id)])));
+                                                else setSelected(selected.filter((id) => !paginated.some((p) => p.id === id)));
+                                            }}
+                                        />
+                                    </th>
+                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Media buyer</th>
+                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Month</th>
+                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Type</th>
+                                    <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Delivered</th>
+                                    <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Spend</th>
+                                    <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Total</th>
+                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Status</th>
+                                    <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {paginated.map((p) => (
+                                    <tr key={p.id} className="hover:bg-gray-50 transition-colors border-b border-gray-50 tabular-nums">
+                                        <td className="px-3 py-2">
+                                            <Checkbox checked={selected.includes(p.id)} onCheckedChange={(v) => setSelected(v ? [...selected, p.id] : selected.filter((id) => id !== p.id))} />
+                                        </td>
+                                        <td className="px-3 py-2">
+                                            <div className="flex items-center gap-2">
+                                                <Avatar className="h-6 w-6 shrink-0">
+                                                    <AvatarImage src={p.mediabuyer?.avatar_url || ''} />
+                                                    <AvatarFallback className="text-[9px] bg-brand-navy/10 text-brand-navy">{(p.mediabuyer?.name || '??').substring(0, 2).toUpperCase()}</AvatarFallback>
+                                                </Avatar>
+                                                <div className="min-w-0">
+                                                    <p className="text-[11px] font-semibold text-brand-navy truncate">{p.mediabuyer?.name || '—'}</p>
+                                                    <p className="text-[9px] text-gray-400 truncate">{p.mediabuyer?.email}</p>
                                                 </div>
-                                            </td>
-                                            <td className="px-3 py-3 text-xs text-brand-navy/70 font-medium">{format(new Date(p.payout_month + '-01'), 'MMM yyyy')}</td>
-                                            <td className="px-3 py-3">
-                                                <Badge className={cn('rounded-full text-[9px] font-black uppercase border-none', p.payment_type === 'commission' ? 'bg-primary/10 text-primary' : 'bg-indigo-500/10 text-indigo-600')}>
-                                                    {p.payment_type}
-                                                </Badge>
-                                            </td>
-                                            <td className="text-right px-3 py-3 text-xs font-bold text-emerald-600">{fmtNum(p.delivered_orders)}</td>
-                                            <td className="text-right px-3 py-3 text-xs text-brand-navy/70" title={fmtCurFull(Number(p.total_spend))}>{fmtCur(Number(p.total_spend))}</td>
-                                            <td className="text-right px-3 py-3 font-black text-brand-navy" title={fmtCurFull(Number(p.total_amount))}>{fmtCur(Number(p.total_amount))}</td>
-                                            <td className="px-3 py-3">
-                                                <Badge className={cn('rounded-full text-[9px] font-black uppercase border-none', p.status === 'paid' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600')}>
-                                                    {p.status}
-                                                </Badge>
-                                            </td>
-                                            <td className="text-right px-4 py-3 pr-6">
-                                                {p.status === 'pending' ? (
-                                                    <Button size="sm" variant="ghost" onClick={() => markMutation.mutate({ ids: [p.id], status: 'paid' })} className="h-8 rounded-xl text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700">
-                                                        Mark paid
-                                                    </Button>
-                                                ) : (
-                                                    <Button size="sm" variant="ghost" onClick={() => markMutation.mutate({ ids: [p.id], status: 'pending' })} className="h-8 rounded-xl text-amber-600 hover:bg-amber-50 hover:text-amber-700">
-                                                        Unmark
-                                                    </Button>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
+                                            </div>
+                                        </td>
+                                        <td className="px-3 py-2 text-[11px] text-brand-navy/80">{format(new Date(p.payout_month + '-01'), 'MMM yyyy')}</td>
+                                        <td className="px-3 py-2">
+                                            <span className={cn('h-5 px-1.5 text-[9px] font-semibold rounded inline-flex items-center uppercase tracking-[0.08em]', p.payment_type === 'commission' ? 'bg-brand-navy/10 text-brand-navy' : 'bg-gray-100 text-gray-600')}>
+                                                {p.payment_type}
+                                            </span>
+                                        </td>
+                                        <td className="px-3 py-2 text-right text-[11px] font-semibold text-emerald-600 tabular-nums">{fmtNum(p.delivered_orders)}</td>
+                                        <td className="px-3 py-2 text-right text-[11px] text-brand-navy/70 tabular-nums" title={fmtCurFull(Number(p.total_spend))}>{fmtCur(Number(p.total_spend))}</td>
+                                        <td className="px-3 py-2 text-right text-[11px] font-semibold text-brand-navy tabular-nums" title={fmtCurFull(Number(p.total_amount))}>{fmtCur(Number(p.total_amount))}</td>
+                                        <td className="px-3 py-2">
+                                            <span className={cn('h-5 px-1.5 text-[9px] font-semibold rounded inline-flex items-center uppercase tracking-[0.08em]', p.status === 'paid' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600')}>
+                                                {p.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-3 py-2 text-right">
+                                            {p.status === 'pending' ? (
+                                                <Button size="sm" variant="ghost" onClick={() => markMutation.mutate({ ids: [p.id], status: 'paid' })} className="h-7 rounded-md text-[10px] font-semibold text-emerald-600 hover:bg-emerald-50">
+                                                    Mark paid
+                                                </Button>
+                                            ) : (
+                                                <Button size="sm" variant="ghost" onClick={() => markMutation.mutate({ ids: [p.id], status: 'pending' })} className="h-7 rounded-md text-[10px] font-semibold text-amber-600 hover:bg-amber-50">
+                                                    Unmark
+                                                </Button>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
 
             {totalPages > 1 && (
                 <div className="flex items-center justify-center gap-2">
-                    <Button variant="outline" size="icon" disabled={page <= 1} onClick={() => setPage(page - 1)} className="h-9 w-9 rounded-xl">
-                        <ChevronLeft className="w-4 h-4" />
+                    <Button variant="outline" size="icon" disabled={page <= 1} onClick={() => setPage(page - 1)} className="h-8 w-8 rounded-md border-gray-200">
+                        <ChevronLeft className="w-3.5 h-3.5" />
                     </Button>
-                    <span className="text-xs font-bold text-brand-navy/60 px-3">
-                        Page {page} / {totalPages}
+                    <span className="text-[11px] font-semibold text-brand-navy px-2">
+                        {page} / {totalPages}
                     </span>
-                    <Button variant="outline" size="icon" disabled={page >= totalPages} onClick={() => setPage(page + 1)} className="h-9 w-9 rounded-xl">
-                        <ChevronRight className="w-4 h-4" />
+                    <Button variant="outline" size="icon" disabled={page >= totalPages} onClick={() => setPage(page + 1)} className="h-8 w-8 rounded-md border-gray-200">
+                        <ChevronRight className="w-3.5 h-3.5" />
                     </Button>
                 </div>
             )}
@@ -577,7 +618,6 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
     const activeRows = role === 'seller' ? sellerEarnings.rows : mbEarnings.rows;
     const activeLoading = role === 'seller' ? sellerEarnings.isLoading : mbEarnings.isLoading;
 
-    // Auto-select rows with unpaid remainder > 0 when data loads.
     React.useEffect(() => {
         if (!open || activeLoading) return;
         if (role === 'seller') {
@@ -658,8 +698,6 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
                         status: 'pending',
                     }));
                 if (payload.length === 0) throw new Error('All selected rows have 0 remainder');
-                // Media buyer table has UNIQUE (mediabuyer_id, payout_month). If a row exists,
-                // the insert will fail. Use upsert to replace in place.
                 const { error } = await (supabase as any)
                     .from('mediabuyer_payments')
                     .upsert(payload, { onConflict: 'mediabuyer_id,payout_month' });
@@ -689,68 +727,62 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-4xl p-0 border-none bg-brand-white rounded-[32px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-                <DialogHeader className="px-8 pt-8 pb-4 border-b border-brand-navy/5">
-                    <DialogTitle className="text-2xl font-bold text-brand-navy">Generate payouts</DialogTitle>
-                    <DialogDescription>Select role and month. Review the breakdown, then generate all selected payouts as pending.</DialogDescription>
+            <DialogContent className="max-w-4xl p-4 border border-gray-100 rounded-xl shadow-none overflow-hidden max-h-[90vh] flex flex-col">
+                <DialogHeader className="pb-3 border-b border-gray-100">
+                    <DialogTitle className="text-[13px] font-semibold text-brand-navy">Generate payouts</DialogTitle>
+                    <DialogDescription className="text-[10px] text-gray-400">Select role and month. Review the breakdown, then generate all selected payouts as pending.</DialogDescription>
                 </DialogHeader>
 
-                <div className="px-8 py-4 flex items-center gap-3 border-b border-brand-navy/5">
-                    <div className="flex bg-brand-navy/[0.04] p-1 rounded-2xl">
+                <div className="py-3 flex items-center gap-3 border-b border-gray-100">
+                    <div className="flex gap-0.5 bg-white p-0.5 rounded-md border border-gray-200">
                         <button
                             onClick={() => setRole('seller')}
-                            className={cn(
-                                'px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all',
-                                role === 'seller' ? 'bg-white text-brand-navy shadow-sm' : 'text-brand-navy/50'
-                            )}
+                            className={cn('px-2.5 h-7 rounded-[4px] text-[10px] font-semibold transition', role === 'seller' ? 'bg-brand-navy text-white' : 'text-gray-500 hover:text-brand-navy hover:bg-gray-50')}
                         >
                             Sellers
                         </button>
                         <button
                             onClick={() => setRole('mediabuyer')}
-                            className={cn(
-                                'px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all',
-                                role === 'mediabuyer' ? 'bg-white text-brand-navy shadow-sm' : 'text-brand-navy/50'
-                            )}
+                            className={cn('px-2.5 h-7 rounded-[4px] text-[10px] font-semibold transition', role === 'mediabuyer' ? 'bg-brand-navy text-white' : 'text-gray-500 hover:text-brand-navy hover:bg-gray-50')}
                         >
                             Media Buyers
                         </button>
                     </div>
                     <Select value={monthKey} onValueChange={setMonthKey}>
-                        <SelectTrigger className="w-[200px] h-11 rounded-2xl border-none bg-brand-navy/[0.04] font-bold">
+                        <SelectTrigger className="w-[180px] h-8 rounded-md border-gray-200 text-[11px]">
                             <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="rounded-2xl">
+                        <SelectContent>
                             {monthOptions.map((m) => (
-                                <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                                <SelectItem key={m.value} value={m.value} className="text-[11px]">{m.label}</SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
                 </div>
 
-                <div className="flex-1 overflow-y-auto px-8 py-6">
+                <div className="flex-1 overflow-y-auto py-3">
                     {activeLoading ? (
-                        <div className="flex justify-center py-16">
-                            <Loader2 className="w-8 h-8 animate-spin text-brand-navy/40" />
+                        <div className="flex justify-center py-10">
+                            <Loader2 className="w-6 h-6 animate-spin text-brand-navy/40" />
                         </div>
                     ) : activeRows.length === 0 ? (
-                        <div className="text-center py-16 text-muted-foreground">
+                        <div className="text-center py-10 text-[11px] text-gray-400">
                             No {role === 'seller' ? 'sellers' : 'media buyers'} in this business.
                         </div>
                     ) : (
-                        <div className="rounded-2xl border border-brand-navy/5 overflow-hidden">
-                            <table className="w-full text-sm">
+                        <div className="rounded-xl border border-gray-100 overflow-hidden">
+                            <table className="w-full">
                                 <thead>
-                                    <tr className="bg-brand-navy/[0.03] border-b border-brand-navy/5 text-[10px] font-black uppercase tracking-widest text-brand-navy/40">
-                                        <th className="text-left px-4 py-3 w-10">
+                                    <tr className="border-b border-gray-100 bg-gray-50/60">
+                                        <th className="px-3 py-2 w-8">
                                             <Checkbox checked={selectedIds.length > 0 && selectedIds.length === activeRows.length} onCheckedChange={toggleAll} />
                                         </th>
-                                        <th className="text-left px-3 py-3">{role === 'seller' ? 'Seller' : 'Media buyer'}</th>
-                                        {role === 'mediabuyer' && <th className="text-left px-3 py-3">Type</th>}
-                                        <th className="text-right px-3 py-3">Delivered</th>
-                                        {role === 'seller' ? <th className="text-right px-3 py-3">Days</th> : <th className="text-right px-3 py-3">Spend</th>}
-                                        {role === 'mediabuyer' && <th className="text-right px-3 py-3">Already paid</th>}
-                                        <th className="text-right px-3 py-3 pr-4">To pay</th>
+                                        <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">{role === 'seller' ? 'Seller' : 'Media buyer'}</th>
+                                        {role === 'mediabuyer' && <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Type</th>}
+                                        <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Delivered</th>
+                                        {role === 'seller' ? <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Days</th> : <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Spend</th>}
+                                        {role === 'mediabuyer' && <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Already paid</th>}
+                                        <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">To pay</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -759,25 +791,25 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
                                               const hasRemainder = r.total_amount > 0;
                                               const sel = selectedIds.includes(r.seller_id);
                                               return (
-                                                  <tr key={r.seller_id} className={cn('border-b border-brand-navy/[0.03] tabular-nums', sel && 'bg-primary/[0.04]', !hasRemainder && 'opacity-40')}>
-                                                      <td className="px-4 py-3">
+                                                  <tr key={r.seller_id} className={cn('border-b border-gray-50 hover:bg-gray-50 transition-colors tabular-nums', sel && 'bg-brand-navy/[0.02]', !hasRemainder && 'opacity-40')}>
+                                                      <td className="px-3 py-2">
                                                           <Checkbox checked={sel} disabled={!hasRemainder} onCheckedChange={() => toggleRow(r.seller_id)} />
                                                       </td>
-                                                      <td className="px-3 py-3">
+                                                      <td className="px-3 py-2">
                                                           <div className="flex items-center gap-2 min-w-0">
-                                                              <Avatar className="h-8 w-8">
+                                                              <Avatar className="h-6 w-6 shrink-0">
                                                                   <AvatarImage src={r.avatar_url || ''} />
-                                                                  <AvatarFallback className="text-[10px] bg-brand-navy text-white">{r.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                                                                  <AvatarFallback className="text-[9px] bg-brand-navy/10 text-brand-navy">{r.name.substring(0, 2).toUpperCase()}</AvatarFallback>
                                                               </Avatar>
                                                               <div className="min-w-0">
-                                                                  <p className="text-xs font-bold text-brand-navy truncate">{r.name}</p>
-                                                                  <p className="text-[10px] text-muted-foreground truncate">{r.email}</p>
+                                                                  <p className="text-[11px] font-semibold text-brand-navy truncate">{r.name}</p>
+                                                                  <p className="text-[9px] text-gray-400 truncate">{r.email}</p>
                                                               </div>
                                                           </div>
                                                       </td>
-                                                      <td className="text-right px-3 py-3 text-xs font-bold text-emerald-600">{fmtNum(r.delivered_orders)}</td>
-                                                      <td className="text-right px-3 py-3 text-xs text-brand-navy/70">{r.days_present}</td>
-                                                      <td className="text-right px-3 py-3 pr-4 font-black text-brand-navy" title={fmtCurFull(r.total_amount)}>
+                                                      <td className="px-3 py-2 text-right text-[11px] font-semibold text-emerald-600 tabular-nums">{fmtNum(r.delivered_orders)}</td>
+                                                      <td className="px-3 py-2 text-right text-[11px] text-brand-navy/70 tabular-nums">{r.days_present}</td>
+                                                      <td className="px-3 py-2 text-right text-[11px] font-semibold text-brand-navy tabular-nums" title={fmtCurFull(r.total_amount)}>
                                                           {fmtCur(r.total_amount)}
                                                       </td>
                                                   </tr>
@@ -787,40 +819,35 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
                                               const hasRemainder = r.remaining_amount > 0;
                                               const sel = selectedIds.includes(r.mediabuyer_id);
                                               return (
-                                                  <tr key={r.mediabuyer_id} className={cn('border-b border-brand-navy/[0.03] tabular-nums', sel && 'bg-primary/[0.04]', !hasRemainder && 'opacity-40')}>
-                                                      <td className="px-4 py-3">
+                                                  <tr key={r.mediabuyer_id} className={cn('border-b border-gray-50 hover:bg-gray-50 transition-colors tabular-nums', sel && 'bg-brand-navy/[0.02]', !hasRemainder && 'opacity-40')}>
+                                                      <td className="px-3 py-2">
                                                           <Checkbox checked={sel} disabled={!hasRemainder} onCheckedChange={() => toggleRow(r.mediabuyer_id)} />
                                                       </td>
-                                                      <td className="px-3 py-3">
+                                                      <td className="px-3 py-2">
                                                           <div className="flex items-center gap-2 min-w-0">
-                                                              <Avatar className="h-8 w-8">
+                                                              <Avatar className="h-6 w-6 shrink-0">
                                                                   <AvatarImage src={r.avatar_url || ''} />
-                                                                  <AvatarFallback className="text-[10px] bg-brand-navy text-white">{r.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                                                                  <AvatarFallback className="text-[9px] bg-brand-navy/10 text-brand-navy">{r.name.substring(0, 2).toUpperCase()}</AvatarFallback>
                                                               </Avatar>
                                                               <div className="min-w-0">
-                                                                  <p className="text-xs font-bold text-brand-navy truncate">{r.name}</p>
-                                                                  <p className="text-[10px] text-muted-foreground truncate">{r.email}</p>
+                                                                  <p className="text-[11px] font-semibold text-brand-navy truncate">{r.name}</p>
+                                                                  <p className="text-[9px] text-gray-400 truncate">{r.email}</p>
                                                               </div>
                                                           </div>
                                                       </td>
-                                                      <td className="px-3 py-3">
-                                                          <Badge
-                                                              className={cn(
-                                                                  'rounded-full text-[9px] font-black uppercase border-none',
-                                                                  r.payment_type === 'commission' ? 'bg-primary/10 text-primary' : 'bg-indigo-500/10 text-indigo-600'
-                                                              )}
-                                                          >
+                                                      <td className="px-3 py-2">
+                                                          <span className={cn('h-5 px-1.5 text-[9px] font-semibold rounded inline-flex items-center uppercase tracking-[0.08em]', r.payment_type === 'commission' ? 'bg-brand-navy/10 text-brand-navy' : 'bg-gray-100 text-gray-600')}>
                                                               {r.payment_type || 'n/a'}
-                                                          </Badge>
+                                                          </span>
                                                       </td>
-                                                      <td className="text-right px-3 py-3 text-xs font-bold text-emerald-600">{fmtNum(r.delivered_orders)}</td>
-                                                      <td className="text-right px-3 py-3 text-xs text-brand-navy/70" title={fmtCurFull(r.total_spend)}>
+                                                      <td className="px-3 py-2 text-right text-[11px] font-semibold text-emerald-600 tabular-nums">{fmtNum(r.delivered_orders)}</td>
+                                                      <td className="px-3 py-2 text-right text-[11px] text-brand-navy/70 tabular-nums" title={fmtCurFull(r.total_spend)}>
                                                           {fmtCur(r.total_spend)}
                                                       </td>
-                                                      <td className="text-right px-3 py-3 text-xs text-brand-navy/50" title={fmtCurFull(r.prior_paid_amount)}>
+                                                      <td className="px-3 py-2 text-right text-[11px] text-brand-navy/50 tabular-nums" title={fmtCurFull(r.prior_paid_amount)}>
                                                           {r.prior_paid_amount > 0 ? fmtCur(r.prior_paid_amount) : '—'}
                                                       </td>
-                                                      <td className="text-right px-3 py-3 pr-4 font-black text-brand-navy" title={fmtCurFull(r.remaining_amount)}>
+                                                      <td className="px-3 py-2 text-right text-[11px] font-semibold text-brand-navy tabular-nums" title={fmtCurFull(r.remaining_amount)}>
                                                           {fmtCur(r.remaining_amount)}
                                                       </td>
                                                   </tr>
@@ -832,9 +859,9 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
                     )}
 
                     {!activeLoading && activeRows.length > 0 && (
-                        <div className="mt-4 rounded-2xl bg-brand-navy/[0.03] border border-brand-navy/5 p-4 flex items-start gap-3">
-                            <Info className="w-4 h-4 text-brand-navy/40 shrink-0 mt-0.5" />
-                            <div className="text-xs text-brand-navy/70 space-y-1">
+                        <div className="mt-3 rounded-xl bg-gray-50 border border-gray-100 p-3 flex items-start gap-2">
+                            <Info className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
+                            <div className="text-[10px] text-brand-navy/70 space-y-0.5">
                                 <p>
                                     <span className="font-bold">{role === 'seller' ? 'Sellers' : 'Media buyers'}:</span>{' '}
                                     {role === 'seller'
@@ -847,57 +874,36 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
                     )}
                 </div>
 
-                <DialogFooter className="px-8 py-5 border-t border-brand-navy/5 bg-brand-navy/[0.02] flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-5 text-xs">
-                        <div>
-                            <p className="text-[9px] font-bold uppercase text-muted-foreground">Selected</p>
-                            <p className="text-base font-black text-brand-navy tabular-nums">{totals.users}</p>
-                        </div>
-                        <div>
-                            <p className="text-[9px] font-bold uppercase text-muted-foreground">Delivered</p>
-                            <p className="text-base font-black text-emerald-600 tabular-nums">{fmtNum(totals.delivered)}</p>
-                        </div>
-                        <div>
-                            <p className="text-[9px] font-bold uppercase text-muted-foreground">Total</p>
-                            <p className="text-base font-black text-primary tabular-nums" title={fmtCurFull(totals.amount)}>
-                                {fmtCur(totals.amount)}
-                            </p>
-                        </div>
+                <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                        {[
+                            { label: 'Selected', value: String(totals.users), color: 'text-brand-navy' },
+                            { label: 'Delivered', value: fmtNum(totals.delivered), color: 'text-emerald-600' },
+                            { label: 'Total', value: fmtCur(totals.amount), color: 'text-brand-navy' },
+                        ].map((s) => (
+                            <div key={s.label}>
+                                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">{s.label}</p>
+                                <p className={cn("text-[13px] font-semibold tabular-nums", s.color)} title={s.label === 'Total' ? fmtCurFull(totals.amount) : undefined}>{s.value}</p>
+                            </div>
+                        ))}
                     </div>
                     <div className="flex items-center gap-2">
-                        <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-2xl font-bold">
+                        <Button variant="ghost" onClick={() => onOpenChange(false)} className="h-8 rounded-md text-[11px] font-semibold">
                             Cancel
                         </Button>
                         <Button
                             onClick={() => generateMutation.mutate()}
                             disabled={generateMutation.isPending || totals.users === 0 || totals.amount === 0}
-                            className="rounded-2xl bg-primary hover:bg-primary/90 text-white font-bold gap-2 shadow-xl shadow-primary/20"
+                            className="h-8 rounded-md bg-brand-navy hover:bg-brand-navy/90 text-white text-[11px] font-semibold gap-1.5"
                         >
-                            {generateMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                            {generateMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
                             Generate {totals.users} payout{totals.users !== 1 ? 's' : ''}
                         </Button>
                     </div>
-                </DialogFooter>
+                </div>
             </DialogContent>
         </Dialog>
     );
 };
-
-// ═════════════════════════ Helpers ═════════════════════════
-const StatCard: React.FC<{ label: string; value: string; valueTitle?: string; icon: React.ComponentType<{ className?: string }>; tone: string }> = ({ label, value, valueTitle, icon: Icon, tone }) => (
-    <div className="rounded-3xl border border-gray-100/80 bg-white/90 p-5 shadow-sm backdrop-blur-sm">
-        <div className="flex items-start justify-between gap-3">
-            <div className="space-y-1 min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{label}</p>
-                <p className="text-xl font-black tabular-nums text-gray-900 tracking-tight break-words" title={valueTitle || value}>
-                    {value}
-                </p>
-            </div>
-            <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl', tone)}>
-                <Icon className="h-5 w-5" />
-            </div>
-        </div>
-    </div>
-);
 
 export default Salaries;

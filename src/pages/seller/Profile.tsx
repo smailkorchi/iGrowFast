@@ -16,7 +16,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -240,6 +240,7 @@ const SellerProfile = () => {
             setLoading(false);
         }
     };
+
     const handleUpdateBankInfo = async () => {
         try {
             setSaving(true);
@@ -319,7 +320,6 @@ const SellerProfile = () => {
         return c;
     }, [productStats]);
 
-
     const handleLogout = async () => {
         await supabase.auth.signOut();
         window.location.href = '/auth';
@@ -333,486 +333,397 @@ const SellerProfile = () => {
         );
     }
 
+    const statusAccent =
+        stats.performanceStatus === 'Elite' ? '#059669'
+            : stats.performanceStatus === 'Pro' ? '#3b5e5e'
+                : stats.performanceStatus === 'Review' ? '#ef4444'
+                    : '#9ca3af';
+
     return (
-        <div className="space-y-8 animate-in fade-in duration-500 max-w-6xl mx-auto pb-12">
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
             {/* Header */}
-            <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-                <div className="relative p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <header className="space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
-                        <h1 className="text-4xl font-extralight text-gray-900 mb-2">My Profile</h1>
-                        <p className="text-gray-500 font-light">Manage your professional identity and view performance stats.</p>
+                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">My Profile</h1>
+                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Professional identity & performance</p>
                     </div>
                     <Button
                         variant="outline"
                         onClick={handleLogout}
-                        className="rounded-2xl border-gray-200 hover:bg-red-50 hover:text-red-600 hover:border-red-100 transition-all duration-300 h-12 px-6"
+                        className="h-8 rounded-md text-[11px] font-semibold text-red-600 border-red-100 hover:bg-red-50 hover:border-red-200"
                     >
-                        <LogOut className="w-4 h-4 mr-2" />
+                        <LogOut className="w-3.5 h-3.5 mr-1.5" />
                         Log Out
                     </Button>
                 </div>
-            </div>
+            </header>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch">
-                <div className="lg:col-span-2 flex flex-col gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                <div className="lg:col-span-2 flex flex-col gap-3">
                     {/* Profile Information */}
-                    <Card className="border-0 shadow-xl rounded-3xl overflow-hidden bg-white hover:shadow-2xl transition-all duration-500">
-                        <CardHeader className="border-b border-gray-50 bg-gradient-to-r from-gray-50/50 to-transparent p-8">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center">
-                                    <User className="w-6 h-6 text-primary" />
-                                </div>
-                                <div>
-                                    <CardTitle className="text-2xl font-light text-gray-900">Personal Data</CardTitle>
-                                    <CardDescription className="font-light">Your professional identity details</CardDescription>
-                                </div>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="p-8">
-                            <div className="flex flex-col sm:flex-row items-center gap-8">
-                                <div className="relative group">
-                                    <Avatar className="w-32 h-32 border-4 border-white shadow-2xl ring-1 ring-gray-100">
-                                        <AvatarImage src={profile?.avatar_url || ''} className="object-cover" />
-                                        <AvatarFallback className="bg-gradient-to-br from-primary/5 to-primary/20 text-4xl font-light text-primary">
-                                            {profile?.name?.charAt(0).toUpperCase() || <User />}
-                                        </AvatarFallback>
-                                    </Avatar>
-                                </div>
-                                <div className="space-y-1 text-center sm:text-left">
-                                    <h3 className="text-2xl font-light text-gray-900">{profile?.name || 'No Name Set'}</h3>
-                                    <p className="text-gray-500 font-light flex items-center justify-center sm:justify-start gap-2">
-                                        <Mail className="w-4 h-4 text-gray-400" />
-                                        {profile?.email}
-                                    </p>
-                                    <div className="pt-2 flex flex-wrap justify-center sm:justify-start gap-2">
-                                        <Badge variant="outline" className="rounded-xl border-primary/20 text-primary font-light px-3 py-1">
-                                            <ShieldCheck className="w-3 h-3 mr-1" />
-                                            Verified Seller
-                                        </Badge>
-                                        <Badge variant="outline" className="rounded-xl border-gray-200 text-gray-500 font-light px-3 py-1">
-                                            Active since {profile?.created_at ? new Date(profile.created_at).getFullYear() : 'N/A'}
-                                        </Badge>
-                                    </div>
+                    <div className="rounded-xl border border-gray-100 bg-white p-3.5">
+                        <p className="text-[11px] font-semibold text-brand-navy mb-3">Personal Data</p>
+                        <div className="flex flex-col sm:flex-row items-start gap-4">
+                            <Avatar className="h-14 w-14 shrink-0">
+                                <AvatarImage src={profile?.avatar_url || ''} className="object-cover" />
+                                <AvatarFallback className="bg-gray-100 text-[15px] font-semibold text-brand-navy">
+                                    {profile?.name?.charAt(0).toUpperCase() || <User className="w-5 h-5 text-gray-400" />}
+                                </AvatarFallback>
+                            </Avatar>
+                            <div className="space-y-1">
+                                <p className="text-[13px] font-semibold text-brand-navy">{profile?.name || 'No Name Set'}</p>
+                                <p className="text-[11px] text-gray-400 flex items-center gap-1.5">
+                                    <Mail className="w-3 h-3" />
+                                    {profile?.email}
+                                </p>
+                                <div className="flex flex-wrap gap-1.5 pt-1">
+                                    <Badge variant="outline" className="rounded-md border-gray-200 text-gray-500 text-[10px] px-2 h-5 font-medium gap-1">
+                                        <ShieldCheck className="w-2.5 h-2.5" />
+                                        Verified Seller
+                                    </Badge>
+                                    <Badge variant="outline" className="rounded-md border-gray-200 text-gray-400 text-[10px] px-2 h-5 font-medium">
+                                        Since {profile?.created_at ? new Date(profile.created_at).getFullYear() : 'N/A'}
+                                    </Badge>
                                 </div>
                             </div>
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </div>
 
                     {/* Bank & Identity Information */}
-                    <Card className="flex-1 border-0 shadow-xl rounded-3xl overflow-hidden bg-white hover:shadow-2xl transition-all duration-500">
-                        <CardHeader className="border-b border-gray-50 bg-gradient-to-r from-gray-50/50 to-transparent p-8">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center">
-                                    <CreditCard className="w-6 h-6 text-primary" />
-                                </div>
+                    <div className="rounded-xl border border-gray-100 bg-white p-3.5 flex-1">
+                        <p className="text-[11px] font-semibold text-brand-navy mb-0.5">Bank & Identity</p>
+                        <p className="text-[9px] text-gray-400 mb-3">
+                            {(!profile?.bank_rib || !profile?.cin_number)
+                                ? "Provide your details once to enable payments (cannot be edited later)."
+                                : "Secure payment and identification details"}
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            <div className="space-y-3">
+                                {/* Bank Name */}
                                 <div>
-                                    <CardTitle className="text-2xl font-light text-gray-900">Bank & Identity</CardTitle>
-                                    <CardDescription className="font-light">
-                                        {(!profile?.bank_rib || !profile?.cin_number)
-                                            ? "Provide your details once to enable payments (cannot be edited later)."
-                                            : "Secure payment and identification details"}
-                                    </CardDescription>
+                                    <label className="text-[11px] font-medium text-gray-500 flex items-center gap-1.5 mb-1.5">
+                                        <Building2 className="w-3 h-3 text-gray-400" />
+                                        Bank Name
+                                    </label>
+                                    {profile?.bank_name ? (
+                                        <p className="text-[12px] text-brand-navy font-medium">{profile.bank_name}</p>
+                                    ) : (
+                                        <Input
+                                            placeholder="Enter bank name"
+                                            value={bankInfo.bank_name}
+                                            onChange={(e) => setBankInfo({ ...bankInfo, bank_name: e.target.value })}
+                                            className="h-9 text-[12px] rounded-md border-gray-100 bg-gray-50/50"
+                                        />
+                                    )}
                                 </div>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="p-8">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                                <div className="space-y-6">
-                                    <div className="space-y-2">
-                                        <div className="flex items-start gap-4">
-                                            <div className="w-8 h-8 rounded-xl bg-gray-50 flex items-center justify-center shrink-0">
-                                                <Building2 className="w-4 h-4 text-gray-400" />
-                                            </div>
-                                            <div className="flex-1">
-                                                <p className="text-[10px] text-gray-400 uppercase tracking-widest font-medium mb-1">Bank Name</p>
-                                                {profile?.bank_name ? (
-                                                    <p className="text-gray-900 font-light">{profile.bank_name}</p>
-                                                ) : (
-                                                    <Input
-                                                        placeholder="Enter bank name"
-                                                        value={bankInfo.bank_name}
-                                                        onChange={(e) => setBankInfo({ ...bankInfo, bank_name: e.target.value })}
-                                                        className="h-10 rounded-xl border-gray-100 bg-gray-50/30 focus:ring-primary/20"
-                                                    />
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <div className="flex items-start gap-4">
-                                            <div className="w-8 h-8 rounded-xl bg-gray-50 flex items-center justify-center shrink-0">
-                                                <User className="w-4 h-4 text-gray-400" />
-                                            </div>
-                                            <div className="flex-1">
-                                                <p className="text-[10px] text-gray-400 uppercase tracking-widest font-medium mb-1">Account Holder</p>
-                                                {profile?.bank_account_holder ? (
-                                                    <p className="text-gray-900 font-light">{profile.bank_account_holder}</p>
-                                                ) : (
-                                                    <Input
-                                                        placeholder="Enter full name"
-                                                        value={bankInfo.bank_account_holder}
-                                                        onChange={(e) => setBankInfo({ ...bankInfo, bank_account_holder: e.target.value })}
-                                                        className="h-10 rounded-xl border-gray-100 bg-gray-50/30 focus:ring-primary/20"
-                                                    />
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <div className="flex items-start gap-4">
-                                            <div className="w-8 h-8 rounded-xl bg-gray-50 flex items-center justify-center shrink-0">
-                                                <CreditCard className="w-4 h-4 text-gray-400" />
-                                            </div>
-                                            <div className="flex-1">
-                                                <p className="text-[10px] text-gray-400 uppercase tracking-widest font-medium mb-1">RIB (Bank Account Number)</p>
-                                                {profile?.bank_rib ? (
-                                                    <p className="text-gray-900 font-mono text-sm tracking-widest bg-gray-50 px-3 py-1 rounded-lg inline-block whitespace-nowrap">{profile.bank_rib}</p>
-                                                ) : (
-                                                    <Input
-                                                        placeholder="24-digit RIB"
-                                                        value={bankInfo.bank_rib}
-                                                        onChange={(e) => setBankInfo({ ...bankInfo, bank_rib: e.target.value })}
-                                                        className="h-10 rounded-xl border-gray-100 bg-gray-50/30 font-mono tracking-wider focus:ring-primary/20"
-                                                    />
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
+                                {/* Account Holder */}
+                                <div>
+                                    <label className="text-[11px] font-medium text-gray-500 flex items-center gap-1.5 mb-1.5">
+                                        <User className="w-3 h-3 text-gray-400" />
+                                        Account Holder
+                                    </label>
+                                    {profile?.bank_account_holder ? (
+                                        <p className="text-[12px] text-brand-navy font-medium">{profile.bank_account_holder}</p>
+                                    ) : (
+                                        <Input
+                                            placeholder="Enter full name"
+                                            value={bankInfo.bank_account_holder}
+                                            onChange={(e) => setBankInfo({ ...bankInfo, bank_account_holder: e.target.value })}
+                                            className="h-9 text-[12px] rounded-md border-gray-100 bg-gray-50/50"
+                                        />
+                                    )}
                                 </div>
-
-                                <div className="space-y-6">
-                                    <div className="space-y-2">
-                                        <div className="flex items-start gap-4">
-                                            <div className="w-8 h-8 rounded-xl bg-gray-50 flex items-center justify-center shrink-0">
-                                                <Fingerprint className="w-4 h-4 text-gray-400" />
-                                            </div>
-                                            <div className="flex-1">
-                                                <p className="text-[10px] text-gray-400 uppercase tracking-widest font-medium mb-1">CIN (Identity Number)</p>
-                                                {profile?.cin_number ? (
-                                                    <p className="text-gray-900 font-light">{profile.cin_number}</p>
-                                                ) : (
-                                                    <Input
-                                                        placeholder="Enter CIN"
-                                                        value={bankInfo.cin_number}
-                                                        onChange={(e) => setBankInfo({ ...bankInfo, cin_number: e.target.value })}
-                                                        className="h-10 rounded-xl border-gray-100 bg-gray-50/30 focus:ring-primary/20"
-                                                    />
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <div className="flex items-start gap-4">
-                                            <div className="w-8 h-8 rounded-xl bg-gray-50 flex items-center justify-center shrink-0">
-                                                <MapPin className="w-4 h-4 text-gray-400" />
-                                            </div>
-                                            <div className="flex-1">
-                                                <p className="text-[10px] text-gray-400 uppercase tracking-widest font-medium mb-1">Full Address</p>
-                                                {profile?.address ? (
-                                                    <p className="text-gray-900 font-light leading-relaxed max-w-sm">{profile.address}</p>
-                                                ) : (
-                                                    <Input
-                                                        placeholder="Enter your complete address"
-                                                        value={bankInfo.address}
-                                                        onChange={(e) => setBankInfo({ ...bankInfo, address: e.target.value })}
-                                                        className="h-10 rounded-xl border-gray-100 bg-gray-50/30 focus:ring-primary/20"
-                                                    />
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {!profile?.bank_rib && (
-                                        <div className="pt-4">
-                                            <Button
-                                                onClick={handleUpdateBankInfo}
-                                                disabled={saving || !bankInfo.bank_rib || !bankInfo.cin_number}
-                                                className="w-full bg-gray-900 hover:bg-black text-white rounded-xl h-11 transition-all duration-300"
-                                            >
-                                                {saving ? (
-                                                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                                                ) : (
-                                                    <ShieldCheck className="w-4 h-4 mr-2" />
-                                                )}
-                                                Confirm & Lock Details
-                                            </Button>
-                                        </div>
+                                {/* RIB */}
+                                <div>
+                                    <label className="text-[11px] font-medium text-gray-500 flex items-center gap-1.5 mb-1.5">
+                                        <CreditCard className="w-3 h-3 text-gray-400" />
+                                        RIB (Bank Account Number)
+                                    </label>
+                                    {profile?.bank_rib ? (
+                                        <p className="text-[12px] text-brand-navy font-mono tracking-wider bg-gray-50 px-2.5 py-1 rounded-md inline-block">{profile.bank_rib}</p>
+                                    ) : (
+                                        <Input
+                                            placeholder="24-digit RIB"
+                                            value={bankInfo.bank_rib}
+                                            onChange={(e) => setBankInfo({ ...bankInfo, bank_rib: e.target.value })}
+                                            className="h-9 text-[12px] rounded-md border-gray-100 bg-gray-50/50 font-mono tracking-wider"
+                                        />
                                     )}
                                 </div>
                             </div>
-                        </CardContent>
-                    </Card>
-                </div>
 
-                {/* Seller Statistics */}
-                <div className="space-y-6">
-                    <Card className="border-0 shadow-xl rounded-3xl overflow-hidden bg-white hover:shadow-2xl transition-all duration-500">
-                        <CardHeader className="border-b border-gray-50 bg-gradient-to-r from-gray-50/50 to-transparent p-6 pb-2">
-                            <div className="flex items-center justify-between">
-                                <CardTitle className="text-xl font-light text-gray-900">Performance Pulse</CardTitle>
-                                <Badge className={`border-0 text-[10px] h-5 px-2 font-medium bg-opacity-10
-                                            ${stats.performanceStatus === 'Elite' ? 'bg-green-500 text-green-600' :
-                                        stats.performanceStatus === 'Pro' ? 'bg-blue-500 text-blue-600' :
-                                            stats.performanceStatus === 'Review' ? 'bg-red-500 text-red-600' :
-                                                'bg-gray-500 text-gray-600'}`}
-                                >
-                                    {stats.performanceStatus}
-                                </Badge>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="p-6 space-y-6">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center">
-                                        <Zap className="w-5 h-5 text-gray-400" />
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-gray-500 font-light">Attributed</p>
-                                        <p className="text-lg font-medium text-gray-900">{stats.total}</p>
-                                    </div>
-                                </div>
-                                <p className="text-[10px] text-gray-400 font-light">Total orders</p>
-                            </div>
-
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 bg-primary/5 rounded-xl flex items-center justify-center">
-                                        <Target className="w-5 h-5 text-primary" />
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-gray-500 font-light">Confirmation</p>
-                                        <p className="text-lg font-medium text-gray-900">{stats.confirmationRate}%</p>
-                                    </div>
-                                </div>
-                                <p className="text-[10px] text-gray-400 font-light">{stats.confirmed} orders</p>
-                            </div>
-
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center">
-                                        <CheckCircle2 className="w-5 h-5 text-green-600" />
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-gray-500 font-light">Delivery</p>
-                                        <p className="text-lg font-medium text-gray-900">{stats.deliveryRate}%</p>
-                                    </div>
-                                </div>
-                                <p className="text-[10px] text-gray-400 font-light">{stats.delivered} orders</p>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="border-0 shadow-xl rounded-3xl overflow-hidden bg-white hover:shadow-2xl transition-all duration-500">
-                        <CardHeader className="border-b border-gray-50 bg-gradient-to-r from-gray-50/50 to-transparent p-6">
-                            <CardTitle className="text-xl font-light text-gray-900">Financial Earnings</CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-6 space-y-6">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
-                                        <TrendingUp className="w-5 h-5 text-blue-600" />
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-gray-500 font-light">Commission Rate</p>
-                                        <p className="text-lg font-medium text-gray-900">{profile?.commission_price || 0} MAD</p>
-                                    </div>
-                                </div>
-                                <p className="text-xs text-gray-400 italic font-light">
-                                    {normalizeCommissionBasis(profile?.commission_basis) === 'per_unit'
-                                        ? 'per unit (assigned products) on delivered orders'
-                                        : 'per delivered order'}
-                                </p>
-                            </div>
-
-                        </CardContent>
-                    </Card>
-
-                    <Card className="border-0 shadow-xl rounded-3xl overflow-hidden bg-gradient-to-br from-gray-900 to-gray-800 text-white hover:shadow-2xl transition-all duration-500">
-                        <CardContent className="p-6">
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center">
-                                    <Calendar className="w-5 h-5 text-white/80" />
-                                </div>
+                            <div className="space-y-3">
+                                {/* CIN */}
                                 <div>
-                                    <p className="text-xs text-white/50 font-light uppercase tracking-widest">Account Details</p>
-                                    <CardTitle className="text-sm font-light">Member Information</CardTitle>
-                                </div>
-                            </div>
-
-                            <div className="space-y-4">
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="text-white/60 font-light">Join Date</span>
-                                    <span className="font-light">{profile?.created_at ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'N/A'}</span>
-                                </div>
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="text-white/60 font-light">Role</span>
-                                    <Badge className="bg-white/10 hover:bg-white/20 text-white border-0 font-light">Seller Partner</Badge>
-                                </div>
-
-                            </div>
-
-
-                        </CardContent>
-                    </Card>
-                </div>
-
-                {/* Inventory Performance */}
-                <Card className="lg:col-span-3 border-0 shadow-xl rounded-3xl overflow-hidden bg-white">
-                    <CardHeader className="border-b border-gray-50 bg-gradient-to-r from-gray-50/50 to-transparent p-8">
-                        <div className="flex flex-col gap-6">
-                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center">
-                                        <Package className="w-6 h-6 text-primary" />
-                                    </div>
-                                    <div>
-                                        <CardTitle className="text-2xl font-light text-gray-900">Inventory Performance</CardTitle>
-                                        <CardDescription className="font-light">
-                                            {filteredProducts.length} of {productStats.length} attributed product{productStats.length === 1 ? '' : 's'}
-                                        </CardDescription>
-                                    </div>
-                                </div>
-
-                                <div className="flex items-center gap-3">
-                                    <div className="relative group flex-1 md:w-72">
-                                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
+                                    <label className="text-[11px] font-medium text-gray-500 flex items-center gap-1.5 mb-1.5">
+                                        <Fingerprint className="w-3 h-3 text-gray-400" />
+                                        CIN (Identity Number)
+                                    </label>
+                                    {profile?.cin_number ? (
+                                        <p className="text-[12px] text-brand-navy font-medium">{profile.cin_number}</p>
+                                    ) : (
                                         <Input
-                                            placeholder="Search by name, code, label..."
-                                            value={searchQuery}
-                                            onChange={(e) => setSearchQuery(e.target.value)}
-                                            className="pl-11 h-11 rounded-2xl border-gray-100 bg-gray-50/50 focus:bg-white"
+                                            placeholder="Enter CIN"
+                                            value={bankInfo.cin_number}
+                                            onChange={(e) => setBankInfo({ ...bankInfo, cin_number: e.target.value })}
+                                            className="h-9 text-[12px] rounded-md border-gray-100 bg-gray-50/50"
                                         />
-                                        {searchQuery && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setSearchQuery('')}
-                                                className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:bg-gray-100"
-                                            >
-                                                <X className="w-3.5 h-3.5" />
-                                            </button>
-                                        )}
-                                    </div>
-                                    <Select value={sortBy} onValueChange={(v) => setSortBy(v as ProductSort)}>
-                                        <SelectTrigger className="h-11 rounded-2xl border-gray-100 bg-gray-50/50 w-44 gap-2">
-                                            <ArrowUpDown className="w-3.5 h-3.5 text-gray-400" />
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent className="rounded-2xl">
-                                            <SelectItem value="attributed">Most attributed</SelectItem>
-                                            <SelectItem value="delivered">Most delivered</SelectItem>
-                                            <SelectItem value="performance">Best performance</SelectItem>
-                                            <SelectItem value="name">Name (A–Z)</SelectItem>
-                                        </SelectContent>
-                                    </Select>
+                                    )}
                                 </div>
-                            </div>
+                                {/* Address */}
+                                <div>
+                                    <label className="text-[11px] font-medium text-gray-500 flex items-center gap-1.5 mb-1.5">
+                                        <MapPin className="w-3 h-3 text-gray-400" />
+                                        Full Address
+                                    </label>
+                                    {profile?.address ? (
+                                        <p className="text-[12px] text-brand-navy font-medium leading-relaxed">{profile.address}</p>
+                                    ) : (
+                                        <Input
+                                            placeholder="Enter your complete address"
+                                            value={bankInfo.address}
+                                            onChange={(e) => setBankInfo({ ...bankInfo, address: e.target.value })}
+                                            className="h-9 text-[12px] rounded-md border-gray-100 bg-gray-50/50"
+                                        />
+                                    )}
+                                </div>
 
-                            {/* Performance bucket pills */}
-                            <div className="flex items-center gap-2 flex-wrap">
-                                {([
-                                    { id: 'all', label: 'All', count: bucketCounts.all, color: 'text-gray-700', active: 'bg-gray-900 text-white' },
-                                    { id: 'high', label: 'High ≥60%', count: bucketCounts.high, color: 'text-emerald-700', active: 'bg-emerald-600 text-white' },
-                                    { id: 'mid', label: 'Mid 30-60%', count: bucketCounts.mid, color: 'text-amber-700', active: 'bg-amber-500 text-white' },
-                                    { id: 'low', label: 'Low <30%', count: bucketCounts.low, color: 'text-red-700', active: 'bg-red-500 text-white' },
-                                    { id: 'none', label: 'No data', count: bucketCounts.none, color: 'text-gray-500', active: 'bg-gray-500 text-white' },
-                                ] as const).map((b) => {
-                                    const isActive = performanceBucket === b.id;
-                                    return (
-                                        <button
-                                            key={b.id}
-                                            type="button"
-                                            onClick={() => setPerformanceBucket(b.id)}
-                                            className={`h-9 px-4 rounded-2xl text-xs font-semibold transition-all flex items-center gap-2 ${
-                                                isActive
-                                                    ? b.active + ' shadow-md'
-                                                    : `bg-gray-100/70 hover:bg-gray-200/70 ${b.color}`
-                                            }`}
+                                {!profile?.bank_rib && (
+                                    <div className="pt-1">
+                                        <Button
+                                            onClick={handleUpdateBankInfo}
+                                            disabled={saving || !bankInfo.bank_rib || !bankInfo.cin_number}
+                                            className="h-8 rounded-md text-[11px] font-semibold"
                                         >
-                                            {b.label}
-                                            <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold ${
-                                                isActive ? 'bg-white/20 text-white' : 'bg-white text-gray-500'
-                                            }`}>
-                                                {b.count}
-                                            </span>
-                                        </button>
-                                    );
-                                })}
+                                            {saving ? (
+                                                <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                                            ) : (
+                                                <ShieldCheck className="w-3.5 h-3.5 mr-1.5" />
+                                            )}
+                                            Confirm & Lock Details
+                                        </Button>
+                                    </div>
+                                )}
                             </div>
                         </div>
-                    </CardHeader>
-                    <CardContent className="p-8">
+                    </div>
+                </div>
+
+                {/* Sidebar: Performance + Financial + Account */}
+                <div className="space-y-3">
+                    {/* Performance Pulse */}
+                    <div className="rounded-xl border border-gray-100 bg-white p-3.5">
+                        <div className="flex items-center justify-between mb-3">
+                            <p className="text-[11px] font-semibold text-brand-navy">Performance Pulse</p>
+                            <span
+                                className="text-[9px] font-bold px-2 h-4 rounded flex items-center"
+                                style={{ background: `${statusAccent}18`, color: statusAccent }}
+                            >
+                                {stats.performanceStatus}
+                            </span>
+                        </div>
+                        <div className="space-y-2.5">
+                            {[
+                                { label: 'Attributed', value: stats.total, sub: 'Total orders', icon: Zap, accent: '#9ca3af' },
+                                { label: 'Confirmation', value: `${stats.confirmationRate}%`, sub: `${stats.confirmed} orders`, icon: Target, accent: '#3b5e5e' },
+                                { label: 'Delivery', value: `${stats.deliveryRate}%`, sub: `${stats.delivered} orders`, icon: CheckCircle2, accent: '#059669' },
+                            ].map((row) => (
+                                <div key={row.label} className="flex items-center gap-2.5">
+                                    <span className="w-[3px] h-8 rounded-full shrink-0" style={{ background: row.accent }} />
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{row.label}</p>
+                                        <p className="text-[13px] font-semibold text-brand-navy tabular-nums leading-tight">{row.value}</p>
+                                    </div>
+                                    <p className="text-[9px] text-gray-400 shrink-0">{row.sub}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Financial Earnings */}
+                    <div className="rounded-xl border border-gray-100 bg-white p-3.5">
+                        <p className="text-[11px] font-semibold text-brand-navy mb-3">Financial Earnings</p>
+                        <div className="flex items-center gap-2.5">
+                            <span className="w-[3px] h-8 rounded-full shrink-0 bg-[#059669]" />
+                            <div className="flex-1 min-w-0">
+                                <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Commission Rate</p>
+                                <p className="text-[15px] font-semibold text-brand-navy tabular-nums">{profile?.commission_price || 0} MAD</p>
+                            </div>
+                        </div>
+                        <p className="text-[9px] text-gray-400 mt-2 pl-3.5">
+                            {normalizeCommissionBasis(profile?.commission_basis) === 'per_unit'
+                                ? 'Per unit (assigned products) on delivered orders'
+                                : 'Per delivered order'}
+                        </p>
+                    </div>
+
+                    {/* Account Details */}
+                    <div className="rounded-xl border border-gray-100 bg-white p-3.5">
+                        <p className="text-[11px] font-semibold text-brand-navy mb-3">Account Details</p>
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                                <span className="text-[11px] text-gray-500">Join Date</span>
+                                <span className="text-[11px] font-medium text-brand-navy">
+                                    {profile?.created_at ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'}
+                                </span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-[11px] text-gray-500">Role</span>
+                                <Badge variant="outline" className="rounded-md border-gray-200 text-gray-500 text-[10px] px-2 h-5 font-medium">Seller Partner</Badge>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Inventory Performance — full width */}
+                <div className="lg:col-span-3 rounded-xl border border-gray-100 bg-white overflow-hidden">
+                    <div className="p-3.5 border-b border-gray-50">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                            <div>
+                                <p className="text-[11px] font-semibold text-brand-navy">Inventory Performance</p>
+                                <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-0.5">
+                                    {filteredProducts.length} of {productStats.length} attributed product{productStats.length === 1 ? '' : 's'}
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <div className="relative flex-1 md:w-56">
+                                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                                    <Input
+                                        placeholder="Search by name, code..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="pl-8 h-8 text-[12px] rounded-md border-gray-100 bg-gray-50/50"
+                                    />
+                                    {searchQuery && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSearchQuery('')}
+                                            className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded flex items-center justify-center text-gray-400 hover:bg-gray-100"
+                                        >
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    )}
+                                </div>
+                                <Select value={sortBy} onValueChange={(v) => setSortBy(v as ProductSort)}>
+                                    <SelectTrigger className="h-8 rounded-md border-gray-100 bg-gray-50/50 w-40 text-[12px] gap-1.5">
+                                        <ArrowUpDown className="w-3 h-3 text-gray-400" />
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="attributed">Most attributed</SelectItem>
+                                        <SelectItem value="delivered">Most delivered</SelectItem>
+                                        <SelectItem value="performance">Best performance</SelectItem>
+                                        <SelectItem value="name">Name (A–Z)</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+
+                        {/* Performance bucket pills */}
+                        <div className="flex items-center gap-1.5 flex-wrap mt-3">
+                            {([
+                                { id: 'all', label: 'All', count: bucketCounts.all },
+                                { id: 'high', label: 'High ≥60%', count: bucketCounts.high },
+                                { id: 'mid', label: 'Mid 30-60%', count: bucketCounts.mid },
+                                { id: 'low', label: 'Low <30%', count: bucketCounts.low },
+                                { id: 'none', label: 'No data', count: bucketCounts.none },
+                            ] as const).map((b) => {
+                                const isActive = performanceBucket === b.id;
+                                return (
+                                    <button
+                                        key={b.id}
+                                        type="button"
+                                        onClick={() => setPerformanceBucket(b.id)}
+                                        className={`h-6 px-2.5 rounded-md text-[10px] font-semibold transition-colors flex items-center gap-1.5 ${
+                                            isActive
+                                                ? 'bg-brand-navy text-white'
+                                                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                                        }`}
+                                    >
+                                        {b.label}
+                                        <span className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded text-[9px] font-bold ${
+                                            isActive ? 'bg-white/20 text-white' : 'bg-white text-gray-500'
+                                        }`}>
+                                            {b.count}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    <div className="p-3.5">
                         {filteredProducts.length > 0 ? (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                                 {filteredProducts.map((p) => {
                                     const rate = Math.round(getDeliveryRate(p));
                                     const rateColor = p.total === 0
-                                        ? 'bg-gray-300'
+                                        ? '#9ca3af'
                                         : rate >= 60
-                                            ? 'bg-emerald-500'
+                                            ? '#059669'
                                             : rate >= 30
-                                                ? 'bg-amber-500'
-                                                : 'bg-red-500';
+                                                ? '#d97706'
+                                                : '#ef4444';
                                     return (
                                         <button
                                             key={p.id}
                                             type="button"
                                             onClick={() => setSelectedProduct(p)}
-                                            className="group relative text-left bg-white border border-gray-100 rounded-2xl overflow-hidden hover:border-primary/20 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
+                                            className="group text-left bg-white border border-gray-100 rounded-xl overflow-hidden hover:border-gray-200 hover:shadow-sm transition-all duration-200"
                                         >
-                                            <div className="aspect-[4/3] bg-gradient-to-br from-gray-50 to-gray-100 overflow-hidden">
+                                            <div className="aspect-[4/3] bg-gray-50 overflow-hidden">
                                                 {p.image_url ? (
                                                     <img
                                                         src={p.image_url}
                                                         alt={p.name}
-                                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                                     />
                                                 ) : (
                                                     <div className="w-full h-full flex items-center justify-center">
-                                                        <Package className="w-12 h-12 text-gray-200" />
+                                                        <Package className="w-8 h-8 text-gray-200" />
                                                     </div>
                                                 )}
                                             </div>
-                                            <div className="p-4 space-y-3">
-                                                <div className="min-h-[44px]">
-                                                    <h4 className="text-sm font-semibold text-gray-900 leading-snug line-clamp-2" title={p.name}>
+                                            <div className="p-3 space-y-2">
+                                                <div>
+                                                    <p className="text-[11px] font-semibold text-brand-navy leading-snug line-clamp-2" title={p.name}>
                                                         {p.name}
-                                                    </h4>
-                                                </div>
-                                                <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-gray-400 font-bold">
-                                                    <span>{p.code || '—'}</span>
-                                                    <span className="text-gray-700 font-semibold normal-case tracking-normal">
-                                                        {p.selling_price.toLocaleString()} dh
-                                                    </span>
+                                                    </p>
+                                                    <div className="flex items-center justify-between mt-0.5">
+                                                        <span className="text-[9px] uppercase tracking-wider text-gray-400 font-bold">{p.code || '—'}</span>
+                                                        <span className="text-[10px] font-semibold text-brand-navy tabular-nums">{p.selling_price.toLocaleString()} dh</span>
+                                                    </div>
                                                 </div>
 
-                                                <div className="grid grid-cols-3 gap-1.5 pt-2 border-t border-gray-50">
+                                                <div className="grid grid-cols-3 gap-1 pt-1.5 border-t border-gray-50">
                                                     <div className="text-center">
                                                         <p className="text-[9px] text-gray-400 uppercase font-bold">Attr</p>
-                                                        <p className="text-sm font-bold text-gray-900">{p.total}</p>
+                                                        <p className="text-[12px] font-bold text-brand-navy">{p.total}</p>
                                                     </div>
                                                     <div className="text-center">
-                                                        <p className="text-[9px] text-blue-500 uppercase font-bold">Conf</p>
-                                                        <p className="text-sm font-bold text-gray-900">{p.confirmed}</p>
+                                                        <p className="text-[9px] text-[#3b5e5e] uppercase font-bold">Conf</p>
+                                                        <p className="text-[12px] font-bold text-brand-navy">{p.confirmed}</p>
                                                     </div>
                                                     <div className="text-center">
-                                                        <p className="text-[9px] text-emerald-500 uppercase font-bold">Deliv</p>
-                                                        <p className="text-sm font-bold text-gray-900">{p.delivered}</p>
+                                                        <p className="text-[9px] text-[#059669] uppercase font-bold">Deliv</p>
+                                                        <p className="text-[12px] font-bold text-brand-navy">{p.delivered}</p>
                                                     </div>
                                                 </div>
 
                                                 <div>
-                                                    <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">
+                                                    <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-wider text-gray-400 mb-1">
                                                         <span>Delivery</span>
-                                                        <span className="text-gray-700">{p.total === 0 ? '—' : `${rate}%`}</span>
+                                                        <span style={{ color: rateColor }}>{p.total === 0 ? '—' : `${rate}%`}</span>
                                                     </div>
-                                                    <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                                                    <div className="h-1 w-full bg-gray-100 rounded-full overflow-hidden">
                                                         <div
-                                                            className={`h-full ${rateColor} transition-all duration-700 ease-out`}
-                                                            style={{ width: `${p.total === 0 ? 100 : rate}%`, opacity: p.total === 0 ? 0.4 : 1 }}
+                                                            className="h-full rounded-full transition-all duration-500 ease-out"
+                                                            style={{
+                                                                width: `${p.total === 0 ? 100 : rate}%`,
+                                                                background: rateColor,
+                                                                opacity: p.total === 0 ? 0.3 : 1
+                                                            }}
                                                         />
                                                     </div>
                                                 </div>
@@ -822,26 +733,25 @@ const SellerProfile = () => {
                                 })}
                             </div>
                         ) : (
-                            <div className="py-16 flex flex-col items-center justify-center text-gray-400 font-light">
-                                <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center mb-4">
-                                    <Search className="w-7 h-7 text-gray-300" />
-                                </div>
-                                <p className="text-sm font-medium text-gray-500">No products match the current filters.</p>
+                            <div className="py-12 flex flex-col items-center justify-center text-gray-400">
+                                <Search className="w-7 h-7 text-gray-200 mb-2" />
+                                <p className="text-[11px] font-medium text-gray-500">No products match the current filters.</p>
                                 <button
                                     type="button"
                                     onClick={() => { setSearchQuery(''); setPerformanceBucket('all'); }}
-                                    className="mt-3 text-xs font-semibold text-primary hover:underline"
+                                    className="mt-2 text-[10px] font-semibold text-brand-navy hover:underline"
                                 >
                                     Reset filters
                                 </button>
                             </div>
                         )}
-                    </CardContent>
-                </Card>
+                    </div>
+                </div>
             </div>
+
             {/* Product Detail Modal */}
             <Dialog open={!!selectedProduct} onOpenChange={(open) => !open && setSelectedProduct(null)}>
-                <DialogContent className="max-w-4xl p-0 border-none bg-white rounded-[32px] shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+                <DialogContent className="max-w-3xl p-0 border border-gray-100 bg-white rounded-xl shadow-lg overflow-hidden flex flex-col max-h-[90vh]">
                     {selectedProduct && (() => {
                         const p = selectedProduct;
                         const displayName = p.name || 'Unknown Product';
@@ -850,32 +760,31 @@ const SellerProfile = () => {
                         const stockTone = p.stock === 0 ? 'text-red-600' : p.stock < 10 ? 'text-amber-600' : 'text-emerald-600';
                         const stockLabel = p.stock === 0 ? 'Out of stock' : p.stock < 10 ? 'Low stock' : 'In stock';
                         const rateColor = (rate: number) =>
-                            rate >= 60 ? { text: 'text-emerald-600', bar: 'bg-emerald-500' }
-                                : rate >= 30 ? { text: 'text-amber-600', bar: 'bg-amber-500' }
-                                : { text: 'text-red-600', bar: 'bg-red-500' };
+                            rate >= 60 ? { text: 'text-[#059669]', bar: '#059669' }
+                                : rate >= 30 ? { text: 'text-[#d97706]', bar: '#d97706' }
+                                : { text: 'text-[#ef4444]', bar: '#ef4444' };
                         const cr = rateColor(confirmRate);
                         const dr = rateColor(deliveryRate);
 
                         return (
                             <div className="grid grid-cols-1 md:grid-cols-5 flex-1 min-h-0">
-                                {/* Left: hero image */}
-                                <div className="md:col-span-2 relative bg-gradient-to-br from-gray-100 to-gray-50 min-h-[260px] md:min-h-full overflow-hidden">
+                                {/* Left: image */}
+                                <div className="md:col-span-2 relative bg-gray-50 min-h-[220px] md:min-h-full overflow-hidden">
                                     {p.image_url ? (
                                         <img src={p.image_url} alt={displayName} className="w-full h-full object-cover" />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center">
-                                            <Package className="w-20 h-20 text-gray-200" />
+                                            <Package className="w-14 h-14 text-gray-200" />
                                         </div>
                                     )}
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-black/0" />
-                                    <div className="absolute bottom-5 left-5 right-5 flex flex-wrap gap-1.5">
+                                    <div className="absolute bottom-3 left-3 right-3 flex flex-wrap gap-1">
                                         {p.code && (
-                                            <Badge className="bg-white/15 backdrop-blur-md text-white border-white/10 text-[10px] font-bold">{p.code}</Badge>
+                                            <Badge className="bg-white/80 backdrop-blur text-gray-700 border-0 text-[9px] font-bold">{p.code}</Badge>
                                         )}
                                         {p.label && (
-                                            <Badge className="bg-white/15 backdrop-blur-md text-white border-white/10 text-[10px] font-bold">{p.label}</Badge>
+                                            <Badge className="bg-white/80 backdrop-blur text-gray-700 border-0 text-[9px] font-bold">{p.label}</Badge>
                                         )}
-                                        <Badge className={`bg-white/15 backdrop-blur-md border-white/10 text-[10px] font-bold ${stockTone}`}>
+                                        <Badge className={`bg-white/80 backdrop-blur border-0 text-[9px] font-bold ${stockTone}`}>
                                             {stockLabel}
                                         </Badge>
                                     </div>
@@ -883,101 +792,96 @@ const SellerProfile = () => {
 
                                 {/* Right: details */}
                                 <div className="md:col-span-3 flex flex-col min-h-0">
-                                    <div className="px-7 pt-7 pb-4 border-b border-gray-50 shrink-0">
-                                        <p className="text-[10px] uppercase tracking-widest font-bold text-primary mb-2">Product Details</p>
-                                        <h2 className="text-2xl font-light text-gray-900 leading-tight" title={displayName}>
+                                    <div className="px-4 pt-4 pb-3 border-b border-gray-50 shrink-0">
+                                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400 mb-1">Product Details</p>
+                                        <h2 className="text-[15px] font-semibold text-brand-navy leading-tight" title={displayName}>
                                             {displayName}
                                         </h2>
                                     </div>
 
-                                    <div className="px-7 py-5 space-y-6 overflow-y-auto flex-1">
+                                    <div className="px-4 py-4 space-y-4 overflow-y-auto flex-1">
                                         {p.description && (
-                                            <p className="text-sm text-gray-500 font-light leading-relaxed line-clamp-4">{p.description}</p>
+                                            <p className="text-[11px] text-gray-400 leading-relaxed line-clamp-3">{p.description}</p>
                                         )}
 
                                         {/* Price & stock */}
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100">
-                                                <p className="text-[9px] text-gray-400 uppercase tracking-widest font-bold mb-1">Sell Price</p>
-                                                <p className="text-xl font-bold text-gray-900">{p.selling_price.toLocaleString()}<span className="text-xs font-normal text-gray-400 ml-1">DH</span></p>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <div className="p-2.5 rounded-lg bg-gray-50 border border-gray-100">
+                                                <p className="text-[9px] text-gray-400 uppercase tracking-wider font-bold mb-0.5">Sell Price</p>
+                                                <p className="text-[15px] font-semibold text-brand-navy tabular-nums">{p.selling_price.toLocaleString()}<span className="text-[10px] text-gray-400 ml-0.5">DH</span></p>
                                             </div>
-                                            <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100">
-                                                <p className="text-[9px] text-gray-400 uppercase tracking-widest font-bold mb-1">Stock</p>
-                                                <p className="text-xl font-bold text-gray-900">{p.stock.toLocaleString()}<span className="text-xs font-normal text-gray-400 ml-1">units</span></p>
+                                            <div className="p-2.5 rounded-lg bg-gray-50 border border-gray-100">
+                                                <p className="text-[9px] text-gray-400 uppercase tracking-wider font-bold mb-0.5">Stock</p>
+                                                <p className="text-[15px] font-semibold text-brand-navy tabular-nums">{p.stock.toLocaleString()}<span className="text-[10px] text-gray-400 ml-0.5">units</span></p>
                                             </div>
                                         </div>
 
                                         {/* Performance */}
-                                        <div className="space-y-4">
-                                            <div className="flex items-center justify-between">
-                                                <h4 className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Performance</h4>
-                                                <span className="text-[10px] font-semibold text-gray-400">
-                                                    Stock: <span className="text-gray-700">{p.stock}</span>
-                                                </span>
-                                            </div>
+                                        <div className="space-y-3">
+                                            <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Performance</p>
 
-                                            <div className="grid grid-cols-3 gap-2.5">
-                                                <div className="p-3.5 rounded-2xl bg-gradient-to-br from-gray-900 to-gray-800 text-white">
-                                                    <p className="text-[9px] uppercase tracking-widest font-bold opacity-60 mb-1">Attributed</p>
-                                                    <p className="text-2xl font-bold leading-none">{p.total}</p>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                <div className="p-2.5 rounded-lg bg-gray-50 border border-gray-100 text-center">
+                                                    <p className="text-[9px] uppercase font-bold text-gray-400 mb-0.5">Attributed</p>
+                                                    <p className="text-[15px] font-semibold text-brand-navy tabular-nums">{p.total}</p>
                                                 </div>
-                                                <div className="p-3.5 rounded-2xl bg-blue-50 border border-blue-100">
-                                                    <p className="text-[9px] text-blue-500 uppercase tracking-widest font-bold mb-1">Confirmed</p>
-                                                    <p className="text-2xl font-bold text-blue-700 leading-none">{p.confirmed}</p>
+                                                <div className="p-2.5 rounded-lg bg-gray-50 border border-gray-100 text-center">
+                                                    <p className="text-[9px] uppercase font-bold text-[#3b5e5e] mb-0.5">Confirmed</p>
+                                                    <p className="text-[15px] font-semibold text-brand-navy tabular-nums">{p.confirmed}</p>
                                                 </div>
-                                                <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-100">
-                                                    <p className="text-[9px] text-emerald-500 uppercase tracking-widest font-bold mb-1">Delivered</p>
-                                                    <p className="text-2xl font-bold text-emerald-700 leading-none">{p.delivered}</p>
+                                                <div className="p-2.5 rounded-lg bg-gray-50 border border-gray-100 text-center">
+                                                    <p className="text-[9px] uppercase font-bold text-[#059669] mb-0.5">Delivered</p>
+                                                    <p className="text-[15px] font-semibold text-[#059669] tabular-nums">{p.delivered}</p>
                                                 </div>
                                             </div>
 
-                                            <div className="space-y-3 pt-1">
-                                                <div className="space-y-1.5">
+                                            <div className="space-y-2">
+                                                <div className="space-y-1">
                                                     <div className="flex justify-between items-center">
-                                                        <span className="text-xs font-semibold text-gray-500">Confirmation Rate</span>
-                                                        <span className={`text-xs font-bold ${cr.text}`}>{p.total === 0 ? '—' : `${confirmRate}%`}</span>
+                                                        <span className="text-[10px] font-semibold text-gray-500">Confirmation Rate</span>
+                                                        <span className={`text-[10px] font-bold tabular-nums ${cr.text}`}>{p.total === 0 ? '—' : `${confirmRate}%`}</span>
                                                     </div>
-                                                    <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+                                                    <div className="h-1 w-full bg-gray-100 rounded-full overflow-hidden">
                                                         <div
-                                                            className={`h-full rounded-full transition-all duration-700 ease-out ${cr.bar}`}
-                                                            style={{ width: `${p.total === 0 ? 0 : confirmRate}%` }}
+                                                            className="h-full rounded-full transition-all duration-500"
+                                                            style={{ width: `${p.total === 0 ? 0 : confirmRate}%`, background: cr.bar }}
                                                         />
                                                     </div>
                                                 </div>
-                                                <div className="space-y-1.5">
+                                                <div className="space-y-1">
                                                     <div className="flex justify-between items-center">
-                                                        <span className="text-xs font-semibold text-gray-500">Delivery Rate</span>
-                                                        <span className={`text-xs font-bold ${dr.text}`}>{p.total === 0 ? '—' : `${deliveryRate}%`}</span>
+                                                        <span className="text-[10px] font-semibold text-gray-500">Delivery Rate</span>
+                                                        <span className={`text-[10px] font-bold tabular-nums ${dr.text}`}>{p.total === 0 ? '—' : `${deliveryRate}%`}</span>
                                                     </div>
-                                                    <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+                                                    <div className="h-1 w-full bg-gray-100 rounded-full overflow-hidden">
                                                         <div
-                                                            className={`h-full rounded-full transition-all duration-700 ease-out ${dr.bar}`}
-                                                            style={{ width: `${p.total === 0 ? 0 : deliveryRate}%` }}
+                                                            className="h-full rounded-full transition-all duration-500"
+                                                            style={{ width: `${p.total === 0 ? 0 : deliveryRate}%`, background: dr.bar }}
                                                         />
                                                     </div>
                                                 </div>
                                             </div>
 
                                             {/* Funnel summary */}
-                                            <div className="mt-3 p-4 rounded-2xl bg-gray-50/70 border border-gray-100">
-                                                <p className="text-[9px] uppercase tracking-widest font-bold text-gray-400 mb-3">Funnel</p>
-                                                <div className="flex items-center gap-2 text-xs">
+                                            <div className="p-3 rounded-lg bg-gray-50 border border-gray-100">
+                                                <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400 mb-2">Funnel</p>
+                                                <div className="flex items-center gap-2 text-[11px]">
                                                     <div className="flex-1 text-center">
-                                                        <div className="h-1.5 bg-gray-300 rounded-full mb-1.5" />
-                                                        <p className="font-bold text-gray-900">{p.total}</p>
-                                                        <p className="text-[9px] text-gray-400 uppercase font-bold tracking-wider">Attr</p>
+                                                        <div className="h-1 bg-gray-300 rounded-full mb-1" />
+                                                        <p className="font-bold text-brand-navy">{p.total}</p>
+                                                        <p className="text-[9px] text-gray-400 uppercase font-bold">Attr</p>
                                                     </div>
                                                     <ChevronRight className="w-3 h-3 text-gray-300" />
                                                     <div className="flex-1 text-center">
-                                                        <div className="h-1.5 bg-blue-400 rounded-full mb-1.5" style={{ width: `${p.total === 0 ? 100 : (p.confirmed / p.total) * 100}%`, marginLeft: 'auto', marginRight: 'auto' }} />
-                                                        <p className="font-bold text-blue-700">{p.confirmed}</p>
-                                                        <p className="text-[9px] text-gray-400 uppercase font-bold tracking-wider">Conf</p>
+                                                        <div className="h-1 bg-[#3b5e5e] rounded-full mb-1" style={{ width: `${p.total === 0 ? 100 : (p.confirmed / p.total) * 100}%`, marginLeft: 'auto', marginRight: 'auto' }} />
+                                                        <p className="font-bold text-[#3b5e5e]">{p.confirmed}</p>
+                                                        <p className="text-[9px] text-gray-400 uppercase font-bold">Conf</p>
                                                     </div>
                                                     <ChevronRight className="w-3 h-3 text-gray-300" />
                                                     <div className="flex-1 text-center">
-                                                        <div className="h-1.5 bg-emerald-500 rounded-full mb-1.5" style={{ width: `${p.total === 0 ? 100 : (p.delivered / p.total) * 100}%`, marginLeft: 'auto', marginRight: 'auto' }} />
-                                                        <p className="font-bold text-emerald-700">{p.delivered}</p>
-                                                        <p className="text-[9px] text-gray-400 uppercase font-bold tracking-wider">Deliv</p>
+                                                        <div className="h-1 bg-[#059669] rounded-full mb-1" style={{ width: `${p.total === 0 ? 100 : (p.delivered / p.total) * 100}%`, marginLeft: 'auto', marginRight: 'auto' }} />
+                                                        <p className="font-bold text-[#059669]">{p.delivered}</p>
+                                                        <p className="text-[9px] text-gray-400 uppercase font-bold">Deliv</p>
                                                     </div>
                                                 </div>
                                             </div>
@@ -994,4 +898,3 @@ const SellerProfile = () => {
 };
 
 export default SellerProfile;
-

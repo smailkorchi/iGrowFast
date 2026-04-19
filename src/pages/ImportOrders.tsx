@@ -544,93 +544,70 @@ const ImportOrders = () => {
     const validCount = data.filter(d => d.status === 'valid').length;
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500 pb-20">
-            {/* Header Section */}
-            <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-                <div className="relative p-8">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div>
-                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Import Bulk Orders</h1>
-                            <p className="text-gray-500 font-light">Upload your Excel files to import multiple orders instantly.</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <Button
-                                variant="outline"
-                                onClick={handleDownloadModel}
-                                className="h-12 px-6 rounded-2xl border-gray-200 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-medium gap-2 transition-all"
-                            >
-                                <Download className="w-5 h-5" />
-                                Download Excel Model
-                            </Button>
-                        </div>
-                    </div>
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+            <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                    <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Import Bulk Orders</h1>
+                    <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Upload Excel files to import multiple orders instantly</p>
                 </div>
-            </div>
+                <Button
+                    variant="outline"
+                    onClick={handleDownloadModel}
+                    className="h-8 px-3 rounded-md text-[11px] font-semibold border-gray-200 gap-1.5 shrink-0"
+                >
+                    <Download className="w-3.5 h-3.5" />
+                    Download Excel Model
+                </Button>
+            </header>
 
             {/* Upload Section */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
                 <Card className={cn(
-                    "lg:col-span-2 border-none shadow-xl rounded-[40px] overflow-hidden transition-all duration-500",
-                    isDragActive ? "scale-[0.99]" : ""
+                    "lg:col-span-2 border border-gray-100 shadow-none rounded-xl overflow-hidden transition-all duration-300",
+                    isDragActive ? "border-brand-navy/30 bg-brand-navy/[0.02]" : ""
                 )}>
                     <CardContent className="p-0">
                         <div
                             {...getRootProps()}
                             className={cn(
-                                "relative flex flex-col items-center justify-center min-h-[400px] cursor-pointer transition-all duration-500",
-                                isDragActive
-                                    ? "bg-brand-navy/[0.08]"
-                                    : "bg-white/40 hover:bg-white/60 backdrop-blur-xl"
+                                "border-dashed border-gray-200 rounded-xl p-6 flex flex-col items-center justify-center min-h-[200px] cursor-pointer transition-all duration-300",
+                                isDragActive ? "border-brand-navy/40 bg-brand-navy/[0.03]" : "hover:border-gray-300"
                             )}
                         >
                             <input {...getInputProps()} />
 
-                            <div className="absolute inset-0 border-2 border-dashed border-brand-navy/10 rounded-[40px] m-4 pointer-events-none" />
-
                             {isParsing ? (
-                                <div className="text-center space-y-4 animate-pulse">
-                                    <div className="w-20 h-20 bg-brand-navy/10 rounded-[32px] flex items-center justify-center mx-auto">
-                                        <Loader2 className="w-10 h-10 text-brand-navy animate-spin" />
-                                    </div>
-                                    <h3 className="text-2xl font-bold text-brand-navy">Analyzing File...</h3>
-                                    <p className="text-muted-foreground">Extracting and normalizing your data</p>
+                                <div className="text-center space-y-2">
+                                    <Loader2 className="w-6 h-6 text-brand-navy animate-spin mx-auto" />
+                                    <p className="text-[11px] font-semibold text-brand-navy">Analyzing file...</p>
+                                    <p className="text-[10px] text-gray-400">Extracting and normalizing data</p>
                                 </div>
                             ) : file && data.length > 0 ? (
-                                <div className="text-center space-y-6">
-                                    <div className="w-24 h-24 bg-green-500/10 rounded-[32px] flex items-center justify-center mx-auto shadow-2xl shadow-green-500/20">
-                                        <FileCheck className="w-12 h-12 text-green-600" />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-3xl font-bold text-brand-navy">{file.name}</h3>
-                                        <p className="text-muted-foreground mt-2 font-medium">{data.length} orders detected</p>
-                                    </div>
-                                    <div className="flex items-center justify-center gap-3">
-                                        <Badge className="bg-green-500 h-8 px-4 rounded-full text-sm">{validCount} Ready</Badge>
-                                        <Badge variant="destructive" className="h-8 px-4 rounded-full text-sm">{data.length - validCount} Errors</Badge>
+                                <div className="text-center space-y-2">
+                                    <FileCheck className="w-6 h-6 text-emerald-600 mx-auto" />
+                                    <p className="text-[12px] font-semibold text-brand-navy">{file.name}</p>
+                                    <p className="text-[11px] text-gray-500">{data.length} orders detected</p>
+                                    <div className="flex items-center justify-center gap-2">
+                                        <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 border h-5 px-1.5 text-[9px] font-semibold">{validCount} Ready</Badge>
+                                        <Badge className="bg-red-50 text-red-700 border-red-100 border h-5 px-1.5 text-[9px] font-semibold">{data.length - validCount} Errors</Badge>
                                     </div>
                                     <Button
                                         onClick={(e) => { e.stopPropagation(); setFile(null); setData([]); }}
                                         variant="ghost"
-                                        className="text-brand-red hover:bg-brand-red/10 rounded-xl"
+                                        className="h-7 px-2 rounded-md text-[10px] font-semibold text-red-500 hover:bg-red-50 gap-1"
                                     >
-                                        <Trash2 className="w-4 h-4 mr-2" />
+                                        <Trash2 className="w-3 h-3" />
                                         Remove File
                                     </Button>
                                 </div>
                             ) : (
-                                <div className="text-center space-y-6 group">
-                                    <div className="w-24 h-24 bg-brand-navy/5 rounded-[32px] flex items-center justify-center mx-auto group-hover:scale-110 transition-transform duration-500 border border-brand-navy/5 shadow-inner">
-                                        <Upload className="w-12 h-12 text-brand-navy/40" />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-3xl font-bold text-brand-navy">Drop Excel here</h3>
-                                        <p className="text-muted-foreground mt-2 text-lg">or click to browse from your computer</p>
-                                    </div>
-                                    <div className="flex items-center justify-center gap-8 text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">
-                                        <span className="flex items-center gap-2"><FileSpreadsheet className="w-3 h-3" /> XLSX</span>
-                                        <span className="flex items-center gap-2"><FileSpreadsheet className="w-3 h-3" /> XLS</span>
-                                        <span className="flex items-center gap-2"><FileSpreadsheet className="w-3 h-3" /> CSV</span>
+                                <div className="text-center space-y-2">
+                                    <Upload className="w-6 h-6 text-gray-400 mx-auto" />
+                                    <p className="text-[12px] font-semibold text-brand-navy">Drop Excel here</p>
+                                    <p className="text-[11px] text-gray-400">or click to browse from your computer</p>
+                                    <div className="flex items-center justify-center gap-4 text-[9px] font-bold uppercase tracking-widest text-gray-400">
+                                        <span className="flex items-center gap-1"><FileSpreadsheet className="w-3 h-3" /> XLSX</span>
+                                        <span className="flex items-center gap-1"><FileSpreadsheet className="w-3 h-3" /> XLS</span>
                                     </div>
                                 </div>
                             )}
@@ -638,159 +615,149 @@ const ImportOrders = () => {
                     </CardContent>
                 </Card>
 
-                {/* Info Card */}
-                <Card className="border-none shadow-xl bg-brand-navy rounded-[40px] text-brand-white p-8 flex flex-col justify-between overflow-hidden relative group">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32 blur-3xl group-hover:bg-white/10 transition-colors" />
-
-                    <div className="relative space-y-6">
-                        <div className="w-14 h-14 bg-white/10 rounded-[20px] flex items-center justify-center backdrop-blur-md">
-                            <Database className="w-7 h-7" />
+                {/* Info + Commit Card */}
+                <Card className="border border-gray-100 shadow-none rounded-xl overflow-hidden">
+                    <CardContent className="p-3.5 space-y-3">
+                        <div className="flex items-center gap-2">
+                            <Database className="w-4 h-4 text-brand-navy/40" />
+                            <p className="text-[11px] font-semibold text-brand-navy">Data Integrity Check</p>
                         </div>
-                        <h3 className="text-2xl font-bold leading-tight">Data Integrity Check</h3>
-                        <p className="text-brand-white/60 leading-relaxed font-medium">
-                            Our system automatically verifies phone numbers using Moroccan normalization and checks for city existence in your database.
-                        </p>
-
-                        <div className="space-y-4 pt-4">
+                        <div className="space-y-1.5">
                             {[
                                 { label: 'Phone Normalization', desc: 'Auto-regex strip & format' },
                                 { label: 'City Linkage', desc: 'Matches name to database ID' },
                                 { label: 'Product Mapping', desc: 'Links SKU to Inventory' },
                                 { label: 'Full Data Import', desc: 'Notes, Source, & Fees' }
                             ].map((item, i) => (
-                                <div key={i} className="flex gap-4">
-                                    <div className="mt-1"><CheckCircle2 className="w-4 h-4 text-green-400" /></div>
+                                <div key={i} className="flex items-start gap-1.5">
+                                    <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0 mt-0.5" />
                                     <div>
-                                        <div className="text-sm font-bold">{item.label}</div>
-                                        <div className="text-[10px] uppercase font-bold text-brand-white/40">{item.desc}</div>
+                                        <p className="text-[10px] font-semibold text-brand-navy">{item.label}</p>
+                                        <p className="text-[9px] text-gray-400">{item.desc}</p>
                                     </div>
                                 </div>
                             ))}
                         </div>
-                    </div>
-
-                    <div className="relative pt-12">
-                        {uploadProgress > 0 ? (
-                            <div className="space-y-3">
-                                <div className="flex justify-between text-xs font-bold uppercase tracking-widest">
-                                    <span>Syncing to DB</span>
-                                    <span>{uploadProgress}%</span>
+                        <div className="pt-2 border-t border-gray-100">
+                            {uploadProgress > 0 ? (
+                                <div className="space-y-1.5">
+                                    <div className="flex justify-between text-[10px] font-semibold text-brand-navy">
+                                        <span>Syncing to DB</span>
+                                        <span>{uploadProgress}%</span>
+                                    </div>
+                                    <Progress value={uploadProgress} className="h-1.5" />
                                 </div>
-                                <Progress value={uploadProgress} className="h-2 bg-white/10" />
-                            </div>
-                        ) : (
-                            <Button
-                                disabled={data.length === 0 || validCount === 0 || !defaultStatusId || uploadMutation.isPending}
-                                onClick={() => uploadMutation.mutate(data.filter(d => d.status === 'valid'))}
-                                className="w-full h-14 bg-brand-white text-brand-navy hover:bg-brand-white/90 rounded-2xl text-base font-black shadow-2xl transition-all"
-                            >
-                                {uploadMutation.isPending ? (
-                                    <>
-                                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                                        Processing...
-                                    </>
-                                ) : (
-                                    <>
-                                        Commit {validCount} Orders
-                                        <ArrowRight className="w-5 h-5 ml-2" />
-                                    </>
-                                )}
-                            </Button>
-                        )}
-                    </div>
+                            ) : (
+                                <Button
+                                    disabled={data.length === 0 || validCount === 0 || !defaultStatusId || uploadMutation.isPending}
+                                    onClick={() => uploadMutation.mutate(data.filter(d => d.status === 'valid'))}
+                                    className="w-full h-8 bg-brand-navy hover:bg-brand-navy/90 text-white rounded-md text-[11px] font-semibold gap-1.5"
+                                >
+                                    {uploadMutation.isPending ? (
+                                        <>
+                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                            Processing...
+                                        </>
+                                    ) : (
+                                        <>
+                                            Commit {validCount} Orders
+                                            <ArrowRight className="w-3.5 h-3.5" />
+                                        </>
+                                    )}
+                                </Button>
+                            )}
+                        </div>
+                    </CardContent>
                 </Card>
             </div>
 
             {/* Data Preview Table */}
             {data.length > 0 && (
-                <div className="space-y-6 animate-in slide-in-from-bottom-8 duration-700">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div className="flex items-center gap-4">
-                            <h2 className="text-2xl font-bold text-brand-navy">Import Preview</h2>
-                            <Badge variant="secondary" className="rounded-full px-4 h-7 font-black">{filteredData.length} Total</Badge>
+                <div className="space-y-3">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                            <p className="text-[13px] font-semibold text-brand-navy">Import Preview</p>
+                            <Badge variant="secondary" className="h-5 px-1.5 text-[9px] font-semibold">{filteredData.length} rows</Badge>
                         </div>
-
-                        <div className="flex items-center gap-3">
-                            <div className="relative w-[300px]">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                                <Input
-                                    placeholder="Search in preview..."
-                                    className="pl-11 h-11 rounded-xl bg-white/50 border-none shadow-inner"
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                />
-                            </div>
+                        <div className="relative w-full md:w-64">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                            <Input
+                                placeholder="Search in preview..."
+                                className="pl-7 h-8 rounded-md border-gray-200 text-[11px]"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
                         </div>
                     </div>
 
-                    <Card className="border-none shadow-xl rounded-[32px] overflow-hidden bg-white/50 backdrop-blur-xl">
+                    <Card className="border border-gray-100 shadow-none rounded-xl overflow-hidden">
                         <Table>
-                            <TableHeader className="bg-brand-navy/5">
-                                <TableRow className="hover:bg-transparent border-none">
-                                    <TableHead className="font-bold text-brand-navy py-6 pl-8">Client Name</TableHead>
-                                    <TableHead className="font-bold text-brand-navy">Product Details</TableHead>
-                                    <TableHead className="font-bold text-brand-navy">City</TableHead>
-                                    <TableHead className="font-bold text-brand-navy">Financials</TableHead>
-                                    <TableHead className="font-bold text-brand-navy">Status</TableHead>
-                                    <TableHead className="font-bold text-brand-navy pr-8">Actions</TableHead>
+                            <TableHeader>
+                                <TableRow className="bg-gray-50/60 hover:bg-gray-50/60">
+                                    <TableHead className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold py-2 pl-3">Client Name</TableHead>
+                                    <TableHead className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold py-2">Product</TableHead>
+                                    <TableHead className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold py-2">City</TableHead>
+                                    <TableHead className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold py-2">Financials</TableHead>
+                                    <TableHead className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold py-2">Status</TableHead>
+                                    <TableHead className="py-2 pr-3 w-10" />
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {paginatedData.map((row) => (
-                                    <TableRow key={row.id} className="hover:bg-brand-navy/[0.02] border-brand-navy/5 transition-colors group">
-                                        <TableCell className="font-bold text-brand-navy py-5 pl-8">
-                                            <div>{row.name}</div>
-                                            <div className="text-xs text-muted-foreground font-normal">{row.phone}</div>
-                                            <Badge variant="outline" className="mt-1 text-[10px] h-5">{row.source}</Badge>
+                                    <TableRow key={row.id} className="hover:bg-gray-50 transition-colors border-gray-50">
+                                        <TableCell className="px-3 py-2 text-[11px] text-brand-navy/80">
+                                            <div className="font-medium">{row.name}</div>
+                                            <div className="text-[10px] tabular-nums text-gray-400">{row.phone}</div>
+                                            {row.source && <span className="text-[9px] text-gray-400">{row.source}</span>}
                                         </TableCell>
-                                        <TableCell>
+                                        <TableCell className="px-3 py-2">
                                             {row.product_id ? (
-                                                <div className="flex flex-col">
-                                                    <span className="font-bold text-brand-navy text-sm">{row.product_sku}</span>
-                                                    <span className="text-xs text-muted-foreground">Qty: {row.quantity}</span>
+                                                <div>
+                                                    <span className="text-[11px] font-semibold text-brand-navy/80">{row.product_sku}</span>
+                                                    <div className="text-[10px] text-gray-400">Qty: {row.quantity}</div>
                                                 </div>
                                             ) : (
-                                                <div className="flex items-center gap-1 text-brand-red">
+                                                <div className="flex items-center gap-1 text-red-500">
                                                     <AlertCircle className="w-3 h-3" />
-                                                    <span className="text-xs font-bold">{row.product_sku || 'No SKU'}</span>
+                                                    <span className="text-[10px] font-semibold">{row.product_sku || 'No SKU'}</span>
                                                 </div>
                                             )}
                                         </TableCell>
-                                        <TableCell>
+                                        <TableCell className="px-3 py-2">
                                             {row.city_id ? (
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-bold text-brand-navy">{row.city_name}</span>
-                                                    <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                                                <div className="flex items-center gap-1">
+                                                    <span className="text-[11px] text-brand-navy/80">{row.city_name}</span>
+                                                    <CheckCircle2 className="w-3 h-3 text-emerald-500" />
                                                 </div>
                                             ) : (
-                                                <div className="flex items-center gap-2">
-                                                    <AlertCircle className="w-3.5 h-3.5 text-brand-red" />
-                                                    <span className="text-brand-red font-black text-xs uppercase italic line-through opacity-50">{row.city_name || 'Empty'}</span>
+                                                <div className="flex items-center gap-1">
+                                                    <AlertCircle className="w-3 h-3 text-red-500" />
+                                                    <span className="text-[10px] text-red-500 line-through">{row.city_name || 'Empty'}</span>
                                                 </div>
                                             )}
                                         </TableCell>
-                                        <TableCell>
-                                            <div className="font-bold text-brand-navy">{row.price} DH</div>
-                                            {row.shipping_fee > 0 && <div className="text-xs text-muted-foreground">+ {row.shipping_fee} DH Ship</div>}
+                                        <TableCell className="px-3 py-2 text-[11px] tabular-nums text-brand-navy/80">
+                                            <div>{row.price} DH</div>
+                                            {row.shipping_fee > 0 && <div className="text-[10px] text-gray-400">+{row.shipping_fee} ship</div>}
                                         </TableCell>
-                                        <TableCell>
+                                        <TableCell className="px-3 py-2">
                                             {row.status === 'valid' ? (
-                                                <Badge className="bg-green-500/10 text-green-600 border-none rounded-lg px-3 py-1 font-bold">Valid</Badge>
+                                                <Badge className="bg-emerald-50 text-emerald-700 border-none h-5 px-1.5 text-[9px] font-semibold">Valid</Badge>
                                             ) : (
-                                                <div className="flex flex-col gap-1">
-                                                    <Badge className="bg-brand-red/10 text-brand-red border-none rounded-lg px-3 py-1 font-bold w-fit">Invalid</Badge>
-                                                    <span className="text-[10px] text-brand-red font-bold uppercase tracking-tighter">{row.errors[0]}</span>
+                                                <div className="space-y-0.5">
+                                                    <Badge className="bg-red-50 text-red-600 border-none h-5 px-1.5 text-[9px] font-semibold block w-fit">Invalid</Badge>
+                                                    <span className="text-[9px] text-red-500">{row.errors[0]}</span>
                                                 </div>
                                             )}
                                         </TableCell>
-                                        <TableCell className="pr-8">
+                                        <TableCell className="px-3 py-2">
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                className="rounded-full text-muted-foreground hover:bg-brand-red/10 hover:text-brand-red transition-all"
+                                                className="h-6 w-6 rounded-md text-gray-400 hover:bg-red-50 hover:text-red-500"
                                                 onClick={() => setData(prev => prev.filter(d => d.id !== row.id))}
                                             >
-                                                <X className="w-4 h-4" />
+                                                <X className="w-3.5 h-3.5" />
                                             </Button>
                                         </TableCell>
                                     </TableRow>
@@ -798,49 +765,44 @@ const ImportOrders = () => {
                             </TableBody>
                         </Table>
 
-                        {/* Pagination Controls */}
                         {totalPages > 1 && (
-                            <div className="p-6 border-t border-brand-navy/5 flex items-center justify-between bg-brand-navy/5">
-                                <div className="text-sm font-bold text-muted-foreground uppercase tracking-widest pl-4">
-                                    Page {currentPage} of {totalPages}
-                                </div>
-                                <div className="flex items-center gap-2 pr-4">
+                            <div className="px-3 py-2 border-t border-gray-100 flex items-center justify-between bg-gray-50/40">
+                                <span className="text-[10px] text-gray-400">Page {currentPage} of {totalPages}</span>
+                                <div className="flex items-center gap-1">
                                     <Button
                                         variant="outline"
                                         size="icon"
                                         onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                                         disabled={currentPage === 1}
-                                        className="rounded-xl border-none shadow-sm hover:scale-105 transition-transform"
+                                        className="h-7 w-7 rounded-md border-gray-200"
                                     >
-                                        <ChevronLeft className="w-5 h-5" />
+                                        <ChevronLeft className="w-3.5 h-3.5" />
                                     </Button>
-                                    <div className="flex items-center gap-1">
-                                        {Array.from({ length: Math.min(5, totalPages) }).map((_, i) => {
-                                            const pageNum = i + 1;
-                                            return (
-                                                <Button
-                                                    key={pageNum}
-                                                    variant={currentPage === pageNum ? 'default' : 'ghost'}
-                                                    onClick={() => setCurrentPage(pageNum)}
-                                                    className={cn(
-                                                        "w-10 h-10 rounded-xl font-bold",
-                                                        currentPage === pageNum ? "bg-brand-navy text-brand-white shadow-lg" : ""
-                                                    )}
-                                                >
-                                                    {pageNum}
-                                                </Button>
-                                            );
-                                        })}
-                                        {totalPages > 5 && <span className="px-2 text-muted-foreground font-bold">...</span>}
-                                    </div>
+                                    {Array.from({ length: Math.min(5, totalPages) }).map((_, i) => {
+                                        const pageNum = i + 1;
+                                        return (
+                                            <Button
+                                                key={pageNum}
+                                                variant={currentPage === pageNum ? 'default' : 'ghost'}
+                                                onClick={() => setCurrentPage(pageNum)}
+                                                className={cn(
+                                                    "h-7 w-7 rounded-md text-[10px] font-semibold",
+                                                    currentPage === pageNum ? "bg-brand-navy text-white" : ""
+                                                )}
+                                            >
+                                                {pageNum}
+                                            </Button>
+                                        );
+                                    })}
+                                    {totalPages > 5 && <span className="text-[10px] text-gray-400">...</span>}
                                     <Button
                                         variant="outline"
                                         size="icon"
                                         onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                                         disabled={currentPage === totalPages}
-                                        className="rounded-xl border-none shadow-sm hover:scale-105 transition-transform"
+                                        className="h-7 w-7 rounded-md border-gray-200"
                                     >
-                                        <ChevronRight className="w-5 h-5" />
+                                        <ChevronRight className="w-3.5 h-3.5" />
                                     </Button>
                                 </div>
                             </div>

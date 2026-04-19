@@ -32,7 +32,7 @@ export function StackedProportionBar({
   if (sum <= 0) {
     return (
       <div
-        className={cn('rounded-full bg-gray-100', className)}
+        className={cn('rounded-full bg-ant-line-soft', className)}
         style={{ height }}
         aria-hidden
       />
@@ -41,7 +41,7 @@ export function StackedProportionBar({
 
   return (
     <div
-      className={cn('flex w-full overflow-hidden rounded-full bg-gray-50', className)}
+      className={cn('flex w-full overflow-hidden rounded-full bg-ant-line-soft', className)}
       style={{ height }}
       role="img"
       aria-label={`Distribution across ${sorted.length} segments`}

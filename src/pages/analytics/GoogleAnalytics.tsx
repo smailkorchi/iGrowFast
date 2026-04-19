@@ -116,10 +116,12 @@ const parseGaDate = (s: string) => {
     return `${s.slice(4, 6)}/${s.slice(6, 8)}`;
 };
 
-const CHANNEL_COLORS = [
-    '#0f172a', '#0ea5e9', '#8b5cf6', '#10b981',
-    '#f59e0b', '#ef4444', '#06b6d4', '#e879f9',
-    '#64748b', '#f97316',
+// Single brand-navy channel base; ranks stepped down by opacity so the UI reads
+// as one sorted list, not a rainbow. Matches the Analytics page palette.
+const CHANNEL_SHADES = [
+    '#3b5e5e', '#6b8784', '#8a9e9b', '#adbab8',
+    '#c5cdcb', '#d1d5db', '#dde1df', '#e5e7eb',
+    '#eaecec', '#eef0f0',
 ];
 
 // ── Business resolution ─────────────────────────────────────────────
@@ -218,7 +220,7 @@ const GoogleAnalyticsPage: React.FC = () => {
 
     if (isOwner && !businessId) {
         return (
-            <div className="max-w-3xl mx-auto py-12">
+            <div className="mx-auto max-w-[640px] px-3 md:px-5 py-6">
                 <EmptyBusinessPicker
                     businesses={businesses ?? []}
                     onSelect={setOwnerBusinessId}
@@ -228,59 +230,54 @@ const GoogleAnalyticsPage: React.FC = () => {
     }
 
     return (
-        <div className="min-h-screen">
-            <div className="space-y-6">
-                {/* Header — matches existing page style */}
-                <div className="relative">
-                    <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-                    <div className="relative p-8">
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                            <div>
-                                <h1 className="text-4xl font-extralight text-gray-900 mb-2">
-                                    Google Analytics
-                                </h1>
-                                <p className="text-gray-500 font-light">
-                                    Live traffic, engagement & conversions from your GA4 properties
-                                </p>
-                            </div>
-                            {isOwner && businesses && (
-                                <BusinessSwitcher
-                                    businesses={businesses}
-                                    value={ownerBusinessId}
-                                    onChange={setOwnerBusinessId}
-                                />
-                            )}
-                        </div>
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+            {/* Header — matches /analytics compact style */}
+            <header className="space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">
+                            Google Analytics
+                        </h1>
+                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">
+                            Live GA4 traffic, engagement & conversions
+                        </p>
                     </div>
-                </div>
-
-                {/* Connections row */}
-                {connectionsLoading ? (
-                    <Skeleton className="h-20 w-full rounded-2xl" />
-                ) : connections.length === 0 ? (
-                    <OnboardingCard onAdd={() => setAddOpen(true)} />
-                ) : (
-                    <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
-                        <PropertySwitcher
-                            connections={connections}
-                            active={activeConnection}
-                            onChange={(c) => setActivePropertyId(c.property_id)}
-                            businessId={businessId!}
-                            onAdd={() => setAddOpen(true)}
+                    {isOwner && businesses && (
+                        <BusinessSwitcher
+                            businesses={businesses}
+                            value={ownerBusinessId}
+                            onChange={setOwnerBusinessId}
                         />
-                        <DateRangeBar value={preset} onChange={setPreset} range={range} />
-                        <RealtimePill total={realtime.data?.total ?? 0} isLoading={realtime.isLoading} />
-                    </div>
-                )}
+                    )}
+                </div>
+            </header>
 
-                {/* Dashboard */}
-                {connections.length > 0 && activeConnection && (
-                    <Dashboard
-                        reports={reports}
-                        realtime={realtime.data}
+            {/* Connections row */}
+            {connectionsLoading ? (
+                <Skeleton className="h-12 w-full rounded-xl" />
+            ) : connections.length === 0 ? (
+                <OnboardingCard onAdd={() => setAddOpen(true)} />
+            ) : (
+                <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2">
+                    <PropertySwitcher
+                        connections={connections}
+                        active={activeConnection}
+                        onChange={(c) => setActivePropertyId(c.property_id)}
+                        businessId={businessId!}
+                        onAdd={() => setAddOpen(true)}
                     />
-                )}
-            </div>
+                    <DateRangeBar value={preset} onChange={setPreset} range={range} />
+                    <RealtimePill total={realtime.data?.total ?? 0} isLoading={realtime.isLoading} />
+                </div>
+            )}
+
+            {/* Dashboard */}
+            {connections.length > 0 && activeConnection && (
+                <Dashboard
+                    reports={reports}
+                    realtime={realtime.data}
+                />
+            )}
 
             {/* Add connection dialog */}
             <AddConnectionDialog
@@ -314,13 +311,14 @@ const BusinessSwitcher: React.FC<{
             <PopoverTrigger asChild>
                 <Button
                     variant="outline"
-                    className="h-10 rounded-xl border-slate-200 bg-white font-semibold text-brand-navy min-w-[220px] justify-between"
+                    size="sm"
+                    className="h-7 rounded-md border-gray-200 bg-white text-[11px] font-semibold text-brand-navy min-w-[180px] justify-between px-2.5"
                 >
                     <span className="truncate">{current?.name ?? 'Select business'}</span>
-                    <ChevronsUpDown className="w-4 h-4 opacity-50" />
+                    <ChevronsUpDown className="w-3 h-3 opacity-50" />
                 </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-[280px] p-1">
+            <PopoverContent align="end" className="w-[240px] p-1">
                 {businesses.map((b) => (
                     <button
                         key={b.id}
@@ -329,12 +327,12 @@ const BusinessSwitcher: React.FC<{
                             setOpen(false);
                         }}
                         className={cn(
-                            'w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-semibold text-left hover:bg-slate-100 transition',
-                            value === b.id && 'bg-slate-100'
+                            'w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-[11px] font-semibold text-left hover:bg-gray-100 transition',
+                            value === b.id && 'bg-gray-100'
                         )}
                     >
                         <span className="truncate">{b.name}</span>
-                        {value === b.id && <Check className="w-4 h-4 text-brand-navy" />}
+                        {value === b.id && <Check className="w-3 h-3 text-brand-navy" />}
                     </button>
                 ))}
             </PopoverContent>
@@ -346,21 +344,21 @@ const EmptyBusinessPicker: React.FC<{
     businesses: { id: string; name: string }[];
     onSelect: (id: string) => void;
 }> = ({ businesses, onSelect }) => (
-    <Card className="rounded-3xl border-slate-200 shadow-none">
-        <CardContent className="p-8 text-center">
-            <div className="w-14 h-14 mx-auto rounded-2xl bg-brand-navy flex items-center justify-center mb-4">
-                <BarChart3 className="w-7 h-7 text-brand-white" />
+    <Card className="border border-gray-100 shadow-none rounded-xl">
+        <CardContent className="p-5 text-center">
+            <div className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-brand-navy/[0.04] mb-2.5">
+                <BarChart3 className="w-4 h-4 text-brand-navy" />
             </div>
-            <h2 className="text-xl font-black text-brand-navy mb-1">Choose a business</h2>
-            <p className="text-sm text-slate-500 mb-6">
+            <h2 className="text-[14px] font-semibold text-brand-navy">Choose a business</h2>
+            <p className="text-[11px] text-gray-500 mt-0.5 mb-3">
                 Pick a business to view its Google Analytics.
             </p>
-            <div className="max-w-md mx-auto space-y-1">
+            <div className="max-w-sm mx-auto space-y-1">
                 {businesses.map((b) => (
                     <button
                         key={b.id}
                         onClick={() => onSelect(b.id)}
-                        className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 transition text-left font-semibold text-brand-navy"
+                        className="w-full px-3 py-2 rounded-md border border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-300 transition text-left text-[11px] font-semibold text-brand-navy"
                     >
                         {b.name}
                     </button>
@@ -386,31 +384,29 @@ const PropertySwitcher: React.FC<{
         <div className="flex items-center gap-2">
             <Popover open={open} onOpenChange={setOpen}>
                 <PopoverTrigger asChild>
-                    <button className="group flex items-center gap-3 h-12 px-4 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 transition shadow-sm min-w-[280px]">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-navy to-slate-700 flex items-center justify-center shrink-0">
-                            <Layers className="w-4 h-4 text-white" />
-                        </div>
+                    <button className="flex items-center gap-2 h-8 px-2.5 rounded-md bg-white border border-gray-200 hover:border-gray-300 transition min-w-[220px]">
+                        <Layers className="w-3 h-3 text-gray-400 shrink-0" />
                         <div className="flex-1 text-left min-w-0">
-                            <div className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">
+                            <div className="text-[9px] text-gray-400 font-bold uppercase tracking-[0.14em] leading-none">
                                 Property
                             </div>
-                            <div className="text-sm font-black text-brand-navy truncate">
+                            <div className="text-[11px] font-semibold text-brand-navy truncate leading-tight">
                                 {active?.display_name ?? '—'}
                             </div>
                         </div>
-                        <ChevronsUpDown className="w-4 h-4 text-slate-400 shrink-0" />
+                        <ChevronsUpDown className="w-3 h-3 text-gray-400 shrink-0" />
                     </button>
                 </PopoverTrigger>
-                <PopoverContent align="start" className="w-[360px] p-1">
-                    <div className="px-3 pt-2 pb-1 text-[10px] font-black uppercase tracking-[0.15em] text-slate-400">
+                <PopoverContent align="start" className="w-[320px] p-1">
+                    <div className="px-2.5 pt-1.5 pb-1 text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400">
                         Connected properties
                     </div>
                     {connections.map((c) => (
                         <div
                             key={c.id}
                             className={cn(
-                                'group flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-slate-100',
-                                active?.id === c.id && 'bg-slate-100'
+                                'group flex items-center gap-1 px-1.5 py-1.5 rounded-md hover:bg-gray-50',
+                                active?.id === c.id && 'bg-gray-50'
                             )}
                         >
                             <button
@@ -418,35 +414,33 @@ const PropertySwitcher: React.FC<{
                                     onChange(c);
                                     setOpen(false);
                                 }}
-                                className="flex-1 flex items-center gap-3 text-left min-w-0"
+                                className="flex-1 flex items-center gap-2 text-left min-w-0"
                             >
-                                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center shrink-0">
-                                    <Globe2 className="w-4 h-4 text-slate-600" />
-                                </div>
+                                <Globe2 className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                                 <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-1.5">
-                                        <span className="text-sm font-bold text-brand-navy truncate">
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-[11px] font-semibold text-brand-navy truncate">
                                             {c.display_name}
                                         </span>
                                         {c.is_default && (
-                                            <Star className="w-3 h-3 fill-amber-400 text-amber-400 shrink-0" />
+                                            <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400 shrink-0" />
                                         )}
                                     </div>
-                                    <div className="text-[11px] text-slate-500 font-mono">
+                                    <div className="text-[10px] text-gray-400 font-mono">
                                         {c.property_id}
                                     </div>
                                 </div>
                                 {active?.id === c.id && (
-                                    <Check className="w-4 h-4 text-brand-navy shrink-0" />
+                                    <Check className="w-3 h-3 text-brand-navy shrink-0" />
                                 )}
                             </button>
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <button className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white opacity-0 group-hover:opacity-100 transition">
-                                        <MoreVertical className="w-4 h-4 text-slate-500" />
+                                    <button className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-white opacity-0 group-hover:opacity-100 transition">
+                                        <MoreVertical className="w-3 h-3 text-gray-500" />
                                     </button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-44">
+                                <DropdownMenuContent align="end" className="w-40">
                                     <DropdownMenuItem
                                         disabled={c.is_default}
                                         onClick={async () => {
@@ -457,7 +451,7 @@ const PropertySwitcher: React.FC<{
                                             toast({ title: 'Default set', description: c.display_name });
                                         }}
                                     >
-                                        <Star className="w-4 h-4 mr-2" />
+                                        <Star className="w-3.5 h-3.5 mr-2" />
                                         Make default
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator />
@@ -468,22 +462,22 @@ const PropertySwitcher: React.FC<{
                                             toast({ title: 'Property removed' });
                                         }}
                                     >
-                                        <Trash2 className="w-4 h-4 mr-2" />
+                                        <Trash2 className="w-3.5 h-3.5 mr-2" />
                                         Remove
                                     </DropdownMenuItem>
                                 </DropdownMenuContent>
                             </DropdownMenu>
                         </div>
                     ))}
-                    <div className="border-t border-slate-100 mt-1 pt-1">
+                    <div className="border-t border-gray-100 mt-1 pt-1">
                         <button
                             onClick={() => {
                                 setOpen(false);
                                 onAdd();
                             }}
-                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold text-brand-navy hover:bg-slate-100"
+                            className="w-full flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-semibold text-brand-navy hover:bg-gray-50"
                         >
-                            <Plus className="w-4 h-4" />
+                            <Plus className="w-3 h-3" />
                             Connect another property
                         </button>
                     </div>
@@ -498,22 +492,22 @@ const DateRangeBar: React.FC<{
     onChange: (k: PresetKey) => void;
     range: DateRange;
 }> = ({ value, onChange, range }) => (
-    <div className="flex items-center gap-1 h-12 px-1 rounded-2xl bg-white border border-slate-200 shadow-sm">
+    <div className="flex items-center gap-0.5 h-8 px-0.5 rounded-md bg-white border border-gray-200">
         {PRESETS.map((p) => (
             <button
                 key={p.key}
                 onClick={() => onChange(p.key)}
                 className={cn(
-                    'h-10 px-4 rounded-xl text-xs font-bold transition',
+                    'h-7 px-2.5 rounded-md text-[10px] font-semibold transition whitespace-nowrap',
                     value === p.key
                         ? 'bg-brand-navy text-white'
-                        : 'text-slate-500 hover:bg-slate-100'
+                        : 'text-gray-500 hover:bg-gray-100'
                 )}
             >
                 {p.label}
             </button>
         ))}
-        <div className="hidden lg:flex items-center px-3 text-[10px] font-mono text-slate-400 border-l border-slate-100 ml-1">
+        <div className="hidden lg:flex items-center px-2 text-[9px] font-mono text-gray-400 border-l border-gray-100 ml-0.5">
             {range.start} → {range.end}
         </div>
     </div>
@@ -523,16 +517,16 @@ const RealtimePill: React.FC<{ total: number; isLoading: boolean }> = ({
     total,
     isLoading,
 }) => (
-    <div className="flex items-center gap-2 h-12 px-4 rounded-2xl bg-emerald-50 border border-emerald-100 shadow-sm">
+    <div className="flex items-center gap-1.5 h-8 px-2.5 rounded-md bg-emerald-50 border border-emerald-100">
         <div className="relative">
-            <div className="w-2 h-2 rounded-full bg-emerald-500" />
-            <div className="absolute inset-0 w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            <div className="absolute inset-0 w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
         </div>
-        <div className="flex flex-col">
-            <span className="text-[9px] font-black uppercase tracking-[0.18em] text-emerald-700">
+        <div className="flex items-baseline gap-1.5 leading-none">
+            <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-emerald-700">
                 Live
             </span>
-            <span className="text-sm font-black text-emerald-900">
+            <span className="text-[11px] font-semibold text-emerald-900 tabular-nums">
                 {isLoading ? '—' : `${nf.format(total)} active`}
             </span>
         </div>
@@ -548,12 +542,12 @@ const Dashboard: React.FC<{
 
     if (error) {
         return (
-            <Card className="rounded-2xl border-red-200 bg-red-50 shadow-none">
-                <CardContent className="p-6 flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
+            <Card className="rounded-xl border-red-200 bg-red-50 shadow-none">
+                <CardContent className="p-3.5 flex items-start gap-2">
+                    <AlertCircle className="w-3.5 h-3.5 text-red-600 mt-0.5 shrink-0" />
                     <div>
-                        <div className="font-black text-red-900">Cannot load data</div>
-                        <div className="text-sm text-red-700 mt-1">
+                        <div className="text-[12px] font-semibold text-red-900">Cannot load data</div>
+                        <div className="text-[11px] text-red-700 mt-0.5">
                             {(error as Error).message}
                         </div>
                     </div>
@@ -564,269 +558,209 @@ const Dashboard: React.FC<{
 
     if (isLoading || !data) {
         return (
-            <div className="space-y-6">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {Array.from({ length: 8 }).map((_, i) => (
-                        <Skeleton key={i} className="h-28 rounded-2xl" />
+            <div className="space-y-2.5">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                        <Skeleton key={i} className="h-16 rounded-xl" />
                     ))}
                 </div>
-                <Skeleton className="h-80 rounded-3xl" />
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <Skeleton className="h-80 rounded-3xl" />
-                    <Skeleton className="h-80 rounded-3xl" />
+                <Skeleton className="h-48 rounded-xl" />
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-2.5">
+                    <Skeleton className="h-48 rounded-xl lg:col-span-2" />
+                    <Skeleton className="h-48 rounded-xl" />
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="space-y-6">
-            {/* KPI grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="space-y-2.5">
+            {/* KPI strip — matches DashboardKPICards pattern: left accent stripe + tabular number. */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 <Kpi
                     label="Active users"
                     value={nf.format(data.totals.activeUsers ?? 0)}
                     sublabel={`${nf.format(data.totals.newUsers ?? 0)} new`}
                     icon={UsersIcon}
-                    tone="navy"
+                    accent="#3b5e5e"
                 />
                 <Kpi
                     label="Sessions"
                     value={nf.format(data.totals.sessions ?? 0)}
                     sublabel={`${nfc.format(data.totals.screenPageViews ?? 0)} views`}
                     icon={Activity}
-                    tone="sky"
+                    accent="#3b5e5e"
                 />
                 <Kpi
                     label="Engagement rate"
                     value={pct(data.totals.engagementRate ?? 0)}
                     sublabel={`${pct(1 - (data.totals.bounceRate ?? 0))} non-bounce`}
                     icon={TrendingUp}
-                    tone="emerald"
+                    accent="#059669"
+                    rate={(data.totals.engagementRate ?? 0) * 100}
                 />
                 <Kpi
                     label="Avg. session"
                     value={dur(data.totals.averageSessionDuration ?? 0)}
                     sublabel={`${nfc.format(data.totals.eventCount ?? 0)} events`}
                     icon={Clock}
-                    tone="violet"
+                    accent="#d97706"
                 />
             </div>
 
             {/* Trend */}
-            <Card className="rounded-3xl border-slate-200 shadow-none overflow-hidden">
-                <CardContent className="p-6">
-                    <div className="flex items-center justify-between mb-5">
+            <Card className="border border-gray-100 shadow-none rounded-xl">
+                <CardContent className="p-3.5">
+                    <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
                         <div>
-                            <h3 className="text-sm font-black uppercase tracking-wider text-brand-navy">
-                                Traffic trend
-                            </h3>
-                            <p className="text-xs text-slate-500 mt-0.5">
-                                Daily users, sessions, page views
+                            <h3 className="text-[12px] font-semibold text-brand-navy">Traffic trend</h3>
+                            <p className="text-[9px] text-gray-400 uppercase tracking-[0.14em] mt-0.5">
+                                Daily users · sessions · page views
                             </p>
                         </div>
-                        <div className="flex items-center gap-4 text-[11px] font-bold">
-                            <LegendDot color="#0f172a" label="Users" />
-                            <LegendDot color="#0ea5e9" label="Sessions" />
-                            <LegendDot color="#8b5cf6" label="Views" />
+                        <div className="flex items-center gap-2.5 text-[10px] text-gray-500">
+                            <LegendDot color="#3b5e5e" label="Users" />
+                            <LegendDot color="#059669" label="Sessions" />
+                            <LegendDot color="#d97706" label="Views" />
                         </div>
                     </div>
-                    <div className="h-72">
+                    <div className="h-44">
                         <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={data.trend}>
+                            <AreaChart data={data.trend} margin={{ top: 4, right: 6, bottom: 0, left: 0 }}>
                                 <defs>
                                     <linearGradient id="ga-users" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stopColor="#0f172a" stopOpacity={0.25} />
-                                        <stop offset="100%" stopColor="#0f172a" stopOpacity={0} />
+                                        <stop offset="0%" stopColor="#3b5e5e" stopOpacity={0.22} />
+                                        <stop offset="100%" stopColor="#3b5e5e" stopOpacity={0} />
                                     </linearGradient>
                                     <linearGradient id="ga-sessions" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stopColor="#0ea5e9" stopOpacity={0.2} />
-                                        <stop offset="100%" stopColor="#0ea5e9" stopOpacity={0} />
+                                        <stop offset="0%" stopColor="#059669" stopOpacity={0.18} />
+                                        <stop offset="100%" stopColor="#059669" stopOpacity={0} />
                                     </linearGradient>
                                 </defs>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                                <CartesianGrid strokeDasharray="2 4" stroke="#f3f4f6" vertical={false} />
                                 <XAxis
                                     dataKey="date"
                                     tickFormatter={(v) => parseGaDate(String(v))}
-                                    tick={{ fontSize: 11, fill: '#94a3b8' }}
+                                    tick={{ fontSize: 10, fill: '#9ca3af' }}
                                     axisLine={false}
                                     tickLine={false}
                                 />
                                 <YAxis
-                                    tick={{ fontSize: 11, fill: '#94a3b8' }}
+                                    tick={{ fontSize: 10, fill: '#9ca3af' }}
                                     axisLine={false}
                                     tickLine={false}
+                                    width={36}
                                     tickFormatter={(v) => nfc.format(Number(v))}
                                 />
                                 <Tooltip
                                     contentStyle={{
-                                        border: 'none',
-                                        borderRadius: 12,
-                                        boxShadow: '0 8px 30px rgba(0,0,0,0.08)',
-                                        fontSize: 12,
+                                        borderRadius: 10,
+                                        border: '1px solid #f3f4f6',
+                                        boxShadow: 'none',
+                                        fontSize: 11,
                                     }}
                                     labelFormatter={(v) => parseGaDate(String(v))}
                                     formatter={(v: number, name: string) => [nf.format(v), name]}
                                 />
-                                <Area
-                                    type="monotone"
-                                    dataKey="activeUsers"
-                                    name="Users"
-                                    stroke="#0f172a"
-                                    strokeWidth={2.5}
-                                    fill="url(#ga-users)"
-                                />
-                                <Area
-                                    type="monotone"
-                                    dataKey="sessions"
-                                    name="Sessions"
-                                    stroke="#0ea5e9"
-                                    strokeWidth={2}
-                                    fill="url(#ga-sessions)"
-                                />
-                                <Area
-                                    type="monotone"
-                                    dataKey="screenPageViews"
-                                    name="Views"
-                                    stroke="#8b5cf6"
-                                    strokeWidth={1.5}
-                                    fill="transparent"
-                                />
+                                <Area type="monotone" dataKey="activeUsers" name="Users" stroke="#3b5e5e" strokeWidth={1.75} fill="url(#ga-users)" dot={false} />
+                                <Area type="monotone" dataKey="sessions" name="Sessions" stroke="#059669" strokeWidth={1.5} fill="url(#ga-sessions)" dot={false} />
+                                <Area type="monotone" dataKey="screenPageViews" name="Views" stroke="#d97706" strokeWidth={1.25} strokeDasharray="4 3" fill="transparent" dot={false} />
                             </AreaChart>
                         </ResponsiveContainer>
                     </div>
                 </CardContent>
             </Card>
 
-            {/* Row 1: channels + devices */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <Card className="rounded-3xl border-slate-200 shadow-none lg:col-span-2">
-                    <CardContent className="p-6">
-                        <div className="flex items-center justify-between mb-5">
+            {/* Row 1: acquisition + devices */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-2.5">
+                <Card className="border border-gray-100 shadow-none rounded-xl lg:col-span-2">
+                    <CardContent className="p-3.5">
+                        <div className="flex items-center justify-between mb-2">
                             <div>
-                                <h3 className="text-sm font-black uppercase tracking-wider text-brand-navy">
-                                    Acquisition
-                                </h3>
-                                <p className="text-xs text-slate-500 mt-0.5">
+                                <h3 className="text-[12px] font-semibold text-brand-navy">Acquisition</h3>
+                                <p className="text-[9px] text-gray-400 uppercase tracking-[0.14em] mt-0.5">
                                     Sessions by channel
                                 </p>
                             </div>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-                            <div className="h-52">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
-                                        <Pie
-                                            data={data.channels}
-                                            dataKey="sessions"
-                                            nameKey="sessionDefaultChannelGroup"
-                                            innerRadius={50}
-                                            outerRadius={85}
-                                            paddingAngle={2}
-                                            stroke="#fff"
-                                            strokeWidth={2}
-                                        >
-                                            {data.channels.map((_, i) => (
-                                                <Cell key={i} fill={CHANNEL_COLORS[i % CHANNEL_COLORS.length]} />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip
-                                            contentStyle={{
-                                                border: 'none',
-                                                borderRadius: 12,
-                                                boxShadow: '0 8px 30px rgba(0,0,0,0.08)',
-                                                fontSize: 12,
-                                            }}
-                                            formatter={(v: number) => nf.format(v)}
-                                        />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                            </div>
-                            <div className="space-y-1.5 max-h-52 overflow-y-auto no-scrollbar">
-                                {data.channels.map((c, i) => {
-                                    const total = data.channels.reduce(
-                                        (s, r) => s + (Number(r.sessions) || 0),
-                                        0
-                                    );
-                                    const share = total ? (Number(c.sessions) / total) * 100 : 0;
-                                    return (
-                                        <div
-                                            key={String(c.sessionDefaultChannelGroup)}
-                                            className="flex items-center gap-2"
-                                        >
-                                            <div
-                                                className="w-2.5 h-2.5 rounded-full shrink-0"
-                                                style={{
-                                                    background:
-                                                        CHANNEL_COLORS[i % CHANNEL_COLORS.length],
-                                                }}
+                        <div className="space-y-1.5">
+                            {data.channels.length === 0 && (
+                                <p className="text-[11px] text-gray-400 text-center py-4">No channel data yet</p>
+                            )}
+                            {data.channels.map((c, i) => {
+                                const total = data.channels.reduce((s, r) => s + (Number(r.sessions) || 0), 0);
+                                const value = Number(c.sessions) || 0;
+                                const share = total ? (value / total) * 100 : 0;
+                                const max = data.channels.reduce((m, r) => Math.max(m, Number(r.sessions) || 0), 0) || 1;
+                                const width = (value / max) * 100;
+                                return (
+                                    <div key={String(c.sessionDefaultChannelGroup) + i}>
+                                        <div className="flex items-center gap-2 mb-0.5">
+                                            <span
+                                                className="w-[3px] h-3 rounded-full shrink-0"
+                                                style={{ backgroundColor: CHANNEL_SHADES[i % CHANNEL_SHADES.length] }}
                                             />
-                                            <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
-                                                <span className="text-xs font-bold text-brand-navy truncate">
-                                                    {c.sessionDefaultChannelGroup || 'Unassigned'}
-                                                </span>
-                                                <span className="text-xs font-black text-slate-700 shrink-0">
-                                                    {nfc.format(Number(c.sessions))}
-                                                    <span className="text-slate-400 font-medium ml-1">
-                                                        {share.toFixed(0)}%
-                                                    </span>
-                                                </span>
-                                            </div>
+                                            <span className="text-[11px] text-brand-navy/80 flex-1 truncate capitalize">
+                                                {String(c.sessionDefaultChannelGroup || 'Unassigned')}
+                                            </span>
+                                            <span className="text-[11px] font-semibold text-brand-navy tabular-nums">
+                                                {nfc.format(value)}
+                                            </span>
+                                            <span className="text-[10px] text-gray-400 tabular-nums w-10 text-right">
+                                                {share.toFixed(1)}%
+                                            </span>
                                         </div>
-                                    );
-                                })}
-                            </div>
+                                        <div className="ml-[11px] h-1 bg-gray-100 rounded-full overflow-hidden">
+                                            <div
+                                                className="h-full rounded-full transition-all duration-500"
+                                                style={{ width: `${width}%`, backgroundColor: CHANNEL_SHADES[i % CHANNEL_SHADES.length] }}
+                                            />
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </div>
                     </CardContent>
                 </Card>
 
-                <Card className="rounded-3xl border-slate-200 shadow-none">
-                    <CardContent className="p-6">
-                        <div className="flex items-center justify-between mb-5">
+                <Card className="border border-gray-100 shadow-none rounded-xl">
+                    <CardContent className="p-3.5">
+                        <div className="flex items-center justify-between mb-2">
                             <div>
-                                <h3 className="text-sm font-black uppercase tracking-wider text-brand-navy">
-                                    Devices
-                                </h3>
-                                <p className="text-xs text-slate-500 mt-0.5">
+                                <h3 className="text-[12px] font-semibold text-brand-navy">Devices</h3>
+                                <p className="text-[9px] text-gray-400 uppercase tracking-[0.14em] mt-0.5">
                                     Sessions by device
                                 </p>
                             </div>
-                            <Smartphone className="w-4 h-4 text-slate-300" />
+                            <Smartphone className="w-3 h-3 text-gray-300" />
                         </div>
-                        <div className="h-52">
+                        <div className="h-40">
                             <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={data.devices}>
-                                    <CartesianGrid
-                                        strokeDasharray="3 3"
-                                        stroke="#f1f5f9"
-                                        vertical={false}
-                                    />
+                                <BarChart data={data.devices} margin={{ top: 4, right: 6, bottom: 0, left: 0 }}>
+                                    <CartesianGrid strokeDasharray="2 4" stroke="#f3f4f6" vertical={false} />
                                     <XAxis
                                         dataKey="deviceCategory"
-                                        tick={{ fontSize: 11, fill: '#94a3b8' }}
+                                        tick={{ fontSize: 10, fill: '#9ca3af' }}
                                         axisLine={false}
                                         tickLine={false}
                                     />
                                     <YAxis
-                                        tick={{ fontSize: 11, fill: '#94a3b8' }}
+                                        tick={{ fontSize: 10, fill: '#9ca3af' }}
                                         axisLine={false}
                                         tickLine={false}
+                                        width={32}
                                         tickFormatter={(v) => nfc.format(Number(v))}
                                     />
                                     <Tooltip
                                         contentStyle={{
-                                            border: 'none',
-                                            borderRadius: 12,
-                                            boxShadow: '0 8px 30px rgba(0,0,0,0.08)',
-                                            fontSize: 12,
+                                            borderRadius: 10,
+                                            border: '1px solid #f3f4f6',
+                                            boxShadow: 'none',
+                                            fontSize: 11,
                                         }}
                                         formatter={(v: number) => nf.format(v)}
                                     />
-                                    <Bar
-                                        dataKey="sessions"
-                                        fill="#0f172a"
-                                        radius={[10, 10, 0, 0]}
-                                    />
+                                    <Bar dataKey="sessions" fill="#3b5e5e" radius={[4, 4, 0, 0]} />
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
@@ -835,7 +769,7 @@ const Dashboard: React.FC<{
             </div>
 
             {/* Row 2: top pages + countries */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
                 <RankList
                     title="Top pages"
                     subtitle="Most viewed"
@@ -862,7 +796,7 @@ const Dashboard: React.FC<{
             </div>
 
             {/* Row 3: events + browsers + realtime countries */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-2.5">
                 <RankList
                     title="Top events"
                     subtitle="Most triggered"
@@ -900,49 +834,54 @@ const Dashboard: React.FC<{
 };
 
 // ── Shared widgets ───────────────────────────────────────────────────
-type Tone = 'navy' | 'sky' | 'emerald' | 'violet';
-const TONES: Record<Tone, { bg: string; fg: string; icon: string }> = {
-    navy: { bg: 'bg-brand-navy', fg: 'text-white', icon: 'text-white' },
-    sky: { bg: 'bg-sky-500', fg: 'text-white', icon: 'text-white' },
-    emerald: { bg: 'bg-emerald-500', fg: 'text-white', icon: 'text-white' },
-    violet: { bg: 'bg-violet-500', fg: 'text-white', icon: 'text-white' },
-};
-
+// KPI card — left accent stripe + dense tabular number. Matches DashboardKPICards
+// and uses the locked 5-tone palette (navy / emerald / red / amber / gray).
 const Kpi: React.FC<{
     label: string;
     value: string;
     sublabel?: string;
     icon: React.ComponentType<{ className?: string }>;
-    tone: Tone;
-}> = ({ label, value, sublabel, icon: Icon, tone }) => {
-    const t = TONES[tone];
-    return (
-        <Card className="rounded-2xl border-slate-200 shadow-none overflow-hidden">
-            <CardContent className="p-5">
-                <div className="flex items-start justify-between mb-4">
-                    <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center', t.bg)}>
-                        <Icon className={cn('w-4 h-4', t.icon)} />
-                    </div>
+    accent: string;
+    rate?: number;
+}> = ({ label, value, sublabel, icon: Icon, accent, rate }) => (
+    <Card className="border border-gray-100 shadow-none rounded-xl overflow-hidden">
+        <CardContent className="p-2.5 relative">
+            <span
+                className="absolute top-2.5 left-0 w-[3px] h-8 rounded-r-full"
+                style={{ backgroundColor: accent }}
+                aria-hidden
+            />
+            <div className="pl-2">
+                <div className="flex items-center gap-1.5">
+                    <Icon className="w-3 h-3 text-gray-400 shrink-0" />
+                    <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400 truncate">
+                        {label}
+                    </span>
                 </div>
-                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-                    {label}
-                </div>
-                <div className="text-2xl font-black text-brand-navy mt-1 tracking-tight">
+                <div className="text-[18px] font-semibold text-brand-navy tabular-nums leading-tight mt-0.5">
                     {value}
                 </div>
                 {sublabel && (
-                    <div className="text-[11px] font-bold text-slate-400 mt-1">{sublabel}</div>
+                    <div className="text-[10px] font-medium text-gray-400 tabular-nums">{sublabel}</div>
                 )}
-            </CardContent>
-        </Card>
-    );
-};
+                {rate !== undefined && (
+                    <div className="h-1 bg-gray-100 rounded-full overflow-hidden mt-1.5">
+                        <div
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{ width: `${Math.max(0, Math.min(100, rate))}%`, backgroundColor: accent }}
+                        />
+                    </div>
+                )}
+            </div>
+        </CardContent>
+    </Card>
+);
 
 const LegendDot: React.FC<{ color: string; label: string }> = ({ color, label }) => (
-    <div className="flex items-center gap-1.5 text-slate-500">
-        <div className="w-2.5 h-2.5 rounded-full" style={{ background: color }} />
-        <span>{label}</span>
-    </div>
+    <span className="inline-flex items-center gap-1 text-[10px] text-gray-500">
+        <span className="w-2 h-2 rounded-full" style={{ background: color }} />
+        {label}
+    </span>
 );
 
 const RankList: React.FC<{
@@ -954,58 +893,56 @@ const RankList: React.FC<{
     accent?: 'default' | 'emerald';
 }> = ({ title, subtitle, icon: Icon, rows, valueFormatter, accent = 'default' }) => {
     const max = Math.max(1, ...rows.map((r) => r.value));
+    const barColor = accent === 'emerald' ? 'bg-emerald-500' : 'bg-brand-navy/70';
     return (
-        <Card className="rounded-3xl border-slate-200 shadow-none">
-            <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-5">
+        <Card className="border border-gray-100 shadow-none rounded-xl">
+            <CardContent className="p-3.5">
+                <div className="flex items-center justify-between mb-2">
                     <div>
-                        <h3 className="text-sm font-black uppercase tracking-wider text-brand-navy">
-                            {title}
-                        </h3>
+                        <h3 className="text-[12px] font-semibold text-brand-navy">{title}</h3>
                         {subtitle && (
-                            <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>
+                            <p className="text-[9px] text-gray-400 uppercase tracking-[0.14em] mt-0.5">
+                                {subtitle}
+                            </p>
                         )}
                     </div>
-                    <Icon className="w-4 h-4 text-slate-300" />
+                    <Icon className="w-3 h-3 text-gray-300" />
                 </div>
-                <div className="space-y-3">
+                <div className="space-y-1.5">
                     {rows.length === 0 ? (
-                        <div className="text-xs text-slate-400 font-medium py-8 text-center">
+                        <div className="text-[11px] text-gray-400 py-4 text-center">
                             No data for this range
                         </div>
                     ) : (
                         rows.slice(0, 8).map((r, i) => {
                             const pctWidth = (r.value / max) * 100;
                             return (
-                                <div key={i} className="space-y-1">
-                                    <div className="flex items-center justify-between gap-2 text-xs">
+                                <div key={i}>
+                                    <div className="flex items-center justify-between gap-2 mb-0.5">
                                         <div className="flex-1 min-w-0">
-                                            <div className="font-bold text-brand-navy truncate">
+                                            <div className="text-[11px] font-medium text-brand-navy truncate">
                                                 {r.label}
                                             </div>
                                             {r.sub && (
-                                                <div className="text-[10px] font-mono text-slate-400 truncate">
+                                                <div className="text-[9px] font-mono text-gray-400 truncate">
                                                     {r.sub}
                                                 </div>
                                             )}
                                         </div>
                                         <div className="text-right shrink-0">
-                                            <div className="font-black text-brand-navy">
+                                            <div className="text-[11px] font-semibold text-brand-navy tabular-nums">
                                                 {valueFormatter(r.value)}
                                             </div>
                                             {r.extra && (
-                                                <div className="text-[10px] font-bold text-slate-400">
+                                                <div className="text-[9px] text-gray-400 tabular-nums">
                                                     {r.extra}
                                                 </div>
                                             )}
                                         </div>
                                     </div>
-                                    <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                                    <div className="h-1 rounded-full bg-gray-100 overflow-hidden">
                                         <div
-                                            className={cn(
-                                                'h-full rounded-full transition-all duration-500',
-                                                accent === 'emerald' ? 'bg-emerald-500' : 'bg-brand-navy'
-                                            )}
+                                            className={cn('h-full rounded-full transition-all duration-500', barColor)}
                                             style={{ width: `${pctWidth}%` }}
                                         />
                                     </div>
@@ -1024,22 +961,25 @@ const OnboardingCard: React.FC<{ onAdd: () => void }> = ({ onAdd }) => {
     const { data: sa, isLoading, error, refetch } = useServiceAccountEmail();
     const { toast } = useToast();
     return (
-        <Card className="rounded-3xl border-slate-200 shadow-none overflow-hidden">
-            <CardContent className="p-0">
-                <div className="grid grid-cols-1 md:grid-cols-5">
-                    <div className="md:col-span-2 p-8 bg-gradient-to-br from-brand-navy to-slate-800 text-white">
-                        <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur flex items-center justify-center mb-4">
-                            <BarChart3 className="w-6 h-6" />
+        <Card className="border border-gray-100 shadow-none rounded-xl">
+            <CardContent className="p-3.5">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-3.5">
+                    <div className="md:col-span-2 p-3 rounded-xl bg-brand-navy/[0.03] border border-brand-navy/10">
+                        <div className="flex items-center gap-1.5">
+                            <BarChart3 className="w-3.5 h-3.5 text-brand-navy" />
+                            <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400">
+                                Connect
+                            </span>
                         </div>
-                        <h2 className="text-2xl font-black tracking-tight mb-2">
-                            Connect Google Analytics
+                        <h2 className="text-[14px] font-semibold text-brand-navy tracking-tight mt-1">
+                            Google Analytics
                         </h2>
-                        <p className="text-sm text-white/60 font-medium leading-relaxed">
-                            Grant read access to our service account, then paste your GA4
-                            Property ID. No OAuth, no popups. Works for multiple properties.
+                        <p className="text-[11px] text-gray-500 leading-snug mt-1">
+                            Grant read access to our service account and paste your GA4 Property ID.
+                            No OAuth, no popups. Works for multiple properties.
                         </p>
                     </div>
-                    <div className="md:col-span-3 p-8 space-y-5">
+                    <div className="md:col-span-3 space-y-3">
                         <Step
                             num={1}
                             title="Open GA4 property access"
@@ -1049,9 +989,9 @@ const OnboardingCard: React.FC<{ onAdd: () => void }> = ({ onAdd }) => {
                             num={2}
                             title="Add our service account as Viewer"
                             body={
-                                <div className="space-y-2 mt-2">
-                                    <div className="flex items-center gap-2">
-                                        <code className="flex-1 px-3 py-2 rounded-lg bg-slate-100 text-[11px] font-mono text-brand-navy truncate">
+                                <div className="space-y-1 mt-1">
+                                    <div className="flex items-center gap-1.5">
+                                        <code className="flex-1 px-2 py-1 rounded-md bg-gray-100 text-[10px] font-mono text-brand-navy truncate">
                                             {isLoading
                                                 ? 'Loading…'
                                                 : error
@@ -1062,7 +1002,7 @@ const OnboardingCard: React.FC<{ onAdd: () => void }> = ({ onAdd }) => {
                                             <Button
                                                 size="sm"
                                                 variant="outline"
-                                                className="rounded-lg h-9"
+                                                className="rounded-md h-7 px-2 text-[10px]"
                                                 onClick={() => refetch()}
                                             >
                                                 Retry
@@ -1071,19 +1011,19 @@ const OnboardingCard: React.FC<{ onAdd: () => void }> = ({ onAdd }) => {
                                             <Button
                                                 size="sm"
                                                 variant="outline"
-                                                className="rounded-lg h-9"
+                                                className="rounded-md h-7 px-2"
                                                 disabled={!sa?.email}
                                                 onClick={() => {
                                                     navigator.clipboard.writeText(sa?.email ?? '');
                                                     toast({ title: 'Copied', description: sa?.email });
                                                 }}
                                             >
-                                                <Copy className="w-3.5 h-3.5" />
+                                                <Copy className="w-3 h-3" />
                                             </Button>
                                         )}
                                     </div>
                                     {error && (
-                                        <div className="text-[11px] text-red-600 font-medium">
+                                        <div className="text-[10px] text-red-600">
                                             {(error as Error).message}
                                         </div>
                                     )}
@@ -1093,13 +1033,14 @@ const OnboardingCard: React.FC<{ onAdd: () => void }> = ({ onAdd }) => {
                         <Step
                             num={3}
                             title="Paste your GA4 Property ID"
-                            body="Find it in Admin → Property Settings. Usually a 9-10 digit number."
+                            body="Find it in Admin → Property Settings. Usually a 9–10 digit number."
                         />
                         <Button
                             onClick={onAdd}
-                            className="w-full h-12 rounded-xl bg-brand-navy hover:bg-slate-800 text-white font-bold"
+                            size="sm"
+                            className="w-full h-8 rounded-md bg-brand-navy hover:bg-brand-navy/90 text-white text-[11px] font-semibold"
                         >
-                            <Plus className="w-4 h-4 mr-2" />
+                            <Plus className="w-3 h-3 mr-1.5" />
                             Connect a property
                         </Button>
                     </div>
@@ -1114,13 +1055,13 @@ const Step: React.FC<{ num: number; title: string; body: React.ReactNode }> = ({
     title,
     body,
 }) => (
-    <div className="flex gap-3">
-        <div className="w-7 h-7 rounded-full bg-brand-navy text-white text-xs font-black flex items-center justify-center shrink-0">
+    <div className="flex gap-2">
+        <div className="w-5 h-5 rounded-full bg-brand-navy text-white text-[10px] font-semibold flex items-center justify-center shrink-0">
             {num}
         </div>
-        <div className="flex-1">
-            <div className="text-sm font-black text-brand-navy">{title}</div>
-            <div className="text-xs text-slate-500 font-medium mt-0.5">{body}</div>
+        <div className="flex-1 min-w-0">
+            <div className="text-[11px] font-semibold text-brand-navy">{title}</div>
+            <div className="text-[10px] text-gray-500 mt-0.5">{body}</div>
         </div>
     </div>
 );

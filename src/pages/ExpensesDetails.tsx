@@ -8,14 +8,9 @@ import {
     Edit2,
     Trash2,
     Loader2,
-    X,
     Calendar,
     DollarSign,
-    Tag,
-    FileText,
-    ChevronRight,
     Filter,
-    ArrowDownWideNarrow,
     Receipt
 } from 'lucide-react';
 import {
@@ -27,7 +22,6 @@ import { Input } from '@/components/ui/input';
 import {
     Dialog,
     DialogContent,
-    DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
@@ -242,209 +236,237 @@ const ExpensesDetails = () => {
     const totalAmount = filteredExpenses?.reduce((acc: number, curr: any) => acc + Number(curr.amount), 0) || 0;
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
-            {/* Header Section */}
-            <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-                <div className="relative p-8">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div>
-                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Expense Tracker</h1>
-                            <p className="text-gray-500 font-light">Keep track of every cent your business spends.</p>
-                        </div>
-                        <div className="flex items-center gap-4">
-                            <div className="bg-white/50 backdrop-blur-sm border border-white p-2 rounded-2xl flex items-center gap-4 px-6 shadow-sm">
-                                <div>
-                                    <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400">Total Budget</p>
-                                    <p className="text-xl font-light text-primary">{totalAmount.toLocaleString()} DH</p>
-                                </div>
-                                <div className="w-px h-8 bg-gray-100" />
-                                <div>
-                                    <p className="text-[10px] uppercase tracking-widest font-bold text-gray-400">Transactions</p>
-                                    <p className="text-xl font-light text-amber-600">{filteredExpenses?.length || 0}</p>
-                                </div>
-                            </div>
-                        </div>
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+            {/* Header */}
+            <header className="space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Expense Tracker</h1>
+                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Track every business expenditure</p>
+                    </div>
+                    <Button
+                        onClick={() => openUpsert()}
+                        className="bg-brand-navy hover:bg-brand-navy/90 text-white h-8 px-3 rounded-md text-[11px] font-semibold gap-1.5 shrink-0"
+                    >
+                        <Plus className="w-3.5 h-3.5" /> Add Expense
+                    </Button>
+                </div>
+            </header>
+
+            {/* KPI strip */}
+            <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
+                    <span className="w-[3px] self-stretch rounded-full" style={{ background: '#ef4444' }} />
+                    <div className="flex-1 min-w-0">
+                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Total Spend</p>
+                        <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{totalAmount.toLocaleString()} DH</p>
+                    </div>
+                </div>
+                <div className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
+                    <span className="w-[3px] self-stretch rounded-full" style={{ background: '#d97706' }} />
+                    <div className="flex-1 min-w-0">
+                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Transactions</p>
+                        <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{filteredExpenses?.length || 0}</p>
                     </div>
                 </div>
             </div>
 
-            {/* Filter Bar */}
-            <div className="flex flex-wrap items-center gap-3">
-                <div className="relative group flex-1 min-w-[300px]">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
+            {/* Filter bar */}
+            <div className="flex flex-wrap items-center gap-2">
+                <div className="relative flex-1 min-w-[200px] max-w-xs">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
                     <Input
-                        placeholder="Find expense..."
+                        placeholder="Search expenses..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-11 h-12 rounded-2xl border-gray-100 bg-white"
+                        className="pl-7 h-8 rounded-md border-gray-200 bg-white text-[11px]"
                     />
                 </div>
-
                 <Select value={selectedType} onValueChange={setSelectedType}>
-                    <SelectTrigger className="w-full sm:w-[200px] h-12 border-gray-100 bg-white rounded-2xl font-medium text-gray-700 focus:ring-1 focus:ring-primary/20">
-                        <div className="flex items-center gap-2">
-                            <Filter className="w-4 h-4 text-gray-400" />
-                            <SelectValue placeholder="All Categories" />
-                        </div>
+                    <SelectTrigger className="h-8 border-gray-200 bg-white rounded-md text-[11px] w-44 gap-1.5">
+                        <Filter className="w-3 h-3 text-gray-400" />
+                        <SelectValue placeholder="All Categories" />
                     </SelectTrigger>
-                    <SelectContent className="rounded-2xl border-gray-100 shadow-xl p-2">
-                        <SelectItem value="all" className="rounded-xl p-3 font-medium text-gray-700">All Categories</SelectItem>
+                    <SelectContent>
+                        <SelectItem value="all" className="text-[11px]">All Categories</SelectItem>
                         {expenseTypes?.map((type: any) => (
-                            <SelectItem key={type.id} value={type.id} className="rounded-xl p-3 font-medium text-gray-700">
+                            <SelectItem key={type.id} value={type.id} className="text-[11px]">
                                 {type.name}
                             </SelectItem>
                         ))}
                     </SelectContent>
                 </Select>
-
-                <Button
-                    onClick={() => openUpsert()}
-                    className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group flex items-center gap-2 w-full sm:w-auto"
-                >
-                    <Plus className="w-5 h-5" />
-                    Add Expense
-                </Button>
             </div>
 
-            {/* List display */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {isExpensesLoading ? (
-                    Array.from({ length: 8 }).map((_, i) => (
-                        <Skeleton key={i} className="h-56 w-full rounded-[40px] bg-brand-navy/5" />
-                    ))
-                ) : filteredExpenses?.length === 0 ? (
-                    <div className="col-span-full py-20 flex flex-col items-center justify-center text-center space-y-4">
-                        <div className="w-24 h-24 bg-brand-navy/5 rounded-full flex items-center justify-center text-brand-navy/20">
-                            <DollarSign className="w-12 h-12" />
+            {/* Table */}
+            <Card className="border border-gray-100 shadow-none rounded-xl overflow-hidden">
+                <CardContent className="p-0">
+                    {isExpensesLoading ? (
+                        <div className="p-4 space-y-2">
+                            {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-full rounded-lg" />)}
                         </div>
-                        <div className="space-y-1 text-brand-navy">
-                            <p className="text-xl font-bold">No records found</p>
-                            <p className="font-medium opacity-60">Your wallet seems safe... for now.</p>
+                    ) : filteredExpenses?.length === 0 ? (
+                        <div className="border border-dashed border-gray-200 rounded-xl mx-3.5 my-3.5 py-8 flex flex-col items-center justify-center text-center gap-2">
+                            <Receipt className="w-5 h-5 text-gray-300" />
+                            <p className="text-[11px] font-semibold text-brand-navy">No records found</p>
+                            <p className="text-[10px] text-gray-400">Add your first expense to start tracking.</p>
                         </div>
-                    </div>
-                ) : (
-                    filteredExpenses?.map((expense: any) => (
-                        <ExpenseCard
-                            key={expense.id}
-                            expense={expense}
-                            onEdit={() => openUpsert(expense)}
-                            onDelete={() => setExpenseToDelete(expense)}
-                        />
-                    ))
-                )}
-            </div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full">
+                                <thead>
+                                    <tr className="border-b border-gray-100">
+                                        <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Date</th>
+                                        <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Name</th>
+                                        <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Category</th>
+                                        <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Note</th>
+                                        <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Amount</th>
+                                        <th className="px-3 py-2 w-10" />
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filteredExpenses?.map((expense: any) => (
+                                        <tr key={expense.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+                                            <td className="px-3 py-2 text-[11px] text-brand-navy/80 tabular-nums whitespace-nowrap">
+                                                {format(new Date(expense.date), 'dd MMM yyyy')}
+                                            </td>
+                                            <td className="px-3 py-2 text-[11px] text-brand-navy/80 font-medium">{expense.name}</td>
+                                            <td className="px-3 py-2">
+                                                <span className="text-[9px] font-semibold uppercase tracking-wide text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                                                    {expense.expense_types?.name || 'Uncategorized'}
+                                                </span>
+                                            </td>
+                                            <td className="px-3 py-2 text-[11px] text-gray-400 italic max-w-[180px] truncate">
+                                                {expense.description || '—'}
+                                            </td>
+                                            <td className="px-3 py-2 text-right text-[11px] font-semibold text-brand-navy tabular-nums whitespace-nowrap">
+                                                {Number(expense.amount).toLocaleString()} DH
+                                            </td>
+                                            <td className="px-2 py-2">
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" size="icon" className="h-6 w-6 rounded-md hover:bg-gray-100 text-gray-400">
+                                                            <MoreVertical className="h-3 w-3" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end" className="rounded-lg border border-gray-100 shadow-sm p-1 min-w-[120px]">
+                                                        <DropdownMenuItem onClick={() => openUpsert(expense)} className="rounded-md px-2 py-1.5 cursor-pointer text-[11px] font-medium gap-2">
+                                                            <Edit2 className="w-3.5 h-3.5 text-gray-400" /> Edit
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuSeparator className="my-1" />
+                                                        <DropdownMenuItem onClick={() => setExpenseToDelete(expense)} className="rounded-md px-2 py-1.5 cursor-pointer text-[11px] font-medium gap-2 text-red-500">
+                                                            <Trash2 className="w-3.5 h-3.5" /> Delete
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
 
             {/* Upsert Modal */}
             <Dialog open={isUpsertOpen} onOpenChange={setIsUpsertOpen}>
-                <DialogContent className="max-w-xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden">
+                <DialogContent className="max-w-md p-0 border border-gray-100 rounded-xl shadow-none overflow-hidden">
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit(handleUpsert)} className="flex flex-col">
-                            <DialogHeader className="p-10 pb-4">
-                                <DialogTitle className="text-3xl font-black text-brand-navy uppercase tracking-tight">
-                                    {editingExpense ? 'Modify Expense' : 'Log Expense'}
+                            <DialogHeader className="px-4 pt-4 pb-3 border-b border-gray-100">
+                                <DialogTitle className="text-[13px] font-semibold text-brand-navy">
+                                    {editingExpense ? 'Edit Expense' : 'Add Expense'}
                                 </DialogTitle>
-                                <DialogDescription className="text-brand-navy/60 text-lg font-medium">
-                                    Recording every interaction is vital for accurate analytics.
-                                </DialogDescription>
                             </DialogHeader>
 
-                            <div className="p-10 pt-4 space-y-6 max-h-[60vh] overflow-y-auto no-scrollbar">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="p-4 space-y-3 bg-white max-h-[65vh] overflow-y-auto">
+                                <div className="grid grid-cols-2 gap-3">
                                     <FormField
                                         control={form.control}
                                         name="name"
                                         render={({ field }) => (
-                                            <FormItem className="space-y-2">
-                                                <FormLabel className="text-xs font-black uppercase tracking-wider text-brand-navy/40">Item / Service Name</FormLabel>
+                                            <FormItem>
+                                                <FormLabel className="text-[10px] font-semibold text-gray-600">Item / Service</FormLabel>
                                                 <FormControl>
-                                                    <Input placeholder="e.g. Office Supplies" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/5 text-lg font-bold text-brand-navy shadow-inner" />
+                                                    <Input placeholder="e.g. Office Supplies" {...field} className="h-8 text-[11px] rounded-md border-gray-200" />
                                                 </FormControl>
-                                                <FormMessage />
+                                                <FormMessage className="text-[10px]" />
                                             </FormItem>
                                         )}
                                     />
-
                                     <FormField
                                         control={form.control}
                                         name="type_id"
                                         render={({ field }) => (
-                                            <FormItem className="space-y-2">
-                                                <FormLabel className="text-xs font-black uppercase tracking-wider text-brand-navy/40">Category Selection</FormLabel>
+                                            <FormItem>
+                                                <FormLabel className="text-[10px] font-semibold text-gray-600">Category</FormLabel>
                                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                                                     <FormControl>
-                                                        <SelectTrigger className="h-14 rounded-2xl border-none bg-brand-navy/5 text-lg font-bold text-brand-navy shadow-inner">
+                                                        <SelectTrigger className="h-8 text-[11px] rounded-md border-gray-200">
                                                             <SelectValue placeholder="Choose type" />
                                                         </SelectTrigger>
                                                     </FormControl>
-                                                    <SelectContent className="rounded-2xl border-none shadow-2xl p-2 bg-brand-white">
+                                                    <SelectContent>
                                                         {expenseTypes?.map((type: any) => (
-                                                            <SelectItem key={type.id} value={type.id} className="rounded-xl p-3 font-bold uppercase text-[10px] tracking-widest text-brand-navy focus:bg-brand-navy focus:text-brand-white">
+                                                            <SelectItem key={type.id} value={type.id} className="text-[11px]">
                                                                 {type.name}
                                                             </SelectItem>
                                                         ))}
                                                     </SelectContent>
                                                 </Select>
-                                                <FormMessage />
+                                                <FormMessage className="text-[10px]" />
                                             </FormItem>
                                         )}
                                     />
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="grid grid-cols-2 gap-3">
                                     <FormField
                                         control={form.control}
                                         name="amount"
                                         render={({ field }) => (
-                                            <FormItem className="space-y-2">
-                                                <FormLabel className="text-xs font-black uppercase tracking-wider text-brand-navy/40">Amount (DH)</FormLabel>
+                                            <FormItem>
+                                                <FormLabel className="text-[10px] font-semibold text-gray-600">Amount (DH)</FormLabel>
                                                 <FormControl>
-                                                    <Input type="number" step="0.01" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/5 text-lg font-bold text-brand-navy shadow-inner" />
+                                                    <Input type="number" step="0.01" {...field} className="h-8 text-[11px] rounded-md border-gray-200" />
                                                 </FormControl>
-                                                <FormMessage />
+                                                <FormMessage className="text-[10px]" />
                                             </FormItem>
                                         )}
                                     />
-
                                     <FormField
                                         control={form.control}
                                         name="date"
                                         render={({ field }) => (
-                                            <FormItem className="space-y-2 flex flex-col pt-0.5">
-                                                <FormLabel className="text-xs font-black uppercase tracking-wider text-brand-navy/40 pt-1.5">Transaction Date</FormLabel>
+                                            <FormItem className="flex flex-col">
+                                                <FormLabel className="text-[10px] font-semibold text-gray-600">Date</FormLabel>
                                                 <Popover>
                                                     <PopoverTrigger asChild>
                                                         <FormControl>
                                                             <Button
-                                                                variant={"ghost"}
+                                                                variant={"outline"}
                                                                 className={cn(
-                                                                    "h-14 w-full pl-3 text-left font-bold text-lg rounded-2xl bg-brand-navy/5 text-brand-navy border-none shadow-inner",
-                                                                    !field.value && "text-muted-foreground"
+                                                                    "h-8 w-full pl-3 text-left text-[11px] rounded-md border-gray-200",
+                                                                    !field.value && "text-gray-400"
                                                                 )}
                                                             >
-                                                                {field.value ? (
-                                                                    format(field.value, "PPP")
-                                                                ) : (
-                                                                    <span>Pick a date</span>
-                                                                )}
-                                                                <Calendar className="ml-auto h-4 w-4 opacity-50" />
+                                                                {field.value ? format(field.value, "dd MMM yyyy") : <span>Pick date</span>}
+                                                                <Calendar className="ml-auto h-3.5 w-3.5 opacity-50" />
                                                             </Button>
                                                         </FormControl>
                                                     </PopoverTrigger>
-                                                    <PopoverContent className="w-auto p-0 border-none shadow-2xl rounded-3xl overflow-hidden" align="start">
+                                                    <PopoverContent className="w-auto p-0 border border-gray-100 shadow-sm rounded-xl overflow-hidden" align="start">
                                                         <CalendarComponent
                                                             mode="single"
                                                             selected={field.value}
                                                             onSelect={field.onChange}
-                                                            disabled={(date) =>
-                                                                date > new Date() || date < new Date("1900-01-01")
-                                                            }
+                                                            disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
                                                             initialFocus
-                                                            className="bg-brand-white p-4"
                                                         />
                                                     </PopoverContent>
                                                 </Popover>
-                                                <FormMessage />
+                                                <FormMessage className="text-[10px]" />
                                             </FormItem>
                                         )}
                                     />
@@ -454,37 +476,37 @@ const ExpensesDetails = () => {
                                     control={form.control}
                                     name="description"
                                     render={({ field }) => (
-                                        <FormItem className="space-y-2">
-                                            <FormLabel className="text-xs font-black uppercase tracking-wider text-brand-navy/40">Description & Notes</FormLabel>
+                                        <FormItem>
+                                            <FormLabel className="text-[10px] font-semibold text-gray-600">Notes</FormLabel>
                                             <FormControl>
                                                 <Textarea
-                                                    placeholder="Add any extra details or proof information here..."
+                                                    placeholder="Optional notes..."
                                                     {...field}
-                                                    className="min-h-[120px] rounded-3xl border-none bg-brand-navy/5 text-base font-medium text-brand-navy shadow-inner p-5"
+                                                    className="min-h-[72px] rounded-lg border-gray-200 text-[11px] resize-none"
                                                 />
                                             </FormControl>
-                                            <FormMessage />
+                                            <FormMessage className="text-[10px]" />
                                         </FormItem>
                                     )}
                                 />
                             </div>
 
-                            <DialogFooter className="p-10 pt-4 bg-brand-white border-t border-brand-navy/5">
+                            <DialogFooter className="px-4 py-3 border-t border-gray-100 bg-white gap-2">
                                 <Button
                                     type="button"
-                                    variant="ghost"
+                                    variant="outline"
                                     onClick={() => setIsUpsertOpen(false)}
-                                    className="rounded-2xl h-14 px-8 font-bold text-brand-navy hover:bg-brand-navy/5"
+                                    className="h-8 px-3 rounded-md text-[11px] font-semibold border-gray-200"
                                 >
                                     Cancel
                                 </Button>
                                 <Button
                                     type="submit"
                                     disabled={upsertMutation.isPending}
-                                    className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-14 px-10 font-bold shadow-2xl shadow-brand-navy/20 transition-all active:scale-95 flex items-center gap-3"
+                                    className="bg-brand-navy hover:bg-brand-navy/90 text-white h-8 px-3 rounded-md text-[11px] font-semibold gap-1.5"
                                 >
-                                    {upsertMutation.isPending && <Loader2 className="w-5 h-5 animate-spin" />}
-                                    {editingExpense ? 'Save Changes' : 'Post Transaction'}
+                                    {upsertMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                                    {editingExpense ? 'Save Changes' : 'Add Expense'}
                                 </Button>
                             </DialogFooter>
                         </form>
@@ -494,113 +516,29 @@ const ExpensesDetails = () => {
 
             {/* Delete Confirmation */}
             <AlertDialog open={!!expenseToDelete} onOpenChange={() => setExpenseToDelete(null)}>
-                <AlertDialogContent className="rounded-[40px] border-none p-10 max-w-md bg-brand-white">
-                    <div className="flex flex-col items-center text-center space-y-6">
-                        <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center text-red-500 shadow-inner">
-                            <Trash2 className="w-10 h-10" />
-                        </div>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle className="text-3xl font-black text-brand-navy uppercase">Void Transaction?</AlertDialogTitle>
-                            <AlertDialogDescription className="text-lg font-medium text-brand-navy/60 pt-2">
-                                You are about to remove <span className="font-bold text-brand-navy italic">"{expenseToDelete?.name}"</span> of <span className="text-red-500 font-black">{expenseToDelete?.amount} DH</span>. This is irreversible.
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter className="w-full flex flex-col sm:flex-row gap-3 mt-4">
-                            <AlertDialogCancel className="w-full rounded-2xl h-14 font-bold border-none bg-brand-navy/5 hover:bg-brand-navy/10 text-brand-navy m-0">
-                                Safety Back
-                            </AlertDialogCancel>
-                            <AlertDialogAction
-                                onClick={() => deleteMutation.mutate(expenseToDelete.id)}
-                                className="w-full rounded-2xl h-14 font-bold bg-red-500 hover:bg-red-600 text-brand-white shadow-xl shadow-red-500/20 m-0"
-                            >
-                                {deleteMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                                Void Permanently
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </div>
+                <AlertDialogContent className="max-w-sm rounded-xl border border-gray-100 p-4">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="text-[13px] font-semibold text-brand-navy">Delete expense?</AlertDialogTitle>
+                        <AlertDialogDescription className="text-[11px] text-gray-500">
+                            Removing <span className="font-semibold text-brand-navy">"{expenseToDelete?.name}"</span> of{' '}
+                            <span className="text-red-500 font-semibold">{expenseToDelete?.amount} DH</span> is irreversible.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="gap-2 mt-3">
+                        <AlertDialogCancel className="h-8 px-3 rounded-md text-[11px] font-semibold border-gray-200">
+                            Cancel
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => deleteMutation.mutate(expenseToDelete.id)}
+                            className="h-8 px-3 rounded-md text-[11px] font-semibold bg-red-500 hover:bg-red-600 text-white"
+                        >
+                            {deleteMutation.isPending && <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />}
+                            Delete
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
         </div>
-    );
-};
-
-// --- Sub-components ---
-
-const ExpenseCard = ({ expense, onEdit, onDelete }: any) => {
-    return (
-        <Card className="group relative overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-2xl transition-all duration-500 rounded-[40px] cursor-default p-1 pb-7">
-            <div className="p-7 space-y-6">
-                <div className="flex justify-between items-start">
-                    <div className="w-14 h-14 bg-brand-navy/[0.04] rounded-2xl flex items-center justify-center text-brand-navy group-hover:bg-brand-navy group-hover:text-white transition-all duration-500 -rotate-3 group-hover:rotate-0">
-                        <Receipt className="w-6 h-6" />
-                    </div>
-
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-12 w-12 rounded-2xl hover:bg-brand-navy/5 text-brand-navy/30 hover:text-brand-navy transition-colors">
-                                <MoreVertical className="h-5 w-5" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 bg-brand-white animate-in zoom-in-95">
-                            <DropdownMenuItem onClick={onEdit} className="rounded-xl p-4 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3 group/item">
-                                <Edit2 className="w-5 h-5 text-brand-navy group-focus:text-brand-white" />
-                                <span className="font-bold uppercase text-[10px] tracking-widest">Adjust Record</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator className="bg-brand-navy/5" />
-                            <DropdownMenuItem onClick={onDelete} className="rounded-xl p-4 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-3">
-                                <Trash2 className="w-5 h-5" />
-                                <span className="font-bold uppercase text-[10px] tracking-widest">Void Record</span>
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                </div>
-
-                <div className="space-y-4">
-                    <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-navy/40">
-                                {expense.expense_types?.name || 'Uncategorized'}
-                            </p>
-                        </div>
-                        <h3 className="text-xl font-black text-brand-navy tracking-tight line-clamp-1 uppercase">
-                            {expense.name}
-                        </h3>
-                    </div>
-
-                    <div className="bg-brand-navy/[0.02] border border-brand-navy/[0.03] p-5 rounded-3xl space-y-3">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2 text-brand-navy/60">
-                                <Calendar className="w-4 h-4" />
-                                <span className="text-xs font-bold leading-none">{format(new Date(expense.date), 'MMMM d, yyyy')}</span>
-                            </div>
-                            <div className="flex items-baseline gap-0.5">
-                                <span className="text-2xl font-black text-brand-navy">{Number(expense.amount).toLocaleString()}</span>
-                                <span className="text-[10px] font-black text-brand-navy/40 uppercase">dh</span>
-                            </div>
-                        </div>
-                        {expense.description && (
-                            <div className="pt-2 border-t border-brand-navy/[0.05]">
-                                <p className="text-[11px] font-medium text-brand-navy/50 italic line-clamp-2">
-                                    "{expense.description}"
-                                </p>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                <div className="flex items-center justify-between pt-2">
-                    <div className="flex items-center gap-2">
-                        <Tag className="w-3.5 h-3.5 text-brand-blue" />
-                        <span className="text-[10px] font-black uppercase text-brand-blue tracking-widest">Post Verified</span>
-                    </div>
-                    <div className="flex -space-x-2">
-                        <Button variant="ghost" size="icon" onClick={onEdit} className="h-10 w-10 text-brand-navy/20 group-hover:text-brand-navy group-hover:bg-brand-navy/5 transition-all rounded-xl">
-                            <ChevronRight className="w-5 h-5" />
-                        </Button>
-                    </div>
-                </div>
-            </div>
-        </Card>
     );
 };
 

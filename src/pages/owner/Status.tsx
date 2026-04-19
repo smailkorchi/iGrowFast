@@ -11,8 +11,6 @@ import {
     Eye,
     X,
     Layers,
-    Palette,
-    ArrowUpNarrowWide,
     RefreshCcw,
     CircleDot,
     Truck,
@@ -72,7 +70,6 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
 
 // --- Schemas ---
 const statusSchema = z.object({
@@ -355,17 +352,17 @@ const Status = () => {
         if (isLoading) {
             if (viewMode === 'grid') {
                 return (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                         {Array.from({ length: 4 }).map((_, i) => (
-                            <Skeleton key={i} className="h-48 w-full rounded-[32px]" />
+                            <Skeleton key={i} className="h-36 w-full rounded-xl" />
                         ))}
                     </div>
                 );
             }
             return (
-                <div className="rounded-[24px] border border-brand-navy/[0.06] bg-white overflow-hidden divide-y divide-brand-navy/[0.06]">
+                <div className="rounded-xl border border-gray-100 bg-white overflow-hidden divide-y divide-gray-50">
                     {Array.from({ length: 6 }).map((_, i) => (
-                        <Skeleton key={i} className="h-16 w-full rounded-none" />
+                        <Skeleton key={i} className="h-14 w-full rounded-none" />
                     ))}
                 </div>
             );
@@ -373,8 +370,8 @@ const Status = () => {
 
         if (!filteredStatuses?.length) {
             return (
-                <div className="rounded-[32px] border border-dashed border-brand-navy/[0.12] bg-brand-navy/[0.02] p-12 text-center">
-                    <p className="text-sm font-bold text-brand-navy/50">
+                <div className="flex flex-col items-center justify-center py-10 rounded-xl border border-dashed border-gray-200 bg-white">
+                    <p className="text-[11px] font-medium text-gray-500">
                         {searchQuery.trim()
                             ? 'No statuses match your search.'
                             : 'No statuses yet. Add one to get started.'}
@@ -385,7 +382,7 @@ const Status = () => {
 
         if (viewMode === 'grid') {
             return (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                     {filteredStatuses.map((status) => (
                         <StatusCard
                             key={status.id}
@@ -402,7 +399,7 @@ const Status = () => {
         }
 
         return (
-            <div className="rounded-[24px] border border-brand-navy/[0.08] bg-white shadow-sm overflow-hidden divide-y divide-brand-navy/[0.06]">
+            <div className="rounded-xl border border-gray-100 bg-white overflow-hidden divide-y divide-gray-50">
                 {filteredStatuses.map((status) => (
                     <StatusListRow
                         key={status.id}
@@ -419,146 +416,129 @@ const Status = () => {
     };
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
-            {/* Header Section */}
-            <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-                <div className="relative p-8">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div>
-                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Status Management</h1>
-                            <p className="text-gray-500 font-light">Define the workflow and lifecycle for orders and packages.</p>
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+            {/* Header */}
+            <header className="space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Status Management</h1>
+                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Define workflow and lifecycle for orders and packages</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="relative">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                            <Input
+                                placeholder="Search by label or code..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-7 h-8 rounded-md border-gray-200 bg-white text-[11px] w-52"
+                            />
                         </div>
-                        <div className="flex flex-col sm:flex-row gap-3 items-center">
-                            <div className="relative group sm:w-80">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
-                                <Input
-                                    placeholder="Search by label or code..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="pl-11 h-12 rounded-2xl border-gray-100 bg-white"
-                                />
-                            </div>
-                            {isOwner && (
-                                <Button
-                                    onClick={() => openUpsert()}
-                                    className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group flex items-center gap-2 w-full sm:w-auto"
-                                >
-                                    <Plus className="w-5 h-5" />
-                                    Add {activeTab === "orders" ? "Order" : "Package"} Status
-                                </Button>
-                            )}
-                        </div>
+                        {isOwner && (
+                            <Button
+                                onClick={() => openUpsert()}
+                                className="h-8 rounded-md text-[11px] font-semibold bg-brand-navy hover:bg-brand-navy/90 text-white gap-1.5 px-3"
+                            >
+                                <Plus className="w-3.5 h-3.5" />
+                                Add {activeTab === "orders" ? "Order" : "Package"} Status
+                            </Button>
+                        )}
                     </div>
                 </div>
-            </div>
+            </header>
 
-            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'orders' | 'packages')} className="space-y-8">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <TabsList className="bg-brand-navy/[0.03] p-1.5 rounded-[24px] h-auto gap-2 w-fit">
-                        <TabsTrigger
-                            value="orders"
-                            className="rounded-2xl px-8 py-3 font-bold data-[state=active]:bg-brand-white data-[state=active]:text-brand-navy data-[state=active]:shadow-lg transition-all gap-2"
-                        >
-                            <ClipboardCheck className="w-4 h-4" />
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'orders' | 'packages')} className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                    <TabsList className="h-8">
+                        <TabsTrigger value="orders" className="text-[11px] h-6 px-3 gap-1.5">
+                            <ClipboardCheck className="w-3 h-3" />
                             Order Statuses
                         </TabsTrigger>
-                        <TabsTrigger
-                            value="packages"
-                            className="rounded-2xl px-8 py-3 font-bold data-[state=active]:bg-brand-white data-[state=active]:text-brand-navy data-[state=active]:shadow-lg transition-all gap-2"
-                        >
-                            <Truck className="w-4 h-4" />
+                        <TabsTrigger value="packages" className="text-[11px] h-6 px-3 gap-1.5">
+                            <Truck className="w-3 h-3" />
                             Package Statuses
                         </TabsTrigger>
                     </TabsList>
-                    <div className="flex items-center gap-1 p-1 rounded-2xl bg-brand-navy/[0.03] w-fit">
-                        <Button
+                    <div className="flex items-center gap-0.5 bg-gray-100 p-0.5 rounded-md">
+                        <button
                             type="button"
-                            variant="ghost"
-                            size="sm"
                             onClick={() => setViewMode('grid')}
                             className={cn(
-                                'h-9 w-9 p-0 rounded-xl transition-all duration-300',
+                                'h-7 w-7 p-0 rounded flex items-center justify-center transition-all',
                                 viewMode === 'grid'
-                                    ? 'bg-brand-navy text-brand-white shadow-lg'
-                                    : 'text-brand-navy/30 hover:text-brand-navy hover:bg-brand-navy/5'
+                                    ? 'bg-white text-brand-navy shadow-sm'
+                                    : 'text-gray-500 hover:text-gray-700'
                             )}
                             aria-label="Grid view"
                         >
-                            <LayoutGrid className="w-4 h-4" />
-                        </Button>
-                        <Button
+                            <LayoutGrid className="w-3 h-3" />
+                        </button>
+                        <button
                             type="button"
-                            variant="ghost"
-                            size="sm"
                             onClick={() => setViewMode('list')}
                             className={cn(
-                                'h-9 w-9 p-0 rounded-xl transition-all duration-300',
+                                'h-7 w-7 p-0 rounded flex items-center justify-center transition-all',
                                 viewMode === 'list'
-                                    ? 'bg-brand-navy text-brand-white shadow-lg'
-                                    : 'text-brand-navy/30 hover:text-brand-navy hover:bg-brand-navy/5'
+                                    ? 'bg-white text-brand-navy shadow-sm'
+                                    : 'text-gray-500 hover:text-gray-700'
                             )}
                             aria-label="List view"
                         >
-                            <List className="w-4 h-4" />
-                        </Button>
+                            <List className="w-3 h-3" />
+                        </button>
                     </div>
                 </div>
 
-                <TabsContent value="orders" className="space-y-6 mt-0">
+                <TabsContent value="orders" className="space-y-2 mt-0">
                     {renderStatusSection()}
                 </TabsContent>
 
-                <TabsContent value="packages" className="space-y-6 mt-0">
+                <TabsContent value="packages" className="space-y-2 mt-0">
                     {renderStatusSection()}
                 </TabsContent>
             </Tabs>
 
             {/* Upsert Modal */}
             <Dialog open={isUpsertOpen} onOpenChange={setIsUpsertOpen}>
-                <DialogContent className="max-w-2xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden">
+                <DialogContent className="max-w-2xl p-0 border border-gray-100 bg-white rounded-xl shadow-md overflow-hidden flex flex-col max-h-[90vh] gap-0">
                     <Form {...form}>
-                        <form onSubmit={form.handleSubmit(handleUpsert)} className="flex flex-col">
-                            {/* Live preview header */}
-                            <div className="p-6 pb-4 border-b border-brand-navy/[0.05]">
-                                <div className="flex items-center gap-4">
-                                    <div
-                                        className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-lg shrink-0 transition-all"
-                                        style={{ backgroundColor: form.watch('color') || '#6366f1' }}
-                                    >
-                                        {form.watch('icon') ? <DynamicIcon name={form.watch('icon')} className="w-7 h-7" /> : (form.watch('label') || 'S').charAt(0).toUpperCase()}
-                                    </div>
+                        <form onSubmit={form.handleSubmit(handleUpsert)} className="flex flex-col min-h-0 flex-1">
+                            <DialogHeader className="px-5 pt-5 pb-3 border-b border-gray-100 shrink-0">
+                                <div className="flex items-center gap-2.5">
+                                    <span
+                                        className="w-[3px] self-stretch rounded-full shrink-0"
+                                        style={{ background: form.watch('color') || '#6366f1' }}
+                                    />
                                     <div className="min-w-0 flex-1">
-                                        <DialogTitle className="text-2xl font-bold text-brand-navy truncate">
+                                        <DialogTitle className="text-[14px] font-semibold text-brand-navy">
                                             {editingStatus ? 'Edit Status' : 'New Status'}
                                         </DialogTitle>
-                                        <DialogDescription className="text-sm text-muted-foreground">
-                                            {form.watch('label') || 'Untitled'} <span className="text-[10px] font-mono uppercase opacity-50">({form.watch('code') || '...'})</span>
+                                        <DialogDescription className="text-[11px] text-gray-400 mt-0.5">
+                                            {form.watch('label') || 'Untitled'} <span className="font-mono uppercase opacity-60">({form.watch('code') || '...'})</span>
                                         </DialogDescription>
                                     </div>
-                                    {/* Live pill preview */}
                                     <span
-                                        className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg shrink-0"
-                                        style={{ color: form.watch('color') || '#6366f1', backgroundColor: `${form.watch('color') || '#6366f1'}15` }}
+                                        className="text-[9px] font-semibold uppercase tracking-[0.14em] px-2 py-1 rounded shrink-0"
+                                        style={{ color: form.watch('color') || '#6366f1', backgroundColor: `${form.watch('color') || '#6366f1'}18` }}
                                     >
                                         {form.watch('label') || 'Preview'}
                                     </span>
                                 </div>
-                            </div>
+                            </DialogHeader>
 
-                            <div className="overflow-y-auto p-6 space-y-5 max-h-[60vh]">
-                                {/* Section: Identity */}
+                            <div className="overflow-y-auto px-5 py-4 space-y-4 flex-1">
+                                {/* Identity */}
                                 <div className="space-y-3">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/30">Identity</p>
+                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Identity</p>
                                     <div className="grid grid-cols-2 gap-3">
                                         <FormField
                                             control={form.control}
                                             name="label"
                                             render={({ field }) => (
                                                 <FormItem className="space-y-1.5">
-                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">Label</FormLabel>
+                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Label</FormLabel>
                                                     <FormControl>
-                                                        <Input placeholder="Confirmed" {...field} className="h-11 rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 shadow-inner" />
+                                                        <Input placeholder="Confirmed" {...field} className="h-9 rounded-md border-gray-200 text-[11px]" />
                                                     </FormControl>
                                                     <FormMessage />
                                                 </FormItem>
@@ -569,9 +549,9 @@ const Status = () => {
                                             name="code"
                                             render={({ field }) => (
                                                 <FormItem className="space-y-1.5">
-                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">Code</FormLabel>
+                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Code</FormLabel>
                                                     <FormControl>
-                                                        <Input placeholder="CONFIRMED" {...field} className="h-11 rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 shadow-inner uppercase font-mono" />
+                                                        <Input placeholder="CONFIRMED" {...field} className="h-9 rounded-md border-gray-200 text-[11px] font-mono uppercase" />
                                                     </FormControl>
                                                     <FormMessage />
                                                 </FormItem>
@@ -580,16 +560,16 @@ const Status = () => {
                                     </div>
                                 </div>
 
-                                {/* Section: Appearance */}
+                                {/* Appearance */}
                                 <div className="space-y-3">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/30">Appearance</p>
+                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Appearance</p>
                                     <div className="grid grid-cols-[1fr_auto] gap-3">
                                         <FormField
                                             control={form.control}
                                             name="icon"
                                             render={({ field }) => (
                                                 <FormItem className="space-y-1.5">
-                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">Icon</FormLabel>
+                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Icon</FormLabel>
                                                     <FormControl>
                                                         <IconPicker value={field.value || ''} onChange={field.onChange} />
                                                     </FormControl>
@@ -601,9 +581,9 @@ const Status = () => {
                                             name="ranking"
                                             render={({ field }) => (
                                                 <FormItem className="space-y-1.5 w-20">
-                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">Rank</FormLabel>
+                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Rank</FormLabel>
                                                     <FormControl>
-                                                        <Input type="number" {...field} className="h-12 rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy shadow-inner text-center" />
+                                                        <Input type="number" {...field} className="h-9 rounded-md border-gray-200 text-[11px] text-center" />
                                                     </FormControl>
                                                 </FormItem>
                                             )}
@@ -614,11 +594,11 @@ const Status = () => {
                                         name="color"
                                         render={({ field }) => (
                                             <FormItem className="space-y-1.5">
-                                                <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">Color</FormLabel>
+                                                <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Color</FormLabel>
                                                 <FormControl>
                                                     <div className="flex gap-2 items-center">
-                                                        <Input type="color" {...field} className="h-11 w-11 p-1 rounded-xl border-none bg-brand-navy/[0.04] shadow-inner cursor-pointer shrink-0" />
-                                                        <Input {...field} className="h-11 flex-1 rounded-xl border-none bg-brand-navy/[0.04] text-sm font-mono font-bold text-brand-navy shadow-inner" />
+                                                        <Input type="color" {...field} className="h-9 w-9 p-1 rounded-md border-gray-200 cursor-pointer shrink-0" />
+                                                        <Input {...field} className="h-9 flex-1 rounded-md border-gray-200 text-[11px] font-mono" />
                                                     </div>
                                                 </FormControl>
                                             </FormItem>
@@ -626,16 +606,16 @@ const Status = () => {
                                     />
                                 </div>
 
-                                {/* Section: Behavior */}
+                                {/* Behavior */}
                                 <div className="space-y-3">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/30">Behavior</p>
+                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Behavior</p>
                                     <div className="grid grid-cols-2 gap-3">
                                         <FormField
                                             control={form.control}
                                             name="active"
                                             render={({ field }) => (
-                                                <FormItem className="flex items-center justify-between p-3 rounded-xl bg-brand-navy/[0.02] border border-brand-navy/[0.03]">
-                                                    <FormLabel className="text-sm font-bold text-brand-navy">Active</FormLabel>
+                                                <FormItem className="flex items-center justify-between p-2.5 rounded-md bg-gray-50 border border-gray-100">
+                                                    <FormLabel className="text-[11px] font-semibold text-brand-navy">Active</FormLabel>
                                                     <FormControl>
                                                         <Switch checked={field.value} onCheckedChange={field.onChange} />
                                                     </FormControl>
@@ -646,8 +626,8 @@ const Status = () => {
                                             control={form.control}
                                             name="recheck"
                                             render={({ field }) => (
-                                                <FormItem className="flex items-center justify-between p-3 rounded-xl bg-brand-navy/[0.02] border border-brand-navy/[0.03]">
-                                                    <FormLabel className="text-sm font-bold text-brand-navy">Recheck</FormLabel>
+                                                <FormItem className="flex items-center justify-between p-2.5 rounded-md bg-gray-50 border border-gray-100">
+                                                    <FormLabel className="text-[11px] font-semibold text-brand-navy">Recheck</FormLabel>
                                                     <FormControl>
                                                         <Switch checked={field.value} onCheckedChange={field.onChange} />
                                                     </FormControl>
@@ -657,21 +637,20 @@ const Status = () => {
                                     </div>
                                 </div>
 
-                                {/* Section: Display Options */}
+                                {/* Display Options */}
                                 <div className="space-y-3">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/30">Display Options</p>
+                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Display Options</p>
 
-                                    {/* Context-specific toggles */}
                                     {activeTab === 'orders' && (
                                         <div className="space-y-2">
                                             <FormField
                                                 control={form.control}
                                                 name="show_in_order"
                                                 render={({ field }) => (
-                                                    <FormItem className="flex items-center justify-between p-3 rounded-xl bg-brand-navy/[0.02] border border-brand-navy/[0.03]">
+                                                    <FormItem className="flex items-center justify-between p-2.5 rounded-md bg-gray-50 border border-gray-100">
                                                         <div className="min-w-0 space-y-0.5">
-                                                            <FormLabel className="text-sm font-bold text-brand-navy">Show in Order Modals</FormLabel>
-                                                            <FormDescription className="text-[11px] text-muted-foreground leading-snug">
+                                                            <FormLabel className="text-[11px] font-semibold text-brand-navy">Show in Order Modals</FormLabel>
+                                                            <FormDescription className="text-[10px] text-gray-400 leading-snug">
                                                                 Visible in add/edit order status dropdown.
                                                             </FormDescription>
                                                         </div>
@@ -685,10 +664,10 @@ const Status = () => {
                                                 control={form.control}
                                                 name="show_in_quick_status"
                                                 render={({ field }) => (
-                                                    <FormItem className="flex items-center justify-between p-3 rounded-xl bg-brand-navy/[0.02] border border-brand-navy/[0.03]">
+                                                    <FormItem className="flex items-center justify-between p-2.5 rounded-md bg-gray-50 border border-gray-100">
                                                         <div className="min-w-0 space-y-0.5">
-                                                            <FormLabel className="text-sm font-bold text-brand-navy">Show in Quick Status Change</FormLabel>
-                                                            <FormDescription className="text-[11px] text-muted-foreground leading-snug">
+                                                            <FormLabel className="text-[11px] font-semibold text-brand-navy">Show in Quick Status Change</FormLabel>
+                                                            <FormDescription className="text-[10px] text-gray-400 leading-snug">
                                                                 Visible in the quick status change grid on orders.
                                                             </FormDescription>
                                                         </div>
@@ -707,10 +686,10 @@ const Status = () => {
                                                 control={form.control}
                                                 name="show_in_courier"
                                                 render={({ field }) => (
-                                                    <FormItem className="flex items-center justify-between p-3 rounded-xl bg-brand-navy/[0.02] border border-brand-navy/[0.03]">
+                                                    <FormItem className="flex items-center justify-between p-2.5 rounded-md bg-gray-50 border border-gray-100">
                                                         <div className="min-w-0 space-y-0.5">
-                                                            <FormLabel className="text-sm font-bold text-brand-navy">Show in Courier Statuses</FormLabel>
-                                                            <FormDescription className="text-[11px] text-muted-foreground leading-snug">
+                                                            <FormLabel className="text-[11px] font-semibold text-brand-navy">Show in Courier Statuses</FormLabel>
+                                                            <FormDescription className="text-[10px] text-gray-400 leading-snug">
                                                                 Visible in courier views and parcel tracking.
                                                             </FormDescription>
                                                         </div>
@@ -723,18 +702,17 @@ const Status = () => {
                                         </div>
                                     )}
 
-                                    {/* Seller tab toggles — shared across both order and package statuses */}
                                     <div className="space-y-2 pt-1">
-                                        <p className="text-[9px] font-bold uppercase tracking-widest text-brand-navy/25">Seller Tabs</p>
+                                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-300">Seller Tabs</p>
                                         <FormField
                                             control={form.control}
                                             name="show_in_seller_confirmation"
                                             render={({ field }) => (
-                                                <FormItem className="flex items-center justify-between p-3 rounded-xl bg-brand-navy/[0.02] border border-brand-navy/[0.03]">
+                                                <FormItem className="flex items-center justify-between p-2.5 rounded-md bg-gray-50 border border-gray-100">
                                                     <div className="min-w-0 space-y-0.5">
-                                                        <FormLabel className="text-sm font-bold text-brand-navy">Show in Seller Confirmation Tab</FormLabel>
-                                                        <FormDescription className="text-[11px] text-muted-foreground leading-snug">
-                                                            When off, orders with this status are hidden from the confirmation tab (pill and orders).
+                                                        <FormLabel className="text-[11px] font-semibold text-brand-navy">Show in Seller Confirmation Tab</FormLabel>
+                                                        <FormDescription className="text-[10px] text-gray-400 leading-snug">
+                                                            When off, orders with this status are hidden from the confirmation tab.
                                                         </FormDescription>
                                                     </div>
                                                     <FormControl>
@@ -747,11 +725,11 @@ const Status = () => {
                                             control={form.control}
                                             name="show_in_seller_suivi"
                                             render={({ field }) => (
-                                                <FormItem className="flex items-center justify-between p-3 rounded-xl bg-brand-navy/[0.02] border border-brand-navy/[0.03]">
+                                                <FormItem className="flex items-center justify-between p-2.5 rounded-md bg-gray-50 border border-gray-100">
                                                     <div className="min-w-0 space-y-0.5">
-                                                        <FormLabel className="text-sm font-bold text-brand-navy">Show in Seller Suivi Tab</FormLabel>
-                                                        <FormDescription className="text-[11px] text-muted-foreground leading-snug">
-                                                            When off, orders with this status are hidden from the suivi tab (pill and orders).
+                                                        <FormLabel className="text-[11px] font-semibold text-brand-navy">Show in Seller Suivi Tab</FormLabel>
+                                                        <FormDescription className="text-[10px] text-gray-400 leading-snug">
+                                                            When off, orders with this status are hidden from the suivi tab.
                                                         </FormDescription>
                                                     </div>
                                                     <FormControl>
@@ -763,17 +741,17 @@ const Status = () => {
                                     </div>
                                 </div>
 
-                                {/* Section: Performance Breakdown */}
+                                {/* Performance Breakdown */}
                                 <div className="space-y-3">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy/30">Seller Performance Breakdown</p>
+                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Seller Performance Breakdown</p>
                                     <FormField
                                         control={form.control}
                                         name="perf_breakdown"
                                         render={({ field }) => (
-                                            <FormItem className="flex items-center justify-between p-3 rounded-xl bg-brand-navy/[0.02] border border-brand-navy/[0.03]">
+                                            <FormItem className="flex items-center justify-between p-2.5 rounded-md bg-gray-50 border border-gray-100">
                                                 <div className="min-w-0 space-y-0.5">
-                                                    <FormLabel className="text-sm font-bold text-brand-navy">Include in Performance Breakdown</FormLabel>
-                                                    <FormDescription className="text-[11px] text-muted-foreground leading-snug">
+                                                    <FormLabel className="text-[11px] font-semibold text-brand-navy">Include in Performance Breakdown</FormLabel>
+                                                    <FormDescription className="text-[10px] text-gray-400 leading-snug">
                                                         When active, this status appears in seller performance analytics.
                                                     </FormDescription>
                                                 </div>
@@ -791,35 +769,35 @@ const Status = () => {
                                             control={form.control}
                                             name="perf_breakdown_phase"
                                             render={({ field }) => (
-                                                <FormItem className="space-y-2 p-3 rounded-xl bg-brand-navy/[0.02] border border-brand-navy/[0.03]">
-                                                    <FormLabel className="text-sm font-bold text-brand-navy">Phase</FormLabel>
-                                                    <FormDescription className="text-[11px] text-muted-foreground leading-snug">
-                                                        Before = pre-confirmation statuses (calls, no-answer, etc). After = post-confirmation statuses (delivery outcomes).
+                                                <FormItem className="space-y-2 p-2.5 rounded-md bg-gray-50 border border-gray-100">
+                                                    <FormLabel className="text-[11px] font-semibold text-brand-navy">Phase</FormLabel>
+                                                    <FormDescription className="text-[10px] text-gray-400 leading-snug">
+                                                        Before = pre-confirmation statuses. After = post-confirmation statuses.
                                                     </FormDescription>
                                                     <div className="grid grid-cols-2 gap-2 pt-1">
                                                         <button
                                                             type="button"
                                                             onClick={() => field.onChange('before_confirmation')}
                                                             className={cn(
-                                                                'h-10 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border',
+                                                                'h-8 rounded-md text-[11px] font-semibold uppercase tracking-wide transition-all border',
                                                                 field.value === 'before_confirmation'
-                                                                    ? 'bg-brand-navy text-white border-brand-navy shadow-md'
-                                                                    : 'bg-brand-navy/[0.03] text-brand-navy/60 border-brand-navy/[0.06] hover:bg-brand-navy/[0.06]'
+                                                                    ? 'bg-brand-navy text-white border-brand-navy'
+                                                                    : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
                                                             )}
                                                         >
-                                                            Before Confirmation
+                                                            Before
                                                         </button>
                                                         <button
                                                             type="button"
                                                             onClick={() => field.onChange('after_confirmation')}
                                                             className={cn(
-                                                                'h-10 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border',
+                                                                'h-8 rounded-md text-[11px] font-semibold uppercase tracking-wide transition-all border',
                                                                 field.value === 'after_confirmation'
-                                                                    ? 'bg-brand-navy text-white border-brand-navy shadow-md'
-                                                                    : 'bg-brand-navy/[0.03] text-brand-navy/60 border-brand-navy/[0.06] hover:bg-brand-navy/[0.06]'
+                                                                    ? 'bg-brand-navy text-white border-brand-navy'
+                                                                    : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
                                                             )}
                                                         >
-                                                            After Confirmation
+                                                            After
                                                         </button>
                                                     </div>
                                                     <FormMessage />
@@ -830,37 +808,37 @@ const Status = () => {
                                 </div>
 
                                 {activeTab === 'packages' && (
-                                    <div className="space-y-4 pt-4 border-t border-brand-navy/[0.05]">
+                                    <div className="space-y-3 pt-3 border-t border-gray-100">
                                         <div className="flex items-center justify-between">
-                                            <h4 className="text-xs font-black uppercase tracking-widest text-brand-navy/40">Attached Service Statuses</h4>
+                                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Attached Service Statuses</p>
                                             <Button
                                                 type="button"
                                                 variant="ghost"
                                                 size="sm"
                                                 onClick={() => append({ value: '' })}
-                                                className="text-[10px] font-black uppercase text-brand-navy hover:bg-brand-navy/[0.05] gap-1.5 rounded-lg h-8"
+                                                className="h-7 px-2.5 text-[10px] font-semibold text-brand-navy hover:bg-gray-100 gap-1 rounded-md"
                                             >
-                                                <Plus className="w-3 h-3" /> Add Status
+                                                <Plus className="w-3 h-3" /> Add
                                             </Button>
                                         </div>
 
                                         {fields.length === 0 && (
-                                            <div className="p-8 border-2 border-dashed border-brand-navy/[0.05] rounded-3xl flex flex-col items-center justify-center text-center opacity-40">
-                                                <Truck className="w-8 h-8 mb-2 text-brand-navy" />
-                                                <p className="text-[10px] font-black uppercase tracking-widest text-brand-navy">No statuses attached</p>
+                                            <div className="py-6 border border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center text-center">
+                                                <Truck className="w-5 h-5 mb-1.5 text-gray-300" />
+                                                <p className="text-[10px] text-gray-400">No statuses attached</p>
                                             </div>
                                         )}
 
-                                        <div className="space-y-3">
+                                        <div className="space-y-2">
                                             {fields.map((field, index) => (
-                                                <div key={field.id} className="flex gap-3 items-center animate-in slide-in-from-left-2 duration-300">
+                                                <div key={field.id} className="flex gap-2 items-center">
                                                     <FormField
                                                         control={form.control}
                                                         name={`delivery_service_statuses.${index}.value`}
                                                         render={({ field }) => (
                                                             <FormItem className="flex-1">
                                                                 <FormControl>
-                                                                    <Input placeholder="e.g. READY_TO_SHIP" {...field} className="h-10 rounded-xl border-none bg-brand-navy/[0.04] text-xs font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner uppercase" />
+                                                                    <Input placeholder="e.g. READY_TO_SHIP" {...field} className="h-8 rounded-md border-gray-200 text-[11px] font-mono uppercase" />
                                                                 </FormControl>
                                                             </FormItem>
                                                         )}
@@ -870,9 +848,9 @@ const Status = () => {
                                                         variant="ghost"
                                                         size="icon"
                                                         onClick={() => remove(index)}
-                                                        className="h-10 w-10 text-red-300 hover:text-red-500 hover:bg-red-50 rounded-xl"
+                                                        className="h-8 w-8 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md shrink-0"
                                                     >
-                                                        <X className="w-4 h-4" />
+                                                        <X className="w-3.5 h-3.5" />
                                                     </Button>
                                                 </div>
                                             ))}
@@ -881,21 +859,21 @@ const Status = () => {
                                 )}
                             </div>
 
-                            <DialogFooter className="p-8 pt-4 bg-brand-white border-t border-brand-navy/[0.03]">
+                            <DialogFooter className="px-5 py-3 border-t border-gray-100 shrink-0 gap-2">
                                 <Button
                                     type="button"
                                     variant="ghost"
                                     onClick={() => setIsUpsertOpen(false)}
-                                    className="rounded-2xl h-14 px-8 font-bold text-brand-navy hover:bg-muted"
+                                    className="h-8 px-3 text-[11px] font-semibold text-gray-500"
                                 >
                                     Cancel
                                 </Button>
                                 <Button
                                     type="submit"
                                     disabled={upsertMutation.isPending}
-                                    className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-14 px-10 font-bold shadow-2xl shadow-brand-navy/30 transition-all active:scale-95 flex items-center gap-3"
+                                    className="h-8 px-4 text-[11px] font-semibold bg-brand-navy hover:bg-brand-navy/90 text-white rounded-md gap-1.5"
                                 >
-                                    {upsertMutation.isPending && <Loader2 className="w-5 h-5 animate-spin" />}
+                                    {upsertMutation.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
                                     {editingStatus ? 'Update Status' : 'Create Status'}
                                 </Button>
                             </DialogFooter>
@@ -906,137 +884,96 @@ const Status = () => {
 
             {/* View Modal */}
             <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
-                <DialogContent className="max-w-md p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden">
+                <DialogContent className="max-w-md p-0 border border-gray-100 bg-white rounded-xl shadow-md overflow-hidden gap-0">
                     {viewingStatus && (
                         <div className="flex flex-col">
-                            <div className="h-32 relative" style={{ backgroundColor: viewingStatus.color }}>
-                                <div className="absolute -bottom-8 left-8 p-1.5 bg-brand-white rounded-[24px] shadow-xl">
-                                    <div className="w-16 h-16 rounded-[20px] flex items-center justify-center text-white font-black text-2xl" style={{ backgroundColor: viewingStatus.color }}>
-                                        {viewingStatus.icon ? (
-                                            <DynamicIcon name={viewingStatus.icon} className="w-7 h-7" />
-                                        ) : (
-                                            viewingStatus.label.charAt(0).toUpperCase()
-                                        )}
+                            <DialogHeader className="px-5 pt-5 pb-3 border-b border-gray-100">
+                                <div className="flex items-center gap-2.5">
+                                    <span className="w-[3px] self-stretch rounded-full shrink-0" style={{ background: viewingStatus.color || '#6366f1' }} />
+                                    <div className="min-w-0 flex-1">
+                                        <DialogTitle className="text-[14px] font-semibold text-brand-navy">{viewingStatus.label}</DialogTitle>
+                                        <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 mt-0.5">{viewingStatus.code}</p>
                                     </div>
+                                    {!viewingStatus.active && (
+                                        <Badge variant="secondary" className="text-[9px] font-semibold uppercase bg-red-50 text-red-500 border-red-100">Inactive</Badge>
+                                    )}
                                 </div>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => setIsViewOpen(false)}
-                                    className="absolute top-6 right-6 h-10 w-10 rounded-full bg-black/20 text-white hover:bg-black/40 backdrop-blur-md"
-                                >
-                                    <X className="w-5 h-5" />
-                                </Button>
-                            </div>
+                            </DialogHeader>
 
-                            <div className="p-8 pt-12 space-y-8">
-                                <div className="space-y-1">
-                                    <div className="flex items-center gap-3">
-                                        <h2 className="text-3xl font-black text-brand-navy">{viewingStatus.label}</h2>
-                                        {!viewingStatus.active && <Badge variant="secondary" className="bg-red-50 text-red-500 font-bold uppercase text-[10px]">Inactive</Badge>}
+                            <div className="px-5 py-4 space-y-4">
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="rounded-md bg-gray-50 border border-gray-100 p-2.5 space-y-0.5">
+                                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Ranking</p>
+                                        <p className="text-[12px] font-semibold text-brand-navy tabular-nums">#{viewingStatus.ranking}</p>
                                     </div>
-                                    <p className="text-xs font-black text-muted-foreground/40 uppercase tracking-[0.2em]">{viewingStatus.code}</p>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-6">
-                                    <div className="space-y-4">
-                                        <div className="flex items-center gap-3 text-brand-navy/60">
-                                            <ArrowUpNarrowWide className="w-5 h-5" />
-                                            <div>
-                                                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Ranking</p>
-                                                <p className="font-bold text-brand-navy">#{viewingStatus.ranking}</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-3 text-brand-navy/60">
-                                            <Palette className="w-5 h-5" />
-                                            <div>
-                                                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Style</p>
-                                                <p className="font-bold text-brand-navy uppercase">{viewingStatus.color}</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="space-y-4">
-                                        <div className="flex items-center gap-3 text-brand-navy/60">
-                                            <RefreshCcw className="w-5 h-5" />
-                                            <div>
-                                                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Recheck</p>
-                                                <p className="font-bold text-brand-navy">{viewingStatus.recheck ? 'Flagged' : 'Normal Flow'}</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-3 text-brand-navy/60">
-                                            <Layers className="w-5 h-5" />
-                                            <div>
-                                                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Scope</p>
-                                                <p className="font-bold text-brand-navy uppercase">{activeTab === 'orders' ? 'Orders Pipeline' : 'Delivery Workflow'}</p>
-                                            </div>
-                                        </div>
+                                    <div className="rounded-md bg-gray-50 border border-gray-100 p-2.5 space-y-0.5">
+                                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Recheck</p>
+                                        <p className="text-[12px] font-semibold text-brand-navy">{viewingStatus.recheck ? 'Yes' : 'No'}</p>
                                     </div>
                                 </div>
 
-                                {/* Display Options */}
-                                <div className="space-y-3 pt-2 border-t border-brand-navy/[0.05]">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Display Options</p>
-                                    <div className="flex flex-wrap gap-2">
+                                <div className="space-y-2">
+                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Display Options</p>
+                                    <div className="flex flex-wrap gap-1.5">
                                         {activeTab === 'orders' && (
                                             <>
-                                                <Badge variant="outline" className={cn('text-[10px] font-bold px-2.5 py-1 rounded-lg', viewingStatus.show_in_order !== false ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-500 border-red-200')}>
+                                                <Badge variant="outline" className={cn('text-[10px] font-semibold px-2 py-0.5 rounded', viewingStatus.show_in_order !== false ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-500 border-red-200')}>
                                                     Order Modals: {viewingStatus.show_in_order !== false ? 'ON' : 'OFF'}
                                                 </Badge>
-                                                <Badge variant="outline" className={cn('text-[10px] font-bold px-2.5 py-1 rounded-lg', viewingStatus.show_in_quick_status !== false ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-500 border-red-200')}>
+                                                <Badge variant="outline" className={cn('text-[10px] font-semibold px-2 py-0.5 rounded', viewingStatus.show_in_quick_status !== false ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-500 border-red-200')}>
                                                     Quick Status: {viewingStatus.show_in_quick_status !== false ? 'ON' : 'OFF'}
                                                 </Badge>
                                             </>
                                         )}
                                         {activeTab === 'packages' && (
-                                            <Badge variant="outline" className={cn('text-[10px] font-bold px-2.5 py-1 rounded-lg', viewingStatus.show_in_courier !== false ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-500 border-red-200')}>
+                                            <Badge variant="outline" className={cn('text-[10px] font-semibold px-2 py-0.5 rounded', viewingStatus.show_in_courier !== false ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-500 border-red-200')}>
                                                 Courier: {viewingStatus.show_in_courier !== false ? 'ON' : 'OFF'}
                                             </Badge>
                                         )}
-                                        <Badge variant="outline" className={cn('text-[10px] font-bold px-2.5 py-1 rounded-lg', viewingStatus.show_in_seller_confirmation !== false ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-500 border-red-200')}>
-                                            Confirmation Tab: {viewingStatus.show_in_seller_confirmation !== false ? 'ON' : 'OFF'}
+                                        <Badge variant="outline" className={cn('text-[10px] font-semibold px-2 py-0.5 rounded', viewingStatus.show_in_seller_confirmation !== false ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-500 border-red-200')}>
+                                            Confirmation: {viewingStatus.show_in_seller_confirmation !== false ? 'ON' : 'OFF'}
                                         </Badge>
-                                        <Badge variant="outline" className={cn('text-[10px] font-bold px-2.5 py-1 rounded-lg', viewingStatus.show_in_seller_suivi !== false ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-500 border-red-200')}>
-                                            Suivi Tab: {viewingStatus.show_in_seller_suivi !== false ? 'ON' : 'OFF'}
+                                        <Badge variant="outline" className={cn('text-[10px] font-semibold px-2 py-0.5 rounded', viewingStatus.show_in_seller_suivi !== false ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-500 border-red-200')}>
+                                            Suivi: {viewingStatus.show_in_seller_suivi !== false ? 'ON' : 'OFF'}
                                         </Badge>
-                                        <Badge variant="outline" className={cn('text-[10px] font-bold px-2.5 py-1 rounded-lg', viewingStatus.perf_breakdown ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-gray-50 text-gray-500 border-gray-200')}>
-                                            Perf Breakdown: {viewingStatus.perf_breakdown ? (viewingStatus.perf_breakdown_phase === 'before_confirmation' ? 'Before' : 'After') : 'OFF'}
+                                        <Badge variant="outline" className={cn('text-[10px] font-semibold px-2 py-0.5 rounded', viewingStatus.perf_breakdown ? 'bg-gray-100 text-gray-600 border-gray-200' : 'bg-gray-50 text-gray-400 border-gray-100')}>
+                                            Perf: {viewingStatus.perf_breakdown ? (viewingStatus.perf_breakdown_phase === 'before_confirmation' ? 'Before' : 'After') : 'OFF'}
                                         </Badge>
                                     </div>
                                 </div>
 
                                 {activeTab === 'packages' && viewingStatus.delivery_service_statuses?.length > 0 && (
-                                    <div className="space-y-4 pt-4 border-t border-brand-navy/[0.05]">
-                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Attached Service Statuses</h4>
-                                        <div className="flex flex-wrap gap-2">
+                                    <div className="space-y-2 pt-3 border-t border-gray-100">
+                                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Attached Service Statuses</p>
+                                        <div className="flex flex-wrap gap-1.5">
                                             {viewingStatus.delivery_service_statuses.map((status: string, idx: number) => (
-                                                <Badge key={idx} variant="outline" className="text-[10px] font-black border-brand-navy/10 tracking-widest uppercase bg-brand-navy/[0.02] px-3 py-1.5 rounded-lg">
+                                                <Badge key={idx} variant="outline" className="text-[10px] font-semibold border-gray-200 uppercase bg-gray-50 px-2 py-0.5 rounded font-mono">
                                                     {status}
                                                 </Badge>
                                             ))}
                                         </div>
                                     </div>
                                 )}
-
-                                <Separator className="bg-brand-navy/[0.05]" />
-
-                                {isOwner && (
-                                    <div className="flex gap-3">
-                                        <Button
-                                            onClick={() => { setIsViewOpen(false); openUpsert(viewingStatus); }}
-                                            className="flex-1 bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-14 font-bold shadow-xl transition-all active:scale-95"
-                                        >
-                                            Edit Configuration
-                                        </Button>
-                                        <Button
-                                            variant="outline"
-                                            onClick={() => { setIsViewOpen(false); setStatusToDelete(viewingStatus); }}
-                                            className="h-14 w-14 rounded-2xl border-red-100 text-red-500 hover:bg-red-50 hover:border-red-200 transition-all flex items-center justify-center p-0"
-                                        >
-                                            <Trash2 className="w-6 h-6" />
-                                        </Button>
-                                    </div>
-                                )}
                             </div>
+
+                            {isOwner && (
+                                <div className="px-5 py-3 border-t border-gray-100 flex justify-end gap-2">
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => { setIsViewOpen(false); setStatusToDelete(viewingStatus); }}
+                                        className="h-8 w-8 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                    </Button>
+                                    <Button
+                                        onClick={() => { setIsViewOpen(false); openUpsert(viewingStatus); }}
+                                        className="h-8 px-3 text-[11px] font-semibold bg-brand-navy hover:bg-brand-navy/90 text-white rounded-md"
+                                    >
+                                        Edit Configuration
+                                    </Button>
+                                </div>
+                            )}
                         </div>
                     )}
                 </DialogContent>
@@ -1044,30 +981,23 @@ const Status = () => {
 
             {/* Delete Confirmation */}
             <AlertDialog open={!!statusToDelete} onOpenChange={() => setStatusToDelete(null)}>
-                <AlertDialogContent className="rounded-[40px] border-none p-10 max-w-md">
-                    <div className="flex flex-col items-center text-center space-y-6">
-                        <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center text-red-500">
-                            <Trash2 className="w-10 h-10" />
-                        </div>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle className="text-3xl font-bold text-brand-navy">Remove Status?</AlertDialogTitle>
-                            <AlertDialogDescription className="text-lg text-muted-foreground pt-2">
-                                You are about to delete <span className="font-black text-brand-navy italic">"{statusToDelete?.label}"</span>. This will affect orders currently using this status.
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter className="w-full flex flex-col sm:flex-row gap-3 mt-4">
-                            <AlertDialogCancel className="w-full rounded-2xl h-14 font-bold border-none bg-brand-navy/[0.04] hover:bg-brand-navy/[0.08] text-brand-navy m-0">
-                                Safety First
-                            </AlertDialogCancel>
-                            <AlertDialogAction
-                                onClick={() => statusToDelete && deleteMutation.mutate(statusToDelete.id)}
-                                className="w-full rounded-2xl h-14 font-bold bg-red-500 hover:bg-red-600 text-brand-white shadow-xl shadow-red-500/20 m-0"
-                            >
-                                {deleteMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                                Confirm Delete
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </div>
+                <AlertDialogContent className="rounded-xl border border-gray-100 p-5 max-w-sm">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="text-[14px] font-semibold text-brand-navy">Delete Status?</AlertDialogTitle>
+                        <AlertDialogDescription className="text-[12px] text-gray-500">
+                            Permanently delete <span className="font-semibold text-brand-navy">"{statusToDelete?.label}"</span>. This will affect orders currently using this status.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="mt-3 gap-2">
+                        <AlertDialogCancel className="h-8 px-3 rounded-md text-[11px] font-semibold border-gray-200 text-gray-500">Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => statusToDelete && deleteMutation.mutate(statusToDelete.id)}
+                            className="h-8 px-3 rounded-md text-[11px] font-semibold bg-red-600 hover:bg-red-700 text-white gap-1.5"
+                        >
+                            {deleteMutation.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
+                            Delete
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
         </div>
@@ -1089,25 +1019,19 @@ const StatusListRow = ({ status, activeTab, isOwner, onEdit, onView, onDelete }:
     return (
         <div
             className={cn(
-                'flex items-center gap-3 sm:gap-4 px-3 sm:px-5 py-3 bg-white hover:bg-brand-navy/[0.02] transition-colors',
+                'flex items-center gap-3 px-3 py-2 bg-white hover:bg-gray-50/50 transition-colors',
                 !status.active && 'opacity-60'
             )}
         >
-            <div
-                className="w-1 self-stretch min-h-[44px] rounded-full shrink-0"
+            <span
+                className="w-[3px] self-stretch rounded-full shrink-0"
                 style={{ backgroundColor: status.color || '#6366f1' }}
             />
-            <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-sm shadow-md shrink-0"
-                style={{ backgroundColor: status.color || '#6366f1' }}
-            >
-                {status.icon ? <DynamicIcon name={status.icon} className="w-5 h-5" /> : status.label.charAt(0).toUpperCase()}
-            </div>
             <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-base font-bold text-brand-navy truncate">{status.label}</h3>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] font-semibold text-brand-navy truncate">{status.label}</span>
                     {!status.active && (
-                        <Badge variant="secondary" className="text-[9px] font-black uppercase shrink-0">
+                        <Badge variant="secondary" className="text-[9px] font-semibold uppercase shrink-0">
                             Inactive
                         </Badge>
                     )}
@@ -1115,45 +1039,39 @@ const StatusListRow = ({ status, activeTab, isOwner, onEdit, onView, onDelete }:
                         <OrderModalHiddenBadge className="shrink-0" />
                     )}
                 </div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 truncate">{status.code}</p>
+                <p className="text-[9px] uppercase tracking-[0.14em] text-gray-400 truncate">{status.code}</p>
             </div>
-            <div className="hidden sm:flex items-center gap-3 shrink-0 text-brand-navy/80">
-                <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/60">Rank</span>
-                    <span className="font-bold text-brand-navy">#{status.ranking}</span>
-                </div>
+            <div className="hidden sm:flex items-center gap-2 shrink-0">
+                <span className="text-[10px] text-gray-400 tabular-nums">#{status.ranking}</span>
                 {status.recheck && (
-                    <Badge variant="outline" className="h-6 gap-1 bg-amber-50 text-amber-600 border-amber-100 font-bold px-2 rounded-lg text-[9px]">
-                        <RefreshCcw className="w-3 h-3" /> RECHECK
+                    <Badge variant="outline" className="h-5 gap-1 bg-amber-50 text-amber-600 border-amber-100 font-semibold px-1.5 rounded text-[9px]">
+                        <RefreshCcw className="w-2.5 h-2.5" /> Recheck
                     </Badge>
                 )}
                 {activeTab === 'packages' && status.delivery_service_statuses?.length > 0 && (
-                    <Badge variant="outline" className="text-[9px] font-black border-brand-navy/10 bg-brand-navy/[0.02]">
+                    <Badge variant="outline" className="text-[9px] font-semibold border-gray-200 bg-gray-50">
                         {status.delivery_service_statuses.length} codes
                     </Badge>
                 )}
             </div>
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl bg-brand-navy/[0.02] text-brand-navy hover:bg-brand-navy/5 shrink-0">
-                        <MoreVertical className="w-4 h-4" />
+                    <Button variant="ghost" size="icon" className="h-7 w-7 p-0 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 shrink-0">
+                        <MoreVertical className="w-3.5 h-3.5" />
                     </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[160px]">
-                    <DropdownMenuItem onClick={onView} className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3">
-                        <Eye className="w-4 h-4" />
-                        <span className="font-bold">Summary</span>
+                <DropdownMenuContent align="end" className="rounded-lg border border-gray-200 shadow-md p-1 min-w-[130px]">
+                    <DropdownMenuItem onClick={onView} className="rounded px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer gap-2">
+                        <Eye className="w-3 h-3" /> Summary
                     </DropdownMenuItem>
                     {isOwner && (
                         <>
-                            <DropdownMenuItem onClick={onEdit} className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3">
-                                <Edit2 className="w-4 h-4" />
-                                <span className="font-bold">Edit</span>
+                            <DropdownMenuItem onClick={onEdit} className="rounded px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer gap-2">
+                                <Edit2 className="w-3 h-3" /> Edit
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={onDelete} className="rounded-xl p-3 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-3">
-                                <Trash2 className="w-4 h-4" />
-                                <span className="font-bold">Delete</span>
+                            <DropdownMenuItem onClick={onDelete} className="rounded px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer gap-2 text-red-600 focus:text-red-600 focus:bg-red-50">
+                                <Trash2 className="w-3 h-3" /> Delete
                             </DropdownMenuItem>
                         </>
                     )}
@@ -1165,92 +1083,78 @@ const StatusListRow = ({ status, activeTab, isOwner, onEdit, onView, onDelete }:
 
 const StatusCard = ({ status, activeTab, isOwner, onEdit, onView, onDelete }: StatusItemProps) => {
     return (
-        <Card
+        <div
             className={cn(
-                "group relative overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-2xl transition-all duration-500 rounded-[32px]",
+                "rounded-xl border border-gray-100 bg-white p-3.5 space-y-3 relative overflow-hidden",
                 !status.active && "opacity-60"
             )}
         >
             <div
-                className="absolute top-0 left-0 w-full h-1.5"
+                className="absolute top-0 left-0 w-full h-[3px]"
                 style={{ backgroundColor: status.color || '#6366f1' }}
             />
 
-            <CardContent className="p-6 space-y-5">
-                <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-3">
-                        <div
-                            className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-black text-lg shadow-lg rotate-3 group-hover:rotate-0 transition-transform duration-500"
-                            style={{ backgroundColor: status.color || '#6366f1' }}
-                        >
-                            {status.icon ? <DynamicIcon name={status.icon} className="w-6 h-6" /> : status.label.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="min-w-0 space-y-2">
-                            <div className="flex flex-wrap items-center gap-2">
-                                <h3 className="text-xl font-bold text-brand-navy group-hover:text-indigo-600 transition-colors">
-                                    {status.label}
-                                </h3>
-                                {activeTab === 'orders' && status.show_in_order === false && (
-                                    <OrderModalHiddenBadge />
-                                )}
-                            </div>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">{status.code}</p>
-                        </div>
-                    </div>
-
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl bg-brand-navy/[0.02] text-brand-navy hover:bg-brand-navy/5">
-                                <MoreVertical className="w-4 h-4" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[160px] animate-in slide-in-from-top-2">
-                            <DropdownMenuItem onClick={onView} className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3">
-                                <Eye className="w-4 h-4" />
-                                <span className="font-bold">Summary</span>
-                            </DropdownMenuItem>
-                            {isOwner && (
-                                <>
-                                    <DropdownMenuItem onClick={onEdit} className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3">
-                                        <Edit2 className="w-4 h-4" />
-                                        <span className="font-bold">Edit</span>
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem onClick={onDelete} className="rounded-xl p-3 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-3">
-                                        <Trash2 className="w-4 h-4" />
-                                        <span className="font-bold">Delete</span>
-                                    </DropdownMenuItem>
-                                </>
+            <div className="flex items-start justify-between pt-0.5">
+                <div className="flex items-start gap-2 min-w-0">
+                    <span
+                        className="w-[3px] self-stretch rounded-full shrink-0"
+                        style={{ backgroundColor: status.color || '#6366f1' }}
+                    />
+                    <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                            <h3 className="text-[12px] font-semibold text-brand-navy truncate">{status.label}</h3>
+                            {activeTab === 'orders' && status.show_in_order === false && (
+                                <OrderModalHiddenBadge />
                             )}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                </div>
-
-                <div className="flex items-center justify-between pt-2">
-                    <div className="flex items-center gap-4">
-                        <div className="flex flex-col">
-                            <span className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest">Rank</span>
-                            <span className="text-sm font-bold text-brand-navy">#{status.ranking}</span>
                         </div>
-                        {status.recheck && (
-                            <Badge variant="outline" className="h-6 gap-1 bg-amber-50 text-amber-600 border-amber-100 font-bold px-2 rounded-lg">
-                                <RefreshCcw className="w-3 h-3" /> RECHECK
-                            </Badge>
-                        )}
-                    </div>
-
-                    <div className="flex items-center gap-1.5 opacity-40 group-hover:opacity-100 transition-opacity">
-                        {activeTab === 'packages' && status.delivery_service_statuses?.length > 0 && (
-                            <Badge variant="outline" className="h-5 px-1.5 text-[8px] font-black border-brand-navy/10 bg-brand-navy/[0.02]">
-                                {status.delivery_service_statuses.length} CODES
-                            </Badge>
-                        )}
-                        <CircleDot className="w-3 h-3" style={{ color: status.color }} />
-                        <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Flow Step</span>
+                        <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400 mt-0.5">{status.code}</p>
                     </div>
                 </div>
-            </CardContent>
-        </Card>
+
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 p-0 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 shrink-0">
+                            <MoreVertical className="w-3.5 h-3.5" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="rounded-lg border border-gray-200 shadow-md p-1 min-w-[130px]">
+                        <DropdownMenuItem onClick={onView} className="rounded px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer gap-2">
+                            <Eye className="w-3 h-3" /> Summary
+                        </DropdownMenuItem>
+                        {isOwner && (
+                            <>
+                                <DropdownMenuItem onClick={onEdit} className="rounded px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer gap-2">
+                                    <Edit2 className="w-3 h-3" /> Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={onDelete} className="rounded px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer gap-2 text-red-600 focus:text-red-600 focus:bg-red-50">
+                                    <Trash2 className="w-3 h-3" /> Delete
+                                </DropdownMenuItem>
+                            </>
+                        )}
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </div>
+
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <span className="text-[9px] text-gray-400 uppercase tracking-[0.14em] tabular-nums">#{status.ranking}</span>
+                    {status.recheck && (
+                        <Badge variant="outline" className="h-5 gap-1 bg-amber-50 text-amber-600 border-amber-100 font-semibold px-1.5 rounded text-[9px]">
+                            <RefreshCcw className="w-2.5 h-2.5" /> Recheck
+                        </Badge>
+                    )}
+                </div>
+                <div className="flex items-center gap-1">
+                    {activeTab === 'packages' && status.delivery_service_statuses?.length > 0 && (
+                        <Badge variant="outline" className="h-5 px-1.5 text-[9px] font-semibold border-gray-200 bg-gray-50">
+                            {status.delivery_service_statuses.length} codes
+                        </Badge>
+                    )}
+                    <CircleDot className="w-3 h-3" style={{ color: status.color }} />
+                </div>
+            </div>
+        </div>
     );
 };
 

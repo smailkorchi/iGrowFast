@@ -80,7 +80,7 @@ export const MetaAdsManager: React.FC<Props> = ({ connection, onCreateCampaign }
     const showChart = tab === 'campaigns';
 
     return (
-        <div className="flex flex-col bg-white border border-[#e4e6eb] rounded-lg overflow-hidden">
+        <div className="flex flex-col bg-white border border-gray-100 rounded-xl overflow-hidden">
             {/* Tabs */}
             <ManagerTabs
                 value={tab}
@@ -100,80 +100,84 @@ export const MetaAdsManager: React.FC<Props> = ({ connection, onCreateCampaign }
                 showCreate={tab !== 'pixel'}
             />
 
-            {/* Summary bar (for campaigns/adsets/ads tabs) */}
+            {/* Summary bar (campaigns/adsets/ads tabs) */}
             {tab !== 'pixel' && (
-                <div className="px-4 pt-3">
+                <div className="px-2.5 pt-2">
                     <SummaryBar totals={totals} isLoading={campaignsQ.isLoading} />
                 </div>
             )}
 
             {/* Chart (campaigns tab only) */}
             {showChart && (
-                <div className="px-4 pt-4">
-                    <div className="bg-white border border-[#e4e6eb] rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-3">
+                <div className="px-2.5 pt-2.5">
+                    <div className="bg-white border border-gray-100 rounded-xl p-3">
+                        <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
                             <div>
-                                <div className="text-[13px] font-semibold text-[#1c1e21]">
-                                    Spend & impressions
+                                <div className="text-[12px] font-semibold text-brand-navy">
+                                    Spend &amp; impressions
                                 </div>
-                                <div className="text-[11px] text-[#8a8d91]">Daily account-level trend</div>
+                                <div className="text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400 mt-0.5">
+                                    Daily account-level trend
+                                </div>
                             </div>
-                            <div className="flex items-center gap-4 text-[11px] font-medium text-[#606770]">
-                                <div className="flex items-center gap-1.5">
-                                    <div className="w-2 h-2 rounded-full bg-[#1877F2]" />
+                            <div className="flex items-center gap-2.5 text-[10px] text-gray-500">
+                                <span className="inline-flex items-center gap-1">
+                                    <span className="w-2 h-2 rounded-full bg-[#1877F2]" />
                                     Spend
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                    <div className="w-2 h-2 rounded-full bg-[#42b72a]" />
+                                </span>
+                                <span className="inline-flex items-center gap-1">
+                                    <span className="w-2 h-2 rounded-full bg-[#42b72a]" />
                                     Impressions
-                                </div>
+                                </span>
                             </div>
                         </div>
-                        <div className="h-56">
+                        <div className="h-40">
                             {timeseriesQ.isLoading ? (
                                 <Skeleton className="w-full h-full rounded" />
                             ) : (
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <AreaChart data={timeseriesQ.data ?? []}>
+                                    <AreaChart data={timeseriesQ.data ?? []} margin={{ top: 4, right: 6, bottom: 0, left: 0 }}>
                                         <defs>
                                             <linearGradient id="meta-spend-g" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="0%" stopColor="#1877F2" stopOpacity={0.15} />
+                                                <stop offset="0%" stopColor="#1877F2" stopOpacity={0.18} />
                                                 <stop offset="100%" stopColor="#1877F2" stopOpacity={0} />
                                             </linearGradient>
                                             <linearGradient id="meta-imp-g" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="0%" stopColor="#42b72a" stopOpacity={0.1} />
+                                                <stop offset="0%" stopColor="#42b72a" stopOpacity={0.12} />
                                                 <stop offset="100%" stopColor="#42b72a" stopOpacity={0} />
                                             </linearGradient>
                                         </defs>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#e4e6eb" vertical={false} />
+                                        <CartesianGrid strokeDasharray="2 4" stroke="#f3f4f6" vertical={false} />
                                         <XAxis
                                             dataKey="date_start"
-                                            tick={{ fontSize: 11, fill: '#8a8d91' }}
+                                            tick={{ fontSize: 10, fill: '#9ca3af' }}
                                             axisLine={false}
                                             tickLine={false}
                                             tickFormatter={(v) => (v ? String(v).slice(5) : '')}
                                         />
                                         <YAxis
                                             yAxisId="left"
-                                            tick={{ fontSize: 11, fill: '#8a8d91' }}
+                                            tick={{ fontSize: 10, fill: '#9ca3af' }}
                                             axisLine={false}
                                             tickLine={false}
+                                            width={36}
                                             tickFormatter={(v) => nfc.format(Number(v))}
                                         />
                                         <YAxis
                                             yAxisId="right"
                                             orientation="right"
-                                            tick={{ fontSize: 11, fill: '#8a8d91' }}
+                                            tick={{ fontSize: 10, fill: '#9ca3af' }}
                                             axisLine={false}
                                             tickLine={false}
+                                            width={32}
                                             tickFormatter={(v) => nfc.format(Number(v))}
                                         />
                                         <Tooltip
                                             contentStyle={{
-                                                border: '1px solid #e4e6eb',
-                                                borderRadius: 8,
-                                                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                                                fontSize: 12,
+                                                borderRadius: 10,
+                                                border: '1px solid #f3f4f6',
+                                                boxShadow: 'none',
+                                                fontSize: 11,
                                             }}
                                         />
                                         <Area
@@ -181,16 +185,18 @@ export const MetaAdsManager: React.FC<Props> = ({ connection, onCreateCampaign }
                                             type="monotone"
                                             dataKey="spend"
                                             stroke="#1877F2"
-                                            strokeWidth={2}
+                                            strokeWidth={1.75}
                                             fill="url(#meta-spend-g)"
+                                            dot={false}
                                         />
                                         <Area
                                             yAxisId="right"
                                             type="monotone"
                                             dataKey="impressions"
                                             stroke="#42b72a"
-                                            strokeWidth={1.5}
+                                            strokeWidth={1.25}
                                             fill="url(#meta-imp-g)"
+                                            dot={false}
                                         />
                                     </AreaChart>
                                 </ResponsiveContainer>
@@ -201,7 +207,7 @@ export const MetaAdsManager: React.FC<Props> = ({ connection, onCreateCampaign }
             )}
 
             {/* Table / Pixel content */}
-            <div className="p-4">
+            <div className="p-2.5">
                 {tab === 'campaigns' && (
                     <CampaignsTable
                         connection={connection}

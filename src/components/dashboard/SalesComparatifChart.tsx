@@ -53,9 +53,9 @@ type SCCOrder = {
     package_statuses: { label?: string | null } | null;
 };
 
-const COLOR_REVENUE = '#2563eb';
-const COLOR_ORDERS = '#3b5e5e';
-const COLOR_PREV = '#9ca3af';
+const COLOR_REVENUE = '#d97757'; // ant-orange — hero metric
+const COLOR_ORDERS = '#141413'; // ant-ink — secondary line
+const COLOR_PREV = '#b0aea5'; // ant-mid — previous period
 
 export const SalesComparatifChart = ({ businessId, dateFilter }: SalesComparatifChartProps) => {
     const [granularityChoice, setGranularityChoice] = useState<GranularityChoice>('auto');
@@ -219,16 +219,16 @@ export const SalesComparatifChart = ({ businessId, dateFilter }: SalesComparatif
         : null;
 
     return (
-        <Card className="border border-gray-100 shadow-none rounded-xl">
-            <CardHeader className="px-3.5 pt-2.5 pb-1.5 space-y-2">
+        <Card className="ant-surface border border-ant-line bg-ant-paper shadow-none rounded-xl">
+            <CardHeader className="px-4 pt-3 pb-2 space-y-2.5">
                 <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div className="flex items-center gap-1.5">
-                        <TrendingUp className="w-3 h-3 text-gray-400" />
-                        <CardTitle className="text-[12px] font-semibold text-brand-navy">
+                    <div className="flex items-center gap-2">
+                        <span className="w-1 h-1 rounded-full bg-ant-orange" />
+                        <CardTitle className="font-display text-[13px] font-semibold text-ant-ink tracking-tight">
                             Sales overview
                         </CardTitle>
                         {granularityChoice === 'auto' && (
-                            <span className="text-[9px] text-gray-400 tabular-nums">· auto {autoGranularity}</span>
+                            <span className="text-[10px] text-ant-mid tabular-nums">· auto {autoGranularity}</span>
                         )}
                     </div>
                     <div className="flex items-center gap-0.5">
@@ -241,14 +241,14 @@ export const SalesComparatifChart = ({ businessId, dateFilter }: SalesComparatif
                             className={cn(
                                 'rounded-md text-[10px] h-6 px-2',
                                 useComparison
-                                    ? 'bg-brand-navy/10 text-brand-navy'
-                                    : 'text-gray-400 hover:text-gray-600',
+                                    ? 'bg-ant-ink/10 text-ant-ink'
+                                    : 'text-ant-mid hover:text-ant-ink',
                                 !comparisonEligible && 'opacity-40 cursor-not-allowed',
                             )}
                         >
                             vs Prev
                         </Button>
-                        <div className="h-3.5 w-px bg-gray-200 mx-1" />
+                        <div className="h-3.5 w-px bg-ant-line mx-1" />
                         {(['auto', 'daily', 'weekly', 'monthly'] as GranularityChoice[]).map((g) => (
                             <Button
                                 key={g}
@@ -259,8 +259,8 @@ export const SalesComparatifChart = ({ businessId, dateFilter }: SalesComparatif
                                 className={cn(
                                     'rounded-md text-[10px] h-6 px-2 capitalize',
                                     granularityChoice === g
-                                        ? 'bg-brand-navy text-white hover:bg-brand-navy/90 hover:text-white'
-                                        : 'text-gray-400 hover:text-gray-600',
+                                        ? 'bg-ant-ink text-ant-light hover:bg-ant-ink/90 hover:text-ant-light'
+                                        : 'text-ant-mid hover:text-ant-ink',
                                 )}
                             >
                                 {g === 'auto' ? 'Auto' : g[0].toUpperCase()}
@@ -286,7 +286,7 @@ export const SalesComparatifChart = ({ businessId, dateFilter }: SalesComparatif
                     />
                 </div>
             </CardHeader>
-            <CardContent className="px-3.5 pb-3 pt-1">
+            <CardContent className="px-4 pb-4 pt-2">
                 <div className="h-[150px] md:h-[200px]">
                     <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={rows} margin={{ top: 8, right: 10, left: 0, bottom: 0 }}>
@@ -300,10 +300,10 @@ export const SalesComparatifChart = ({ businessId, dateFilter }: SalesComparatif
                                     <stop offset="100%" stopColor={COLOR_ORDERS} stopOpacity={0} />
                                 </linearGradient>
                             </defs>
-                            <CartesianGrid strokeDasharray="2 4" stroke="#f3f4f6" vertical={false} />
+                            <CartesianGrid strokeDasharray="2 4" stroke="#e8e6dc" vertical={false} />
                             <XAxis
                                 dataKey="label"
-                                tick={{ fontSize: 10, fill: '#94a3b8' }}
+                                tick={{ fontSize: 10, fill: '#b0aea5' }}
                                 tickLine={false}
                                 axisLine={false}
                                 interval="preserveStartEnd"
@@ -312,7 +312,7 @@ export const SalesComparatifChart = ({ businessId, dateFilter }: SalesComparatif
                             <YAxis
                                 yAxisId="revenue"
                                 orientation="left"
-                                tick={{ fontSize: 10, fill: '#94a3b8' }}
+                                tick={{ fontSize: 10, fill: '#b0aea5' }}
                                 tickLine={false}
                                 axisLine={false}
                                 width={48}
@@ -323,7 +323,7 @@ export const SalesComparatifChart = ({ businessId, dateFilter }: SalesComparatif
                             <YAxis
                                 yAxisId="orders"
                                 orientation="right"
-                                tick={{ fontSize: 10, fill: '#94a3b8' }}
+                                tick={{ fontSize: 10, fill: '#b0aea5' }}
                                 tickLine={false}
                                 axisLine={false}
                                 width={28}
@@ -380,7 +380,7 @@ export const SalesComparatifChart = ({ businessId, dateFilter }: SalesComparatif
                         </AreaChart>
                     </ResponsiveContainer>
                 </div>
-                <div className="flex items-center gap-3 mt-2 px-1">
+                <div className="flex items-center gap-3 mt-2.5 px-1">
                     <LegendDot color={COLOR_REVENUE} label="Revenue" />
                     <LegendDot color={COLOR_ORDERS} label="Orders" />
                     {useComparison && <LegendDot color={COLOR_PREV} label="Previous" dashed />}
@@ -405,26 +405,26 @@ function HeadlineStat({
 }) {
     const up = delta !== null && delta >= 0;
     return (
-        <div className="rounded-lg border border-gray-100 bg-gray-50/40 px-2.5 py-1.5">
+        <div className="rounded-lg border border-ant-line bg-ant-light-soft/0 px-3 py-2">
             <div className="flex items-center gap-1.5">
                 <span
                     className="inline-block w-1 h-1 rounded-full"
                     style={{ backgroundColor: accent }}
                     aria-hidden
                 />
-                <span className="text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">
+                <span className="text-[9.5px] uppercase tracking-[0.18em] font-medium text-ant-mid">
                     {label}
                 </span>
             </div>
-            <div className="flex items-baseline justify-between gap-2 mt-0.5">
-                <span className="text-[14px] font-semibold text-brand-navy tabular-nums leading-none">
+            <div className="flex items-baseline justify-between gap-2 mt-1">
+                <span className="font-display text-[17px] font-semibold text-ant-ink tabular-nums leading-none tracking-[-0.02em]">
                     {value}
                 </span>
                 {delta !== null && (
                     <span
                         className={cn(
                             'inline-flex items-center gap-0.5 text-[10px] font-semibold tabular-nums',
-                            up ? 'text-emerald-600' : 'text-red-500',
+                            up ? 'text-ant-green' : 'text-ant-rose',
                         )}
                     >
                         {up ? (
@@ -438,7 +438,7 @@ function HeadlineStat({
                 )}
             </div>
             {prevValue && (
-                <div className="text-[9px] text-gray-400 mt-0.5 tabular-nums">{prevValue}</div>
+                <div className="text-[10px] text-ant-muted mt-0.5 tabular-nums">{prevValue}</div>
             )}
         </div>
     );
@@ -446,7 +446,7 @@ function HeadlineStat({
 
 function LegendDot({ color, label, dashed }: { color: string; label: string; dashed?: boolean }) {
     return (
-        <span className="inline-flex items-center gap-1.5 text-[10px] text-gray-500">
+        <span className="inline-flex items-center gap-1.5 text-[10px] text-ant-muted">
             {dashed ? (
                 <svg width="12" height="4" viewBox="0 0 12 4" aria-hidden>
                     <line x1="0" y1="2" x2="12" y2="2" stroke={color} strokeWidth="1.5" strokeDasharray="3 2" />
@@ -500,8 +500,8 @@ function SalesTooltip({
             : null;
 
     return (
-        <div className="rounded-lg bg-white border border-gray-100 shadow-[0_4px_16px_rgba(0,0,0,0.06)] px-3 py-2 min-w-[160px]">
-            <div className="text-[10px] uppercase tracking-[0.16em] font-bold text-gray-400">
+        <div className="ant-surface rounded-lg bg-ant-paper border border-ant-line shadow-[0_6px_20px_rgba(20,20,19,0.08)] px-3 py-2 min-w-[168px]">
+            <div className="text-[10px] uppercase tracking-[0.18em] font-medium text-ant-mid">
                 {label}
             </div>
             <TooltipRow
@@ -543,18 +543,18 @@ function TooltipRow({
             <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
-                    <span className="text-[11px] font-semibold text-gray-600">{name}</span>
+                    <span className="text-[11px] font-medium text-ant-muted">{name}</span>
                 </div>
-                <span className="text-[12px] font-semibold text-brand-navy tabular-nums">{value}</span>
+                <span className="text-[12px] font-semibold text-ant-ink tabular-nums">{value}</span>
             </div>
             {(prev || delta !== null) && (
                 <div className="flex items-center justify-between gap-2 pl-3.5 mt-0.5">
-                    <span className="text-[10px] text-gray-400 tabular-nums">{prev}</span>
+                    <span className="text-[10px] text-ant-mid tabular-nums">{prev}</span>
                     {delta !== null && (
                         <span
                             className={cn(
                                 'text-[10px] font-semibold tabular-nums',
-                                up ? 'text-emerald-600' : 'text-red-500',
+                                up ? 'text-ant-green' : 'text-ant-rose',
                             )}
                         >
                             {up ? '+' : ''}

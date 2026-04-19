@@ -10,15 +10,11 @@ import {
     Trash2,
     Loader2,
     Image as ImageIcon,
-    Upload,
     Check,
-    X,
     Tag,
     Hash,
     Link2,
     Package,
-    Coins,
-    Layers,
     RotateCcw,
     LayoutGrid,
     List,
@@ -28,10 +24,7 @@ import {
     ChevronDown,
     ChevronUp,
 } from 'lucide-react';
-import {
-    Card,
-    CardContent
-} from '@/components/ui/card';
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Button } from '@/components/ui/button';
 import { TruncatedText } from '@/components/ui/truncated-text';
 import { Input } from '@/components/ui/input';
@@ -78,7 +71,6 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { ImageHoverPreview } from '@/components/catalog/ImageHoverPreview';
 import {
     AccessoryPreviewDialog,
@@ -377,7 +369,7 @@ const Accessories = () => {
             form.setValue('image_url', publicUrl);
             toast({ title: "Image uploaded", description: "Accessory image has been updated." });
         } catch (error) {
-            toast({ title: "Upload failed", description: error.message, variant: "destructive" });
+            toast({ title: "Upload failed", description: (error as any).message, variant: "destructive" });
         } finally {
             setIsUploading(false);
         }
@@ -517,238 +509,150 @@ const Accessories = () => {
     };
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
-            {/* Header Section */}
-            <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-                <div className="relative p-8">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div>
-                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Accessories</h1>
-                            <p className="text-gray-500 font-light">Manage your product accessories and attachments.</p>
-                        </div>
-                        <div className="flex flex-col sm:flex-row gap-3 items-center">
-                            <div className="flex bg-white/80 p-1 rounded-2xl border border-gray-100 shadow-sm">
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => setViewMode('list')}
-                                    className={cn(
-                                        "rounded-xl w-10 h-10 transition-all",
-                                        viewMode === 'list' ? "bg-white shadow-xl text-primary font-bold" : "text-gray-400 hover:text-primary"
-                                    )}
-                                >
-                                    <List className="w-5 h-5" />
-                                </Button>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => setViewMode('grid')}
-                                    className={cn(
-                                        "rounded-xl w-10 h-10 transition-all",
-                                        viewMode === 'grid' ? "bg-white shadow-xl text-primary font-bold" : "text-gray-400 hover:text-primary"
-                                    )}
-                                >
-                                    <LayoutGrid className="w-5 h-5" />
-                                </Button>
-                            </div>
-                            <div className="relative group sm:w-80">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
-                                <Input
-                                    placeholder="Search name or code..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="pl-11 h-12 rounded-2xl border-gray-100 bg-white"
-                                />
-                            </div>
-                            <Button
-                                onClick={() => openModal()}
-                                className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group flex items-center gap-2 w-full sm:w-auto"
-                            >
-                                <Plus className="w-5 h-5" />
-                                Add Accessory
-                            </Button>
-                        </div>
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+            {/* Page Header */}
+            <header className="space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Accessories</h1>
+                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Catalog — accessories & attachments</p>
                     </div>
-
-                    {isLoading ? (
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-4 pt-2">
-                            {Array.from({ length: 3 }).map((_, i) => (
-                                <Skeleton key={i} className="h-28 rounded-3xl bg-white/60" />
-                            ))}
+                    <div className="flex items-center gap-2">
+                        <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && setViewMode(v as 'grid' | 'list')} variant="outline" size="sm">
+                            <ToggleGroupItem value="grid" className="h-8 w-8 p-0 rounded-r-none">
+                                <LayoutGrid className="w-3.5 h-3.5" />
+                            </ToggleGroupItem>
+                            <ToggleGroupItem value="list" className="h-8 w-8 p-0 rounded-l-none border-l-0">
+                                <List className="w-3.5 h-3.5" />
+                            </ToggleGroupItem>
+                        </ToggleGroup>
+                        <div className="relative">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                            <Input
+                                placeholder="Search name or code..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-8 h-8 rounded-md text-[11px] w-56 border-gray-200"
+                            />
                         </div>
-                    ) : (
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-4 pt-2">
-                            <div className="rounded-3xl border border-gray-100/80 bg-white/90 p-5 shadow-sm backdrop-blur-sm">
-                                <div className="flex items-start justify-between gap-3">
-                                    <div className="space-y-1">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                                            Total accessories
-                                        </p>
-                                        <p className="text-2xl font-black tabular-nums text-gray-900 tracking-tight">
-                                            {accessories?.length ?? 0}
-                                        </p>
-                                        <p className="text-xs text-gray-500 font-medium">SKUs in the catalog</p>
-                                    </div>
-                                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-navy/10 text-brand-navy">
-                                        <Hash className="h-5 w-5" />
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="rounded-3xl border border-gray-100/80 bg-white/90 p-5 shadow-sm backdrop-blur-sm">
-                                <div className="flex items-start justify-between gap-3">
-                                    <div className="space-y-1">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                                            Total quantity
-                                        </p>
-                                        <p className="text-2xl font-black tabular-nums text-gray-900 tracking-tight">
-                                            {new Intl.NumberFormat('fr-FR').format(catalogTotals.totalQuantity)}
-                                        </p>
-                                        <p className="text-xs text-gray-500 font-medium">Units in stock (all SKUs)</p>
-                                    </div>
-                                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                                        <Layers className="h-5 w-5" />
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="rounded-3xl border border-gray-100/80 bg-white/90 p-5 shadow-sm backdrop-blur-sm">
-                                <div className="flex items-start justify-between gap-3">
-                                    <div className="space-y-1 min-w-0">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                                            Total cost
-                                        </p>
-                                        <p className="text-2xl font-black tabular-nums text-gray-900 tracking-tight truncate">
-                                            {formatDhAggregate(catalogTotals.inventoryValue)}
-                                        </p>
-                                        <p className="text-xs text-gray-500 font-medium">On-hand quantity × unit cost</p>
-                                    </div>
-                                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-700">
-                                        <Coins className="h-5 w-5" />
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="rounded-3xl border border-emerald-100/80 bg-emerald-50/40 p-5 shadow-sm backdrop-blur-sm">
-                                <div className="flex items-start justify-between gap-3">
-                                    <div className="space-y-1 min-w-0">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700/70">
-                                            Total value
-                                        </p>
-                                        <p className="text-2xl font-black tabular-nums text-emerald-800 tracking-tight truncate">
-                                            {formatDhAggregate(catalogTotals.inventoryValue)}
-                                        </p>
-                                        <p className="text-xs text-emerald-800/70 font-medium">Book value of all on-hand units</p>
-                                    </div>
-                                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-700">
-                                        <Package className="h-5 w-5" />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
+                        <Button
+                            onClick={() => openModal()}
+                            className="h-8 rounded-md text-[11px] font-semibold gap-1.5 px-3"
+                        >
+                            <Plus className="w-3.5 h-3.5" />
+                            Add Accessory
+                        </Button>
+                    </div>
                 </div>
-            </div>
+            </header>
 
-            {lowStockAccessories.length > 0 && (
-                <div className="bg-red-50 border border-red-100/50 rounded-[32px] p-6 flex flex-col gap-4 shadow-sm">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div className="flex items-start md:items-center gap-4 min-w-0">
-                            <div className="w-14 h-14 bg-red-100 rounded-2xl flex items-center justify-center shrink-0 text-red-500 shadow-inner">
-                                <AlertTriangle className="w-7 h-7" />
-                            </div>
-                            <div className="space-y-1 min-w-0">
-                                <h3 className="text-xl font-bold text-red-600">Low Stock Alert</h3>
-                                <p className="text-red-500/80 font-medium">
-                                    {lowStockAccessories.length}{' '}
-                                    {lowStockAccessories.length === 1 ? 'accessory' : 'accessories'} at or below 10 units each.{' '}
-                                    <span className="font-bold text-red-700 tabular-nums">{lowStockAccessoriesTotalUnits}</span>
-                                    {' '}
-                                    unit{lowStockAccessoriesTotalUnits === 1 ? '' : 's'} remaining in stock across them.
-                                </p>
-                            </div>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-3 shrink-0 md:justify-end">
-                            <div className="flex items-center -space-x-3">
-                                {lowStockAccessories.slice(0, 5).map((a) => (
-                                    <div
-                                        key={a.id}
-                                        className="relative w-12 h-12 rounded-2xl border-2 border-red-50 bg-white shadow-sm overflow-hidden shrink-0"
-                                        title={`${a.name}: ${Number(a.stock ?? 0)} units`}
-                                    >
-                                        {a.image_url ? (
-                                            <img src={a.image_url} alt={a.name} className="w-full h-full object-cover" />
-                                        ) : (
-                                            <div className="w-full h-full bg-brand-navy/5 flex items-center justify-center">
-                                                <Puzzle className="w-5 h-5 text-brand-navy/20" />
-                                            </div>
-                                        )}
-                                        <span className="absolute bottom-0 inset-x-0 bg-red-600/95 text-white text-[9px] font-black leading-none py-0.5 text-center tabular-nums">
-                                            {Number(a.stock ?? 0)}
-                                        </span>
-                                    </div>
-                                ))}
-                                {lowStockAccessories.length > 5 && (
-                                    <div className="w-12 h-12 rounded-2xl border-2 border-red-50 bg-white flex items-center justify-center shadow-sm z-10 text-xs font-black text-red-500 shrink-0">
-                                        +{lowStockAccessories.length - 5}
-                                    </div>
-                                )}
-                            </div>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setLowStockListExpanded((v) => !v)}
-                                className="h-10 rounded-xl border-red-200 bg-white text-red-700 hover:bg-red-100/80 hover:text-red-800 font-bold gap-2 shadow-sm"
-                            >
-                                {lowStockListExpanded ? (
-                                    <>
-                                        <ChevronUp className="w-4 h-4" />
-                                        Hide list
-                                    </>
-                                ) : (
-                                    <>
-                                        <ChevronDown className="w-4 h-4" />
-                                        Show all ({lowStockAccessories.length})
-                                    </>
-                                )}
-                            </Button>
+            {/* KPI Tiles */}
+            {isLoading ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                        <Skeleton key={i} className="h-16 rounded-xl" />
+                    ))}
+                </div>
+            ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <div className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
+                        <span className="w-[3px] self-stretch rounded-full" style={{ background: '#3b5e5e' }} />
+                        <div className="flex-1 min-w-0">
+                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Accessories</p>
+                            <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{accessories?.length ?? 0}</p>
                         </div>
                     </div>
+                    <div className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
+                        <span className="w-[3px] self-stretch rounded-full" style={{ background: '#3b5e5e' }} />
+                        <div className="flex-1 min-w-0">
+                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Units in stock</p>
+                            <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{new Intl.NumberFormat('fr-FR').format(catalogTotals.totalQuantity)}</p>
+                        </div>
+                    </div>
+                    <div className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
+                        <span className="w-[3px] self-stretch rounded-full" style={{ background: '#d97706' }} />
+                        <div className="flex-1 min-w-0">
+                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Inventory cost</p>
+                            <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1 truncate">{formatDhAggregate(catalogTotals.inventoryValue)}</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Low Stock Banner */}
+            {lowStockAccessories.length > 0 && (
+                <div className="bg-white border border-red-100 rounded-xl overflow-hidden">
+                    <button
+                        type="button"
+                        onClick={() => setLowStockListExpanded((v) => !v)}
+                        className="w-full flex items-center justify-between gap-3 px-3.5 py-2.5 hover:bg-red-50/30 transition-colors text-left"
+                    >
+                        <div className="flex items-center gap-2">
+                            <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
+                            <span className="text-[11px] font-semibold text-red-600">
+                                Low stock — {lowStockAccessories.length} item{lowStockAccessories.length === 1 ? '' : 's'}
+                            </span>
+                            <span className="text-[10px] text-gray-400 tabular-nums">
+                                {lowStockAccessoriesTotalUnits} unit{lowStockAccessoriesTotalUnits === 1 ? '' : 's'} remaining
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-1 text-[10px] text-gray-400 uppercase tracking-[0.14em]">
+                            {lowStockListExpanded ? 'Hide' : 'Show'}
+                            {lowStockListExpanded ? (
+                                <ChevronUp className="w-3 h-3" />
+                            ) : (
+                                <ChevronDown className="w-3 h-3" />
+                            )}
+                        </div>
+                    </button>
                     {lowStockListExpanded && (
-                        <div className="border-t border-red-100 pt-4 -mx-1">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-red-600/60 mb-2 px-1">
-                                Click an accessory to open preview
-                            </p>
-                            <ScrollArea className="h-[min(22rem,calc(100vh-12rem))] pr-3">
-                                <ul className="space-y-1.5 pb-1">
-                                    {lowStockAccessories.map((a) => (
-                                        <li key={a.id}>
-                                            <button
-                                                type="button"
+                        <div className="border-t border-red-100 overflow-x-auto">
+                            <table className="w-full">
+                                <thead>
+                                    <tr className="border-b border-gray-100">
+                                        <th className="text-left py-1.5 px-3 text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Accessory</th>
+                                        <th className="text-left py-1.5 px-2 text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Code</th>
+                                        <th className="text-right py-1.5 px-2 text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Stock</th>
+                                        <th className="text-right py-1.5 px-3 text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Cost</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {lowStockAccessories.map((a) => {
+                                        const stock = Number(a.stock ?? 0);
+                                        const cost = Number(a.cost_price ?? 0);
+                                        const stockTone =
+                                            stock === 0 ? 'text-red-600' : stock <= 2 ? 'text-red-500' : 'text-amber-600';
+                                        return (
+                                            <tr
+                                                key={a.id}
                                                 onClick={() => setPreviewAccessory(a)}
-                                                className="w-full flex items-center gap-3 rounded-2xl border border-red-100/80 bg-white/90 px-3 py-2.5 text-left transition-colors hover:bg-white hover:border-red-200 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50"
+                                                className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer"
                                             >
-                                                <div className="relative h-11 w-11 shrink-0 rounded-xl border border-red-50 overflow-hidden bg-brand-navy/[0.03]">
-                                                    {a.image_url ? (
-                                                        <img src={a.image_url} alt="" className="h-full w-full object-cover" />
-                                                    ) : (
-                                                        <div className="h-full w-full flex items-center justify-center">
-                                                            <Puzzle className="w-4 h-4 text-brand-navy/25" />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <div className="min-w-0 flex-1">
-                                                    <TruncatedText as="p" text={a.name} className="font-bold text-brand-navy text-sm truncate" />
-                                                    <TruncatedText as="p" text={a.code} className="text-xs text-muted-foreground font-mono truncate" />
-                                                </div>
-                                                <Badge className="shrink-0 bg-red-600 text-white border-none tabular-nums font-black">
-                                                    {Number(a.stock ?? 0)} left
-                                                </Badge>
-                                                <Eye className="w-4 h-4 shrink-0 text-red-400" aria-hidden />
-                                            </button>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </ScrollArea>
+                                                <td className="px-3 py-2 text-[11px] text-brand-navy/80">
+                                                    <div className="flex items-center gap-2">
+                                                        {a.image_url ? (
+                                                            <img src={a.image_url} alt={a.name} className="w-5 h-5 rounded-sm object-cover border border-brand-navy/5 shrink-0" />
+                                                        ) : (
+                                                            <div className="w-5 h-5 rounded-sm bg-brand-navy/[0.04] flex items-center justify-center shrink-0">
+                                                                <Puzzle className="w-3 h-3 text-brand-navy/20" />
+                                                            </div>
+                                                        )}
+                                                        <TruncatedText as="span" text={a.name} className="truncate" />
+                                                    </div>
+                                                </td>
+                                                <td className="px-2 py-2 text-[10px] text-gray-400 font-mono tabular-nums truncate">{a.code}</td>
+                                                <td className={`px-2 py-2 text-right text-[11px] font-semibold tabular-nums ${stockTone}`}>
+                                                    {stock} left
+                                                </td>
+                                                <td className="px-3 py-2 text-right text-[11px] text-brand-navy/80 tabular-nums">
+                                                    {cost.toLocaleString('fr-MA')}
+                                                    <span className="text-[9px] text-brand-navy/40 ml-0.5">MAD</span>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
                         </div>
                     )}
                 </div>
@@ -757,223 +661,193 @@ const Accessories = () => {
             {/* Content Section */}
             {isLoading ? (
                 <div className={cn(
-                    "grid gap-6",
+                    "grid gap-2.5",
                     viewMode === 'grid' ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1"
                 )}>
                     {Array.from({ length: 8 }).map((_, i) => (
                         viewMode === 'grid' ? (
-                            <Card key={i} className="border-none bg-white/50 backdrop-blur-sm rounded-[24px] overflow-hidden shadow-sm">
-                                <Skeleton className="h-48 w-full" />
-                                <CardContent className="p-6 space-y-4">
-                                    <Skeleton className="h-6 w-3/4" />
-                                    <Skeleton className="h-4 w-1/2" />
-                                    <div className="flex justify-between pt-4">
-                                        <Skeleton className="h-8 w-20" />
-                                        <Skeleton className="h-8 w-20" />
-                                    </div>
-                                </CardContent>
-                            </Card>
+                            <Skeleton key={i} className="h-36 rounded-xl" />
                         ) : (
-                            <Card key={i} className="border-none bg-white/50 backdrop-blur-sm rounded-[24px] overflow-hidden shadow-sm flex flex-col sm:flex-row items-center p-4 gap-6">
-                                <Skeleton className="h-32 w-32 rounded-[20px] shrink-0" />
-                                <div className="flex-1 space-y-4 w-full">
-                                    <Skeleton className="h-6 w-1/3" />
-                                    <Skeleton className="h-4 w-1/4" />
-                                    <Skeleton className="h-4 w-1/2" />
+                            <div key={i} className="rounded-xl border border-gray-100 bg-white p-3 flex gap-3 items-center">
+                                <Skeleton className="h-14 w-14 rounded-md shrink-0" />
+                                <div className="flex-1 space-y-2">
+                                    <Skeleton className="h-4 w-24" />
+                                    <Skeleton className="h-3 w-16" />
                                 </div>
-                            </Card>
+                            </div>
                         )
                     ))}
                 </div>
             ) : filteredAccessories?.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-32 space-y-6 bg-white/50 backdrop-blur-sm rounded-[40px] shadow-sm border border-brand-navy/[0.03]">
-                    <div className="w-24 h-24 bg-brand-navy/[0.04] rounded-full flex items-center justify-center">
-                        <Puzzle className="w-12 h-12 text-brand-navy/20" />
-                    </div>
-                    <div className="text-center space-y-2">
-                        <h3 className="text-2xl font-bold text-brand-navy">No accessories found</h3>
-                        <p className="text-muted-foreground max-w-xs mx-auto">Start managing your accessories by adding your first one with cost price and stock tracking.</p>
-                    </div>
-                    <Button variant="outline" onClick={() => openModal()} className="rounded-xl border-brand-navy/10 font-bold hover:bg-brand-navy hover:text-brand-white transition-all">
-                        Create First Accessory
+                <div className="rounded-xl border border-dashed border-gray-200 bg-white flex flex-col items-center justify-center py-8 gap-2">
+                    <Puzzle className="w-6 h-6 text-gray-400" />
+                    <p className="text-[14px] font-semibold text-brand-navy">No accessories found</p>
+                    <p className="text-[11px] text-gray-500">Start managing your accessories by adding your first one.</p>
+                    <Button variant="outline" onClick={() => openModal()} className="h-8 rounded-md text-[11px] font-semibold mt-2">
+                        Add First Accessory
                     </Button>
                 </div>
             ) : (
                 <div className={cn(
-                    "grid gap-6",
+                    "grid gap-2.5",
                     viewMode === 'grid' ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1"
                 )}>
                     {filteredAccessories?.map((accessory) => (
                         viewMode === 'grid' ? (
-                            <Card
+                            <div
                                 key={accessory.id}
-                                className="group relative overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-2xl transition-all duration-300 rounded-[32px]"
+                                className="rounded-xl border border-gray-100 bg-white overflow-hidden group relative"
                             >
                                 <ImageHoverPreview imageUrl={accessory.image_url} name={accessory.name} code={accessory.code}>
-                                <div className="relative h-48 w-full overflow-hidden bg-brand-navy/[0.02]">
+                                <div className="relative aspect-square overflow-hidden bg-brand-navy/[0.02]">
                                     {accessory.image_url ? (
                                         <img
                                             src={accessory.image_url}
                                             alt={accessory.name}
-                                            className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
+                                            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                                         />
                                     ) : (
                                         <div className="flex items-center justify-center h-full w-full text-brand-navy/10">
-                                            <Puzzle className="w-16 h-16" />
+                                            <Puzzle className="w-10 h-10" />
                                         </div>
                                     )}
-                                    <div className="absolute top-4 left-4 z-20">
+                                    <div className="absolute top-2 left-2 z-20">
                                         <Button
                                             type="button"
                                             variant="secondary"
                                             size="icon"
                                             title="Preview"
                                             onClick={() => setPreviewAccessory(accessory)}
-                                            className="h-10 w-10 rounded-xl bg-white/80 backdrop-blur-md border-none shadow-lg text-brand-navy hover:bg-white transition-all"
+                                            className="h-7 w-7 rounded-md bg-white/90 border-none shadow text-brand-navy hover:bg-white transition-all"
                                         >
-                                            <Eye className="h-5 w-5" />
+                                            <Eye className="h-3.5 w-3.5" />
                                         </Button>
                                     </div>
-                                    <div className="absolute top-4 right-4 z-20">
+                                    <div className="absolute top-2 right-2 z-20">
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
-                                                <Button variant="secondary" size="icon" className="h-10 w-10 rounded-xl bg-white/80 backdrop-blur-md border-none shadow-lg text-brand-navy hover:bg-white transition-all">
-                                                    <MoreVertical className="h-5 w-5" />
+                                                <Button variant="secondary" size="icon" className="h-7 w-7 rounded-md bg-white/90 border-none shadow text-brand-navy hover:bg-white transition-all">
+                                                    <MoreVertical className="h-3.5 w-3.5" />
                                                 </Button>
                                             </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl p-2 min-w-[160px]">
-                                                <DropdownMenuItem onClick={() => setPreviewAccessory(accessory)} className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3">
-                                                    <Eye className="w-4 h-4" />
-                                                    <span className="font-bold">Preview</span>
+                                            <DropdownMenuContent align="end" className="min-w-[160px]">
+                                                <DropdownMenuItem onClick={() => setPreviewAccessory(accessory)} className="gap-2 text-[11px]">
+                                                    <Eye className="w-3.5 h-3.5" />Preview
                                                 </DropdownMenuItem>
-                                                <DropdownMenuItem onClick={() => openModal(accessory)} className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3">
-                                                    <Edit2 className="w-4 h-4" />
-                                                    <span className="font-bold">Edit Accessory</span>
+                                                <DropdownMenuItem onClick={() => openModal(accessory)} className="gap-2 text-[11px]">
+                                                    <Edit2 className="w-3.5 h-3.5" />Edit Accessory
                                                 </DropdownMenuItem>
-                                                <DropdownMenuItem
-                                                    onClick={() => setAccessoryToResetStock(accessory)}
-                                                    className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3"
-                                                >
-                                                    <RotateCcw className="w-4 h-4" />
-                                                    <span className="font-bold">Clear Stock (0)</span>
+                                                <DropdownMenuItem onClick={() => setAccessoryToResetStock(accessory)} className="gap-2 text-[11px]">
+                                                    <RotateCcw className="w-3.5 h-3.5" />Clear Stock (0)
                                                 </DropdownMenuItem>
                                                 <DropdownMenuItem
                                                     onClick={() => toggleAccessoryActiveMutation.mutate({ id: accessory.id, active: !accessory.active })}
                                                     disabled={toggleAccessoryActiveMutation.isPending}
-                                                    className="rounded-xl p-3 cursor-pointer focus:bg-brand-navy focus:text-brand-white gap-3"
+                                                    className="gap-2 text-[11px]"
                                                 >
-                                                    <Power className="w-4 h-4" />
-                                                    <span className="font-bold">{accessory.active ? 'Deactivate' : 'Activate'}</span>
+                                                    <Power className="w-3.5 h-3.5" />{accessory.active ? 'Deactivate' : 'Activate'}
                                                 </DropdownMenuItem>
                                                 <DropdownMenuSeparator />
-                                                <DropdownMenuItem onClick={() => setAccessoryToDelete(accessory)} className="rounded-xl p-3 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-3">
-                                                    <Trash2 className="w-4 h-4" />
-                                                    <span className="font-bold">Delete</span>
+                                                <DropdownMenuItem onClick={() => setAccessoryToDelete(accessory)} className="gap-2 text-[11px] text-red-500 focus:text-red-600">
+                                                    <Trash2 className="w-3.5 h-3.5" />Delete
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
                                     </div>
                                     {!accessory.active && (
                                         <div className="absolute inset-0 z-[1] pointer-events-none bg-brand-navy/40 backdrop-blur-[2px] flex items-center justify-center">
-                                            <Badge variant="secondary" className="bg-brand-white text-brand-navy font-bold text-xs px-4 py-1.5 rounded-full shadow-lg">INACTIVE</Badge>
+                                            <Badge variant="secondary" className="text-[9px] px-2 py-0.5">INACTIVE</Badge>
                                         </div>
                                     )}
                                 </div>
                                 </ImageHoverPreview>
 
-                                <CardContent className="p-5 space-y-4">
-                                    <div className="space-y-2">
-                                        <TruncatedText as="p" text={accessory.code} className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40 truncate" />
-                                        <TruncatedText as="h3" text={accessory.name} className="text-base font-bold text-brand-navy leading-snug line-clamp-2 break-words min-h-[2.5rem]" />
+                                <div className="p-3 space-y-2">
+                                    <div>
+                                        <TruncatedText as="p" text={accessory.code} className="text-[9px] font-semibold uppercase tracking-widest text-brand-navy/40 truncate" />
+                                        <TruncatedText as="h3" text={accessory.name} className="text-[12px] font-semibold text-brand-navy leading-snug line-clamp-2 break-words" />
                                     </div>
 
-                                    <div className="space-y-1">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Cost Price</p>
-                                        <p className="text-lg font-bold text-brand-navy">{accessory.cost_price} DH</p>
-                                    </div>
-
-                                    <div className="space-y-1">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Total stock value</p>
-                                        <p className="text-lg font-bold text-emerald-700 tabular-nums">
-                                            {formatAccessoryInventoryValueDh(accessory)}
-                                        </p>
-                                    </div>
-
-                                    <div className="pt-2 flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <div className={cn(
-                                                "w-2 h-2 rounded-full",
-                                                (accessory.stock || 0) > 10 ? "bg-emerald-500" : (accessory.stock || 0) > 0 ? "bg-amber-500" : "bg-red-500"
-                                            )} />
-                                            <span className="text-[10px] font-black text-brand-navy/60 tracking-wider uppercase">
-                                                {accessory.stock || 0} in stock
-                                            </span>
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-[9px] text-gray-400 uppercase tracking-[0.14em]">Cost</p>
+                                            <p className="text-[11px] font-semibold text-brand-navy tabular-nums">{accessory.cost_price} DH</p>
                                         </div>
-                                        <span className="text-[10px] font-black text-brand-navy/60 tracking-wider uppercase">
-                                            {accessory.active ? 'Active' : 'Hidden'}
-                                        </span>
+                                        <Badge
+                                            className={cn(
+                                                "h-5 px-1.5 text-[9px] border-none",
+                                                (accessory.stock || 0) > 10
+                                                    ? "bg-emerald-50 text-emerald-700"
+                                                    : (accessory.stock || 0) > 0
+                                                    ? "bg-amber-50 text-amber-700"
+                                                    : "bg-red-50 text-red-600"
+                                            )}
+                                        >
+                                            {accessory.stock || 0} in stock
+                                        </Badge>
                                     </div>
-                                </CardContent>
-                            </Card>
+                                </div>
+                            </div>
                         ) : (
-                            <Card key={accessory.id} className="group overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-xl transition-all duration-300 rounded-[24px] flex flex-col sm:flex-row items-center p-4 gap-6 sm:pr-6">
+                            <div key={accessory.id} className="rounded-xl border border-gray-100 bg-white flex flex-col sm:flex-row items-center p-3 gap-3 hover:bg-gray-50 transition-colors group">
                                 <ImageHoverPreview imageUrl={accessory.image_url} name={accessory.name} code={accessory.code}>
-                                <div className="relative h-32 w-full sm:w-32 shrink-0 rounded-[20px] overflow-hidden bg-brand-navy/[0.02] shadow-inner">
+                                <div className="relative h-14 w-14 shrink-0 rounded-md overflow-hidden bg-brand-navy/[0.02]">
                                     {accessory.image_url ? (
-                                        <img src={accessory.image_url} alt={accessory.name} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                                        <img src={accessory.image_url} alt={accessory.name} className="h-full w-full object-cover" />
                                     ) : (
                                         <div className="flex items-center justify-center h-full w-full text-brand-navy/10">
-                                            <Puzzle className="w-10 h-10" />
+                                            <Puzzle className="w-6 h-6" />
                                         </div>
                                     )}
                                     {!accessory.active && (
                                         <div className="absolute inset-0 bg-brand-navy/40 backdrop-blur-[2px] flex items-center justify-center">
-                                            <Badge variant="secondary" className="bg-brand-white text-brand-navy font-bold text-[10px] px-3 py-1 rounded-full shadow-sm">INACTIVE</Badge>
+                                            <span className="text-[8px] font-semibold text-white">OFF</span>
                                         </div>
                                     )}
                                 </div>
                                 </ImageHoverPreview>
 
-                                <div className="flex-1 min-w-0 space-y-2 w-full">
-                                    <TruncatedText as="h3" text={accessory.name} className="text-lg sm:text-xl font-bold text-brand-navy leading-snug line-clamp-2 break-words" />
-                                    <TruncatedText as="p" text={accessory.code} className="text-xs font-black uppercase tracking-widest text-brand-navy/40 truncate" />
-
-                                    <div className="flex flex-wrap items-center gap-4 sm:gap-6 pt-2">
-                                        <div className="flex items-center gap-2">
-                                            <div className={cn("w-2 h-2 rounded-full", (accessory.stock || 0) > 10 ? "bg-emerald-500" : (accessory.stock || 0) > 0 ? "bg-amber-500" : "bg-red-500")} />
-                                            <span className="text-[10px] font-black text-brand-navy/60 tracking-wider uppercase">{accessory.stock || 0} in stock</span>
-                                        </div>
-                                        <div className="hidden sm:block h-4 w-px bg-brand-navy/10"></div>
-                                        <div className="flex flex-wrap gap-x-4 gap-y-1">
-                                            <span className="text-xs font-bold text-brand-navy">
-                                                <span className="text-[10px] uppercase font-black mr-1 text-brand-navy/40">Cost</span> {accessory.cost_price} DH
-                                            </span>
-                                            <span className="text-xs font-bold text-emerald-700 tabular-nums">
-                                                <span className="text-[10px] uppercase font-black mr-1 text-brand-navy/40">Total value</span>{' '}
-                                                {formatAccessoryInventoryValueDh(accessory)}
-                                            </span>
-                                        </div>
+                                <div className="flex-1 min-w-0 space-y-0.5 w-full">
+                                    <div className="flex items-start gap-2 flex-wrap">
+                                        <TruncatedText as="h3" text={accessory.name} className="text-[12px] font-semibold text-brand-navy leading-snug min-w-0 flex-1" />
+                                        <Badge
+                                            className={cn(
+                                                "h-5 px-1.5 text-[9px] border-none shrink-0",
+                                                (accessory.stock || 0) > 10
+                                                    ? "bg-emerald-50 text-emerald-700"
+                                                    : (accessory.stock || 0) > 0
+                                                    ? "bg-amber-50 text-amber-700"
+                                                    : "bg-red-50 text-red-600"
+                                            )}
+                                        >
+                                            {accessory.stock || 0} in stock
+                                        </Badge>
+                                        {!accessory.active && <Badge variant="secondary" className="h-5 px-1.5 text-[9px]">Inactive</Badge>}
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                                        <span className="text-[10px] text-gray-400 font-mono">{accessory.code}</span>
+                                        <span className="text-[10px] text-brand-navy/80 tabular-nums">Cost {accessory.cost_price} DH</span>
+                                        <span className="text-[10px] text-emerald-700 tabular-nums font-semibold">Value {formatAccessoryInventoryValueDh(accessory)}</span>
                                     </div>
                                 </div>
 
-                                <div className="shrink-0 flex items-center gap-2 mt-4 sm:mt-0 w-full sm:w-auto justify-end border-t sm:border-t-0 border-brand-navy/5 sm:pt-0 pt-4">
+                                <div className="shrink-0 flex items-center gap-1 mt-2 sm:mt-0 w-full sm:w-auto justify-end">
                                     <Button
                                         variant="ghost"
                                         size="icon"
                                         title="Preview"
                                         onClick={() => setPreviewAccessory(accessory)}
-                                        className="h-12 w-12 rounded-2xl bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy hover:text-white transition-all"
+                                        className="h-8 w-8 rounded-md text-brand-navy hover:bg-brand-navy/[0.06]"
                                     >
-                                        <Eye className="w-5 h-5" />
+                                        <Eye className="w-3.5 h-3.5" />
                                     </Button>
                                     <Button
                                         variant="ghost"
                                         size="icon"
                                         onClick={() => setAccessoryToResetStock(accessory)}
                                         title="Clear Stock (0)"
-                                        className="h-12 w-12 rounded-2xl bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy hover:text-white transition-all"
-                                    >
-                                        <RotateCcw className="w-5 h-5" />
+                                        className="h-8 w-8 rounded-md text-brand-navy hover:bg-brand-navy/[0.06]">
+                                        <RotateCcw className="w-3.5 h-3.5" />
                                     </Button>
                                     <Button
                                         variant="ghost"
@@ -981,18 +855,18 @@ const Accessories = () => {
                                         onClick={() => toggleAccessoryActiveMutation.mutate({ id: accessory.id, active: !accessory.active })}
                                         disabled={toggleAccessoryActiveMutation.isPending}
                                         title={accessory.active ? 'Deactivate' : 'Activate'}
-                                        className="h-12 w-12 rounded-2xl bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy hover:text-white transition-all"
+                                        className="h-8 w-8 rounded-md text-brand-navy hover:bg-brand-navy/[0.06]"
                                     >
-                                        <Power className="w-5 h-5" />
+                                        <Power className="w-3.5 h-3.5" />
                                     </Button>
-                                    <Button variant="ghost" size="icon" onClick={() => openModal(accessory)} className="h-12 w-12 rounded-2xl bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy hover:text-white transition-all">
-                                        <Edit2 className="w-5 h-5" />
+                                    <Button variant="ghost" size="icon" onClick={() => openModal(accessory)} className="h-8 w-8 rounded-md text-brand-navy hover:bg-brand-navy/[0.06]">
+                                        <Edit2 className="w-3.5 h-3.5" />
                                     </Button>
-                                    <Button variant="ghost" size="icon" onClick={() => setAccessoryToDelete(accessory)} className="h-12 w-12 rounded-2xl bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all">
-                                        <Trash2 className="w-5 h-5" />
+                                    <Button variant="ghost" size="icon" onClick={() => setAccessoryToDelete(accessory)} className="h-8 w-8 rounded-md text-red-500 hover:bg-red-50">
+                                        <Trash2 className="w-3.5 h-3.5" />
                                     </Button>
                                 </div>
-                            </Card>
+                            </div>
                         )
                     ))}
                 </div>
@@ -1028,53 +902,49 @@ const Accessories = () => {
                     setAttachedProducts([]);
                 }
             }}>
-                <DialogContent className="max-w-2xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                <DialogContent className="max-w-2xl p-0 overflow-hidden flex flex-col max-h-[90vh]">
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
-                            <DialogHeader className="p-8 pb-4 shrink-0">
-                                <DialogTitle className="text-3xl font-bold text-brand-navy">
+                            <DialogHeader className="p-6 pb-3 shrink-0 border-b border-gray-100">
+                                <DialogTitle className="text-[15px] font-semibold text-brand-navy">
                                     {editingAccessory ? 'Edit Accessory' : 'Add New Accessory'}
                                 </DialogTitle>
-                                <DialogDescription className="text-muted-foreground text-lg">
+                                <DialogDescription className="text-[11px] text-gray-500">
                                     Fill in the details below to {editingAccessory ? 'update' : 'create'} this accessory.
                                 </DialogDescription>
                             </DialogHeader>
 
-                            <div className="overflow-y-auto p-8 pt-4 space-y-8 flex-1 min-h-0 custom-scrollbar">
+                            <div className="overflow-y-auto p-6 space-y-5 flex-1 min-h-0 custom-scrollbar">
                                 {/* Image Upload & Basic Info Grid */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                                     {/* Image Upload Area */}
-                                    <div className="md:col-span-1 space-y-4">
-                                        <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Accessory Image</FormLabel>
+                                    <div className="md:col-span-1 space-y-2">
+                                        <FormLabel className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Accessory Image</FormLabel>
                                         <div
                                             onClick={() => !isUploading && fileInputRef.current?.click()}
                                             className={cn(
-                                                "relative aspect-square rounded-[32px] border-4 border-dashed cursor-pointer transition-all flex flex-col items-center justify-center gap-3 overflow-hidden group/upload",
+                                                "relative aspect-square rounded-xl border-2 border-dashed cursor-pointer transition-all flex flex-col items-center justify-center gap-2 overflow-hidden group",
                                                 form.watch('image_url')
                                                     ? "border-brand-navy/10 hover:border-brand-navy/30"
-                                                    : "border-brand-navy/10 bg-brand-navy/[0.02] hover:bg-brand-navy/[0.04] hover:border-brand-navy/20"
+                                                    : "border-gray-200 bg-gray-50 hover:bg-gray-100 hover:border-gray-300"
                                             )}
                                         >
                                             {form.watch('image_url') ? (
                                                 <>
                                                     <img src={form.getValues('image_url')!} className="w-full h-full object-cover" alt="Preview" />
-                                                    <div className="absolute inset-0 bg-brand-navy/60 opacity-0 group-hover/upload:opacity-100 transition-opacity flex items-center justify-center">
-                                                        <div className="bg-white/20 backdrop-blur-md px-4 py-2 rounded-xl text-white font-bold text-xs">Change Image</div>
+                                                    <div className="absolute inset-0 bg-brand-navy/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                        <span className="text-white text-[11px] font-semibold">Change Image</span>
                                                     </div>
                                                 </>
                                             ) : (
                                                 <>
-                                                    <div className="w-12 h-12 rounded-2xl bg-brand-navy/5 flex items-center justify-center text-brand-navy/40">
-                                                        <ImageIcon className="w-6 h-6" />
-                                                    </div>
-                                                    <div className="text-center">
-                                                        <p className="text-xs font-bold text-brand-navy/60 italic uppercase tracking-widest">Click to upload</p>
-                                                    </div>
+                                                    <ImageIcon className="w-6 h-6 text-gray-400" />
+                                                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Click to upload</p>
                                                 </>
                                             )}
                                             {isUploading && (
-                                                <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center">
-                                                    <Loader2 className="w-8 h-8 animate-spin text-brand-navy" />
+                                                <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
+                                                    <Loader2 className="w-5 h-5 animate-spin text-brand-navy" />
                                                 </div>
                                             )}
                                             <input
@@ -1088,18 +958,18 @@ const Accessories = () => {
                                     </div>
 
                                     {/* Name & Code Fields */}
-                                    <div className="md:col-span-2 space-y-6">
+                                    <div className="md:col-span-2 space-y-4">
                                         <FormField
                                             control={form.control}
                                             name="name"
                                             render={({ field }) => (
-                                                <FormItem className="space-y-2">
-                                                    <div className="flex items-center gap-2 text-muted-foreground/70">
-                                                        <Tag className="w-3.5 h-3.5" />
-                                                        <FormLabel className="text-xs font-bold uppercase tracking-wider">Accessory Name</FormLabel>
+                                                <FormItem className="space-y-1.5">
+                                                    <div className="flex items-center gap-1.5 text-gray-400">
+                                                        <Tag className="w-3 h-3" />
+                                                        <FormLabel className="text-[10px] font-semibold uppercase tracking-wider">Accessory Name</FormLabel>
                                                     </div>
                                                     <FormControl>
-                                                        <Input placeholder="E.g. Gift Box" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
+                                                        <Input placeholder="E.g. Gift Box" {...field} className="h-9 rounded-md text-[12px]" />
                                                     </FormControl>
                                                     <FormMessage />
                                                 </FormItem>
@@ -1110,13 +980,13 @@ const Accessories = () => {
                                             control={form.control}
                                             name="code"
                                             render={({ field }) => (
-                                                <FormItem className="space-y-2">
-                                                    <div className="flex items-center gap-2 text-muted-foreground/70">
-                                                        <Hash className="w-3.5 h-3.5" />
-                                                        <FormLabel className="text-xs font-bold uppercase tracking-wider">SKU / Code</FormLabel>
+                                                <FormItem className="space-y-1.5">
+                                                    <div className="flex items-center gap-1.5 text-gray-400">
+                                                        <Hash className="w-3 h-3" />
+                                                        <FormLabel className="text-[10px] font-semibold uppercase tracking-wider">SKU / Code</FormLabel>
                                                     </div>
                                                     <FormControl>
-                                                        <Input placeholder="ACC-001" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
+                                                        <Input placeholder="ACC-001" {...field} className="h-9 rounded-md text-[12px]" />
                                                     </FormControl>
                                                     <FormMessage />
                                                 </FormItem>
@@ -1127,10 +997,10 @@ const Accessories = () => {
                                             control={form.control}
                                             name="cost_price"
                                             render={({ field }) => (
-                                                <FormItem className="space-y-2">
-                                                    <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Cost Price (DH)</FormLabel>
+                                                <FormItem className="space-y-1.5">
+                                                    <FormLabel className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Cost Price (DH)</FormLabel>
                                                     <FormControl>
-                                                        <Input type="number" step="0.01" placeholder="0" {...field} className="h-14 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
+                                                        <Input type="number" step="0.01" placeholder="0" {...field} className="h-9 rounded-md text-[12px]" />
                                                     </FormControl>
                                                     <FormMessage />
                                                 </FormItem>
@@ -1140,22 +1010,22 @@ const Accessories = () => {
                                 </div>
 
                                 {/* Product Attachment Section */}
-                                <div className="space-y-4">
-                                    <div className="flex items-center gap-2 text-muted-foreground/70">
-                                        <Link2 className="w-3.5 h-3.5" />
-                                        <p className="text-xs font-bold uppercase tracking-wider">Attach to Products</p>
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2 text-gray-400">
+                                        <Link2 className="w-3 h-3" />
+                                        <p className="text-[10px] font-semibold uppercase tracking-wider">Attach to Products</p>
                                     </div>
-                                    <p className="text-xs text-muted-foreground -mt-2">Select products that use this accessory by default. Set the default quantity per product.</p>
+                                    <p className="text-[11px] text-gray-500 -mt-1">Select products that use this accessory by default. Set the default quantity per product.</p>
 
                                     {/* Product Search + bulk actions */}
                                     <div className="flex flex-col gap-2">
                                         <div className="relative w-full">
-                                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                                             <Input
                                                 placeholder="Search products..."
                                                 value={productSearch}
                                                 onChange={(e) => setProductSearch(e.target.value)}
-                                                className="h-11 pl-11 rounded-2xl border-none bg-white shadow-sm text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium"
+                                                className="h-8 pl-8 rounded-md text-[11px]"
                                             />
                                         </div>
                                         <div className="flex flex-wrap items-center gap-2">
@@ -1165,15 +1035,15 @@ const Accessories = () => {
                                                 size="sm"
                                                 disabled={!filteredProducts?.length}
                                                 onClick={selectAllFilteredProducts}
-                                                className="h-11 shrink-0 rounded-2xl border-brand-navy/15 bg-white px-4 text-xs font-black uppercase tracking-wide text-brand-navy hover:bg-brand-navy/[0.04]"
+                                                className="h-8 rounded-md text-[11px] font-semibold"
                                             >
                                                 Select all
                                                 {filteredProducts && filteredProducts.length > 0
                                                     ? ` (${filteredProducts.length})`
                                                     : ''}
                                             </Button>
-                                            <div className="flex items-center gap-2 rounded-2xl border border-brand-navy/15 bg-white px-2 py-1 pl-3 shadow-sm">
-                                                <span className="text-[10px] font-black uppercase tracking-wide text-brand-navy/50 whitespace-nowrap">
+                                            <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-white px-2 py-1">
+                                                <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400 whitespace-nowrap">
                                                     Qty
                                                 </span>
                                                 <Input
@@ -1181,7 +1051,7 @@ const Accessories = () => {
                                                     min={1}
                                                     value={bulkAttachmentQty}
                                                     onChange={(e) => setBulkAttachmentQty(e.target.value)}
-                                                    className="h-9 w-14 rounded-xl border-none bg-brand-navy/[0.04] text-center text-sm font-bold text-brand-navy shadow-none px-1"
+                                                    className="h-6 w-12 rounded-md border-none bg-gray-50 text-center text-[11px] font-semibold shadow-none px-1"
                                                 />
                                                 <Button
                                                     type="button"
@@ -1189,14 +1059,14 @@ const Accessories = () => {
                                                     size="sm"
                                                     disabled={filteredAttachedCount === 0}
                                                     onClick={applyBulkQuantityToFiltered}
-                                                    className="h-9 shrink-0 rounded-xl px-3 text-xs font-black uppercase tracking-wide"
+                                                    className="h-6 rounded-md px-2 text-[10px] font-semibold"
                                                 >
                                                     Apply
                                                 </Button>
                                             </div>
                                         </div>
                                         {filteredAttachedCount > 0 && (
-                                            <p className="text-[10px] font-medium text-muted-foreground">
+                                            <p className="text-[10px] text-gray-400">
                                                 Applies to {filteredAttachedCount} attached product
                                                 {filteredAttachedCount !== 1 ? 's' : ''} in this list
                                             </p>
@@ -1204,9 +1074,9 @@ const Accessories = () => {
                                     </div>
 
                                     {/* Product List */}
-                                    <div className="space-y-2 max-h-[250px] overflow-y-auto custom-scrollbar rounded-2xl border border-brand-navy/[0.04] p-3">
+                                    <div className="space-y-1.5 max-h-[220px] overflow-y-auto custom-scrollbar rounded-xl border border-gray-100 p-2">
                                         {filteredProducts?.length === 0 ? (
-                                            <p className="text-sm text-muted-foreground text-center py-6">No products found.</p>
+                                            <p className="text-[11px] text-gray-400 text-center py-4">No products found.</p>
                                         ) : (
                                             filteredProducts?.map(product => {
                                                 const attachment = attachedProducts.find(ap => ap.product_id === product.id);
@@ -1216,10 +1086,10 @@ const Accessories = () => {
                                                     <div
                                                         key={product.id}
                                                         className={cn(
-                                                            "flex items-center gap-3 p-3 rounded-2xl transition-all cursor-pointer",
+                                                            "flex items-center gap-2.5 p-2 rounded-lg transition-all cursor-pointer",
                                                             isAttached
-                                                                ? "bg-brand-navy/[0.06] ring-1 ring-brand-navy/10"
-                                                                : "hover:bg-brand-navy/[0.02]"
+                                                                ? "bg-brand-navy/[0.05] ring-1 ring-brand-navy/10"
+                                                                : "hover:bg-gray-50"
                                                         )}
                                                     >
                                                         {/* Checkbox area */}
@@ -1227,17 +1097,17 @@ const Accessories = () => {
                                                             type="button"
                                                             onClick={() => toggleProductAttachment(product.id)}
                                                             className={cn(
-                                                                "w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-all border-2",
+                                                                "w-5 h-5 rounded flex items-center justify-center shrink-0 transition-all border",
                                                                 isAttached
                                                                     ? "bg-brand-navy border-brand-navy text-white"
-                                                                    : "border-brand-navy/20 text-transparent hover:border-brand-navy/40"
+                                                                    : "border-gray-300 text-transparent hover:border-brand-navy/40"
                                                             )}
                                                         >
-                                                            <Check className="w-4 h-4" />
+                                                            <Check className="w-3 h-3" />
                                                         </button>
 
                                                         {/* Product Image */}
-                                                        <div className="w-10 h-10 rounded-xl overflow-hidden bg-brand-navy/[0.03] shrink-0">
+                                                        <div className="w-8 h-8 rounded-md overflow-hidden bg-brand-navy/[0.03] shrink-0">
                                                             {product.image_url ? (
                                                                 <img src={product.image_url} className="w-full h-full object-cover" alt="" />
                                                             ) : (
@@ -1249,20 +1119,20 @@ const Accessories = () => {
 
                                                         {/* Product Info */}
                                                         <div className="flex-1 min-w-0" onClick={() => toggleProductAttachment(product.id)}>
-                                                            <TruncatedText as="p" text={product.name} className="text-sm font-bold text-brand-navy truncate" />
-                                                            <TruncatedText as="p" text={product.code} className="text-[10px] font-bold text-brand-navy/40 uppercase tracking-wider truncate" />
+                                                            <TruncatedText as="p" text={product.name} className="text-[11px] font-semibold text-brand-navy truncate" />
+                                                            <TruncatedText as="p" text={product.code} className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider truncate" />
                                                         </div>
 
                                                         {/* Quantity Selector */}
                                                         {isAttached && (
-                                                            <div className="flex items-center gap-2 shrink-0">
-                                                                <span className="text-[10px] font-bold text-brand-navy/40 uppercase">Qty:</span>
+                                                            <div className="flex items-center gap-1.5 shrink-0">
+                                                                <span className="text-[9px] font-bold text-gray-400 uppercase">Qty:</span>
                                                                 <Input
                                                                     type="number"
                                                                     min={1}
                                                                     value={attachment!.default_quantity}
                                                                     onChange={(e) => updateAttachmentQuantity(product.id, parseInt(e.target.value) || 1)}
-                                                                    className="w-16 h-8 rounded-xl border-none bg-white text-center text-sm font-bold text-brand-navy shadow-sm"
+                                                                    className="w-14 h-7 rounded-md border-gray-200 text-center text-[11px] font-semibold"
                                                                     onClick={(e) => e.stopPropagation()}
                                                                 />
                                                             </div>
@@ -1274,7 +1144,7 @@ const Accessories = () => {
                                     </div>
 
                                     {attachedProducts.length > 0 && (
-                                        <Badge className="bg-brand-navy/5 text-brand-navy border-none font-bold text-xs">
+                                        <Badge className="bg-brand-navy/5 text-brand-navy border-none text-[10px]">
                                             {attachedProducts.length} product{attachedProducts.length > 1 ? 's' : ''} attached
                                         </Badge>
                                     )}
@@ -1285,10 +1155,10 @@ const Accessories = () => {
                                     control={form.control}
                                     name="active"
                                     render={({ field }) => (
-                                        <FormItem className="flex items-center justify-between p-6 rounded-3xl bg-brand-navy/[0.02] border border-brand-navy/[0.03]">
-                                            <div className="space-y-1">
-                                                <FormLabel className="text-base font-bold text-brand-navy">Active Status</FormLabel>
-                                                <FormDescription>Toggle off to hide this accessory.</FormDescription>
+                                        <FormItem className="flex items-center justify-between p-3 rounded-xl border border-gray-100 bg-gray-50/50">
+                                            <div className="space-y-0.5">
+                                                <FormLabel className="text-[12px] font-semibold text-brand-navy">Active Status</FormLabel>
+                                                <FormDescription className="text-[10px]">Toggle off to hide this accessory.</FormDescription>
                                             </div>
                                             <FormControl>
                                                 <Switch
@@ -1302,7 +1172,7 @@ const Accessories = () => {
                                 />
                             </div>
 
-                            <DialogFooter className="p-8 pt-0 shrink-0 bg-brand-white">
+                            <DialogFooter className="p-4 shrink-0 border-t border-gray-100 gap-2">
                                 <Button
                                     type="button"
                                     variant="ghost"
@@ -1311,16 +1181,16 @@ const Accessories = () => {
                                         setEditingAccessory(null);
                                         setAttachedProducts([]);
                                     }}
-                                    className="rounded-2xl h-14 px-8 font-bold text-brand-navy hover:bg-muted"
+                                    className="h-8 rounded-md text-[11px] font-semibold"
                                 >
                                     Cancel
                                 </Button>
                                 <Button
                                     type="submit"
                                     disabled={upsertAccessoryMutation.isPending || isUploading}
-                                    className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-14 px-10 font-bold shadow-2xl shadow-brand-navy/30 transition-all active:scale-95 flex items-center gap-3"
+                                    className="h-8 rounded-md text-[11px] font-semibold gap-1.5"
                                 >
-                                    {(upsertAccessoryMutation.isPending || isUploading) && <Loader2 className="w-5 h-5 animate-spin" />}
+                                    {(upsertAccessoryMutation.isPending || isUploading) && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                                     {editingAccessory ? 'Update Accessory' : 'Create Accessory'}
                                 </Button>
                             </DialogFooter>
@@ -1331,62 +1201,48 @@ const Accessories = () => {
 
             {/* Delete Confirmation */}
             <AlertDialog open={!!accessoryToDelete} onOpenChange={() => setAccessoryToDelete(null)}>
-                <AlertDialogContent className="rounded-[40px] border-none p-10 max-w-md">
-                    <div className="flex flex-col items-center text-center space-y-6">
-                        <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center text-red-500">
-                            <Trash2 className="w-10 h-10" />
-                        </div>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle className="text-3xl font-bold text-brand-navy">Permanently Delete?</AlertDialogTitle>
-                            <AlertDialogDescription className="text-lg text-muted-foreground pt-2">
-                                You are about to remove <span className="font-black text-brand-navy italic">"{accessoryToDelete?.name}"</span>. This action cannot be reversed.
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter className="w-full flex flex-col sm:flex-row gap-3 mt-4">
-                            <AlertDialogCancel className="w-full rounded-2xl h-14 font-bold border-none bg-brand-navy/[0.04] hover:bg-brand-navy/[0.08] text-brand-navy m-0">
-                                Back to Safety
-                            </AlertDialogCancel>
-                            <AlertDialogAction
-                                onClick={() => deleteAccessoryMutation.mutate(accessoryToDelete.id)}
-                                className="w-full rounded-2xl h-14 font-bold bg-red-500 hover:bg-red-600 text-brand-white shadow-xl shadow-red-500/20 m-0"
-                            >
-                                {deleteAccessoryMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                                Confirm Removal
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </div>
+                <AlertDialogContent className="max-w-sm rounded-xl">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="text-[15px] font-semibold text-brand-navy">Permanently Delete?</AlertDialogTitle>
+                        <AlertDialogDescription className="text-[11px] text-gray-500">
+                            You are about to remove <span className="font-semibold text-brand-navy">"{accessoryToDelete?.name}"</span>. This action cannot be reversed.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="gap-2">
+                        <AlertDialogCancel className="h-8 rounded-md text-[11px] font-semibold">Back to Safety</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => deleteAccessoryMutation.mutate(accessoryToDelete.id)}
+                            className="h-8 rounded-md text-[11px] font-semibold bg-red-500 hover:bg-red-600 text-white gap-1.5"
+                        >
+                            {deleteAccessoryMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                            Confirm Removal
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
 
+            {/* Reset Stock Confirmation */}
             <AlertDialog open={!!accessoryToResetStock} onOpenChange={() => setAccessoryToResetStock(null)}>
-                <AlertDialogContent className="rounded-[40px] border-none p-10 max-w-md">
-                    <div className="flex flex-col items-center text-center space-y-6">
-                        <div className="w-20 h-20 bg-brand-navy/[0.06] rounded-full flex items-center justify-center text-brand-navy">
-                            <RotateCcw className="w-10 h-10" />
-                        </div>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle className="text-3xl font-bold text-brand-navy">Clear Stock?</AlertDialogTitle>
-                            <AlertDialogDescription className="text-lg text-muted-foreground pt-2">
-                                This will instantly reset the stock for{' '}
-                                <span className="font-black text-brand-navy italic">"{accessoryToResetStock?.name}"</span> to 0.
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter className="w-full flex flex-col sm:flex-row gap-3 mt-4">
-                            <AlertDialogCancel className="w-full rounded-2xl h-14 font-bold border-none bg-brand-navy/[0.04] hover:bg-brand-navy/[0.08] text-brand-navy m-0">
-                                Cancel
-                            </AlertDialogCancel>
-                            <AlertDialogAction
-                                onClick={() =>
-                                    accessoryToResetStock &&
-                                    updateStockMutation.mutate({ id: accessoryToResetStock.id, stock: 0 })
-                                }
-                                className="w-full rounded-2xl h-14 font-bold bg-brand-navy hover:bg-brand-navy/90 text-brand-white shadow-xl shadow-brand-navy/20 m-0"
-                            >
-                                {updateStockMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                                Yes, Clear Stock
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </div>
+                <AlertDialogContent className="max-w-sm rounded-xl">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="text-[15px] font-semibold text-brand-navy">Clear Stock?</AlertDialogTitle>
+                        <AlertDialogDescription className="text-[11px] text-gray-500">
+                            This will reset stock for <span className="font-semibold text-brand-navy">"{accessoryToResetStock?.name}"</span> to 0.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="gap-2">
+                        <AlertDialogCancel className="h-8 rounded-md text-[11px] font-semibold">Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() =>
+                                accessoryToResetStock &&
+                                updateStockMutation.mutate({ id: accessoryToResetStock.id, stock: 0 })
+                            }
+                            className="h-8 rounded-md text-[11px] font-semibold bg-amber-500 hover:bg-amber-600 text-white gap-1.5"
+                        >
+                            {updateStockMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                            Yes, Clear Stock
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
         </div>

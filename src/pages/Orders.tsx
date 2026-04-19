@@ -108,6 +108,7 @@ import { DynamicIcon } from '@/lib/renderReactIcon';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Separator } from "@/components/ui/separator";
 import {
     Select,
@@ -977,12 +978,14 @@ const Orders = () => {
     });
 
     const { data: sellers } = useQuery({
-        queryKey: ['sellers-commercial', activeBusinessId],
+        // v2 key: schema expanded to include `assignment` (required by the attribution widget).
+        // Bumping the key ensures any cached v1 response (without assignment) is replaced.
+        queryKey: ['sellers-commercial-v2', activeBusinessId],
         queryFn: async () => {
             if (!activeBusinessId) return [];
             const { data, error } = await (supabase as any)
                 .from('users')
-                .select('id, name, avatar_url, role')
+                .select('id, name, avatar_url, role, assignment')
                 .eq('role', 'commercial')
                 .eq('active', true)
                 .eq('DigiCom Business', activeBusinessId);
@@ -991,26 +994,37 @@ const Orders = () => {
         }
     });
 
-    // Attribution Progress — live SWRR state from the DB
-    const { data: attributionProgress, refetch: refetchAttribution, isFetching: isAttributionFetching } = useQuery({
-        queryKey: ['attribution-progress', activeBusinessId],
-        queryFn: async () => {
-            if (!activeBusinessId) return [];
-            const { data, error } = await (supabase as any)
-                .rpc('get_daily_attribution_progress', { p_business_id: activeBusinessId });
-            if (error) throw error;
-            return data as Array<{
-                seller_id: string;
-                seller_name: string;
-                assignment: number;
-                orders_today: number;
-                pct_complete: number;
-                is_full: boolean;
-                credit: number;
-            }>;
-        },
-        refetchInterval: 30000, // auto-refresh every 30s
-    });
+    // Attribution Progress — computed locally from sellers + orders already on the page.
+    // The previous RPC approach had a parameter bug that silently returned []. Deriving
+    // from known-good in-memory data removes that whole failure mode.
+    const isAttributionFetching = false;
+    const refetchAttribution = () => { /* no-op: derived state updates automatically */ };
+    const attributionProgress = useMemo(() => {
+        if (!sellers || sellers.length === 0) return [];
+        const today = format(new Date(), 'yyyy-MM-dd');
+        const ordersList = (orders || []) as Array<{ seller_id?: string | null; assignment_date?: string | null; date?: string | null }>;
+        return sellers
+            .filter((s: { assignment?: number | null }) => Number(s.assignment || 0) > 0)
+            .map((s: { id: string; name: string; avatar_url: string | null; assignment: number | null }) => {
+                const assignment = Number(s.assignment || 0);
+                const ordersToday = ordersList.filter(o => {
+                    if (o.seller_id !== s.id) return false;
+                    const raw = o.assignment_date || o.date;
+                    if (!raw) return false;
+                    return String(raw).slice(0, 10) === today;
+                }).length;
+                const pctComplete = assignment > 0 ? Math.min(100, Math.round((ordersToday / assignment) * 100 * 10) / 10) : 0;
+                return {
+                    seller_id: s.id,
+                    seller_name: s.name,
+                    assignment,
+                    orders_today: ordersToday,
+                    pct_complete: pctComplete,
+                    is_full: ordersToday >= assignment,
+                    credit: 0,
+                };
+            });
+    }, [sellers, orders]);
 
     // Total attribution stats
     const attributionTotals = useMemo(() => {
@@ -1920,29 +1934,74 @@ const Orders = () => {
         setIsEditModalOpen(true);
     };
 
+    // Single-palette filter chip. Every active filter looks the same so the row
+    // reads as a list, not a rainbow. `tone="warning"` reserved for destructive/exchange flags.
+    const FilterChip: React.FC<{
+        icon: React.ComponentType<{ className?: string }>;
+        onClear: () => void;
+        tone?: 'default' | 'warning';
+        children: React.ReactNode;
+    }> = ({ icon: Icon, onClear, tone = 'default', children }) => (
+        <span className={cn(
+            'inline-flex items-center gap-1 h-5 px-1.5 rounded-md text-[9px] font-semibold border',
+            tone === 'warning'
+                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                : 'bg-gray-50 text-brand-navy/80 border-gray-200'
+        )}>
+            <Icon className="w-2.5 h-2.5 opacity-70 shrink-0" />
+            <span className="truncate max-w-[120px]">{children}</span>
+            <button onClick={onClear} className="ml-0.5 rounded-md hover:bg-white/60 p-0.5 transition-colors shrink-0">
+                <X className="w-2 h-2" />
+            </button>
+        </span>
+    );
+
+    // Dense KPI tile — matches the DashboardKPICards pattern (left accent stripe).
+    const KpiTile: React.FC<{ label: string; value: string; accent: string }> = ({ label, value, accent }) => (
+        <Card className="border border-gray-100 shadow-none rounded-xl overflow-hidden">
+            <CardContent className="p-2.5 relative">
+                <span
+                    className="absolute top-2.5 left-0 w-[3px] h-8 rounded-r-full"
+                    style={{ backgroundColor: accent }}
+                    aria-hidden
+                />
+                <div className="pl-2">
+                    <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400">
+                        {label}
+                    </div>
+                    <div className="text-[18px] font-semibold text-brand-navy tabular-nums leading-tight mt-0.5 truncate">
+                        {value}
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
+    );
+
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
-            {/* Header Section */}
-            <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-                <div className="relative p-8">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div>
-                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Order Pipeline</h1>
-                            <p className="text-gray-500 font-light">Streamline your sales flow and delivery tracking.</p>
-                            <WebhookHealthIndicator activeBusinessId={activeBusinessId} className="mt-3" />
-                        </div>
-                        <div className="flex flex-col sm:flex-row gap-3 items-center">
-                            <div className="relative group sm:w-80">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
-                                <Input
-                                    placeholder="Search any order detail (tracking, Coliaty, products, notes…)"
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="pl-11 h-12 rounded-2xl border-gray-100 bg-white"
-                                />
-                            </div>
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+            {/* Header — matches Analytics compact style */}
+            <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                    <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">
+                        Order Pipeline
+                    </h1>
+                    <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">
+                        Sales flow · delivery tracking
+                    </p>
+                    <WebhookHealthIndicator activeBusinessId={activeBusinessId} className="mt-1.5" />
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+                    <div className="relative sm:w-72">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                        <Input
+                            placeholder="Search any order detail…"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="pl-7 h-8 rounded-md border-gray-200 bg-white text-[11px]"
+                        />
+                    </div>
                     <Button
+                        size="sm"
                         onClick={() => {
                             form.reset({
                                 name: '',
@@ -1967,92 +2026,64 @@ const Orders = () => {
                             });
                             setIsAddModalOpen(true);
                         }}
-                        className="bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 h-12 px-6 rounded-2xl transition-all duration-300 active:scale-95 group flex items-center gap-2 w-full sm:w-auto"
+                        className="bg-brand-navy hover:bg-brand-navy/90 text-white h-8 px-3 rounded-md text-[11px] font-semibold gap-1.5 shrink-0"
                     >
-                        <PlusCircle className="w-5 h-5" />
-                        New Order
+                        <PlusCircle className="w-3.5 h-3.5" />
+                        New order
                     </Button>
-                        </div>
-                    </div>
                 </div>
-            </div>
+            </header>
 
-            {/* Dashboard Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card className="border-none bg-blue-50/50 rounded-[32px] p-6 relative overflow-hidden flex flex-col justify-between min-h-[140px]">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-blue-600/60 mb-2">Active Orders</p>
-                    <h3 className="text-3xl lg:text-4xl xl:text-5xl font-black text-brand-navy tracking-tight truncate w-full">
-                        {new Intl.NumberFormat('fr-FR').format(filteredOrders.length)}
-                    </h3>
-                </Card>
-                <div className="bg-brand-navy rounded-[32px] p-6 text-brand-white shadow-2xl shadow-brand-navy/30 relative overflow-hidden group flex flex-col justify-between min-h-[140px]">
-                    <div className="relative z-10 flex flex-col h-full justify-between">
-                        <span className="text-[10px] font-black uppercase text-brand-white/60 tracking-widest mb-2 block">Total Sales</span>
-                        <div className="flex items-baseline gap-1.5 w-full">
-                            <span className="text-3xl lg:text-4xl xl:text-5xl font-black tracking-tight truncate">
-                                {new Intl.NumberFormat('fr-FR').format(Math.round(filteredOrders.reduce((acc, o) => acc + (o.price || 0), 0)))}
-                            </span>
-                            <span className="text-lg font-bold opacity-60 shrink-0">DH</span>
-                        </div>
-                    </div>
-                    <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-brand-white/5 rounded-full blur-2xl group-hover:bg-brand-white/10 transition-colors duration-500" />
-                </div>
-                <Card className="border-none bg-amber-50/50 rounded-[32px] p-6 relative overflow-hidden flex flex-col justify-between min-h-[140px]">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-600/60 mb-2">Exchanges</p>
-                    <h3 className="text-3xl lg:text-4xl xl:text-5xl font-black text-brand-navy tracking-tight truncate w-full">
-                        {new Intl.NumberFormat('fr-FR').format(filteredOrders.filter(o => o.replace).length)}
-                    </h3>
-                </Card>
-                <div className="bg-white rounded-[32px] p-6 border-2 border-brand-navy/[0.03] hover:border-brand-navy/[0.08] transition-colors shadow-xl shadow-brand-navy/5 relative overflow-hidden group flex flex-col justify-between min-h-[140px]">
-                    <div className="relative z-10 flex flex-col h-full justify-between">
-                        <span className="text-[10px] font-black text-brand-navy/40 uppercase tracking-widest mb-2 block">Avg Order Value</span>
-                        <div className="flex items-baseline gap-1.5 w-full">
-                            <span className="text-3xl lg:text-4xl xl:text-5xl font-black text-brand-navy tracking-tight truncate">
-                                {filteredOrders.length > 0
-                                    ? new Intl.NumberFormat('fr-FR').format(Math.round(filteredOrders.reduce((acc, o) => acc + (o.price || 0), 0) / filteredOrders.length))
-                                    : '0'}
-                            </span>
-                            <span className="text-lg font-bold text-brand-navy/40 shrink-0">DH</span>
-                        </div>
-                    </div>
-                    <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-brand-navy/[0.02] rounded-full blur-2xl group-hover:bg-brand-navy/[0.04] transition-colors duration-500" />
-                </div>
+            {/* KPI strip — 4 tiles, left-accent-stripe pattern from the dashboard. */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <KpiTile label="Active orders" value={new Intl.NumberFormat('fr-FR').format(filteredOrders.length)} accent="#3b5e5e" />
+                <KpiTile
+                    label="Total sales"
+                    value={`${new Intl.NumberFormat('fr-FR').format(Math.round(filteredOrders.reduce((acc, o) => acc + (o.price || 0), 0)))} DH`}
+                    accent="#059669"
+                />
+                <KpiTile
+                    label="Exchanges"
+                    value={new Intl.NumberFormat('fr-FR').format(filteredOrders.filter(o => o.replace).length)}
+                    accent="#d97706"
+                />
+                <KpiTile
+                    label="Avg order value"
+                    value={`${filteredOrders.length > 0
+                        ? new Intl.NumberFormat('fr-FR').format(Math.round(filteredOrders.reduce((acc, o) => acc + (o.price || 0), 0) / filteredOrders.length))
+                        : '0'} DH`}
+                    accent="#3b5e5e"
+                />
             </div>
 
             {/* ── Attribution Progress Widget (collapsible) ── */}
             {attributionProgress && attributionProgress.length > 0 && (
-                <div className={cn(
-                    'bg-white border border-brand-navy/[0.04] shadow-lg shadow-brand-navy/5 transition-all duration-300 overflow-hidden',
-                    isAttributionOpen ? 'rounded-[28px]' : 'rounded-[100px]'
-                )}>
+                <div className="bg-white border border-gray-100 shadow-none rounded-xl overflow-hidden transition-all duration-300">
                     {/* ── Collapsed bar (always visible, clickable) ── */}
                     <button
                         onClick={() => setIsAttributionOpen(o => !o)}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 group"
+                        className="w-full flex items-center gap-2 px-3 py-2 group"
                     >
-                        {/* Icon */}
-                        <div className="p-2 bg-indigo-50 rounded-full shrink-0">
-                            <BarChart2 className="w-3.5 h-3.5 text-indigo-500" />
-                        </div>
-
-                        {/* Label */}
-                        <span className="text-xs font-black text-brand-navy/70 shrink-0">Today's Attribution</span>
+                        <BarChart2 className="w-3 h-3 text-brand-navy/60 shrink-0" />
+                        <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-gray-500 shrink-0">
+                            Today's attribution
+                        </span>
 
                         {/* Global slim progress bar */}
-                        <div className="flex-1 h-1.5 bg-brand-navy/[0.06] rounded-full overflow-hidden">
+                        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden min-w-[60px]">
                             <div
-                                className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all duration-700"
+                                className="h-full rounded-full bg-brand-navy transition-all duration-700"
                                 style={{ width: `${Math.min(attributionTotals.totalPct, 100)}%` }}
                             />
                         </div>
 
                         {/* Pct label */}
-                        <span className="text-xs font-black text-brand-navy/50 shrink-0 w-9 text-right">
+                        <span className="text-[11px] font-semibold text-brand-navy shrink-0 w-9 text-right tabular-nums">
                             {attributionTotals.totalPct}%
                         </span>
 
                         {/* Seller avatar chips */}
-                        <div className="flex items-center -space-x-1.5 shrink-0">
+                        <div className="flex items-center -space-x-1 shrink-0">
                             {attributionProgress.slice(0, 5).map((seller) => {
                                 const sellerData = sellers?.find(s => s.id === seller.seller_id);
                                 return (
@@ -2060,8 +2091,8 @@ const Orders = () => {
                                         key={seller.seller_id}
                                         title={`${seller.seller_name}: ${seller.orders_today}/${seller.assignment}`}
                                         className={cn(
-                                            'w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-black overflow-hidden',
-                                            seller.is_full ? 'bg-emerald-400 text-white' : 'bg-indigo-100 text-indigo-700'
+                                            'w-5 h-5 rounded-full border border-white flex items-center justify-center text-[8px] font-bold overflow-hidden',
+                                            seller.is_full ? 'bg-emerald-500 text-white' : 'bg-brand-navy/10 text-brand-navy'
                                         )}
                                     >
                                         {sellerData?.avatar_url ? (
@@ -2073,7 +2104,7 @@ const Orders = () => {
                                 );
                             })}
                             {attributionProgress.length > 5 && (
-                                <div className="w-6 h-6 rounded-full border-2 border-white bg-brand-navy/10 flex items-center justify-center text-[8px] font-black text-brand-navy/50">
+                                <div className="w-5 h-5 rounded-full border border-white bg-brand-navy/10 flex items-center justify-center text-[8px] font-bold text-brand-navy/60">
                                     +{attributionProgress.length - 5}
                                 </div>
                             )}
@@ -2081,14 +2112,14 @@ const Orders = () => {
 
                         {/* Unassigned warning pill */}
                         {attributionTotals.unassigned > 0 && (
-                            <span className="shrink-0 text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                            <span className="shrink-0 text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md">
                                 {attributionTotals.unassigned} unassigned
                             </span>
                         )}
 
                         {/* Chevron */}
-                        <div className={cn('shrink-0 text-brand-navy/25 transition-transform duration-300', isAttributionOpen && 'rotate-180')}>
-                            <ChevronDown className="w-4 h-4" />
+                        <div className={cn('shrink-0 text-gray-400 transition-transform duration-300', isAttributionOpen && 'rotate-180')}>
+                            <ChevronDown className="w-3 h-3" />
                         </div>
                     </button>
 
@@ -2098,52 +2129,52 @@ const Orders = () => {
                         isAttributionOpen ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0'
                     )}>
                         {/* Global progress + actions */}
-                        <div className="flex items-center gap-3 px-5 py-3 border-t border-brand-navy/[0.04]">
-                            <div className="flex-1 flex items-center gap-3">
-                                <div className="flex-1 h-2 bg-brand-navy/[0.05] rounded-full overflow-hidden">
+                        <div className="flex items-center gap-2 px-3 py-2 border-t border-gray-100">
+                            <div className="flex-1 flex items-center gap-2">
+                                <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                                     <div
-                                        className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all duration-700"
+                                        className="h-full rounded-full bg-brand-navy transition-all duration-700"
                                         style={{ width: `${Math.min(attributionTotals.totalPct, 100)}%` }}
                                     />
                                 </div>
-                                <span className="text-xs font-black text-brand-navy/50 w-24 shrink-0">
-                                    {attributionTotals.totalAssigned} / {attributionTotals.totalQuota} orders
+                                <span className="text-[10px] font-semibold text-gray-500 w-20 shrink-0 tabular-nums">
+                                    {attributionTotals.totalAssigned} / {attributionTotals.totalQuota}
                                 </span>
                             </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
+                            <div className="flex items-center gap-1 shrink-0">
                                 {attributionTotals.unassigned > 0 && (
                                     <Button
                                         size="sm"
                                         variant="outline"
                                         onClick={(e) => { e.stopPropagation(); reattributeMutation.mutate(); }}
                                         disabled={reattributeMutation.isPending}
-                                        className="h-7 px-2.5 rounded-xl text-[11px] font-bold border-amber-200 text-amber-700 hover:bg-amber-50 gap-1"
+                                        className="h-6 px-2 rounded-md text-[10px] font-semibold border-amber-200 text-amber-700 hover:bg-amber-50 gap-1"
                                     >
-                                        {reattributeMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-                                        Assign Unassigned
+                                        {reattributeMutation.isPending ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <RefreshCw className="w-2.5 h-2.5" />}
+                                        Assign unassigned
                                     </Button>
                                 )}
                                 <button
                                     onClick={(e) => { e.stopPropagation(); refetchAttribution(); }}
                                     disabled={isAttributionFetching}
-                                    className="w-7 h-7 flex items-center justify-center rounded-xl text-brand-navy/25 hover:text-brand-navy hover:bg-brand-navy/5 transition-colors"
+                                    className="w-6 h-6 flex items-center justify-center rounded-md text-gray-400 hover:text-brand-navy hover:bg-gray-50 transition-colors"
                                 >
-                                    <RefreshCw className={cn('w-3.5 h-3.5', isAttributionFetching && 'animate-spin')} />
+                                    <RefreshCw className={cn('w-3 h-3', isAttributionFetching && 'animate-spin')} />
                                 </button>
                             </div>
                         </div>
 
                         {/* Per-seller rows */}
-                        <div className="divide-y divide-brand-navy/[0.03]">
+                        <div className="divide-y divide-gray-50">
                             {attributionProgress.map((seller) => {
                                 const pct = Math.min(Number(seller.pct_complete), 100);
                                 const isFull = seller.is_full;
                                 const sellerData = sellers?.find(s => s.id === seller.seller_id);
                                 return (
-                                    <div key={seller.seller_id} className="flex items-center gap-4 px-5 py-3 hover:bg-brand-navy/[0.015] transition-colors">
+                                    <div key={seller.seller_id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50/60 transition-colors">
                                         <div className={cn(
-                                            'w-7 h-7 rounded-xl flex items-center justify-center text-[10px] font-black shrink-0 overflow-hidden',
-                                            isFull ? 'bg-emerald-100 text-emerald-600' : 'bg-indigo-50 text-indigo-600'
+                                            'w-6 h-6 rounded-md flex items-center justify-center text-[9px] font-semibold shrink-0 overflow-hidden',
+                                            isFull ? 'bg-emerald-100 text-emerald-700' : 'bg-brand-navy/[0.06] text-brand-navy'
                                         )}>
                                             {sellerData?.avatar_url ? (
                                                 <img src={sellerData.avatar_url} alt={seller.seller_name} className="w-full h-full object-cover" />
@@ -2152,30 +2183,30 @@ const Orders = () => {
                                             )}
                                         </div>
                                         <div className="w-28 shrink-0">
-                                            <p className="text-xs font-bold text-brand-navy truncate">{seller.seller_name}</p>
-                                            <p className="text-[10px] text-brand-navy/35 font-medium">Quota: {seller.assignment}/day</p>
+                                            <p className="text-[11px] font-semibold text-brand-navy truncate leading-tight">{seller.seller_name}</p>
+                                            <p className="text-[9px] text-gray-400">Quota {seller.assignment}/day</p>
                                         </div>
-                                        <div className="flex-1 flex items-center gap-2.5">
-                                            <div className="flex-1 h-1.5 bg-brand-navy/[0.05] rounded-full overflow-hidden">
+                                        <div className="flex-1 flex items-center gap-1.5">
+                                            <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
                                                 <div
                                                     className={cn(
                                                         'h-full rounded-full transition-all duration-700',
-                                                        isFull ? 'bg-gradient-to-r from-emerald-500 to-emerald-400' : 'bg-gradient-to-r from-indigo-500 to-violet-500'
+                                                        isFull ? 'bg-emerald-500' : 'bg-brand-navy'
                                                     )}
                                                     style={{ width: `${pct}%` }}
                                                 />
                                             </div>
-                                            <span className="text-[10px] font-black text-brand-navy/40 w-8 text-right shrink-0">{pct}%</span>
+                                            <span className="text-[9px] font-semibold text-gray-500 w-7 text-right shrink-0 tabular-nums">{pct}%</span>
                                         </div>
-                                        <div className="text-right shrink-0">
-                                            <span className={cn('text-xs font-black', isFull ? 'text-emerald-600' : 'text-brand-navy')}>
+                                        <div className="text-right shrink-0 tabular-nums">
+                                            <span className={cn('text-[11px] font-semibold', isFull ? 'text-emerald-600' : 'text-brand-navy')}>
                                                 {seller.orders_today}
                                             </span>
-                                            <span className="text-brand-navy/25 text-xs font-medium"> / {seller.assignment}</span>
+                                            <span className="text-gray-400 text-[10px]"> / {seller.assignment}</span>
                                         </div>
                                         {isFull && (
-                                            <span className="shrink-0 text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
-                                                FULL
+                                            <span className="shrink-0 text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-100 uppercase tracking-wider">
+                                                Full
                                             </span>
                                         )}
                                     </div>
@@ -2187,147 +2218,125 @@ const Orders = () => {
             )}
 
             {/* Filters Toolbar */}
-            <div className="space-y-3 pb-4">
+            <div className="space-y-2 pb-2">
                 {/* Top Bar: View Switcher + Filters Toggle + Active Pills + Count */}
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                        {/* View Switcher */}
-                        <div className="flex bg-white p-1 rounded-2xl shadow-sm border border-brand-navy/[0.04] shrink-0">
-                            <Button variant="ghost" size="sm" onClick={() => setViewMode('grid')}
-                                className={cn("h-8 w-8 p-0 rounded-xl transition-all duration-300", viewMode === 'grid' ? "bg-brand-navy text-brand-white shadow-lg" : "text-brand-navy/30 hover:text-brand-navy hover:bg-brand-navy/5")}>
-                                <LayoutGrid className="w-4 h-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => setViewMode('list')}
-                                className={cn("h-8 w-8 p-0 rounded-xl transition-all duration-300", viewMode === 'list' ? "bg-brand-navy text-brand-white shadow-lg" : "text-brand-navy/30 hover:text-brand-navy hover:bg-brand-navy/5")}>
-                                <List className="w-4 h-4" />
-                            </Button>
-                        </div>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                        {/* View Switcher — native shadcn ToggleGroup */}
+                        <ToggleGroup
+                            type="single"
+                            value={viewMode}
+                            onValueChange={(v) => { if (v) setViewMode(v as 'grid' | 'list'); }}
+                            variant="outline"
+                            size="sm"
+                            className="gap-0 shrink-0"
+                        >
+                            <ToggleGroupItem value="grid" aria-label="Grid view" className="h-8 w-8 p-0 rounded-r-none">
+                                <LayoutGrid className="w-3.5 h-3.5" />
+                            </ToggleGroupItem>
+                            <ToggleGroupItem value="list" aria-label="List view" className="h-8 w-8 p-0 rounded-l-none border-l-0">
+                                <List className="w-3.5 h-3.5" />
+                            </ToggleGroupItem>
+                        </ToggleGroup>
 
                         {/* Filter Toggle */}
                         <Button variant="ghost" size="sm" onClick={() => setShowAllFilters(!showAllFilters)}
                             className={cn(
-                                "h-9 px-4 rounded-2xl gap-2 text-xs font-bold transition-all duration-300",
+                                "h-7 px-2.5 rounded-md gap-1.5 text-[10px] font-semibold transition-all",
                                 showAllFilters
-                                    ? "bg-brand-navy text-brand-white shadow-xl shadow-brand-navy/20"
-                                    : "bg-white text-brand-navy/60 border border-brand-navy/[0.06] hover:border-brand-navy/10 hover:text-brand-navy shadow-sm"
+                                    ? "bg-brand-navy text-white"
+                                    : "bg-white text-brand-navy/70 border border-gray-200 hover:border-gray-300 hover:text-brand-navy"
                             )}>
-                            <Filter className="w-3.5 h-3.5" />
+                            <Filter className="w-3 h-3" />
                             Filters
                             {activeFilterCount > 0 && (
                                 <span className={cn(
-                                    "ml-0.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full text-[10px] font-black leading-none",
-                                    showAllFilters ? "bg-brand-white/25 text-brand-white" : "bg-brand-navy text-brand-white"
+                                    "ml-0.5 min-w-[16px] h-4 flex items-center justify-center rounded-full text-[9px] font-bold leading-none px-1",
+                                    showAllFilters ? "bg-white/25 text-white" : "bg-brand-navy text-white"
                                 )}>
                                     {activeFilterCount}
                                 </span>
                             )}
                         </Button>
 
-                        {/* Active Filter Chips */}
+                        {/* Active Filter Chips — unified to the locked palette (navy base, amber for time, red for destructive). */}
                         {activeFilterCount > 0 && (
-                            <div className="flex flex-wrap items-center gap-1.5 animate-in fade-in duration-300">
+                            <div className="flex flex-wrap items-center gap-1 animate-in fade-in duration-300">
                                 {filterTimeRange !== 'all' && (
-                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-bold border border-blue-100">
-                                        <Clock className="w-3 h-3" />
+                                    <FilterChip icon={Clock} onClear={() => { setFilterTimeRange('all'); setFilterCustomRange(undefined); }}>
                                         {filterTimeRange === 'custom' && filterCustomRange?.from ? `${format(filterCustomRange.from, 'dd/MM')}–${filterCustomRange.to ? format(filterCustomRange.to, 'dd/MM') : '...'}` : filterTimeRange.replace(/([A-Z])/g, ' $1').trim()}
-                                        <button onClick={() => { setFilterTimeRange('all'); setFilterCustomRange(undefined); }} className="ml-0.5 hover:bg-blue-100 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
-                                    </span>
+                                    </FilterChip>
                                 )}
                                 {filterStatus !== 'all' ? (
-                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-purple-50 text-purple-700 text-[10px] font-bold border border-purple-100">
-                                        <ShieldCheck className="w-3 h-3" />
+                                    <FilterChip icon={ShieldCheck} onClear={() => setFilterStatus('all')}>
                                         {orderStatuses?.find((s: any) => s.id === filterStatus)?.label || 'Status'}
-                                        <button onClick={() => setFilterStatus('all')} className="ml-0.5 hover:bg-purple-100 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
-                                    </span>
+                                    </FilterChip>
                                 ) : filterStatusIds && filterStatusIds.length > 0 && (
-                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-purple-50 text-purple-700 text-[10px] font-bold border border-purple-100">
-                                        <ShieldCheck className="w-3 h-3" />
+                                    <FilterChip icon={ShieldCheck} onClear={() => { setFilterStatusIds(null); setFilterStatusLabel(null); }}>
                                         {filterStatusLabel || 'Status'} ({filterStatusIds.length})
-                                        <button onClick={() => { setFilterStatusIds(null); setFilterStatusLabel(null); }} className="ml-0.5 hover:bg-purple-100 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
-                                    </span>
+                                    </FilterChip>
                                 )}
                                 {filterPackageStatus !== 'all' ? (
-                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-orange-50 text-orange-700 text-[10px] font-bold border border-orange-100">
-                                        <Package className="w-3 h-3" />
+                                    <FilterChip icon={Package} onClear={() => setFilterPackageStatus('all')}>
                                         {packageStatuses?.find((s: any) => s.id === filterPackageStatus)?.label || 'Package'}
-                                        <button onClick={() => setFilterPackageStatus('all')} className="ml-0.5 hover:bg-orange-100 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
-                                    </span>
+                                    </FilterChip>
                                 ) : filterPackageStatusIds && filterPackageStatusIds.length > 0 && (
-                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-orange-50 text-orange-700 text-[10px] font-bold border border-orange-100">
-                                        <Package className="w-3 h-3" />
+                                    <FilterChip icon={Package} onClear={() => { setFilterPackageStatusIds(null); setFilterPackageStatusLabel(null); }}>
                                         {filterPackageStatusLabel || 'Package'} ({filterPackageStatusIds.length})
-                                        <button onClick={() => { setFilterPackageStatusIds(null); setFilterPackageStatusLabel(null); }} className="ml-0.5 hover:bg-orange-100 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
-                                    </span>
+                                    </FilterChip>
                                 )}
                                 {filterCity !== 'all' && (
-                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-100">
-                                        <MapPin className="w-3 h-3" />
+                                    <FilterChip icon={MapPin} onClear={() => setFilterCity('all')}>
                                         {cities?.find((c: any) => c.id === filterCity)?.name || 'City'}
-                                        <button onClick={() => setFilterCity('all')} className="ml-0.5 hover:bg-emerald-100 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
-                                    </span>
+                                    </FilterChip>
                                 )}
                                 {filterProduct !== 'all' && (
-                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-pink-50 text-pink-700 text-[10px] font-bold border border-pink-100">
-                                        <ShoppingBag className="w-3 h-3" />
+                                    <FilterChip icon={ShoppingBag} onClear={() => setFilterProduct('all')}>
                                         {products?.find((p: any) => p.id === filterProduct)?.name || 'Product'}
-                                        <button onClick={() => setFilterProduct('all')} className="ml-0.5 hover:bg-pink-100 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
-                                    </span>
+                                    </FilterChip>
                                 )}
                                 {filterCustomerName && (
-                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold border border-slate-200">
-                                        <User className="w-3 h-3" />"{filterCustomerName}"
-                                        <button onClick={() => setFilterCustomerName('')} className="ml-0.5 hover:bg-slate-200 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
-                                    </span>
+                                    <FilterChip icon={User} onClear={() => setFilterCustomerName('')}>
+                                        "{filterCustomerName}"
+                                    </FilterChip>
                                 )}
                                 {filterPhone && (
-                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold border border-slate-200">
-                                        <Phone className="w-3 h-3" />{filterPhone}
-                                        <button onClick={() => setFilterPhone('')} className="ml-0.5 hover:bg-slate-200 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
-                                    </span>
+                                    <FilterChip icon={Phone} onClear={() => setFilterPhone('')}>
+                                        {filterPhone}
+                                    </FilterChip>
                                 )}
                                 {filterTracking.trim() && (
-                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold border border-slate-200 max-w-[220px]">
-                                        <Hash className="w-3 h-3 shrink-0" />
-                                        <span className="truncate">{filterTracking.trim()}</span>
-                                        <button onClick={() => setFilterTracking('')} className="ml-0.5 hover:bg-slate-200 rounded-full p-0.5 transition-colors shrink-0"><X className="w-2.5 h-2.5" /></button>
-                                    </span>
+                                    <FilterChip icon={Hash} onClear={() => setFilterTracking('')}>
+                                        <span className="truncate max-w-[140px]">{filterTracking.trim()}</span>
+                                    </FilterChip>
                                 )}
                                 {filterSource !== 'all' && (
-                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-cyan-50 text-cyan-700 text-[10px] font-bold border border-cyan-100 capitalize">
-                                        <ExternalLink className="w-3 h-3" />{filterSource}
-                                        <button onClick={() => setFilterSource('all')} className="ml-0.5 hover:bg-cyan-100 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
-                                    </span>
+                                    <FilterChip icon={ExternalLink} onClear={() => setFilterSource('all')}>
+                                        <span className="capitalize">{filterSource}</span>
+                                    </FilterChip>
                                 )}
                                 {filterConfirmedBy !== 'all' && (
-                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-green-50 text-green-700 text-[10px] font-bold border border-green-100">
-                                        <CheckCircle2 className="w-3 h-3" />
+                                    <FilterChip icon={CheckCircle2} onClear={() => setFilterConfirmedBy('all')}>
                                         {confirmers?.find((u: any) => u.id === filterConfirmedBy)?.name || 'Confirmer'}
-                                        <button onClick={() => setFilterConfirmedBy('all')} className="ml-0.5 hover:bg-green-100 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
-                                    </span>
+                                    </FilterChip>
                                 )}
                                 {filterAssignedTo !== 'all' && (
-                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-bold border border-indigo-100">
-                                        <User className="w-3 h-3" />
+                                    <FilterChip icon={User} onClear={() => setFilterAssignedTo('all')}>
                                         {sellers?.find((s: any) => s.id === filterAssignedTo)?.name || 'Seller'}
-                                        <button onClick={() => setFilterAssignedTo('all')} className="ml-0.5 hover:bg-indigo-100 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
-                                    </span>
+                                    </FilterChip>
                                 )}
                                 {filterProvider !== 'all' && (
-                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-amber-50 text-amber-700 text-[10px] font-bold border border-amber-100">
-                                        <Truck className="w-3 h-3" />
+                                    <FilterChip icon={Truck} onClear={() => setFilterProvider('all')}>
                                         {allProviders.find((p: any) => p.id === filterProvider)?.name || 'Service'}
-                                        <button onClick={() => setFilterProvider('all')} className="ml-0.5 hover:bg-amber-100 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
-                                    </span>
+                                    </FilterChip>
                                 )}
                                 {filterExchange !== 'all' && (
-                                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-red-50 text-red-700 text-[10px] font-bold border border-red-100">
-                                        <RefreshCcw className="w-3 h-3" />
-                                        {filterExchange === 'yes' ? 'Exchange: Yes' : 'Exchange: No'}
-                                        <button onClick={() => setFilterExchange('all')} className="ml-0.5 hover:bg-red-100 rounded-full p-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
-                                    </span>
+                                    <FilterChip icon={RefreshCcw} tone="warning" onClear={() => setFilterExchange('all')}>
+                                        {filterExchange === 'yes' ? 'Exchange: yes' : 'Exchange: no'}
+                                    </FilterChip>
                                 )}
 
-                                <button onClick={clearAllFilters} className="h-7 px-2 rounded-full text-[10px] font-bold text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors">
+                                <button onClick={clearAllFilters} className="h-5 px-1.5 rounded-md text-[9px] font-bold text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors">
                                     Clear all
                                 </button>
                             </div>
@@ -2335,46 +2344,47 @@ const Orders = () => {
                     </div>
 
                     <div className="flex items-center gap-2">
-                        <div className="h-7 px-3 rounded-full bg-brand-navy/[0.04] flex items-center">
-                            <span className="text-[11px] font-bold text-brand-navy/60">{filteredOrders.length} <span className="text-brand-navy/30 font-medium">records</span></span>
+                        <div className="h-6 px-2 rounded-md bg-gray-100 flex items-center">
+                            <span className="text-[10px] font-semibold text-brand-navy/70 tabular-nums">
+                                {filteredOrders.length}
+                                <span className="text-gray-400 font-medium"> records</span>
+                            </span>
                         </div>
                     </div>
                 </div>
 
                 {/* Expandable Filter Panel */}
                 {showAllFilters && (
-                    <div className="bg-white/80 backdrop-blur-xl rounded-[28px] border border-brand-navy/[0.04] shadow-xl shadow-brand-navy/[0.03] overflow-hidden animate-in slide-in-from-top-2 fade-in duration-400">
+                    <div className="bg-white rounded-xl border border-gray-100 overflow-hidden animate-in slide-in-from-top-2 fade-in duration-300">
                         {/* Time Section */}
-                        <div className="p-5 border-b border-brand-navy/[0.04]">
-                            <div className="flex items-center gap-2 mb-3.5">
-                                <div className="w-6 h-6 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                                    <Calendar className="w-3.5 h-3.5 text-blue-500" />
-                                </div>
-                                <span className="text-[11px] font-black uppercase tracking-widest text-brand-navy/40">Date & Time</span>
+                        <div className="p-3 border-b border-gray-100">
+                            <div className="flex items-center gap-1.5 mb-2">
+                                <Calendar className="w-3 h-3 text-gray-400" />
+                                <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400">Date &amp; time</span>
                             </div>
                             <div className="flex flex-wrap items-end gap-4">
-                                <div className="space-y-1.5 min-w-[140px]">
-                                    <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider">Filter By</span>
+                                <div className="space-y-1 min-w-[130px]">
+                                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.14em]">Filter by</span>
                                     <Select value={filterDateField} onValueChange={setFilterDateField}>
-                                        <SelectTrigger className="h-10 rounded-xl border-brand-navy/[0.06] bg-brand-navy/[0.02] text-xs font-bold text-brand-navy hover:border-brand-navy/10 transition-colors">
+                                        <SelectTrigger className="h-7 rounded-md border-gray-200 bg-white text-[11px] font-semibold text-brand-navy">
                                             <SelectValue />
                                         </SelectTrigger>
-                                        <SelectContent className="rounded-2xl border-none shadow-2xl shadow-brand-navy/10">
-                                            <SelectItem value="date" className="text-xs font-bold rounded-xl">Order Date</SelectItem>
-                                            <SelectItem value="created_at" className="text-xs font-bold rounded-xl">Created Date</SelectItem>
-                                            <SelectItem value="updated_at" className="text-xs font-bold rounded-xl">Updated Date</SelectItem>
-                                            <SelectItem value="assignment_date" className="text-xs font-bold rounded-xl">Assigned Date</SelectItem>
-                                            <SelectItem value="confirmation_date" className="text-xs font-bold rounded-xl">Confirmed Date</SelectItem>
-                                            <SelectItem value="annulation_date" className="text-xs font-bold rounded-xl">Cancelled Date</SelectItem>
-                                            <SelectItem value="date_livraison" className="text-xs font-bold rounded-xl">Delivered Date</SelectItem>
-                                            <SelectItem value="reported_date" className="text-xs font-bold rounded-xl">Reported Date</SelectItem>
+                                        <SelectContent className="rounded-md border-gray-100">
+                                            <SelectItem value="date" className="text-[11px] font-semibold rounded-md">Order date</SelectItem>
+                                            <SelectItem value="created_at" className="text-[11px] font-semibold rounded-md">Created date</SelectItem>
+                                            <SelectItem value="updated_at" className="text-[11px] font-semibold rounded-md">Updated date</SelectItem>
+                                            <SelectItem value="assignment_date" className="text-[11px] font-semibold rounded-md">Assigned date</SelectItem>
+                                            <SelectItem value="confirmation_date" className="text-[11px] font-semibold rounded-md">Confirmed date</SelectItem>
+                                            <SelectItem value="annulation_date" className="text-[11px] font-semibold rounded-md">Cancelled date</SelectItem>
+                                            <SelectItem value="date_livraison" className="text-[11px] font-semibold rounded-md">Delivered date</SelectItem>
+                                            <SelectItem value="reported_date" className="text-[11px] font-semibold rounded-md">Reported date</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
 
-                                <div className="space-y-1.5">
-                                    <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider">Range</span>
-                                    <div className="flex flex-wrap gap-1.5">
+                                <div className="space-y-1">
+                                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.14em]">Range</span>
+                                    <div className="flex flex-wrap gap-1">
                                         {([
                                             { v: 'all', l: 'All' },
                                             { v: 'today', l: 'Today' },
@@ -2389,10 +2399,10 @@ const Orders = () => {
                                                 key={opt.v}
                                                 onClick={() => { setFilterTimeRange(opt.v); if (opt.v !== 'custom') setShowCalendar(false); else setShowCalendar(true); }}
                                                 className={cn(
-                                                    "h-10 px-3.5 rounded-xl text-[11px] font-bold transition-all duration-200 border",
+                                                    "h-7 px-2.5 rounded-md text-[10px] font-semibold transition border",
                                                     filterTimeRange === opt.v
-                                                        ? "bg-brand-navy text-brand-white border-brand-navy shadow-lg shadow-brand-navy/20"
-                                                        : "bg-brand-navy/[0.02] text-brand-navy/50 border-brand-navy/[0.06] hover:border-brand-navy/10 hover:text-brand-navy/70 hover:bg-brand-navy/[0.04]"
+                                                        ? "bg-brand-navy text-white border-brand-navy"
+                                                        : "bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-brand-navy"
                                                 )}
                                             >
                                                 {opt.l}
@@ -2402,20 +2412,20 @@ const Orders = () => {
                                 </div>
 
                                 {filterTimeRange === 'custom' && (
-                                    <div className="space-y-1.5">
-                                        <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider">Pick Dates</span>
+                                    <div className="space-y-1">
+                                        <span className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.14em]">Pick dates</span>
                                         <Popover>
                                             <PopoverTrigger asChild>
-                                                <Button variant="outline" className="h-10 rounded-xl border-brand-navy/[0.06] bg-brand-navy/[0.02] text-xs font-bold text-brand-navy gap-2 px-4 hover:border-brand-navy/10">
-                                                    <Calendar className="w-3.5 h-3.5 text-blue-500" />
+                                                <Button variant="outline" className="h-7 rounded-md border-gray-200 bg-white text-[11px] font-semibold text-brand-navy gap-1.5 px-2.5 hover:border-gray-300">
+                                                    <Calendar className="w-3 h-3 text-brand-navy/60" />
                                                     {filterCustomRange?.from ? (
                                                         filterCustomRange.to ? (
                                                             <>{format(filterCustomRange.from, 'MMM dd')} — {format(filterCustomRange.to, 'MMM dd, yyyy')}</>
                                                         ) : format(filterCustomRange.from, 'MMM dd, yyyy')
-                                                    ) : 'Select range...'}
+                                                    ) : 'Select range…'}
                                                 </Button>
                                             </PopoverTrigger>
-                                            <PopoverContent className="w-auto p-0 rounded-[24px] border-none shadow-2xl shadow-brand-navy/10" align="start">
+                                            <PopoverContent className="w-auto p-0 rounded-xl border border-gray-100" align="start">
                                                 <CalendarComponent
                                                     mode="range"
                                                     selected={calendarRange}
@@ -2425,7 +2435,7 @@ const Orders = () => {
                                                     modifiers={calendarPreviewRange ? { preview: calendarPreviewRange } : undefined}
                                                     modifiersClassNames={{ preview: 'bg-accent text-accent-foreground' }}
                                                     numberOfMonths={2}
-                                                    className="rounded-[24px] p-4"
+                                                    className="rounded-xl p-3"
                                                 />
                                             </PopoverContent>
                                         </Popover>
