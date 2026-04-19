@@ -22,8 +22,7 @@ export const SectionWrapper = ({
     title,
     description,
     icon: Icon,
-    iconBg = 'bg-brand-navy/5',
-    iconColor = 'text-brand-navy',
+    iconColor = 'text-gray-400',
     children,
     loading = false,
     defaultOpen = true,
@@ -33,26 +32,24 @@ export const SectionWrapper = ({
     return (
         <motion.section
             id={id}
-            initial={{ opacity: 0, y: 30 }}
+            initial={{ opacity: 0, y: 12 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: '-50px' }}
-            transition={{ duration: 0.5 }}
+            transition={{ duration: 0.35 }}
         >
-            <Card className="border-0 shadow-sm rounded-3xl overflow-hidden">
+            <Card className="border border-gray-100 shadow-none rounded-xl overflow-hidden">
                 <CardHeader
-                    className="cursor-pointer select-none"
+                    className="cursor-pointer select-none px-3.5 pt-2.5 pb-2"
                     onClick={() => setIsOpen(!isOpen)}
                 >
                     <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <div className={cn('w-12 h-12 rounded-2xl flex items-center justify-center', iconBg)}>
-                                <Icon className={cn('w-6 h-6', iconColor)} />
-                            </div>
+                        <div className="flex items-center gap-2">
+                            <Icon className={cn('w-3 h-3', iconColor)} />
                             <div>
-                                <CardTitle className="text-lg font-black text-brand-navy">
+                                <CardTitle className="text-[12px] font-semibold text-brand-navy leading-tight">
                                     {title}
                                 </CardTitle>
-                                <CardDescription className="text-xs text-gray-400 mt-0.5">
+                                <CardDescription className="text-[9px] text-gray-400 uppercase tracking-[0.14em] mt-0.5">
                                     {description}
                                 </CardDescription>
                             </div>
@@ -61,7 +58,7 @@ export const SectionWrapper = ({
                             animate={{ rotate: isOpen ? 180 : 0 }}
                             transition={{ duration: 0.2 }}
                         >
-                            <ChevronDown className="w-5 h-5 text-gray-400" />
+                            <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
                         </motion.div>
                     </div>
                 </CardHeader>
@@ -71,9 +68,9 @@ export const SectionWrapper = ({
                             initial={{ height: 0, opacity: 0 }}
                             animate={{ height: 'auto', opacity: 1 }}
                             exit={{ height: 0, opacity: 0 }}
-                            transition={{ duration: 0.3, ease: 'easeInOut' }}
+                            transition={{ duration: 0.25, ease: 'easeInOut' }}
                         >
-                            <CardContent className="pt-0">
+                            <CardContent className="px-3.5 pb-3.5 pt-0">
                                 {loading ? <SectionSkeleton /> : children}
                             </CardContent>
                         </motion.div>
@@ -85,15 +82,15 @@ export const SectionWrapper = ({
 };
 
 const SectionSkeleton = () => (
-    <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
             {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-28 rounded-2xl" />
+                <Skeleton key={i} className="h-16 rounded-lg" />
             ))}
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Skeleton className="h-72 rounded-2xl" />
-            <Skeleton className="h-72 rounded-2xl" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+            <Skeleton className="h-48 rounded-lg" />
+            <Skeleton className="h-48 rounded-lg" />
         </div>
     </div>
 );

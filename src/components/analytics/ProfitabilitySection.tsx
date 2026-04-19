@@ -2,26 +2,36 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { isDeliveredForCommission } from '@/lib/commercialCommission';
+import {
+    AnalyticsOrder,
+    cogsForOrder,
+    inWindow,
+    isProvisional,
+    isRevenueOrder,
+    isReturned,
+    overlapFraction,
+    payoutMonthOverlap,
+    placementTimestamp,
+    pureRevenueForOrder,
+    returnFeeForOrder,
+    shippingCostForDelivered,
+} from '@/lib/analyticsDefinitions';
 import { SectionWrapper } from './SectionWrapper';
-import { StatCard } from './StatCard';
+import { SectionStory } from './SectionStory';
 import { DateFilter } from './AnalyticsDateFilter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
-    DollarSign, TrendingUp, TrendingDown, PieChart as PieIcon,
-    AlertTriangle, Lightbulb, Target, Percent, ArrowUpRight, Wallet, Hourglass,
+    DollarSign, TrendingUp, AlertTriangle, Lightbulb,
 } from 'lucide-react';
 import {
-    AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-    ResponsiveContainer, PieChart, Pie, Cell, Legend,
+    AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
-import { format, startOfDay, endOfDay, isWithinInterval, startOfMonth, eachMonthOfInterval, subMonths } from 'date-fns';
+import {
+    format, startOfDay, endOfDay, startOfMonth, endOfMonth, eachMonthOfInterval, subMonths,
+} from 'date-fns';
 
-const EXPENSE_COLORS = [
-    '#3b5e5e', '#7a9385', '#c93942', '#daddcc', '#F97316', '#6366F1',
-    '#0EA5E9', '#14B8A6', '#A855F7', '#EC4899', '#84CC16', '#F43F5E',
-    '#22D3EE', '#FBBF24', '#8B5CF6', '#EF4444', '#06B6D4', '#D946EF',
-];
+// Ranked cost tones (darkest = biggest expense). Uses the locked palette — no rainbow.
+const EXPENSE_COLORS = ['#3b5e5e', '#6b8784', '#9aaba8', '#c5cdcb', '#d1d5db', '#e5e7eb'];
 
 interface ProfitabilitySectionProps {
     businessId: string;
@@ -29,14 +39,18 @@ interface ProfitabilitySectionProps {
 }
 
 export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySectionProps) => {
-    const { deliveredPkgIds, isOrderCategory } = useStatusCategories();
+    const { deliveredPkgIds, returnedPkgIds, paidOrderIds, unpaidOrderIds } = useStatusCategories();
 
+    // Orders query — adds all fields needed for pure revenue, snapshot COGS,
+    // return-fee lookup, and delivered/returned classification.
     const { data: orders, isLoading: ordersLoading } = useQuery({
         queryKey: ['analytics-orders-profit', businessId],
         queryFn: async () => {
             const { data } = await supabase
                 .from('orders')
-                .select('id, price, shipping_cost, raw_price, date, order_status_id, package_status_id, package_status_label, order_statuses(code), package_statuses(label), order_items(quantity, unit_price, product_id, accessory_id, accessory_quantity, accessory_unit_price)')
+                .select(
+                    'id, price, shipping_cost, raw_price, include_delivery_in_total, date, date_livraison, updated_at, order_status_id, package_status_id, package_status_label, tracking_number, courier_id, company_id, master_city_id, city_id, order_statuses(code), package_statuses(label, category), order_items(quantity, unit_price, total_price, product_id, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot)',
+                )
                 .eq('DigiCom Business', businessId)
                 .is('date_deleted', null);
             return data || [];
@@ -47,7 +61,7 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
     const { data: products } = useQuery({
         queryKey: ['analytics-products', businessId],
         queryFn: async () => {
-            const { data } = await supabase.from('products').select('id, cost_price, selling_price, name').eq('DigiCom Business', businessId);
+            const { data } = await supabase.from('products').select('id, cost_price, name').eq('DigiCom Business', businessId);
             return data || [];
         },
         enabled: !!businessId,
@@ -65,40 +79,42 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
     const { data: expenses } = useQuery({
         queryKey: ['analytics-expenses', businessId],
         queryFn: async () => {
-            const { data } = await supabase.from('expenses').select('id, amount, date, type_id, expense_types(name)').eq('DigiCom Business', businessId);
+            const { data } = await supabase
+                .from('expenses')
+                .select('id, amount, date, type_id, expense_types(name, recurrent)')
+                .eq('DigiCom Business', businessId);
             return data || [];
         },
         enabled: !!businessId,
     });
 
-    const { data: sellerPayments } = useQuery({
-        queryKey: ['analytics-seller-payments', businessId],
+    // Seller earnings (accrual) — daily rows matching server-side payout math.
+    const { data: sellerEarnings } = useQuery({
+        queryKey: ['analytics-seller-daily-earnings', businessId],
         queryFn: async () => {
-            const { data } = await supabase.from('seller_payments').select('id, seller_id, total_amount, salary_earned, commission_earned, delivered_orders, days_present, status, payout_month, created_at').eq('DigiCom Business', businessId);
-            return data || [];
+            const { data } = await supabase
+                .from('seller_daily_earnings')
+                .select('seller_id, date, salary_earned, commission_earned, total_earned')
+                .eq('DigiCom Business', businessId);
+            return (data || []) as Array<{
+                seller_id: string;
+                date: string;
+                salary_earned: number | string | null;
+                commission_earned: number | string | null;
+                total_earned: number | string | null;
+            }>;
         },
         enabled: !!businessId,
     });
 
-    // ── Media buyer payouts (new role — salary or commission) ─────
     const { data: mediabuyerPayments } = useQuery({
         queryKey: ['analytics-mediabuyer-payments', businessId],
         queryFn: async () => {
             const { data } = await (supabase as any)
                 .from('mediabuyer_payments')
-                .select('id, mediabuyer_id, total_amount, salary_earned, commission_earned, payment_type, payout_month, status, created_at')
+                .select('id, total_amount, payout_month')
                 .eq('DigiCom Business', businessId);
-            return (data || []) as Array<{
-                id: string;
-                mediabuyer_id: string;
-                total_amount: number | string;
-                salary_earned: number | string;
-                commission_earned: number | string;
-                payment_type: 'commission' | 'salary';
-                payout_month: string; // 'YYYY-MM'
-                status: 'pending' | 'paid';
-                created_at: string;
-            }>;
+            return (data || []) as Array<{ id: string; total_amount: number | string; payout_month: string }>;
         },
         enabled: !!businessId,
     });
@@ -112,15 +128,50 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
         enabled: !!businessId,
     });
 
-    // ── Global ads (media-buyer campaigns) ─────────────────────────
     const { data: campaignEntries } = useQuery({
         queryKey: ['analytics-campaign-entries-profit', businessId],
         queryFn: async () => {
             const { data } = await (supabase as any)
                 .from('campaign_daily_entries')
-                .select('id, campaign_id, entry_date, spend, platform')
+                .select('entry_date, spend')
                 .eq('DigiCom Business', businessId);
-            return (data || []) as Array<{ id: string; campaign_id: string | null; entry_date: string; spend: number | string; platform: string }>;
+            return (data || []) as Array<{ entry_date: string; spend: number | string }>;
+        },
+        enabled: !!businessId,
+    });
+
+    // Return fees — lookup table keyed by (courier_id|city_id) and (company_id|city_id).
+    // Prefer master_city_id; fallback to city_id.
+    const { data: courierFees } = useQuery({
+        queryKey: ['analytics-courier-fees', businessId],
+        queryFn: async () => {
+            const { data } = await supabase
+                .from('courier_fees')
+                .select('courier_id, city_id, master_city_id, return_fee')
+                .eq('DigiCom Business', businessId);
+            return (data || []) as Array<{
+                courier_id: string;
+                city_id: string | null;
+                master_city_id: string | null;
+                return_fee: number | string | null;
+            }>;
+        },
+        enabled: !!businessId,
+    });
+
+    const { data: companyFees } = useQuery({
+        queryKey: ['analytics-company-fees', businessId],
+        queryFn: async () => {
+            const { data } = await supabase
+                .from('company_fees')
+                .select('company_id, city_id, master_city_id, return_fee')
+                .eq('DigiCom Business', businessId);
+            return (data || []) as Array<{
+                company_id: string;
+                city_id: string | null;
+                master_city_id: string | null;
+                return_fee: number | string | null;
+            }>;
         },
         enabled: !!businessId,
     });
@@ -129,217 +180,326 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
 
     const metrics = useMemo(() => {
         if (!orders) return null;
+        // Supabase-generated row types don't know about newly added columns until
+        // types are regenerated. Cast once so the analytics helpers get a clean
+        // structural type instead of SelectQueryError wrappers.
+        const ordersTyped = orders as unknown as AnalyticsOrder[];
 
-        type ProfitOrder = Parameters<typeof isDeliveredForCommission>[0] & { order_status_id: string | null };
-        // order_items: quantity integer NOT NULL, product_id uuid NOT NULL, accessory_id uuid nullable, accessory_quantity integer nullable (verified via MCP)
-        type ProfitOrderItem = { quantity: number; product_id: string; accessory_id: string | null; accessory_quantity: number | null };
-        const isPaidAndDelivered = (o: ProfitOrder) =>
-            o.order_status_id && isOrderCategory(o.order_status_id, 'paid') &&
-            isDeliveredForCommission(o, deliveredPkgIds);
+        const windowStart = dateFilter.from ? startOfDay(dateFilter.from) : new Date(0);
+        const windowEnd = dateFilter.to ? endOfDay(dateFilter.to) : new Date();
 
-        const isInRange = (dateStr: string | null) => {
-            if (!dateStr) return true;
-            if (!dateFilter.from && !dateFilter.to) return true;
-            const d = new Date(dateStr);
-            const from = dateFilter.from ? startOfDay(dateFilter.from) : new Date(0);
-            const to = dateFilter.to ? endOfDay(dateFilter.to) : new Date();
-            return isWithinInterval(d, { start: from, end: to });
-        };
+        // Build lookups.
+        const productCost = new Map<string, number>();
+        (products || []).forEach(p => productCost.set(p.id, Number(p.cost_price || 0)));
+        const accessoryCost = new Map<string, number>();
+        (accessories || []).forEach(a => accessoryCost.set(a.id, Number(a.cost_price || 0)));
 
-        const filteredOrders = orders.filter(o => isInRange(o.date));
+        const returnFeeByCourierCity = new Map<string, number>();
+        (courierFees || []).forEach(r => {
+            const city = r.master_city_id || r.city_id;
+            if (r.courier_id && city) {
+                returnFeeByCourierCity.set(`${r.courier_id}|${city}`, Number(r.return_fee || 0));
+            }
+        });
+        const returnFeeByCompanyCity = new Map<string, number>();
+        (companyFees || []).forEach(r => {
+            const city = r.master_city_id || r.city_id;
+            if (r.company_id && city) {
+                returnFeeByCompanyCity.set(`${r.company_id}|${city}`, Number(r.return_fee || 0));
+            }
+        });
 
-        const revenueOrders = filteredOrders.filter(isPaidAndDelivered);
+        // ── Orders classification ───────────────────────────────────────
+        // Revenue is anchored to placement date (per locked rule); date_deleted already filtered server-side.
+        const ordersInWindow = ordersTyped.filter(o => inWindow(placementTimestamp(o), windowStart, windowEnd));
 
-        const totalRevenue = revenueOrders.reduce((sum, o) => sum + Number(o.price || 0), 0);
+        const revenueOrders = ordersInWindow.filter(o => isRevenueOrder(o, deliveredPkgIds, paidOrderIds));
+        const provisionalOrders = ordersInWindow.filter(o => isProvisional(o, deliveredPkgIds, unpaidOrderIds));
+        const returnedOrders = ordersInWindow.filter(o => isReturned(o, returnedPkgIds));
 
-        const productMap = new Map((products || []).map(p => [p.id, Number(p.cost_price || 0)]));
-        const accessoryMap = new Map((accessories || []).map(a => [a.id, Number(a.cost_price || 0)]));
+        // ── Pure revenue (product-only, shipping stripped) ──────────────
+        const totalRevenue = revenueOrders.reduce((s, o) => s + pureRevenueForOrder(o), 0);
 
+        // ── COGS + shipping (only for revenue orders — returns contribute zero) ──
         let totalCOGS = 0;
         let totalShippingCost = 0;
         revenueOrders.forEach(o => {
-            totalShippingCost += Number(o.shipping_cost || 0);
-            const items = ((o as unknown as { order_items?: ProfitOrderItem[] }).order_items) || [];
-            items.forEach((item: ProfitOrderItem) => {
-                const productCost = productMap.get(item.product_id) || 0;
-                totalCOGS += Number(item.quantity || 0) * productCost;
-                if (item.accessory_id) {
-                    const accCost = accessoryMap.get(item.accessory_id) || 0;
-                    totalCOGS += Number(item.accessory_quantity || 0) * accCost;
-                }
-            });
+            totalCOGS += cogsForOrder(o, productCost, accessoryCost);
+            totalShippingCost += shippingCostForDelivered(o);
         });
 
-        const filteredExpenses = (expenses || []).filter(e => isInRange(e.date));
-        const totalExpenses = filteredExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+        // ── Return fees (only for returned orders in the window) ────────
+        const totalReturnFees = returnedOrders.reduce(
+            (s, o) => s + returnFeeForOrder(o, returnFeeByCourierCity, returnFeeByCompanyCity),
+            0,
+        );
 
-        // ── Salaries (accrual basis: use payout_month, not created_at) ──
-        // Seller payments store payout_month as 'YYYY-MM-01' (date-like); MB payouts as 'YYYY-MM'.
-        // Normalize both to a first-day-of-month Date and range-check it.
-        const payoutMonthToDate = (pm: string | null): string | null => {
-            if (!pm) return null;
-            // Handles 'YYYY-MM-01', 'YYYY-MM-DD', or 'YYYY-MM'
-            if (/^\d{4}-\d{2}$/.test(pm)) return `${pm}-01`;
-            return pm;
-        };
-        const filteredSellerPayments = (sellerPayments || []).filter(sp => isInRange(payoutMonthToDate(sp.payout_month) || sp.created_at));
-        const totalSellerSalaries = filteredSellerPayments.reduce((sum, sp) => sum + Number(sp.total_amount || 0), 0);
+        // ── Owner expenses — pro-rate recurrent; count one-off if date in window ──
+        let totalExpenses = 0;
+        const expenseByType = new Map<string, number>();
+        (expenses || []).forEach(e => {
+            const raw = Number(e.amount || 0);
+            if (raw <= 0) return;
+            const eType = (e.expense_types as unknown as { name?: string | null; recurrent?: boolean | null } | null);
+            const isRecurrent = !!eType?.recurrent;
+            const eDate = e.date ? new Date(e.date) : null;
+            let contrib = 0;
+            if (isRecurrent && eDate && !Number.isNaN(eDate.getTime())) {
+                // Expense represents a month of spend; pro-rate its month against window.
+                const mStart = startOfMonth(eDate);
+                const mEnd = endOfMonth(eDate);
+                contrib = raw * overlapFraction(mStart, mEnd, windowStart, windowEnd);
+            } else if (eDate && inWindow(eDate, windowStart, windowEnd)) {
+                contrib = raw;
+            }
+            if (contrib > 0) {
+                totalExpenses += contrib;
+                const name = (eType?.name?.trim()) || 'Uncategorized';
+                expenseByType.set(name, (expenseByType.get(name) || 0) + contrib);
+            }
+        });
 
-        const filteredMBPayments = (mediabuyerPayments || []).filter(mp => isInRange(payoutMonthToDate(mp.payout_month) || mp.created_at));
-        const totalMediabuyerSalaries = filteredMBPayments.reduce((sum, mp) => sum + Number(mp.total_amount || 0), 0);
+        // ── Salaries (accrual) ───────────────────────────────────────────
+        // Sellers: seller_daily_earnings.date in window (daily granularity).
+        const totalSellerSalaries = (sellerEarnings || [])
+            .filter(r => {
+                if (!r.date) return false;
+                const d = new Date(r.date);
+                return !Number.isNaN(d.getTime()) && inWindow(d, windowStart, windowEnd);
+            })
+            .reduce((s, r) => s + Number(r.total_earned || 0), 0);
+
+        // MBs: pro-rate payout_month by window overlap.
+        const totalMediabuyerSalaries = (mediabuyerPayments || []).reduce((s, mp) => {
+            const frac = payoutMonthOverlap(mp.payout_month, windowStart, windowEnd);
+            return frac > 0 ? s + Number(mp.total_amount || 0) * frac : s;
+        }, 0);
 
         const totalSalaries = totalSellerSalaries + totalMediabuyerSalaries;
 
-        // ── Ad spend (product ads + global ads) ──
-        const filteredAds = (adsHistory || []).filter(a => isInRange(a.start_date));
-        const spendProductAds = filteredAds.reduce((sum, a) => sum + Number(a.amount || 0), 0);
+        // ── Ad spend ─────────────────────────────────────────────────────
+        let spendProductAds = 0;
+        (adsHistory || []).forEach(a => {
+            const s = a.start_date ? new Date(a.start_date) : null;
+            const e = a.end_date ? new Date(a.end_date) : s;
+            const frac = overlapFraction(s, e, windowStart, windowEnd);
+            if (frac > 0) spendProductAds += Number(a.amount || 0) * frac;
+        });
 
-        const filteredCampaignEntries = (campaignEntries || []).filter(e => isInRange(e.entry_date));
-        const spendGlobalAds = filteredCampaignEntries.reduce((sum, e) => sum + Number(e.spend || 0), 0);
+        const spendGlobalAds = (campaignEntries || [])
+            .filter(ce => {
+                if (!ce.entry_date) return false;
+                const d = new Date(ce.entry_date);
+                return !Number.isNaN(d.getTime()) && inWindow(d, windowStart, windowEnd);
+            })
+            .reduce((s, ce) => s + Number(ce.spend || 0), 0);
 
         const totalAdSpend = spendProductAds + spendGlobalAds;
 
-        const allExpenses = totalCOGS + totalShippingCost + totalExpenses + totalSalaries + totalAdSpend;
+        // ── Totals ───────────────────────────────────────────────────────
+        const allExpenses =
+            totalCOGS + totalShippingCost + totalReturnFees + totalExpenses + totalSalaries + totalAdSpend;
         const netProfit = totalRevenue - allExpenses;
         const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
         const roi = allExpenses > 0 ? (netProfit / allExpenses) * 100 : 0;
 
-        // Group "Other Expenses" by individual expense_type name
-        const expenseByType = new Map<string, number>();
-        filteredExpenses.forEach(e => {
-            const typeName = (e.expense_types as any)?.name?.trim() || 'Uncategorized';
-            expenseByType.set(typeName, (expenseByType.get(typeName) || 0) + Number(e.amount || 0));
-        });
-
         const expenseBreakdown = [
-            { name: 'COGS (Product Cost)', value: totalCOGS },
+            { name: 'Product COGS', value: totalCOGS },
             { name: 'Shipping', value: totalShippingCost },
-            { name: 'Product Ads', value: spendProductAds },
-            { name: 'Global Ads', value: spendGlobalAds },
-            { name: 'Seller Salaries', value: totalSellerSalaries },
-            { name: 'Media Buyer Salaries', value: totalMediabuyerSalaries },
+            { name: 'Return fees', value: totalReturnFees },
+            { name: 'Product ads', value: spendProductAds },
+            { name: 'Campaign ads', value: spendGlobalAds },
+            { name: 'Seller salaries', value: totalSellerSalaries },
+            { name: 'Media buyer salaries', value: totalMediabuyerSalaries },
             ...Array.from(expenseByType.entries()).map(([name, value]) => ({ name, value })),
-        ].filter(e => e.value > 0).sort((a, b) => b.value - a.value);
+        ]
+            .filter(e => e.value > 0)
+            .sort((a, b) => b.value - a.value);
 
-        const rangeStart = dateFilter.from || (filteredOrders.length > 0
-            ? new Date(Math.min(...filteredOrders.filter(o => o.date).map(o => new Date(o.date!).getTime())))
+        // ── Trend (monthly) ──────────────────────────────────────────────
+        const rangeStart = dateFilter.from || (ordersInWindow.length > 0
+            ? new Date(Math.min(...ordersInWindow.map(o => placementTimestamp(o)?.getTime() ?? Date.now())))
             : subMonths(new Date(), 6));
         const rangeEnd = dateFilter.to || new Date();
 
         const months = eachMonthOfInterval({ start: rangeStart, end: rangeEnd });
         const trendData = months.map(month => {
             const monthStart = startOfMonth(month);
-            const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
+            const monthEnd = endOfMonth(month);
             const monthLabel = format(month, 'MMM yy');
-            const monthYM = format(monthStart, 'yyyy-MM'); // for payout_month comparison
-            const inMonth = (d: Date) => isWithinInterval(d, { start: monthStart, end: monthEnd });
 
-            const monthRevenue = revenueOrders
-                .filter(o => o.date && inMonth(new Date(o.date)))
-                .reduce((sum, o) => sum + Number(o.price || 0), 0);
+            const revenueInMonth = revenueOrders.filter(o =>
+                inWindow(placementTimestamp(o), monthStart, monthEnd),
+            );
+            const returnedInMonth = returnedOrders.filter(o =>
+                inWindow(placementTimestamp(o), monthStart, monthEnd),
+            );
 
-            // Per-month expense = Other Expenses + Product Ads + Global Ads + Seller Salaries + MB Salaries
-            const monthOther = filteredExpenses
-                .filter(e => inMonth(new Date(e.date)))
-                .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+            const monthRevenue = revenueInMonth.reduce((s, o) => s + pureRevenueForOrder(o), 0);
+            const monthCogs = revenueInMonth.reduce(
+                (s, o) => s + cogsForOrder(o, productCost, accessoryCost),
+                0,
+            );
+            const monthShipping = revenueInMonth.reduce(
+                (s, o) => s + shippingCostForDelivered(o),
+                0,
+            );
+            const monthReturnFees = returnedInMonth.reduce(
+                (s, o) => s + returnFeeForOrder(o, returnFeeByCourierCity, returnFeeByCompanyCity),
+                0,
+            );
 
-            const monthProductAds = filteredAds
-                .filter(a => inMonth(new Date(a.start_date)))
-                .reduce((sum, a) => sum + Number(a.amount || 0), 0);
-
-            const monthGlobalAds = filteredCampaignEntries
-                .filter(e => inMonth(new Date(e.entry_date)))
-                .reduce((sum, e) => sum + Number(e.spend || 0), 0);
-
-            const monthSellerSalaries = filteredSellerPayments
-                .filter(sp => (payoutMonthToDate(sp.payout_month) || '').slice(0, 7) === monthYM)
-                .reduce((sum, sp) => sum + Number(sp.total_amount || 0), 0);
-
-            const monthMBSalaries = filteredMBPayments
-                .filter(mp => (payoutMonthToDate(mp.payout_month) || '').slice(0, 7) === monthYM)
-                .reduce((sum, mp) => sum + Number(mp.total_amount || 0), 0);
-
-            const monthExpenses = monthOther + monthProductAds + monthGlobalAds + monthSellerSalaries + monthMBSalaries;
-
-            return { month: monthLabel, revenue: monthRevenue, expenses: monthExpenses, profit: monthRevenue - monthExpenses, provisional: 0 };
-        });
-
-        // ── Provisional: delivered package but order NOT yet paid (unpaid) ──
-        // Computed here so we can also stitch provisional into per-month trendData
-        const isDeliveredUnpaid = (o: ProfitOrder) =>
-            isDeliveredForCommission(o, deliveredPkgIds) &&
-            o.order_status_id &&
-            isOrderCategory(o.order_status_id, 'unpaid');
-        const provisionOrders = filteredOrders.filter(isDeliveredUnpaid);
-
-        // Build per-order provision amounts (COGS + shipping deducted)
-        const provisionByOrderId = new Map<string, number>();
-        provisionOrders.forEach(o => {
-            const ship = Number(o.shipping_cost || 0);
-            let cogs = 0;
-            const items = ((o as unknown as { order_items?: ProfitOrderItem[] }).order_items) || [];
-            items.forEach((item: ProfitOrderItem) => {
-                const productCost = productMap.get(item.product_id) || 0;
-                cogs += Number(item.quantity || 0) * productCost;
-                if (item.accessory_id) {
-                    const accCost = accessoryMap.get(item.accessory_id) || 0;
-                    cogs += Number(item.accessory_quantity || 0) * accCost;
+            const monthOther = (expenses || []).reduce((sum, e) => {
+                const raw = Number(e.amount || 0);
+                if (raw <= 0) return sum;
+                const eType = (e.expense_types as unknown as { recurrent?: boolean | null } | null);
+                const isRecurrent = !!eType?.recurrent;
+                const eDate = e.date ? new Date(e.date) : null;
+                if (!eDate || Number.isNaN(eDate.getTime())) return sum;
+                if (isRecurrent) {
+                    const mS = startOfMonth(eDate);
+                    const mE = endOfMonth(eDate);
+                    return sum + raw * overlapFraction(mS, mE, monthStart, monthEnd);
                 }
-            });
-            provisionByOrderId.set(o.id, Number(o.price || 0) - cogs - ship);
+                return inWindow(eDate, monthStart, monthEnd) ? sum + raw : sum;
+            }, 0);
+
+            const monthProductAds = (adsHistory || []).reduce((sum, a) => {
+                const s = a.start_date ? new Date(a.start_date) : null;
+                const e = a.end_date ? new Date(a.end_date) : s;
+                const frac = overlapFraction(s, e, monthStart, monthEnd);
+                return frac > 0 ? sum + Number(a.amount || 0) * frac : sum;
+            }, 0);
+
+            const monthGlobalAds = (campaignEntries || [])
+                .filter(ce => {
+                    if (!ce.entry_date) return false;
+                    const d = new Date(ce.entry_date);
+                    return !Number.isNaN(d.getTime()) && inWindow(d, monthStart, monthEnd);
+                })
+                .reduce((s, ce) => s + Number(ce.spend || 0), 0);
+
+            const monthSellerSalaries = (sellerEarnings || [])
+                .filter(r => {
+                    if (!r.date) return false;
+                    const d = new Date(r.date);
+                    return !Number.isNaN(d.getTime()) && inWindow(d, monthStart, monthEnd);
+                })
+                .reduce((sum, r) => sum + Number(r.total_earned || 0), 0);
+
+            const monthMBSalaries = (mediabuyerPayments || []).reduce((sum, mp) => {
+                const frac = payoutMonthOverlap(mp.payout_month, monthStart, monthEnd);
+                return frac > 0 ? sum + Number(mp.total_amount || 0) * frac : sum;
+            }, 0);
+
+            const monthExpenses =
+                monthCogs + monthShipping + monthReturnFees + monthOther +
+                monthProductAds + monthGlobalAds + monthSellerSalaries + monthMBSalaries;
+
+            return {
+                month: monthLabel,
+                revenue: monthRevenue,
+                expenses: monthExpenses,
+                profit: monthRevenue - monthExpenses,
+                provisional: 0,
+            };
         });
 
-        // Stitch monthly provisional into trendData
+        // Build provisional per-order amounts (delivered-unpaid: pure revenue − COGS − shipping).
+        const provisionByOrderId = new Map<string, number>();
+        provisionalOrders.forEach(o => {
+            const pure = pureRevenueForOrder(o);
+            const cogs = cogsForOrder(o, productCost, accessoryCost);
+            const ship = shippingCostForDelivered(o);
+            provisionByOrderId.set(o.id, pure - cogs - ship);
+        });
+
         trendData.forEach((row, i) => {
             const monthStart = startOfMonth(months[i]);
-            const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
-            const monthProv = provisionOrders
-                .filter(o => o.date && isWithinInterval(new Date(o.date), { start: monthStart, end: monthEnd }))
-                .reduce((sum, o) => sum + (provisionByOrderId.get(o.id) ?? 0), 0);
-            row.provisional = monthProv;
+            const monthEnd = endOfMonth(months[i]);
+            row.provisional = provisionalOrders
+                .filter(o => inWindow(placementTimestamp(o), monthStart, monthEnd))
+                .reduce((s, o) => s + (provisionByOrderId.get(o.id) ?? 0), 0);
         });
 
-        const provisionalRevenue = provisionOrders.reduce((sum, o) => sum + Number(o.price || 0), 0);
+        const provisionalRevenue = provisionalOrders.reduce((s, o) => s + pureRevenueForOrder(o), 0);
         const provisionalProfit = Array.from(provisionByOrderId.values()).reduce((s, v) => s + v, 0);
 
         return {
-            totalRevenue, allExpenses, netProfit, profitMargin, roi,
-            totalCOGS, totalShippingCost, totalAdSpend, totalSalaries, totalExpenses,
-            spendProductAds, spendGlobalAds,
-            totalSellerSalaries, totalMediabuyerSalaries,
-            expenseBreakdown, trendData, revenueOrderCount: revenueOrders.length,
-            totalOrderCount: filteredOrders.length,
-            provisionalProfit, provisionalRevenue, provisionOrderCount: provisionOrders.length,
+            totalRevenue,
+            allExpenses,
+            netProfit,
+            profitMargin,
+            roi,
+            totalCOGS,
+            totalShippingCost,
+            totalReturnFees,
+            totalAdSpend,
+            totalSalaries,
+            totalExpenses,
+            spendProductAds,
+            spendGlobalAds,
+            totalSellerSalaries,
+            totalMediabuyerSalaries,
+            expenseBreakdown,
+            trendData,
+            revenueOrderCount: revenueOrders.length,
+            totalOrderCount: ordersInWindow.length,
+            returnedOrderCount: returnedOrders.length,
+            provisionalProfit,
+            provisionalRevenue,
+            provisionOrderCount: provisionalOrders.length,
         };
-    }, [orders, products, accessories, expenses, sellerPayments, mediabuyerPayments, adsHistory, campaignEntries, dateFilter, deliveredPkgIds, isOrderCategory]);
+    }, [
+        orders, products, accessories, expenses, sellerEarnings, mediabuyerPayments,
+        adsHistory, campaignEntries, courierFees, companyFees,
+        dateFilter, deliveredPkgIds, returnedPkgIds, paidOrderIds, unpaidOrderIds,
+    ]);
 
     const insights = useMemo(() => {
         if (!metrics) return [];
         const tips: { type: 'warning' | 'success' | 'info'; text: string }[] = [];
 
         if (metrics.netProfit < 0) {
-            const biggest = metrics.expenseBreakdown.sort((a, b) => b.value - a.value)[0];
-            if (biggest) tips.push({ type: 'warning', text: `Biggest expense: ${biggest.name} at ${biggest.value.toLocaleString('fr-MA')} MAD. Focus on reducing this category first.` });
-            if (metrics.totalAdSpend > 0 && metrics.totalRevenue > 0 && metrics.totalAdSpend > metrics.totalRevenue * 0.5) {
-                tips.push({ type: 'warning', text: `Ad spend is ${((metrics.totalAdSpend / metrics.totalRevenue) * 100).toFixed(0)}% of revenue. Consider pausing low-performing campaigns.` });
+            const biggest = metrics.expenseBreakdown[0];
+            if (biggest) {
+                tips.push({
+                    type: 'warning',
+                    text: `Biggest expense: ${biggest.name} at ${Math.round(biggest.value).toLocaleString('fr-MA')} MAD. Focus on reducing this category first.`,
+                });
             }
-            if (metrics.totalShippingCost > metrics.totalRevenue * 0.2) {
-                tips.push({ type: 'warning', text: `Shipping costs are ${((metrics.totalShippingCost / metrics.totalRevenue) * 100).toFixed(0)}% of revenue. Negotiate better rates or increase free-shipping thresholds.` });
+            if (metrics.totalAdSpend > 0 && metrics.totalRevenue > 0 && metrics.totalAdSpend > metrics.totalRevenue * 0.5) {
+                tips.push({
+                    type: 'warning',
+                    text: `Ad spend is ${((metrics.totalAdSpend / metrics.totalRevenue) * 100).toFixed(0)}% of revenue. Consider pausing low-performing campaigns.`,
+                });
             }
             if (metrics.profitMargin < -20) {
-                tips.push({ type: 'warning', text: `Margins are deeply negative (${metrics.profitMargin.toFixed(1)}%). Review product pricing against cost prices.` });
+                tips.push({
+                    type: 'warning',
+                    text: `Margins are deeply negative (${metrics.profitMargin.toFixed(1)}%). Review product pricing against cost.`,
+                });
             }
         } else {
             if (metrics.profitMargin > 30) {
-                tips.push({ type: 'success', text: `Strong ${metrics.profitMargin.toFixed(1)}% margin. Consider reinvesting in ads to scale revenue.` });
+                tips.push({
+                    type: 'success',
+                    text: `Strong ${metrics.profitMargin.toFixed(1)}% margin. Consider reinvesting in ads to scale revenue.`,
+                });
             }
             if (metrics.roi > 50) {
-                tips.push({ type: 'success', text: `ROI of ${metrics.roi.toFixed(0)}% is excellent. Double down on winning channels.` });
+                tips.push({
+                    type: 'success',
+                    text: `ROI of ${metrics.roi.toFixed(0)}% is excellent. Double down on winning channels.`,
+                });
             }
             if (metrics.revenueOrderCount > 0 && metrics.totalOrderCount > 0) {
                 const conversionRate = (metrics.revenueOrderCount / metrics.totalOrderCount) * 100;
                 if (conversionRate < 30) {
-                    tips.push({ type: 'info', text: `Only ${conversionRate.toFixed(0)}% of orders convert to paid+delivered. Improving confirmation and delivery rates could multiply revenue.` });
+                    tips.push({
+                        type: 'info',
+                        text: `Only ${conversionRate.toFixed(0)}% of orders convert to paid+delivered. Improving confirmation and delivery rates could multiply revenue.`,
+                    });
                 }
             }
         }
@@ -350,250 +510,181 @@ export const ProfitabilitySection = ({ businessId, dateFilter }: ProfitabilitySe
         <SectionWrapper
             id="profitability"
             title="Profitability & P&L"
-            description="Revenue, expenses, and net profit breakdown"
+            description="Pure revenue minus every real cost — COGS, shipping, returns, ads, salaries, expenses"
             icon={DollarSign}
             iconBg="bg-emerald-50"
             iconColor="text-emerald-600"
             loading={isLoading}
         >
-            {metrics && (
-                <div className="space-y-6">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4">
-                        <StatCard
-                            title="Total Revenue"
-                            value={metrics.totalRevenue.toLocaleString('fr-MA')}
-                            suffix=" MAD"
-                            icon={DollarSign}
-                            iconBg="bg-emerald-50"
-                            iconColor="text-emerald-600"
-                            subtitle={`${metrics.revenueOrderCount} paid & delivered orders`}
-                        />
-                        <StatCard
-                            title="Total Expenses"
-                            value={metrics.allExpenses.toLocaleString('fr-MA')}
-                            suffix=" MAD"
-                            icon={Wallet}
-                            iconBg="bg-red-50"
-                            iconColor="text-red-500"
-                        />
-                        <StatCard
-                            title="Net Profit / Loss"
-                            value={metrics.netProfit.toLocaleString('fr-MA')}
-                            suffix=" MAD"
-                            icon={metrics.netProfit >= 0 ? TrendingUp : TrendingDown}
-                            iconBg={metrics.netProfit >= 0 ? 'bg-emerald-50' : 'bg-red-50'}
-                            iconColor={metrics.netProfit >= 0 ? 'text-emerald-600' : 'text-red-500'}
-                            valueColor={metrics.netProfit >= 0 ? 'text-emerald-600' : 'text-red-500'}
-                            subtitle={`${metrics.revenueOrderCount} paid orders`}
-                        />
-                        {/* Provisional profit card — amber, only per-order costs deducted */}
-                        <div className="relative">
-                            <StatCard
-                                title="Provisional Profit"
-                                value={metrics.provisionalProfit.toLocaleString('fr-MA')}
-                                suffix=" MAD"
-                                icon={Hourglass}
-                                iconBg="bg-amber-50"
-                                iconColor="text-amber-500"
-                                valueColor={metrics.provisionalProfit >= 0 ? 'text-amber-600' : 'text-red-500'}
-                                subtitle={`${metrics.provisionOrderCount} delivered, awaiting payment`}
-                                className="border border-amber-200/60 border-dashed"
-                            />
-                            <div className="absolute top-2 right-2 text-[9px] font-bold uppercase tracking-widest text-amber-400 bg-amber-50 px-1.5 py-0.5 rounded-full">
-                                Estimate
-                            </div>
-                        </div>
-                        <StatCard
-                            title="Profit Margin"
-                            value={metrics.profitMargin.toFixed(1)}
-                            suffix="%"
-                            icon={Percent}
-                            iconBg="bg-blue-50"
-                            iconColor="text-blue-600"
-                        />
-                        <StatCard
-                            title="ROI"
-                            value={metrics.roi.toFixed(1)}
-                            suffix="%"
-                            icon={Target}
-                            iconBg="bg-purple-50"
-                            iconColor="text-purple-600"
-                        />
-                        <StatCard
-                            title="Conversion"
-                            value={metrics.totalOrderCount > 0 ? ((metrics.revenueOrderCount / metrics.totalOrderCount) * 100).toFixed(1) : '0'}
-                            suffix="%"
-                            icon={ArrowUpRight}
-                            iconBg="bg-orange-50"
-                            iconColor="text-orange-600"
-                            subtitle={`${metrics.revenueOrderCount} / ${metrics.totalOrderCount} orders`}
-                        />
-                    </div>
+            {metrics && (() => {
+                const isProfit = metrics.netProfit >= 0;
+                const marginTone: 'positive' | 'warning' | 'negative' =
+                    metrics.profitMargin >= 15 ? 'positive' : metrics.profitMargin >= 0 ? 'warning' : 'negative';
+                const conversionRate = metrics.totalOrderCount > 0
+                    ? (metrics.revenueOrderCount / metrics.totalOrderCount) * 100
+                    : 0;
+                const narrative = isProfit
+                    ? `You kept ${metrics.profitMargin.toFixed(1)}% of revenue as net profit on ${metrics.revenueOrderCount} paid+delivered orders. ${
+                          metrics.provisionalProfit > 0
+                              ? `Another ${Math.round(metrics.provisionalProfit).toLocaleString('fr-MA')} MAD is pending from ${metrics.provisionOrderCount} delivered orders awaiting payment.`
+                              : ''
+                      }`
+                    : `Expenses outpaced revenue by ${Math.round(Math.abs(metrics.netProfit)).toLocaleString('fr-MA')} MAD. Review ${metrics.expenseBreakdown[0]?.name || 'top cost'} — it's your largest cost at ${metrics.allExpenses > 0 ? ((metrics.expenseBreakdown[0]?.value || 0) / metrics.allExpenses * 100).toFixed(0) : 0}% of spend.`;
+
+                return (
+                    <SectionStory
+                        hero={{
+                            label: isProfit ? 'net profit' : 'net loss',
+                            value: `${Math.round(Math.abs(metrics.netProfit)).toLocaleString('fr-MA')}`,
+                            suffix: 'MAD',
+                            tone: isProfit ? 'positive' : 'negative',
+                        }}
+                        narrative={narrative}
+                        supporting={[
+                            { label: 'Revenue', value: `${Math.round(metrics.totalRevenue).toLocaleString('fr-MA')} MAD`, sub: `${metrics.revenueOrderCount} paid+delivered` },
+                            { label: 'Expenses', value: `${Math.round(metrics.allExpenses).toLocaleString('fr-MA')} MAD`, tone: 'negative' },
+                            { label: 'Margin', value: `${metrics.profitMargin.toFixed(1)}%`, tone: marginTone },
+                            { label: 'ROI', value: `${metrics.roi.toFixed(1)}%` },
+                            { label: 'Conversion', value: `${conversionRate.toFixed(1)}%`, sub: `${metrics.revenueOrderCount}/${metrics.totalOrderCount}` },
+                            ...(metrics.provisionalProfit > 0
+                                ? [{
+                                      label: 'Provisional',
+                                      value: `${Math.round(metrics.provisionalProfit).toLocaleString('fr-MA')} MAD`,
+                                      tone: 'warning' as const,
+                                      sub: `${metrics.provisionOrderCount} awaiting payment`,
+                                  }]
+                                : []),
+                        ]}
+                    >
 
                     {/* Revenue vs Expenses — full width */}
-                    <Card className="border-0 shadow-sm rounded-3xl">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-bold text-brand-navy">Revenue vs Expenses</CardTitle>
+                    <Card className="border border-gray-100 shadow-none rounded-xl">
+                        <CardHeader className="pb-1">
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <CardTitle className="text-[12px] font-semibold text-brand-navy">Revenue vs Expenses</CardTitle>
+                                <div className="flex items-center gap-2.5 text-[10px] text-gray-500">
+                                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#059669]" /> Revenue</span>
+                                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#ef4444]" /> Expenses</span>
+                                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#d97706]" /> Provisional</span>
+                                </div>
+                            </div>
                         </CardHeader>
                         <CardContent>
-                            <ResponsiveContainer width="100%" height={300}>
-                                <AreaChart data={metrics.trendData}>
+                            <ResponsiveContainer width="100%" height={160}>
+                                <AreaChart data={metrics.trendData} margin={{ top: 4, right: 6, bottom: 0, left: 0 }}>
                                     <defs>
                                         <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#10B981" stopOpacity={0.3} />
-                                            <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
+                                            <stop offset="5%" stopColor="#059669" stopOpacity={0.22} />
+                                            <stop offset="95%" stopColor="#059669" stopOpacity={0} />
                                         </linearGradient>
                                         <linearGradient id="colorExpenses" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#c93942" stopOpacity={0.3} />
-                                            <stop offset="95%" stopColor="#c93942" stopOpacity={0} />
+                                            <stop offset="5%" stopColor="#ef4444" stopOpacity={0.22} />
+                                            <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
                                         </linearGradient>
                                         <linearGradient id="colorProvisional" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.25} />
-                                            <stop offset="95%" stopColor="#F59E0B" stopOpacity={0} />
+                                            <stop offset="5%" stopColor="#d97706" stopOpacity={0.18} />
+                                            <stop offset="95%" stopColor="#d97706" stopOpacity={0} />
                                         </linearGradient>
                                     </defs>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                                    <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9ca3af' }} />
-                                    <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} />
+                                    <CartesianGrid strokeDasharray="2 4" stroke="#f3f4f6" vertical={false} />
+                                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
+                                    <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} width={40} />
                                     <Tooltip
-                                        contentStyle={{ borderRadius: 16, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
+                                        contentStyle={{ borderRadius: 10, border: '1px solid #f3f4f6', boxShadow: 'none', fontSize: 11 }}
                                         formatter={(val: number) => `${val.toLocaleString('fr-MA')} MAD`}
                                     />
-                                    <Area type="monotone" dataKey="revenue" stroke="#10B981" fill="url(#colorRevenue)" strokeWidth={2.5} name="Revenue (paid)" />
-                                    <Area type="monotone" dataKey="expenses" stroke="#c93942" fill="url(#colorExpenses)" strokeWidth={2.5} name="Expenses" />
-                                    <Area type="monotone" dataKey="provisional" stroke="#F59E0B" fill="url(#colorProvisional)" strokeWidth={2} strokeDasharray="5 3" name="Provisional Profit" />
-                                    <Legend />
+                                    <Area type="monotone" dataKey="revenue" stroke="#059669" fill="url(#colorRevenue)" strokeWidth={1.75} name="Revenue" dot={false} />
+                                    <Area type="monotone" dataKey="expenses" stroke="#ef4444" fill="url(#colorExpenses)" strokeWidth={1.75} name="Expenses" dot={false} />
+                                    <Area type="monotone" dataKey="provisional" stroke="#d97706" fill="url(#colorProvisional)" strokeWidth={1.5} strokeDasharray="4 3" name="Provisional" dot={false} />
                                 </AreaChart>
                             </ResponsiveContainer>
                         </CardContent>
                     </Card>
 
-                    {/* Expense Breakdown — full width, donut left + detail table right */}
-                    <Card className="border-0 shadow-sm rounded-3xl">
-                        <CardHeader className="pb-0">
+                    {/* Expense Breakdown */}
+                    <Card className="border border-gray-100 shadow-none rounded-xl">
+                        <CardHeader className="pb-1">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <CardTitle className="text-sm font-bold text-brand-navy">Expense Breakdown</CardTitle>
-                                    <p className="text-xs text-muted-foreground mt-0.5">
-                                        Where your money goes — {metrics.expenseBreakdown.length} categories
+                                    <CardTitle className="text-[12px] font-semibold text-brand-navy">Expense breakdown</CardTitle>
+                                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                                        {metrics.expenseBreakdown.length} categories, sorted by size
                                     </p>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-lg font-bold text-brand-navy tabular-nums">{metrics.allExpenses.toLocaleString('fr-MA')} <span className="text-xs font-medium text-muted-foreground">MAD</span></p>
-                                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Expenses</p>
+                                    <p className="text-[14px] font-semibold text-brand-navy tabular-nums leading-none">
+                                        {Math.round(metrics.allExpenses).toLocaleString('fr-MA')} <span className="text-[10px] font-medium text-muted-foreground">MAD</span>
+                                    </p>
+                                    <p className="text-[9px] text-muted-foreground uppercase tracking-[0.14em] mt-0.5">Total expenses</p>
                                 </div>
                             </div>
                         </CardHeader>
-                        <CardContent className="pt-4">
-                            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-                                {/* Donut chart with center label */}
-                                <div className="lg:col-span-2 flex items-center justify-center">
-                                    <div className="relative">
-                                        <ResponsiveContainer width={260} height={260}>
-                                            <PieChart>
-                                                <Pie
-                                                    data={metrics.expenseBreakdown}
-                                                    cx="50%"
-                                                    cy="50%"
-                                                    innerRadius={70}
-                                                    outerRadius={115}
-                                                    paddingAngle={2}
-                                                    dataKey="value"
-                                                    stroke="none"
-                                                >
-                                                    {metrics.expenseBreakdown.map((_, i) => (
-                                                        <Cell key={i} fill={EXPENSE_COLORS[i % EXPENSE_COLORS.length]} />
-                                                    ))}
-                                                </Pie>
-                                                <Tooltip
-                                                    contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', fontSize: 12 }}
-                                                    formatter={(val: number, name: string) => [`${val.toLocaleString('fr-MA')} MAD`, name]}
+                        <CardContent className="pt-2">
+                            <div className="space-y-1.5">
+                                {metrics.expenseBreakdown.map((entry, i) => {
+                                    const pct = metrics.allExpenses > 0 ? (entry.value / metrics.allExpenses) * 100 : 0;
+                                    const maxVal = metrics.expenseBreakdown[0]?.value || 1;
+                                    const barWidth = (entry.value / maxVal) * 100;
+                                    return (
+                                        <div key={entry.name}>
+                                            <div className="flex items-center gap-2 mb-0.5">
+                                                <span
+                                                    className="w-[3px] h-3 rounded-full shrink-0"
+                                                    style={{ backgroundColor: EXPENSE_COLORS[i % EXPENSE_COLORS.length] }}
                                                 />
-                                            </PieChart>
-                                        </ResponsiveContainer>
-                                        {/* Center label */}
-                                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                                            <span className="text-[10px] uppercase tracking-widest text-muted-foreground">Top Cost</span>
-                                            <span className="text-sm font-bold text-brand-navy mt-0.5 max-w-[90px] text-center leading-tight">
-                                                {metrics.expenseBreakdown[0]?.name}
-                                            </span>
-                                            <span className="text-xs text-muted-foreground mt-0.5 tabular-nums">
-                                                {metrics.allExpenses > 0
-                                                    ? ((metrics.expenseBreakdown[0]?.value / metrics.allExpenses) * 100).toFixed(0)
-                                                    : 0}%
-                                            </span>
+                                                <span className="text-[11px] text-brand-navy/80 flex-1 truncate">{entry.name}</span>
+                                                <span className="text-[11px] font-semibold text-brand-navy tabular-nums">
+                                                    {Math.round(entry.value).toLocaleString('fr-MA')}
+                                                    <span className="text-[9px] font-normal text-muted-foreground ml-0.5">MAD</span>
+                                                </span>
+                                                <span className="text-[10px] text-muted-foreground tabular-nums w-10 text-right">
+                                                    {pct.toFixed(1)}%
+                                                </span>
+                                            </div>
+                                            <div className="ml-[11px] h-1 bg-gray-100 rounded-full overflow-hidden">
+                                                <div
+                                                    className="h-full rounded-full transition-all duration-500"
+                                                    style={{
+                                                        width: `${barWidth}%`,
+                                                        backgroundColor: EXPENSE_COLORS[i % EXPENSE_COLORS.length],
+                                                    }}
+                                                />
+                                            </div>
                                         </div>
-                                    </div>
-                                </div>
-
-                                {/* Detailed breakdown table */}
-                                <div className="lg:col-span-3 flex flex-col justify-center">
-                                    <div className="space-y-2.5">
-                                        {metrics.expenseBreakdown.map((entry, i) => {
-                                            const pct = metrics.allExpenses > 0 ? (entry.value / metrics.allExpenses) * 100 : 0;
-                                            const maxVal = metrics.expenseBreakdown[0]?.value || 1;
-                                            const barWidth = (entry.value / maxVal) * 100;
-                                            return (
-                                                <div key={entry.name} className="group">
-                                                    <div className="flex items-center gap-3 mb-1">
-                                                        <span
-                                                            className="w-2.5 h-2.5 rounded-[4px] shrink-0"
-                                                            style={{ backgroundColor: EXPENSE_COLORS[i % EXPENSE_COLORS.length] }}
-                                                        />
-                                                        <span className="text-[13px] text-brand-navy/80 flex-1 truncate">{entry.name}</span>
-                                                        <span className="text-[13px] font-semibold text-brand-navy tabular-nums">
-                                                            {entry.value.toLocaleString('fr-MA')} <span className="text-[10px] font-normal text-muted-foreground">MAD</span>
-                                                        </span>
-                                                        <span className="text-[11px] text-muted-foreground tabular-nums w-12 text-right">
-                                                            {pct.toFixed(1)}%
-                                                        </span>
-                                                    </div>
-                                                    <div className="ml-[22px] h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                                        <div
-                                                            className="h-full rounded-full transition-all duration-500"
-                                                            style={{
-                                                                width: `${barWidth}%`,
-                                                                backgroundColor: EXPENSE_COLORS[i % EXPENSE_COLORS.length],
-                                                                opacity: 0.7,
-                                                            }}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
+                                    );
+                                })}
                             </div>
                         </CardContent>
                     </Card>
 
                     {insights.length > 0 && (
-                        <Card className="border-0 shadow-sm rounded-3xl bg-gradient-to-br from-brand-navy/[0.02] to-brand-blue/[0.04]">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-bold text-brand-navy flex items-center gap-2">
-                                    <Lightbulb className="w-4 h-4 text-amber-500" />
-                                    Smart Insights
+                        <Card className="border border-gray-100 shadow-none rounded-xl">
+                            <CardHeader className="pb-1">
+                                <CardTitle className="text-[12px] font-semibold text-brand-navy flex items-center gap-1.5">
+                                    <Lightbulb className="w-3 h-3 text-amber-500" />
+                                    Insights
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <div className="space-y-3">
+                                <div className="space-y-1.5">
                                     {insights.map((insight, i) => (
-                                        <div key={i} className={`flex items-start gap-3 p-3 rounded-2xl ${
+                                        <div key={i} className={`flex items-start gap-2 px-2.5 py-1.5 rounded-md ${
                                             insight.type === 'warning' ? 'bg-red-50/60' :
                                             insight.type === 'success' ? 'bg-emerald-50/60' : 'bg-blue-50/60'
                                         }`}>
-                                            {insight.type === 'warning' && <AlertTriangle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />}
-                                            {insight.type === 'success' && <TrendingUp className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />}
-                                            {insight.type === 'info' && <Lightbulb className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />}
-                                            <p className="text-sm text-brand-navy/80">{insight.text}</p>
+                                            {insight.type === 'warning' && <AlertTriangle className="w-3 h-3 text-red-500 mt-0.5 shrink-0" />}
+                                            {insight.type === 'success' && <TrendingUp className="w-3 h-3 text-emerald-500 mt-0.5 shrink-0" />}
+                                            {insight.type === 'info' && <Lightbulb className="w-3 h-3 text-blue-500 mt-0.5 shrink-0" />}
+                                            <p className="text-[11px] text-brand-navy/80 leading-snug">{insight.text}</p>
                                         </div>
                                     ))}
                                 </div>
                             </CardContent>
                         </Card>
                     )}
-                </div>
-            )}
+                    </SectionStory>
+                );
+            })()}
         </SectionWrapper>
     );
 };

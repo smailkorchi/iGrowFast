@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { SectionWrapper } from './SectionWrapper';
-import { StatCard } from './StatCard';
+import { SectionStory } from './SectionStory';
 import { DateFilter } from './AnalyticsDateFilter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -13,7 +13,14 @@ import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
     ResponsiveContainer, BarChart, Bar, Cell, Legend,
 } from 'recharts';
-import { format, startOfDay, endOfDay, isWithinInterval, eachMonthOfInterval, startOfMonth, subMonths } from 'date-fns';
+import { format, startOfDay, endOfDay, eachMonthOfInterval, startOfMonth, endOfMonth, subMonths } from 'date-fns';
+import {
+    AnalyticsOrder,
+    inWindow,
+    normalizePhone,
+    placementTimestamp,
+    pureRevenueForOrder,
+} from '@/lib/analyticsDefinitions';
 
 const COLORS = ['#3b5e5e', '#7a9385', '#c93942', '#F97316', '#3B82F6', '#14B8A6', '#A855F7', '#EC4899'];
 
@@ -38,29 +45,35 @@ export const CustomersSection = ({ businessId, dateFilter }: CustomersSectionPro
 
     const metrics = useMemo(() => {
         if (!orders) return null;
+        const ordersTyped = orders as unknown as (AnalyticsOrder & { phone?: string | null; name?: string | null; master_cities?: { name?: string; region?: string } | null })[];
 
-        const isInRange = (dateStr: string | null) => {
-            if (!dateStr) return true;
-            if (!dateFilter.from && !dateFilter.to) return true;
-            const d = new Date(dateStr);
-            return isWithinInterval(d, {
-                start: dateFilter.from ? startOfDay(dateFilter.from) : new Date(0),
-                end: dateFilter.to ? endOfDay(dateFilter.to) : new Date(),
-            });
-        };
+        const windowStart = dateFilter.from ? startOfDay(dateFilter.from) : new Date(0);
+        const windowEnd = dateFilter.to ? endOfDay(dateFilter.to) : new Date();
 
-        const filtered = orders.filter(o => isInRange(o.date));
+        // Customer key = normalized phone (§11). Orders without a phone are skipped
+        // from customer metrics entirely (they can't be reliably deduplicated).
+        const keyFor = (o: typeof ordersTyped[number]) => normalizePhone(o.phone);
 
-        const customerMap: Record<string, { orders: number; revenue: number; firstDate: string; lastDate: string }> = {};
+        // Build the set of customers who EVER ordered before this window opened,
+        // for the "new customer" rule: no prior orders before the window start.
+        const customersSeenBefore = new Set<string>();
+        ordersTyped.forEach(o => {
+            const ts = placementTimestamp(o);
+            if (!ts || ts >= windowStart) return;
+            const k = keyFor(o);
+            if (k) customersSeenBefore.add(k);
+        });
+
+        const filtered = ordersTyped.filter(o => inWindow(placementTimestamp(o), windowStart, windowEnd));
+
+        const customerMap: Record<string, { orders: number; revenue: number }> = {};
         filtered.forEach(o => {
-            const key = o.phone || o.name || o.id;
-            if (!customerMap[key]) {
-                customerMap[key] = { orders: 0, revenue: 0, firstDate: o.date || '', lastDate: o.date || '' };
-            }
+            const key = keyFor(o);
+            if (!key) return;
+            if (!customerMap[key]) customerMap[key] = { orders: 0, revenue: 0 };
             customerMap[key].orders++;
-            customerMap[key].revenue += Number(o.price || 0);
-            if (o.date && o.date < customerMap[key].firstDate) customerMap[key].firstDate = o.date;
-            if (o.date && o.date > customerMap[key].lastDate) customerMap[key].lastDate = o.date;
+            // Use pure product revenue so customer LTV ties back to P&L revenue (§1).
+            customerMap[key].revenue += pureRevenueForOrder(o);
         });
 
         const customers = Object.values(customerMap);
@@ -71,39 +84,48 @@ export const CustomersSection = ({ businessId, dateFilter }: CustomersSectionPro
         const avgCustomerValue = totalCustomers > 0 ? customers.reduce((s, c) => s + c.revenue, 0) / totalCustomers : 0;
         const totalCustomerRevenue = customers.reduce((s, c) => s + c.revenue, 0);
 
+        // New in window = has window order AND wasn't seen before window start.
+        const newCustomersInWindow = Object.keys(customerMap).filter(k => !customersSeenBefore.has(k)).length;
+        const returningCustomersInWindow = totalCustomers - newCustomersInWindow;
+
+        // Geography — master_city canonical name (§13).
+        // Trim whitespace; orders with no resolvable city bucket under "Unknown city"
+        // so the chart never has a blank/empty label.
         const regionCounts: Record<string, number> = {};
         filtered.forEach(o => {
-            const region = (o as { master_cities?: { region?: string; name?: string } }).master_cities?.region || (o as { master_cities?: { region?: string; name?: string } }).master_cities?.name || 'Unknown';
+            const raw = (o.master_cities?.name || o.master_cities?.region || '').trim();
+            const region = raw || 'Unknown city';
             regionCounts[region] = (regionCounts[region] || 0) + 1;
         });
         const regionData = Object.entries(regionCounts)
             .sort((a, b) => b[1] - a[1])
-            .slice(0, 10)
+            .slice(0, 8)
             .map(([region, count]) => ({ region, count }));
 
         const rangeStart = dateFilter.from || subMonths(new Date(), 6);
         const rangeEnd = dateFilter.to || new Date();
         const months = eachMonthOfInterval({ start: rangeStart, end: rangeEnd });
 
-        const seenCustomers = new Set<string>();
+        // New/returning trend: walk months forward, tracking who was seen BEFORE this
+        // month plus the cumulative "seen" set across prior months in the range.
+        const seenInPriorMonths = new Set<string>(customersSeenBefore);
         const trendData = months.map(month => {
             const mStart = startOfMonth(month);
-            const mEnd = new Date(mStart.getFullYear(), mStart.getMonth() + 1, 0);
-            const monthOrders = filtered.filter(o => o.date && isWithinInterval(new Date(o.date), { start: mStart, end: mEnd }));
+            const mEnd = endOfMonth(month);
+            const monthOrders = filtered.filter(o => inWindow(placementTimestamp(o), mStart, mEnd));
 
             let newCount = 0;
             let returningCount = 0;
             const monthCustomers = new Set<string>();
             monthOrders.forEach(o => {
-                const key = o.phone || o.name || o.id;
-                if (!monthCustomers.has(key)) {
-                    monthCustomers.add(key);
-                    if (seenCustomers.has(key)) {
-                        returningCount++;
-                    } else {
-                        newCount++;
-                        seenCustomers.add(key);
-                    }
+                const key = keyFor(o);
+                if (!key || monthCustomers.has(key)) return;
+                monthCustomers.add(key);
+                if (seenInPriorMonths.has(key)) {
+                    returningCount++;
+                } else {
+                    newCount++;
+                    seenInPriorMonths.add(key);
                 }
             });
 
@@ -117,6 +139,7 @@ export const CustomersSection = ({ businessId, dateFilter }: CustomersSectionPro
         return {
             totalCustomers, repeatCustomers, repeatRate,
             avgOrdersPerCustomer, avgCustomerValue, totalCustomerRevenue,
+            newCustomersInWindow, returningCustomersInWindow,
             regionData, trendData,
         };
     }, [orders, dateFilter]);
@@ -125,78 +148,112 @@ export const CustomersSection = ({ businessId, dateFilter }: CustomersSectionPro
         <SectionWrapper
             id="customers"
             title="Customers"
-            description="Customer base, retention, and geographic distribution"
+            description="Customers keyed by phone number. New = first-ever order in this window."
             icon={Users}
-            iconBg="bg-violet-50"
-            iconColor="text-violet-600"
+            iconColor="text-gray-400"
             loading={isLoading}
         >
-            {metrics && (
-                <div className="space-y-6">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-                        <StatCard title="Total Customers" value={metrics.totalCustomers} icon={Users} iconBg="bg-violet-50" iconColor="text-violet-600" />
-                        <StatCard title="Repeat Customers" value={metrics.repeatCustomers} icon={Repeat} iconBg="bg-emerald-50" iconColor="text-emerald-600" subtitle={`${metrics.repeatRate.toFixed(1)}%`} />
-                        <StatCard title="Avg Orders/Customer" value={metrics.avgOrdersPerCustomer.toFixed(1)} icon={BarChart3} iconBg="bg-blue-50" iconColor="text-blue-600" />
-                        <StatCard title="Avg Customer Value" value={metrics.avgCustomerValue.toFixed(0)} suffix=" MAD" icon={DollarSign} iconBg="bg-amber-50" iconColor="text-amber-600" />
-                        <StatCard title="Repeat Rate" value={metrics.repeatRate.toFixed(1)} suffix="%" icon={Heart} iconBg="bg-pink-50" iconColor="text-pink-600" />
-                        <StatCard title="Total Revenue" value={metrics.totalCustomerRevenue.toLocaleString('fr-MA')} suffix=" MAD" icon={TrendingUp} iconBg="bg-teal-50" iconColor="text-teal-600" />
-                    </div>
+            {metrics && (() => {
+                const rateTone: 'positive' | 'warning' | 'negative' =
+                    metrics.repeatRate >= 30 ? 'positive' : metrics.repeatRate >= 15 ? 'warning' : 'negative';
+                const narrative = metrics.totalCustomers === 0
+                    ? 'No customer activity in this period.'
+                    : `${metrics.repeatCustomers.toLocaleString('fr-MA')} of ${metrics.totalCustomers.toLocaleString('fr-MA')} customers came back (${metrics.repeatRate.toFixed(1)}% repeat rate). Each customer spends ${metrics.avgCustomerValue.toFixed(0)} MAD on average across ${metrics.avgOrdersPerCustomer.toFixed(1)} orders. ${
+                          metrics.repeatRate < 15
+                              ? 'Retention is low — consider a loyalty loop.'
+                              : metrics.repeatRate >= 30
+                                  ? 'Strong retention.'
+                                  : ''
+                      }`;
 
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        <Card className="border-0 shadow-sm rounded-3xl">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-bold text-brand-navy">New vs Returning</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <ResponsiveContainer width="100%" height={280}>
-                                    <AreaChart data={metrics.trendData}>
-                                        <defs>
-                                            <linearGradient id="colorNew" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3} />
-                                                <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
-                                            </linearGradient>
-                                            <linearGradient id="colorReturning" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#10B981" stopOpacity={0.3} />
-                                                <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
-                                            </linearGradient>
-                                        </defs>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                                        <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#9ca3af' }} />
-                                        <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} />
-                                        <Tooltip contentStyle={{ borderRadius: 16, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} />
-                                        <Area type="monotone" dataKey="new" stroke="#3B82F6" fill="url(#colorNew)" strokeWidth={2.5} name="New Customers" stackId="1" />
-                                        <Area type="monotone" dataKey="returning" stroke="#10B981" fill="url(#colorReturning)" strokeWidth={2.5} name="Returning" stackId="1" />
-                                        <Legend />
-                                    </AreaChart>
-                                </ResponsiveContainer>
-                            </CardContent>
-                        </Card>
+                return (
+                    <SectionStory
+                        hero={{
+                            label: 'repeat rate',
+                            value: `${metrics.repeatRate.toFixed(1)}%`,
+                            tone: rateTone,
+                        }}
+                        narrative={narrative}
+                        supporting={[
+                            { label: 'Customers', value: metrics.totalCustomers.toLocaleString('fr-MA') },
+                            { label: 'New', value: metrics.newCustomersInWindow.toLocaleString('fr-MA'), tone: 'positive' },
+                            { label: 'Returning', value: metrics.returningCustomersInWindow.toLocaleString('fr-MA') },
+                            { label: 'Orders / cust', value: metrics.avgOrdersPerCustomer.toFixed(1) },
+                            { label: 'Avg LTV', value: `${Math.round(metrics.avgCustomerValue).toLocaleString('fr-MA')} MAD` },
+                            { label: 'Revenue', value: `${Math.round(metrics.totalCustomerRevenue).toLocaleString('fr-MA')} MAD` },
+                        ]}
+                    >
 
-                        <Card className="border-0 shadow-sm rounded-3xl">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-bold text-brand-navy flex items-center gap-2">
-                                    <MapPin className="w-4 h-4" /> Geographic Distribution
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <ResponsiveContainer width="100%" height={280}>
-                                    <BarChart data={metrics.regionData} layout="vertical">
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                                        <XAxis type="number" tick={{ fontSize: 10, fill: '#9ca3af' }} />
-                                        <YAxis dataKey="region" type="category" tick={{ fontSize: 10, fill: '#6b7280' }} width={100} />
-                                        <Tooltip contentStyle={{ borderRadius: 16, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} />
-                                        <Bar dataKey="count" radius={[0, 8, 8, 0]} name="Orders">
-                                            {metrics.regionData.map((_, i) => (
-                                                <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                                            ))}
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </CardContent>
-                        </Card>
-                    </div>
-                </div>
-            )}
+                    <Card className="border border-gray-100 shadow-none rounded-xl">
+                        <CardHeader className="pb-1">
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <CardTitle className="text-[12px] font-semibold text-brand-navy">New vs returning</CardTitle>
+                                <div className="flex items-center gap-2.5 text-[10px] text-gray-500">
+                                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#3b5e5e]" /> New</span>
+                                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#10B981]" /> Returning</span>
+                                </div>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <ResponsiveContainer width="100%" height={140}>
+                                <AreaChart data={metrics.trendData} margin={{ top: 4, right: 6, bottom: 0, left: 0 }}>
+                                    <defs>
+                                        <linearGradient id="colorNew" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#3b5e5e" stopOpacity={0.2} />
+                                            <stop offset="95%" stopColor="#3b5e5e" stopOpacity={0} />
+                                        </linearGradient>
+                                        <linearGradient id="colorReturning" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#10B981" stopOpacity={0.2} />
+                                            <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="2 4" stroke="#f3f4f6" vertical={false} />
+                                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
+                                    <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} width={32} />
+                                    <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #f3f4f6', boxShadow: 'none', fontSize: 11 }} />
+                                    <Area type="monotone" dataKey="new" stroke="#3b5e5e" fill="url(#colorNew)" strokeWidth={1.75} name="New" stackId="1" dot={false} />
+                                    <Area type="monotone" dataKey="returning" stroke="#10B981" fill="url(#colorReturning)" strokeWidth={1.75} name="Returning" stackId="1" dot={false} />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="border border-gray-100 shadow-none rounded-xl">
+                        <CardHeader className="pb-1">
+                            <CardTitle className="text-[12px] font-semibold text-brand-navy">Top cities</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-1.5">
+                                {metrics.regionData.map((row, i) => {
+                                    const max = metrics.regionData[0]?.count || 1;
+                                    const pct = (row.count / max) * 100;
+                                    return (
+                                        <div key={row.region} className="flex items-center gap-2">
+                                            <span className="text-[10px] font-bold text-gray-400 w-5 text-right tabular-nums">{i + 1}</span>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center justify-between gap-2 mb-0.5">
+                                                    <span className="text-[11px] font-medium text-brand-navy truncate">{row.region}</span>
+                                                    <span className="text-[11px] font-semibold text-brand-navy/80 tabular-nums">{row.count}</span>
+                                                </div>
+                                                <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
+                                                    <div
+                                                        className="h-full bg-brand-navy/60 rounded-full transition-all duration-500"
+                                                        style={{ width: `${pct}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                {metrics.regionData.length === 0 && (
+                                    <p className="text-[11px] text-gray-400 text-center py-2">No city data yet</p>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+                    </SectionStory>
+                );
+            })()}
         </SectionWrapper>
     );
 };

@@ -103,10 +103,13 @@ export function useStatusCategories() {
       new Set(cats.flatMap(c => (map.get(c) || []).map(s => s.id)));
 
     const confirmedIds = collectIds(CONFIRMED_ORDER_CATS, orderCatMap);
+    const paidOrderIds = collectIds(['paid'], orderCatMap);
     const unpaidOrderIds = collectIds(['unpaid'], orderCatMap);
     const cancelledIds = collectIds(CANCELLED_ORDER_CATS, orderCatMap);
     const callbackIds = collectIds(CALLBACK_ORDER_CATS, orderCatMap);
     const pendingIds = collectIds(PENDING_ORDER_CATS, orderCatMap);
+    // "Brand new uncalled" denominator exclusion — the single `new` category.
+    const newOrderIds = collectIds(['new'], orderCatMap);
     const deliveredPkgIds = collectIds(DELIVERED_PKG_CATS, pkgCatMap);
     const shippedPkgIds = collectIds(SHIPPED_PKG_CATS, pkgCatMap);
     const returnedPkgIds = collectIds(RETURNED_PKG_CATS, pkgCatMap);
@@ -168,10 +171,12 @@ export function useStatusCategories() {
       getPkgCategory: (statusId: string) => pkgIdMap.get(statusId)?.category,
 
       confirmedIds,
+      paidOrderIds,
       unpaidOrderIds,
       cancelledIds,
       callbackIds,
       pendingIds,
+      newOrderIds,
       deliveredPkgIds,
       shippedPkgIds,
       returnedPkgIds,

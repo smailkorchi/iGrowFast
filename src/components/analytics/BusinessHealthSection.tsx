@@ -2,20 +2,26 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { isDeliveredForCommission } from '@/lib/commercialCommission';
+import {
+    AnalyticsOrder,
+    inWindow,
+    isConfirmed,
+    isDelivered,
+    isRevenueOrder,
+    placementTimestamp,
+    pureRevenueForOrder,
+} from '@/lib/analyticsDefinitions';
 import { SectionWrapper } from './SectionWrapper';
-import { StatCard } from './StatCard';
+import { SectionStory } from './SectionStory';
 import { DateFilter } from './AnalyticsDateFilter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Activity } from 'lucide-react';
 import {
-    Building2, Activity, Gauge, TrendingUp,
-    BarChart3, Zap, Timer, Target,
-} from 'lucide-react';
-import {
-    AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-    ResponsiveContainer, Legend,
+    AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
-import { format, startOfDay, endOfDay, isWithinInterval, eachMonthOfInterval, startOfMonth, subMonths, differenceInDays } from 'date-fns';
+import {
+    format, startOfDay, endOfDay, eachMonthOfInterval, startOfMonth, endOfMonth, subMonths, differenceInDays,
+} from 'date-fns';
 
 interface BusinessHealthSectionProps {
     businessId: string;
@@ -23,14 +29,16 @@ interface BusinessHealthSectionProps {
 }
 
 export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealthSectionProps) => {
-    const { confirmedIds, cancelledIds, deliveredPkgIds, isOrderCategory } = useStatusCategories();
+    const { confirmedIds, cancelledIds, deliveredPkgIds, paidOrderIds, newOrderIds } = useStatusCategories();
 
     const { data: orders, isLoading } = useQuery({
-        queryKey: ['analytics-orders-health', businessId],
+        queryKey: ['analytics-orders-health-v2', businessId],
         queryFn: async () => {
             const { data } = await supabase
                 .from('orders')
-                .select('id, price, date, order_status_id, package_status_id, confirmation_date')
+                .select(
+                    'id, price, raw_price, shipping_cost, include_delivery_in_total, date, order_status_id, package_status_id, package_status_label, package_statuses(label, category), tracking_number, confirmation_date, order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot)',
+                )
                 .eq('DigiCom Business', businessId)
                 .is('date_deleted', null);
             return data || [];
@@ -40,36 +48,35 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
 
     const metrics = useMemo(() => {
         if (!orders) return null;
+        const ordersTyped = orders as unknown as (AnalyticsOrder & { confirmation_date?: string | null })[];
 
-        type HealthOrder = Parameters<typeof isDeliveredForCommission>[0] & { order_status_id: string | null };
-        const isPaidAndDelivered = (o: HealthOrder) =>
-            o.order_status_id && isOrderCategory(o.order_status_id, 'paid') &&
-            isDeliveredForCommission(o, deliveredPkgIds);
+        const windowStart = dateFilter.from ? startOfDay(dateFilter.from) : new Date(0);
+        const windowEnd = dateFilter.to ? endOfDay(dateFilter.to) : new Date();
 
-        const isInRange = (dateStr: string | null) => {
-            if (!dateStr) return true;
-            if (!dateFilter.from && !dateFilter.to) return true;
-            const d = new Date(dateStr);
-            return isWithinInterval(d, {
-                start: dateFilter.from ? startOfDay(dateFilter.from) : new Date(0),
-                end: dateFilter.to ? endOfDay(dateFilter.to) : new Date(),
-            });
-        };
+        const filtered = ordersTyped.filter(o => inWindow(placementTimestamp(o), windowStart, windowEnd));
 
-        const filtered = orders.filter(o => isInRange(o.date));
-        const datesWithOrders = filtered.filter(o => o.date).map(o => new Date(o.date!));
+        const datesWithOrders = filtered
+            .map(o => placementTimestamp(o))
+            .filter((d): d is Date => !!d);
         const minDate = datesWithOrders.length > 0 ? new Date(Math.min(...datesWithOrders.map(d => d.getTime()))) : new Date();
         const maxDate = datesWithOrders.length > 0 ? new Date(Math.max(...datesWithOrders.map(d => d.getTime()))) : new Date();
         const daySpan = Math.max(1, differenceInDays(maxDate, minDate));
         const orderVelocity = filtered.length / daySpan;
 
-        const revenueOrders = filtered.filter(isPaidAndDelivered);
-        const totalRevenue = revenueOrders.reduce((s, o) => s + Number(o.price || 0), 0);
+        // ── Rates under the locked rules ────────────────────────────────
+        // Confirmed = status in confirmed set OR has a tracking_number.
+        const confirmed = filtered.filter(o => isConfirmed(o, confirmedIds));
+        // Delivered = package category or label match. No "must be paid" private rule.
+        const delivered = filtered.filter(o => isDelivered(o, deliveredPkgIds));
+        // Confirmation rate denominator = all orders except brand-new uncalled.
+        const touchedOrders = filtered.filter(o => !o.order_status_id || !newOrderIds.has(o.order_status_id));
+        const confirmRate = touchedOrders.length > 0 ? (confirmed.length / touchedOrders.length) * 100 : 0;
+        // Delivery rate = delivered ÷ confirmed (per locked rule, §5).
+        const deliveryRate = confirmed.length > 0 ? (delivered.length / confirmed.length) * 100 : 0;
 
-        const confirmedCount = filtered.filter(o => o.order_status_id && confirmedIds.has(o.order_status_id)).length;
-        const canceledCount = filtered.filter(o => o.order_status_id && cancelledIds.has(o.order_status_id)).length;
-        const confirmRate = filtered.length > 0 ? (confirmedCount / filtered.length) * 100 : 0;
-        const deliveryRate = filtered.length > 0 ? (revenueOrders.length / filtered.length) * 100 : 0;
+        // Revenue (pure, paid+delivered) for trend only — not a health metric, but shown as context.
+        const revenueOrders = filtered.filter(o => isRevenueOrder(o, deliveredPkgIds, paidOrderIds));
+        const totalRevenue = revenueOrders.reduce((s, o) => s + pureRevenueForOrder(o), 0);
 
         const withConfDate = filtered.filter(o => o.date && o.confirmation_date);
         const avgConfirmTime = withConfDate.length > 0
@@ -79,39 +86,30 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
             }, 0) / withConfDate.length
             : 0;
 
-        // Operational efficiency score = weighted avg of three sub-scores (each 0..100).
-        // When we don't have confirmation timestamps (withConfDate.length === 0) we drop the speed
-        // component and rebalance the weights across the remaining two — otherwise the "no data"
-        // case would default the speed sub-score to 100 and inflate the overall score.
-        const hasConfirmTimeData = withConfDate.length > 0;
-        const speedScore = hasConfirmTimeData
-            ? Math.min(100, (1 / Math.max(1, avgConfirmTime / 24)) * 100)
-            : null;
-        const operationalEfficiency = hasConfirmTimeData
-            ? confirmRate * 0.3 + deliveryRate * 0.5 + (speedScore as number) * 0.2
-            : // Rebalanced weights when speed component is unavailable (37.5% + 62.5% = 100%)
-              confirmRate * 0.375 + deliveryRate * 0.625;
+        // Failed orders merged bucket (cancelled/fake/blacklisted/double).
+        const failedCount = filtered.filter(o => o.order_status_id && cancelledIds.has(o.order_status_id)).length;
 
+        // ── Monthly trend — revenue + confirm/delivery rate (no composite score).
         const rangeStart = dateFilter.from || subMonths(new Date(), 6);
         const rangeEnd = dateFilter.to || new Date();
         const months = eachMonthOfInterval({ start: rangeStart, end: rangeEnd });
 
         const trendData = months.map(month => {
             const mStart = startOfMonth(month);
-            const mEnd = new Date(mStart.getFullYear(), mStart.getMonth() + 1, 0);
-            const monthOrders = filtered.filter(o => o.date && isWithinInterval(new Date(o.date), { start: mStart, end: mEnd }));
-            const monthRevenue = monthOrders.filter(isPaidAndDelivered)
-                .reduce((s, o) => s + Number(o.price || 0), 0);
-            const monthDays = differenceInDays(mEnd, mStart) || 1;
-            const monthConfirmed = monthOrders.filter(o => o.order_status_id && confirmedIds.has(o.order_status_id)).length;
-            const monthDelivered = monthOrders.filter(isPaidAndDelivered).length;
+            const mEnd = endOfMonth(month);
+            const monthOrders = filtered.filter(o => inWindow(placementTimestamp(o), mStart, mEnd));
+            const monthTouched = monthOrders.filter(o => !o.order_status_id || !newOrderIds.has(o.order_status_id));
+            const monthConfirmed = monthOrders.filter(o => isConfirmed(o, confirmedIds));
+            const monthDelivered = monthOrders.filter(o => isDelivered(o, deliveredPkgIds));
+            const monthRevenue = monthOrders
+                .filter(o => isRevenueOrder(o, deliveredPkgIds, paidOrderIds))
+                .reduce((s, o) => s + pureRevenueForOrder(o), 0);
 
             return {
                 month: format(month, 'MMM yy'),
                 revenue: monthRevenue,
-                velocity: monthOrders.length / monthDays,
-                confirmRate: monthOrders.length > 0 ? (monthConfirmed / monthOrders.length) * 100 : 0,
-                deliveryRate: monthOrders.length > 0 ? (monthDelivered / monthOrders.length) * 100 : 0,
+                confirmRate: monthTouched.length > 0 ? (monthConfirmed.length / monthTouched.length) * 100 : 0,
+                deliveryRate: monthConfirmed.length > 0 ? (monthDelivered.length / monthConfirmed.length) * 100 : 0,
             };
         });
 
@@ -123,91 +121,102 @@ export const BusinessHealthSection = ({ businessId, dateFilter }: BusinessHealth
         }
 
         return {
-            orderVelocity, totalRevenue, confirmRate, deliveryRate,
-            avgConfirmTime, operationalEfficiency, hasConfirmTimeData, revenueGrowth, trendData,
+            orderVelocity,
+            totalRevenue,
+            confirmRate,
+            deliveryRate,
+            avgConfirmTime,
+            hasConfirmTimeData: withConfDate.length > 0,
+            failedCount,
+            revenueGrowth,
+            trendData,
             totalOrders: filtered.length,
+            confirmedCount: confirmed.length,
+            deliveredCount: delivered.length,
+            touchedCount: touchedOrders.length,
         };
-    }, [orders, dateFilter, confirmedIds, cancelledIds, deliveredPkgIds, isOrderCategory]);
+    }, [orders, dateFilter, confirmedIds, cancelledIds, deliveredPkgIds, paidOrderIds, newOrderIds]);
 
     return (
         <SectionWrapper
             id="business-health"
             title="Business Health"
-            description="Operational KPIs, efficiency, and growth trajectory"
+            description="Raw confirmation rate, delivery rate, and speed — no composite score"
             icon={Activity}
-            iconBg="bg-rose-50"
-            iconColor="text-rose-600"
+            iconColor="text-gray-400"
             loading={isLoading}
         >
-            {metrics && (
-                <div className="space-y-6">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-3">
-                        <StatCard title="Order Velocity" value={metrics.orderVelocity.toFixed(1)} suffix="/day" icon={Zap} iconBg="bg-amber-50" iconColor="text-amber-600" />
-                        <StatCard title="Total Revenue" value={metrics.totalRevenue.toLocaleString('fr-MA')} suffix=" MAD" icon={TrendingUp} iconBg="bg-emerald-50" iconColor="text-emerald-600" />
-                        <StatCard title="Revenue Growth" value={metrics.revenueGrowth.toFixed(1)} suffix="%" icon={BarChart3} iconBg="bg-blue-50" iconColor="text-blue-600" trend={metrics.revenueGrowth} />
-                        <StatCard title="Confirm Rate" value={metrics.confirmRate.toFixed(1)} suffix="%" icon={Target} iconBg="bg-teal-50" iconColor="text-teal-600" />
-                        <StatCard title="Delivery Rate" value={metrics.deliveryRate.toFixed(1)} suffix="%" icon={Target} iconBg="bg-green-50" iconColor="text-green-600" />
-                        <StatCard title="Avg Confirm Time" value={metrics.hasConfirmTimeData ? metrics.avgConfirmTime.toFixed(1) : '—'} suffix={metrics.hasConfirmTimeData ? 'h' : ''} subtitle={metrics.hasConfirmTimeData ? undefined : 'No timestamps available'} icon={Timer} iconBg="bg-purple-50" iconColor="text-purple-600" />
-                        <StatCard title="Efficiency Score" value={metrics.operationalEfficiency.toFixed(0)} suffix="/100" subtitle={metrics.hasConfirmTimeData ? undefined : 'Speed component unavailable'} icon={Gauge} iconBg="bg-indigo-50" iconColor="text-indigo-600" />
-                        <StatCard title="Total Orders" value={metrics.totalOrders} icon={Building2} iconBg="bg-rose-50" iconColor="text-rose-600" />
-                    </div>
+            {metrics && (() => {
+                const deliveryTone: 'positive' | 'warning' | 'negative' =
+                    metrics.deliveryRate >= 70 ? 'positive' : metrics.deliveryRate >= 40 ? 'warning' : 'negative';
+                const narrative = metrics.totalOrders === 0
+                    ? 'No orders in this window — nothing to score yet.'
+                    : `${metrics.deliveredCount.toLocaleString('fr-MA')} of ${metrics.confirmedCount.toLocaleString('fr-MA')} confirmed orders delivered (${metrics.deliveryRate.toFixed(0)}%). ${metrics.confirmRate.toFixed(0)}% of touched orders get confirmed. ${
+                        metrics.hasConfirmTimeData
+                            ? `Average time to confirm: ${metrics.avgConfirmTime.toFixed(1)} hours.`
+                            : 'No confirmation timestamps on file yet.'
+                    } ${
+                        metrics.revenueGrowth > 0
+                            ? `Revenue up ${metrics.revenueGrowth.toFixed(1)}% vs prior period.`
+                            : metrics.revenueGrowth < 0
+                                ? `Revenue down ${Math.abs(metrics.revenueGrowth).toFixed(1)}% vs prior period.`
+                                : ''
+                    }`;
 
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        <Card className="border-0 shadow-sm rounded-3xl">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-bold text-brand-navy">Revenue Trajectory</CardTitle>
+                return (
+                    <SectionStory
+                        hero={{
+                            label: 'delivery rate',
+                            value: `${metrics.deliveryRate.toFixed(1)}%`,
+                            tone: deliveryTone,
+                        }}
+                        narrative={narrative}
+                        supporting={[
+                            { label: 'Confirm rate', value: `${metrics.confirmRate.toFixed(1)}%` },
+                            { label: 'Avg confirm speed', value: metrics.hasConfirmTimeData ? `${metrics.avgConfirmTime.toFixed(1)}h` : '—' },
+                            { label: 'Orders', value: metrics.totalOrders.toLocaleString('fr-MA') },
+                            { label: 'Delivered', value: metrics.deliveredCount.toLocaleString('fr-MA'), tone: 'positive' },
+                            { label: 'Failed', value: metrics.failedCount.toLocaleString('fr-MA'), tone: metrics.failedCount > 0 ? 'negative' : 'neutral' },
+                            { label: 'Velocity', value: `${metrics.orderVelocity.toFixed(1)}/day` },
+                            { label: 'Revenue', value: `${Math.round(metrics.totalRevenue).toLocaleString('fr-MA')} MAD` },
+                            { label: 'Growth', value: `${metrics.revenueGrowth >= 0 ? '+' : ''}${metrics.revenueGrowth.toFixed(1)}%`, tone: metrics.revenueGrowth >= 0 ? 'positive' : 'negative' },
+                        ]}
+                    >
+                        <Card className="border border-gray-100 shadow-none rounded-xl">
+                            <CardHeader className="pb-1">
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                    <CardTitle className="text-[12px] font-semibold text-brand-navy">Revenue + conversion rates</CardTitle>
+                                    <div className="flex items-center gap-2.5 text-[10px] text-gray-500">
+                                        <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#059669]" /> Revenue</span>
+                                        <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#3b5e5e]" /> Confirm %</span>
+                                        <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#d97706]" /> Delivery %</span>
+                                    </div>
+                                </div>
                             </CardHeader>
                             <CardContent>
-                                <ResponsiveContainer width="100%" height={300}>
-                                    <AreaChart data={metrics.trendData}>
+                                <ResponsiveContainer width="100%" height={160}>
+                                    <AreaChart data={metrics.trendData} margin={{ top: 4, right: 6, bottom: 0, left: 0 }}>
                                         <defs>
                                             <linearGradient id="colorBizRevenue" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#10B981" stopOpacity={0.3} />
-                                                <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
+                                                <stop offset="5%" stopColor="#059669" stopOpacity={0.22} />
+                                                <stop offset="95%" stopColor="#059669" stopOpacity={0} />
                                             </linearGradient>
                                         </defs>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                                        <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#9ca3af' }} />
-                                        <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} />
-                                        <Tooltip contentStyle={{ borderRadius: 16, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} formatter={(val: number) => typeof val === 'number' && val > 100 ? `${val.toLocaleString('fr-MA')} MAD` : val} />
-                                        <Area type="monotone" dataKey="revenue" stroke="#10B981" fill="url(#colorBizRevenue)" strokeWidth={2.5} name="Revenue" />
-                                        <Legend />
+                                        <CartesianGrid strokeDasharray="2 4" stroke="#f3f4f6" vertical={false} />
+                                        <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
+                                        <YAxis yAxisId="revenue" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} width={40} tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)} />
+                                        <YAxis yAxisId="rate" orientation="right" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} width={28} domain={[0, 100]} />
+                                        <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #f3f4f6', boxShadow: 'none', fontSize: 11 }} />
+                                        <Area yAxisId="revenue" type="monotone" dataKey="revenue" stroke="#059669" fill="url(#colorBizRevenue)" strokeWidth={1.75} name="Revenue" dot={false} />
+                                        <Area yAxisId="rate" type="monotone" dataKey="confirmRate" stroke="#3b5e5e" fill="none" strokeWidth={1.5} name="Confirm %" dot={false} />
+                                        <Area yAxisId="rate" type="monotone" dataKey="deliveryRate" stroke="#d97706" fill="none" strokeWidth={1.5} strokeDasharray="4 3" name="Delivery %" dot={false} />
                                     </AreaChart>
                                 </ResponsiveContainer>
                             </CardContent>
                         </Card>
-
-                        <Card className="border-0 shadow-sm rounded-3xl">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-bold text-brand-navy">Rates Trend</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <ResponsiveContainer width="100%" height={300}>
-                                    <AreaChart data={metrics.trendData}>
-                                        <defs>
-                                            <linearGradient id="colorConfRate" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.2} />
-                                                <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
-                                            </linearGradient>
-                                            <linearGradient id="colorDelRate" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#14B8A6" stopOpacity={0.2} />
-                                                <stop offset="95%" stopColor="#14B8A6" stopOpacity={0} />
-                                            </linearGradient>
-                                        </defs>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                                        <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#9ca3af' }} />
-                                        <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} domain={[0, 100]} />
-                                        <Tooltip contentStyle={{ borderRadius: 16, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} formatter={(val: number) => `${val.toFixed(1)}%`} />
-                                        <Area type="monotone" dataKey="confirmRate" stroke="#3B82F6" fill="url(#colorConfRate)" strokeWidth={2} name="Confirm Rate %" />
-                                        <Area type="monotone" dataKey="deliveryRate" stroke="#14B8A6" fill="url(#colorDelRate)" strokeWidth={2} name="Delivery Rate %" />
-                                        <Legend />
-                                    </AreaChart>
-                                </ResponsiveContainer>
-                            </CardContent>
-                        </Card>
-                    </div>
-                </div>
-            )}
+                    </SectionStory>
+                );
+            })()}
         </SectionWrapper>
     );
 };

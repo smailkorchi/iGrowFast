@@ -2,19 +2,12 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { SectionWrapper } from './SectionWrapper';
-import { StatCard } from './StatCard';
+import { SectionStory } from './SectionStory';
 import { DateFilter } from './AnalyticsDateFilter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import {
-    PackageOpen, AlertTriangle, DollarSign, Archive,
-    TrendingUp, ShoppingCart, Layers, Box,
-} from 'lucide-react';
-import {
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-    ResponsiveContainer, AreaChart, Area, Legend, Cell,
-} from 'recharts';
-import { format, startOfDay, endOfDay, isWithinInterval, eachMonthOfInterval, startOfMonth, subMonths } from 'date-fns';
+import { PackageOpen, AlertTriangle, Box } from 'lucide-react';
+import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
+import { LOW_STOCK_THRESHOLD } from '@/lib/analyticsDefinitions';
 
 interface InventorySectionProps {
     businessId: string;
@@ -83,11 +76,17 @@ export const InventorySection = ({ businessId, dateFilter }: InventorySectionPro
         const totalProducts = products.length;
         const activeProducts = products.filter(p => p.active).length;
         const totalAccessories = accessories?.length || 0;
-        const lowStockProducts = products.filter(p => Number(p.stock || 0) <= 5 && p.active);
-        const lowStockAccessories = (accessories || []).filter(a => Number(a.stock || 0) <= 5 && a.active);
+        // Locked threshold (§16): < 10 units. Applies equally to products and accessories.
+        const lowStockProducts = products.filter(p => Number(p.stock || 0) < LOW_STOCK_THRESHOLD && p.active);
+        const lowStockAccessories = (accessories || []).filter(a => Number(a.stock || 0) < LOW_STOCK_THRESHOLD && a.active);
 
-        const totalStockValue = products.reduce((s, p) => s + Number(p.stock || 0) * Number(p.cost_price || 0), 0)
+        // Stock value shown both ways (§16): at cost (money tied up) and at selling price
+        // (potential revenue if everything sells). Accessories contribute cost only.
+        const stockValueAtCost =
+            products.reduce((s, p) => s + Number(p.stock || 0) * Number(p.cost_price || 0), 0)
             + (accessories || []).reduce((s, a) => s + Number(a.stock || 0) * Number(a.cost_price || 0), 0);
+        const stockValueAtSelling =
+            products.reduce((s, p) => s + Number(p.stock || 0) * Number(p.selling_price || 0), 0);
 
         const productSales: Record<string, { name: string; image_url: string | null; sold: number; revenue: number; cost: number }> = {};
         (orderItems || []).forEach(item => {
@@ -116,38 +115,12 @@ export const InventorySection = ({ businessId, dateFilter }: InventorySectionPro
         const totalPaid = filteredTransactions.reduce((s, t) => s + Number(t.paid_price || 0), 0);
         const unpaidAmount = totalTransactionValue - totalPaid;
 
-        const stockData = products
-            .filter(p => p.active)
-            .sort((a, b) => Number(a.stock || 0) - Number(b.stock || 0))
-            .slice(0, 15)
-            .map(p => ({
-                name: p.name.length > 15 ? p.name.substring(0, 15) + '...' : p.name,
-                stock: Number(p.stock || 0),
-                isLow: Number(p.stock || 0) <= 5,
-            }));
-
-        const rangeStart = dateFilter.from || subMonths(new Date(), 6);
-        const rangeEnd = dateFilter.to || new Date();
-        const months = eachMonthOfInterval({ start: rangeStart, end: rangeEnd });
-        const salesTrend = months.map(month => {
-            const mStart = startOfMonth(month);
-            const mEnd = new Date(mStart.getFullYear(), mStart.getMonth() + 1, 0);
-            const monthItems = (orderItems || []).filter(item => {
-                const od = (item as { orders?: { date?: string } }).orders?.date;
-                return od && isWithinInterval(new Date(od), { start: mStart, end: mEnd });
-            });
-            return {
-                month: format(month, 'MMM yy'),
-                units: monthItems.reduce((s, i) => s + Number(i.quantity || 0), 0),
-                revenue: monthItems.reduce((s, i) => s + Number(i.quantity || 0) * Number(i.unit_price || 0), 0),
-            };
-        });
-
         return {
             totalProducts, activeProducts, totalAccessories,
             lowStockProducts, lowStockAccessories,
-            totalStockValue, totalUnitsSold, productPerformance,
-            totalTransactionValue, unpaidAmount, stockData, salesTrend,
+            stockValueAtCost, stockValueAtSelling,
+            totalUnitsSold, productPerformance,
+            totalTransactionValue, unpaidAmount,
         };
     }, [products, accessories, orderItems, transactions, dateFilter]);
 
@@ -155,114 +128,83 @@ export const InventorySection = ({ businessId, dateFilter }: InventorySectionPro
         <SectionWrapper
             id="inventory"
             title="Inventory & Products"
-            description="Stock levels, product performance, and transactions"
+            description={`Stock at cost + at selling price. Flagged below ${LOW_STOCK_THRESHOLD} units.`}
             icon={PackageOpen}
-            iconBg="bg-amber-50"
-            iconColor="text-amber-600"
+            iconColor="text-gray-400"
             loading={isLoading}
         >
-            {metrics && (
-                <div className="space-y-6">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-3">
-                        <StatCard title="Products" value={metrics.totalProducts} icon={Box} iconBg="bg-blue-50" iconColor="text-blue-600" subtitle={`${metrics.activeProducts} active`} />
-                        <StatCard title="Accessories" value={metrics.totalAccessories} icon={Layers} iconBg="bg-purple-50" iconColor="text-purple-600" />
-                        <StatCard title="Low Stock" value={metrics.lowStockProducts.length + metrics.lowStockAccessories.length} icon={AlertTriangle} iconBg="bg-red-50" iconColor="text-red-500" valueColor={metrics.lowStockProducts.length > 0 ? 'text-red-500' : undefined} />
-                        <StatCard title="Stock Value" value={metrics.totalStockValue.toLocaleString('fr-MA')} suffix=" MAD" icon={DollarSign} iconBg="bg-emerald-50" iconColor="text-emerald-600" />
-                        <StatCard title="Units Sold" value={metrics.totalUnitsSold} icon={ShoppingCart} iconBg="bg-teal-50" iconColor="text-teal-600" />
-                        <StatCard title="Transactions" value={metrics.totalTransactionValue.toLocaleString('fr-MA')} suffix=" MAD" icon={Archive} iconBg="bg-amber-50" iconColor="text-amber-600" />
-                        <StatCard title="Unpaid" value={metrics.unpaidAmount.toLocaleString('fr-MA')} suffix=" MAD" icon={DollarSign} iconBg="bg-orange-50" iconColor="text-orange-600" valueColor={metrics.unpaidAmount > 0 ? 'text-orange-600' : undefined} />
-                        <StatCard title="Top Product" value={metrics.productPerformance[0]?.sold || 0} suffix=" sold" icon={TrendingUp} iconBg="bg-indigo-50" iconColor="text-indigo-600" subtitle={metrics.productPerformance[0]?.name || 'N/A'} />
-                    </div>
+            {metrics && (() => {
+                const lowStockTotal = metrics.lowStockProducts.length + metrics.lowStockAccessories.length;
+                const top = metrics.productPerformance[0];
+                const narrative = lowStockTotal > 0
+                    ? `${lowStockTotal} item${lowStockTotal > 1 ? 's' : ''} running low on stock — restock before they sell out.${top ? ` ${top.name} is your top seller with ${top.sold} units moved.` : ''}`
+                    : top
+                        ? `Stock levels healthy across ${metrics.totalProducts} products. ${top.name} leads at ${top.sold} units sold.`
+                        : `Tracking ${metrics.totalProducts} products and ${metrics.totalAccessories} accessories.`;
 
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        <Card className="border-0 shadow-sm rounded-3xl">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-bold text-brand-navy">Stock Levels</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <ResponsiveContainer width="100%" height={280}>
-                                    <BarChart data={metrics.stockData} layout="vertical">
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                                        <XAxis type="number" tick={{ fontSize: 10, fill: '#9ca3af' }} />
-                                        <YAxis dataKey="name" type="category" tick={{ fontSize: 10, fill: '#6b7280' }} width={120} />
-                                        <Tooltip contentStyle={{ borderRadius: 16, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} />
-                                        <Bar dataKey="stock" radius={[0, 8, 8, 0]} name="Stock">
-                                            {metrics.stockData.map((entry, i) => (
-                                                <Cell key={i} fill={entry.isLow ? '#EF4444' : '#3b5e5e'} />
-                                            ))}
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </CardContent>
-                        </Card>
-
-                        <Card className="border-0 shadow-sm rounded-3xl">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-bold text-brand-navy">Sales Velocity</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <ResponsiveContainer width="100%" height={280}>
-                                    <AreaChart data={metrics.salesTrend}>
-                                        <defs>
-                                            <linearGradient id="colorUnits" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#F97316" stopOpacity={0.3} />
-                                                <stop offset="95%" stopColor="#F97316" stopOpacity={0} />
-                                            </linearGradient>
-                                        </defs>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                                        <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#9ca3af' }} />
-                                        <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} />
-                                        <Tooltip contentStyle={{ borderRadius: 16, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} />
-                                        <Area type="monotone" dataKey="units" stroke="#F97316" fill="url(#colorUnits)" strokeWidth={2.5} name="Units Sold" />
-                                        <Legend />
-                                    </AreaChart>
-                                </ResponsiveContainer>
-                            </CardContent>
-                        </Card>
-                    </div>
+                return (
+                    <SectionStory
+                        hero={{
+                            label: lowStockTotal > 0 ? 'items need restock' : 'stock value at cost',
+                            value: lowStockTotal > 0 ? lowStockTotal.toString() : `${Math.round(metrics.stockValueAtCost).toLocaleString('fr-MA')}`,
+                            suffix: lowStockTotal > 0 ? undefined : 'MAD',
+                            tone: lowStockTotal > 0 ? 'negative' : 'neutral',
+                        }}
+                        narrative={narrative}
+                        supporting={[
+                            { label: 'Products', value: metrics.totalProducts.toLocaleString('fr-MA'), sub: `${metrics.activeProducts} active` },
+                            { label: 'Accessories', value: metrics.totalAccessories.toLocaleString('fr-MA') },
+                            { label: 'Value at cost', value: `${Math.round(metrics.stockValueAtCost).toLocaleString('fr-MA')} MAD` },
+                            { label: 'Value at selling', value: `${Math.round(metrics.stockValueAtSelling).toLocaleString('fr-MA')} MAD`, tone: 'positive' },
+                            { label: 'Units sold', value: metrics.totalUnitsSold.toLocaleString('fr-MA') },
+                            { label: 'Unpaid', value: `${Math.round(metrics.unpaidAmount).toLocaleString('fr-MA')} MAD`, tone: metrics.unpaidAmount > 0 ? 'warning' : 'neutral' },
+                        ]}
+                    >
 
                     {metrics.productPerformance.length > 0 && (
-                        <Card className="border-0 shadow-sm rounded-3xl">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-bold text-brand-navy">Product Performance</CardTitle>
+                        <Card className="border border-gray-100 shadow-none rounded-xl">
+                            <CardHeader className="pb-1">
+                                <CardTitle className="text-[12px] font-semibold text-brand-navy">Top products</CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <div className="overflow-x-auto">
-                                    <table className="w-full text-sm">
+                                    <table className="w-full">
                                         <thead>
                                             <tr className="border-b border-gray-100">
-                                                <th className="text-left py-3 text-[10px] uppercase tracking-widest font-bold text-gray-400">Product</th>
-                                                <th className="text-right py-3 text-[10px] uppercase tracking-widest font-bold text-gray-400">Sold</th>
-                                                <th className="text-right py-3 text-[10px] uppercase tracking-widest font-bold text-gray-400">Revenue</th>
-                                                <th className="text-right py-3 text-[10px] uppercase tracking-widest font-bold text-gray-400">Cost</th>
-                                                <th className="text-right py-3 text-[10px] uppercase tracking-widest font-bold text-gray-400">Margin</th>
+                                                <th className="text-left py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Product</th>
+                                                <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Sold</th>
+                                                <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Revenue</th>
+                                                <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Cost</th>
+                                                <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Margin</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {metrics.productPerformance.slice(0, 10).map((p, i) => (
-                                                <tr key={i} className="border-b border-gray-50 hover:bg-brand-navy/[0.02] transition-colors">
-                                                    <td className="py-2.5">
-                                                        <div className="flex items-center gap-3">
-                                                            {p.image_url ? (
-                                                                <img src={p.image_url} alt={p.name} className="w-9 h-9 rounded-xl object-cover border border-brand-navy/5 shrink-0" />
-                                                            ) : (
-                                                                <div className="w-9 h-9 rounded-xl bg-brand-navy/[0.04] flex items-center justify-center shrink-0">
-                                                                    <Box className="w-4 h-4 text-brand-navy/20" />
-                                                                </div>
-                                                            )}
-                                                            <span className="font-semibold text-brand-navy">{p.name}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="py-2.5 text-right font-bold">{p.sold}</td>
-                                                    <td className="py-2.5 text-right">{p.revenue.toLocaleString('fr-MA')} <span className="text-[10px] text-brand-navy/40">MAD</span></td>
-                                                    <td className="py-2.5 text-right text-gray-500">{p.cost.toLocaleString('fr-MA')} <span className="text-[10px] text-brand-navy/40">MAD</span></td>
-                                                    <td className="py-2.5 text-right">
-                                                        <Badge className={`text-xs ${p.margin > 30 ? 'bg-emerald-50 text-emerald-600' : p.margin > 0 ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-500'} border-0`}>
+                                            {metrics.productPerformance.slice(0, 10).map((p, i) => {
+                                                const marginTone =
+                                                    p.margin > 30 ? 'text-emerald-600' : p.margin > 0 ? 'text-amber-600' : 'text-red-500';
+                                                return (
+                                                    <tr key={i} className="border-b border-gray-50 hover:bg-brand-navy/[0.02] transition-colors">
+                                                        <td className="py-1.5">
+                                                            <div className="flex items-center gap-2">
+                                                                {p.image_url ? (
+                                                                    <img src={p.image_url} alt={p.name} className="w-6 h-6 rounded-sm object-cover border border-brand-navy/5 shrink-0" />
+                                                                ) : (
+                                                                    <div className="w-6 h-6 rounded-sm bg-brand-navy/[0.04] flex items-center justify-center shrink-0">
+                                                                        <Box className="w-3 h-3 text-brand-navy/20" />
+                                                                    </div>
+                                                                )}
+                                                                <span className="text-[11px] font-medium text-brand-navy truncate">{p.name}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-1.5 text-right text-[11px] font-semibold text-brand-navy tabular-nums">{p.sold}</td>
+                                                        <td className="py-1.5 text-right text-[11px] tabular-nums">{p.revenue.toLocaleString('fr-MA')} <span className="text-[9px] text-brand-navy/40">MAD</span></td>
+                                                        <td className="py-1.5 text-right text-[11px] text-gray-500 tabular-nums">{p.cost.toLocaleString('fr-MA')} <span className="text-[9px] text-brand-navy/40">MAD</span></td>
+                                                        <td className={`py-1.5 text-right text-[11px] font-semibold tabular-nums ${marginTone}`}>
                                                             {p.margin.toFixed(1)}%
-                                                        </Badge>
-                                                    </td>
-                                                </tr>
-                                            ))}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>
@@ -270,31 +212,99 @@ export const InventorySection = ({ businessId, dateFilter }: InventorySectionPro
                         </Card>
                     )}
 
-                    {(metrics.lowStockProducts.length > 0 || metrics.lowStockAccessories.length > 0) && (
-                        <Card className="border-0 shadow-sm rounded-3xl bg-red-50/30">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-bold text-red-600 flex items-center gap-2">
-                                    <AlertTriangle className="w-4 h-4" /> Low Stock Alerts
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="flex flex-wrap gap-2">
-                                    {metrics.lowStockProducts.map(p => (
-                                        <Badge key={p.id} className="bg-red-100 text-red-700 border-0 text-xs">
-                                            {p.name}: {p.stock} left
-                                        </Badge>
-                                    ))}
-                                    {metrics.lowStockAccessories.map(a => (
-                                        <Badge key={a.id} className="bg-orange-100 text-orange-700 border-0 text-xs">
-                                            {a.name} (acc): {a.stock} left
-                                        </Badge>
-                                    ))}
-                                </div>
-                            </CardContent>
-                        </Card>
-                    )}
-                </div>
-            )}
+                    {(metrics.lowStockProducts.length > 0 || metrics.lowStockAccessories.length > 0) && (() => {
+                        type LowStockRow = {
+                            id: string;
+                            name: string;
+                            kind: 'Product' | 'Accessory';
+                            stock: number;
+                            cost: number;
+                            image: string | null;
+                        };
+                        const rows: LowStockRow[] = [
+                            ...metrics.lowStockProducts.map((p) => ({
+                                id: p.id,
+                                name: p.name,
+                                kind: 'Product' as const,
+                                stock: Number(p.stock || 0),
+                                cost: Number(p.cost_price || 0),
+                                image: p.image_url,
+                            })),
+                            ...metrics.lowStockAccessories.map((a) => ({
+                                id: a.id,
+                                name: a.name,
+                                kind: 'Accessory' as const,
+                                stock: Number(a.stock || 0),
+                                cost: Number(a.cost_price || 0),
+                                image: null,
+                            })),
+                        ].sort((a, b) => a.stock - b.stock);
+
+                        return (
+                            <Card className="border border-red-100 shadow-none rounded-xl">
+                                <CardHeader className="pb-1">
+                                    <CardTitle className="text-[12px] font-semibold text-red-600 flex items-center gap-1.5">
+                                        <AlertTriangle className="w-3 h-3" /> Low stock — {rows.length} item{rows.length > 1 ? 's' : ''}
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full">
+                                            <thead>
+                                                <tr className="border-b border-gray-100">
+                                                    <th className="text-left py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Item</th>
+                                                    <th className="text-left py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Kind</th>
+                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Stock</th>
+                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Unit cost</th>
+                                                    <th className="text-right py-1.5 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">At risk</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {rows.map((r) => {
+                                                    const stockTone =
+                                                        r.stock === 0 ? 'text-red-600' : r.stock <= 2 ? 'text-red-500' : 'text-amber-600';
+                                                    const atRisk = r.stock * r.cost;
+                                                    return (
+                                                        <tr key={`${r.kind}-${r.id}`} className="border-b border-gray-50 hover:bg-red-50/30 transition-colors">
+                                                            <td className="py-1.5">
+                                                                <div className="flex items-center gap-2">
+                                                                    {r.image ? (
+                                                                        <img src={r.image} alt={r.name} className="w-6 h-6 rounded-sm object-cover border border-brand-navy/5 shrink-0" />
+                                                                    ) : (
+                                                                        <div className="w-6 h-6 rounded-sm bg-brand-navy/[0.04] flex items-center justify-center shrink-0">
+                                                                            <Box className="w-3 h-3 text-brand-navy/20" />
+                                                                        </div>
+                                                                    )}
+                                                                    <span className="text-[11px] font-medium text-brand-navy truncate">{r.name}</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-1.5 text-[10px] uppercase tracking-[0.12em] font-bold text-gray-400">
+                                                                {r.kind}
+                                                            </td>
+                                                            <td className={`py-1.5 text-right text-[11px] font-semibold tabular-nums ${stockTone}`}>
+                                                                {r.stock} left
+                                                            </td>
+                                                            <td className="py-1.5 text-right text-[11px] text-gray-500 tabular-nums">
+                                                                {r.cost.toLocaleString('fr-MA')}
+                                                                <span className="text-[9px] text-brand-navy/40 ml-0.5">MAD</span>
+                                                            </td>
+                                                            <td className="py-1.5 text-right text-[11px] text-brand-navy tabular-nums">
+                                                                {atRisk.toLocaleString('fr-MA')}
+                                                                <span className="text-[9px] text-brand-navy/40 ml-0.5">MAD</span>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        );
+                    })()}
+                    </SectionStory>
+                );
+            })()}
         </SectionWrapper>
     );
 };

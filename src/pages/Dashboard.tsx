@@ -28,56 +28,39 @@ const Dashboard = () => {
     }
 
     return (
-        <div className="min-h-screen">
-            {/* Header */}
-            <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-                <div className="relative p-8">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div>
-                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Dashboard</h1>
-                            <p className="text-gray-500 font-light">Command center overview</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <AnalyticsDateFilter dateFilter={dateFilter} onDateFilterChange={setDateFilter} />
-                        </div>
-                    </div>
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-2.5">
+            <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                    <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">
+                        Dashboard
+                    </h1>
+                    <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">
+                        {dateFilter.label}
+                    </p>
+                </div>
+                <AnalyticsDateFilter dateFilter={dateFilter} onDateFilterChange={setDateFilter} />
+            </header>
+
+            <DashboardKPICards businessId={businessId} dateFilter={dateFilter} />
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-2.5 items-stretch">
+                <div className="lg:col-span-1 flex min-w-0">
+                    <WhatsAppUnreadCard businessId={businessId} />
+                </div>
+                <div className="lg:col-span-2 min-w-0 [&>div]:h-full [&>div]:w-full">
+                    <SalesComparatifChart businessId={businessId} dateFilter={dateFilter} />
                 </div>
             </div>
 
-            {/* Content */}
-            <div className="py-6 space-y-6">
-                {/* KPI Cards */}
-                <DashboardKPICards businessId={businessId} dateFilter={dateFilter} />
-
-                {/* WhatsApp Unread + Sales Chart row */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
-                    <div className="lg:col-span-1 flex min-w-0">
-                        <WhatsAppUnreadCard businessId={businessId} />
-                    </div>
-                    <div className="lg:col-span-2 min-w-0 [&>div]:h-full [&>div]:w-full">
-                        <SalesComparatifChart businessId={businessId} dateFilter={dateFilter} />
-                    </div>
-                </div>
-
-                {/* Pipeline Row: Pending + Confirmation */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <PendingOrdersBreakdown businessId={businessId} dateFilter={dateFilter} />
-                    <ConfirmationPipeline businessId={businessId} dateFilter={dateFilter} />
-                </div>
-
-                {/* Shipping Pipeline */}
-                <ShippingPipeline businessId={businessId} dateFilter={dateFilter} />
-
-                {/* Sellers Performance */}
-                <DashboardSellersPerformance businessId={businessId} dateFilter={dateFilter} />
-
-                {/* Products Performance */}
-                <DashboardProductsPerformance businessId={businessId} dateFilter={dateFilter} />
-
-                {/* City Statistics */}
-                <DashboardCityStats businessId={businessId} dateFilter={dateFilter} />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
+                <PendingOrdersBreakdown businessId={businessId} dateFilter={dateFilter} />
+                <ConfirmationPipeline businessId={businessId} dateFilter={dateFilter} />
             </div>
+
+            <ShippingPipeline businessId={businessId} dateFilter={dateFilter} />
+            <DashboardSellersPerformance businessId={businessId} dateFilter={dateFilter} />
+            <DashboardProductsPerformance businessId={businessId} dateFilter={dateFilter} />
+            <DashboardCityStats businessId={businessId} dateFilter={dateFilter} />
         </div>
     );
 };

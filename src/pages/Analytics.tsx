@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import {
     BarChart3, DollarSign, ShoppingBag, Megaphone, Truck,
-    PackageOpen, Radio, Users, UserCheck, Activity,
+    PackageOpen, Radio, Users, UserCheck, Bike, Radar, Activity,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AnalyticsDateFilter, DateFilter } from '@/components/analytics/AnalyticsDateFilter';
@@ -13,6 +13,8 @@ import { InventorySection } from '@/components/analytics/InventorySection';
 import { SalesChannelsSection } from '@/components/analytics/SalesChannelsSection';
 import { CustomersSection } from '@/components/analytics/CustomersSection';
 import { SellersSection } from '@/components/analytics/SellersSection';
+import { CouriersSection } from '@/components/analytics/CouriersSection';
+import { MediaBuyersSection } from '@/components/analytics/MediaBuyersSection';
 import { UsersSection } from '@/components/analytics/UsersSection';
 import { BusinessHealthSection } from '@/components/analytics/BusinessHealthSection';
 
@@ -25,6 +27,8 @@ const SECTIONS = [
     { id: 'channels', label: 'Channels', icon: Radio },
     { id: 'customers', label: 'Customers', icon: Users },
     { id: 'sellers', label: 'Sellers', icon: UserCheck },
+    { id: 'couriers', label: 'Couriers', icon: Bike },
+    { id: 'mediabuyers', label: 'Media Buyers', icon: Radar },
     { id: 'users', label: 'Users', icon: Users },
     { id: 'business-health', label: 'Health', icon: Activity },
 ];
@@ -59,43 +63,39 @@ const Analytics = () => {
     }
 
     return (
-        <div className="min-h-screen">
-            {/* Header */}
-            <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-3xl" />
-                <div className="relative p-8">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div>
-                            <h1 className="text-4xl font-extralight text-gray-900 mb-2">Analytics War Room</h1>
-                            <p className="text-gray-500 font-light">Complete business intelligence across all operations</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <AnalyticsDateFilter dateFilter={dateFilter} onDateFilterChange={setDateFilter} />
-                        </div>
+        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
+            <header className="space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">
+                            Analytics
+                        </h1>
+                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">
+                            {dateFilter.label}
+                        </p>
                     </div>
+                    <AnalyticsDateFilter dateFilter={dateFilter} onDateFilterChange={setDateFilter} />
+                </div>
 
-                    {/* Section Quick Nav */}
-                    <div className="mt-6 -mx-1 overflow-x-auto scrollbar-hide" ref={scrollContainerRef}>
-                        <div className="flex items-center gap-1.5 px-1 pb-1">
-                            {SECTIONS.map((section) => (
-                                <Button
-                                    key={section.id}
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => scrollToSection(section.id)}
-                                    className="rounded-xl text-xs font-semibold h-8 px-3 gap-1.5 bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700 whitespace-nowrap shrink-0"
-                                >
-                                    <section.icon className="w-3.5 h-3.5" />
-                                    {section.label}
-                                </Button>
-                            ))}
-                        </div>
+                <div className="-mx-1 overflow-x-auto scrollbar-hide" ref={scrollContainerRef}>
+                    <div className="flex items-center gap-1 px-1 pb-0.5">
+                        {SECTIONS.map((section) => (
+                            <Button
+                                key={section.id}
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => scrollToSection(section.id)}
+                                className="rounded-md text-[10px] font-semibold h-6 px-2 gap-1 bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700 whitespace-nowrap shrink-0"
+                            >
+                                <section.icon className="w-3 h-3" />
+                                {section.label}
+                            </Button>
+                        ))}
                     </div>
                 </div>
-            </div>
+            </header>
 
-            {/* Sections */}
-            <div className="px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+            <div className="space-y-2.5">
                 <ProfitabilitySection businessId={businessId} dateFilter={dateFilter} />
                 <OrdersSection businessId={businessId} dateFilter={dateFilter} />
                 <AdsSection businessId={businessId} dateFilter={dateFilter} />
@@ -104,6 +104,8 @@ const Analytics = () => {
                 <SalesChannelsSection businessId={businessId} dateFilter={dateFilter} />
                 <CustomersSection businessId={businessId} dateFilter={dateFilter} />
                 <SellersSection businessId={businessId} dateFilter={dateFilter} />
+                <CouriersSection businessId={businessId} dateFilter={dateFilter} />
+                <MediaBuyersSection businessId={businessId} dateFilter={dateFilter} />
                 <UsersSection businessId={businessId} dateFilter={dateFilter} />
                 <BusinessHealthSection businessId={businessId} dateFilter={dateFilter} />
             </div>

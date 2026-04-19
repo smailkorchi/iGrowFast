@@ -2,32 +2,26 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { cn } from '@/lib/utils';
 import { PhoneCall } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
 import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
+import { StackedProportionBar } from './performance/StackedProportionBar';
 
 interface ConfirmationPipelineProps {
     businessId: string;
     dateFilter: DateFilter;
 }
 
-const COLORS = [
-    '#3b5e5e', '#7a9385', '#f59e0b', '#ef4444', '#8b5cf6',
-    '#06b6d4', '#ec4899', '#14b8a6', '#f97316', '#6366f1',
-    '#84cc16', '#a855f7', '#e11d48',
-];
-
 export const ConfirmationPipeline = ({ businessId, dateFilter }: ConfirmationPipelineProps) => {
-    const { pendingIds, callbackIds } = useStatusCategories();
+    const { pendingIds, callbackIds, getOrderStatusColor } = useStatusCategories();
+
     const { data: orders } = useQuery({
-        queryKey: ['dashboard-orders', businessId],
+        queryKey: ['confirmation-pipeline-orders', businessId],
         queryFn: async () => {
             const { data } = await supabase
                 .from('orders')
-                .select('id, date, price, shipping_cost, order_status_id, package_status_id, package_status_label, seller_id, company_id, source_name, order_statuses(code, label)')
+                .select('id, date, order_status_id, order_statuses(code, label)')
                 .eq('DigiCom Business', businessId)
                 .is('date_deleted', null);
             return data || [];
@@ -51,9 +45,14 @@ export const ConfirmationPipeline = ({ businessId, dateFilter }: ConfirmationPip
         const isConfirmationStatus = (statusId: string) =>
             statusId && (pendingIds.has(statusId) || callbackIds.has(statusId));
 
-        type OrderRow = { order_status_id?: string | null; date?: string | null; order_statuses?: { label?: string | null; code?: string | null } | null };
-        const confirmationOrders = orders.filter((o: OrderRow) =>
-            o.order_status_id && isConfirmationStatus(o.order_status_id) && isInRange(o.date)
+        type OrderRow = {
+            order_status_id?: string | null;
+            date?: string | null;
+            order_statuses?: { label?: string | null; code?: string | null } | null;
+        };
+        const confirmationOrders = orders.filter(
+            (o: OrderRow) =>
+                o.order_status_id && isConfirmationStatus(o.order_status_id) && isInRange(o.date),
         );
 
         const statusCounts: Record<string, { label: string; count: number }> = {};
@@ -62,75 +61,116 @@ export const ConfirmationPipeline = ({ businessId, dateFilter }: ConfirmationPip
             const label = status?.label || status?.code || 'Unknown';
             const id = o.order_status_id || 'unknown';
             if (!statusCounts[id]) statusCounts[id] = { label, count: 0 };
-            statusCounts[id].count++;
+            statusCounts[id].count += 1;
         });
 
         const sorted = Object.entries(statusCounts)
-            .map(([id, { label, count }]) => ({ code: id, label, count }))
+            .map(([id, { label, count }]) => ({
+                code: id,
+                label,
+                count,
+                color: id === 'unknown' ? '#9ca3af' : getOrderStatusColor(id),
+            }))
             .sort((a, b) => b.count - a.count);
 
-        const total = confirmationOrders.length;
-
-        return { total, sorted };
-    }, [orders, dateFilter, pendingIds, callbackIds]);
+        return { total: confirmationOrders.length, sorted };
+    }, [orders, dateFilter, pendingIds, callbackIds, getOrderStatusColor]);
 
     if (!metrics) return null;
 
+    const topThree = metrics.sorted.slice(0, 3);
+
     return (
-        <Card className="border-0 shadow-sm rounded-3xl">
-            <CardHeader className="pb-2">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-purple-50 flex items-center justify-center">
-                        <PhoneCall className="w-5 h-5 text-purple-600" />
+        <Card className="border border-gray-100 shadow-none rounded-xl">
+            <CardHeader className="px-3.5 pt-2.5 pb-1.5">
+                <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                        <PhoneCall className="w-3 h-3 text-gray-400" />
+                        <CardTitle className="text-[12px] font-semibold text-brand-navy">
+                            Confirmation pipeline
+                        </CardTitle>
                     </div>
-                    <div>
-                        <CardTitle className="text-sm font-bold text-brand-navy">Confirmation Pipeline</CardTitle>
-                        <p className="text-xs text-gray-400 mt-0.5">{metrics.total} orders being confirmed</p>
-                    </div>
+                    <span className="text-[9px] text-gray-400 uppercase tracking-[0.14em] tabular-nums">
+                        {metrics.total.toLocaleString('fr-MA')} being confirmed
+                    </span>
                 </div>
             </CardHeader>
-            <CardContent>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    <div className="h-[260px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={metrics.sorted}
-                                    dataKey="count"
-                                    nameKey="label"
-                                    cx="50%"
-                                    cy="50%"
-                                    outerRadius={100}
-                                    innerRadius={55}
-                                    paddingAngle={2}
-                                >
-                                    {metrics.sorted.map((_, i) => (
-                                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                                    ))}
-                                </Pie>
-                                <Tooltip
-                                    formatter={(value: number | string, name: string) => [`${value} orders`, name]}
-                                    contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', fontSize: 12 }}
-                                />
-                            </PieChart>
-                        </ResponsiveContainer>
+            <CardContent className="px-3.5 pb-3 pt-0 space-y-2.5">
+                <div className="space-y-1.5">
+                    <StackedProportionBar
+                        segments={metrics.sorted.map((s) => ({
+                            id: s.code,
+                            label: s.label,
+                            count: s.count,
+                            color: s.color,
+                        }))}
+                        total={metrics.total}
+                        height={6}
+                    />
+                    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                        {topThree.map((s) => {
+                            const pct = metrics.total > 0 ? (s.count / metrics.total) * 100 : 0;
+                            return (
+                                <span key={s.code} className="inline-flex items-center gap-1 text-[9px]">
+                                    <span
+                                        className="w-1 h-1 rounded-full"
+                                        style={{ backgroundColor: s.color }}
+                                    />
+                                    <span className="text-gray-600 truncate max-w-[110px]">{s.label}</span>
+                                    <span className="text-gray-400 tabular-nums">
+                                        {pct.toFixed(0)}%
+                                    </span>
+                                </span>
+                            );
+                        })}
+                        {metrics.sorted.length > 3 && (
+                            <span className="text-[9px] text-gray-400">+{metrics.sorted.length - 3} more</span>
+                        )}
                     </div>
-                    <div className="space-y-1.5 max-h-[260px] overflow-y-auto pr-1">
-                        {metrics.sorted.map((s, i) => (
-                            <div key={s.code} className="flex items-center justify-between p-2.5 rounded-xl hover:bg-gray-50 transition-colors">
-                                <div className="flex items-center gap-2.5">
-                                    <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                                    <span className="text-xs font-medium text-brand-navy truncate max-w-[140px]">{s.label}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-sm font-black text-brand-navy">{s.count}</span>
-                                    <span className="text-[10px] text-gray-400 font-bold w-10 text-right">
-                                        {metrics.total > 0 ? ((s.count / metrics.total) * 100).toFixed(0) : 0}%
+                </div>
+
+                <div className="h-px bg-gray-100" />
+
+                <div className="space-y-0 max-h-[180px] overflow-y-auto pr-0.5 -mr-0.5">
+                    {metrics.sorted.length === 0 ? (
+                        <p className="text-[10px] text-gray-400 italic py-2 text-center">
+                            No orders awaiting confirmation in this period
+                        </p>
+                    ) : (
+                        metrics.sorted.map((s) => {
+                            const pct = metrics.total > 0 ? (s.count / metrics.total) * 100 : 0;
+                            return (
+                                <div
+                                    key={s.code}
+                                    className="flex items-center gap-1.5 py-1 px-1.5 rounded-md hover:bg-gray-50/60 transition-colors"
+                                >
+                                    <span
+                                        className="w-[3px] h-3 rounded-full shrink-0"
+                                        style={{ backgroundColor: s.color }}
+                                        aria-hidden
+                                    />
+                                    <span className="text-[10px] font-medium text-gray-700 flex-1 min-w-0 truncate">
+                                        {s.label}
+                                    </span>
+                                    <div className="w-16 h-[3px] rounded-full bg-gray-100 overflow-hidden shrink-0">
+                                        <div
+                                            className="h-full rounded-full"
+                                            style={{
+                                                width: `${Math.min(100, pct)}%`,
+                                                backgroundColor: s.color,
+                                            }}
+                                        />
+                                    </div>
+                                    <span className="text-[10px] font-semibold text-brand-navy tabular-nums w-7 text-right shrink-0">
+                                        {s.count}
+                                    </span>
+                                    <span className="text-[9px] text-gray-400 tabular-nums w-8 text-right shrink-0">
+                                        {pct.toFixed(1)}%
                                     </span>
                                 </div>
-                            </div>
-                        ))}
-                    </div>
+                            );
+                        })
+                    )}
                 </div>
             </CardContent>
         </Card>

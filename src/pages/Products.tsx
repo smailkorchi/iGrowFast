@@ -537,104 +537,83 @@ const Products = () => {
             </div>
 
             {lowStockProducts.length > 0 && (
-                <div className="bg-red-50 border border-red-100/50 rounded-[32px] p-6 flex flex-col gap-4 shadow-sm">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div className="flex items-start md:items-center gap-4 min-w-0">
-                            <div className="w-14 h-14 bg-red-100 rounded-2xl flex items-center justify-center shrink-0 text-red-500 shadow-inner">
-                                <AlertTriangle className="w-7 h-7" />
-                            </div>
-                            <div className="space-y-1 min-w-0">
-                                <h3 className="text-xl font-bold text-red-600">Low Stock Alert</h3>
-                                <p className="text-red-500/80 font-medium">
-                                    {lowStockProducts.length} product{lowStockProducts.length === 1 ? '' : 's'} at or below 10 units each.{' '}
-                                    <span className="font-bold text-red-700 tabular-nums">{lowStockProductsTotalUnits}</span>
-                                    {' '}unit{lowStockProductsTotalUnits === 1 ? '' : 's'} remaining in stock across them.
-                                </p>
-                            </div>
+                <div className="bg-white border border-red-100 rounded-xl overflow-hidden">
+                    <button
+                        type="button"
+                        onClick={() => setLowStockListExpanded((v) => !v)}
+                        className="w-full flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-red-50/30 transition-colors text-left"
+                    >
+                        <div className="flex items-center gap-2">
+                            <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
+                            <span className="text-[12px] font-semibold text-red-600">
+                                Low stock — {lowStockProducts.length} item{lowStockProducts.length === 1 ? '' : 's'}
+                            </span>
+                            <span className="text-[10px] text-gray-400 tabular-nums">
+                                {lowStockProductsTotalUnits} unit{lowStockProductsTotalUnits === 1 ? '' : 's'} total
+                            </span>
                         </div>
-                        <div className="flex flex-wrap items-center gap-3 shrink-0 md:justify-end">
-                            <div className="flex items-center -space-x-3">
-                                {lowStockProducts.slice(0, 5).map((p) => (
-                                    <div
-                                        key={p.id}
-                                        className="relative w-12 h-12 rounded-2xl border-2 border-red-50 bg-white shadow-sm overflow-hidden shrink-0"
-                                        title={`${p.name}: ${Number(p.stock ?? 0)} units`}
-                                    >
-                                        {p.image_url ? (
-                                            <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
-                                        ) : (
-                                            <div className="w-full h-full bg-brand-navy/5 flex items-center justify-center">
-                                                <Package className="w-5 h-5 text-brand-navy/20" />
-                                            </div>
-                                        )}
-                                        <span className="absolute bottom-0 inset-x-0 bg-red-600/95 text-white text-[9px] font-black leading-none py-0.5 text-center tabular-nums">
-                                            {Number(p.stock ?? 0)}
-                                        </span>
-                                    </div>
-                                ))}
-                                {lowStockProducts.length > 5 && (
-                                    <div className="w-12 h-12 rounded-2xl border-2 border-red-50 bg-white flex items-center justify-center shadow-sm z-10 text-xs font-black text-red-500 shrink-0">
-                                        +{lowStockProducts.length - 5}
-                                    </div>
-                                )}
-                            </div>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setLowStockListExpanded((v) => !v)}
-                                className="h-10 rounded-xl border-red-200 bg-white text-red-700 hover:bg-red-100/80 hover:text-red-800 font-bold gap-2 shadow-sm"
-                            >
-                                {lowStockListExpanded ? (
-                                    <>
-                                        <ChevronUp className="w-4 h-4" />
-                                        Hide list
-                                    </>
-                                ) : (
-                                    <>
-                                        <ChevronDown className="w-4 h-4" />
-                                        Show all ({lowStockProducts.length})
-                                    </>
-                                )}
-                            </Button>
+                        <div className="flex items-center gap-1 text-[10px] text-gray-400 uppercase tracking-[0.14em]">
+                            {lowStockListExpanded ? 'Hide' : 'Show'}
+                            {lowStockListExpanded ? (
+                                <ChevronUp className="w-3 h-3" />
+                            ) : (
+                                <ChevronDown className="w-3 h-3" />
+                            )}
                         </div>
-                    </div>
+                    </button>
                     {lowStockListExpanded && (
-                        <div className="border-t border-red-100 pt-4 -mx-1">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-red-600/60 mb-2 px-1">
-                                Click a product to open preview
-                            </p>
-                            <ScrollArea className="h-[min(22rem,calc(100vh-12rem))] pr-3">
-                                <ul className="space-y-1.5 pb-1">
-                                    {lowStockProducts.map((p) => (
-                                        <li key={p.id}>
-                                            <button
-                                                type="button"
+                        <div className="border-t border-red-100 overflow-x-auto">
+                            <table className="w-full">
+                                <thead>
+                                    <tr className="border-b border-gray-100">
+                                        <th className="text-left py-1.5 px-4 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Product</th>
+                                        <th className="text-left py-1.5 px-2 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Code</th>
+                                        <th className="text-right py-1.5 px-2 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Stock</th>
+                                        <th className="text-right py-1.5 px-2 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Cost</th>
+                                        <th className="text-right py-1.5 px-4 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">At risk</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {lowStockProducts.map((p) => {
+                                        const stock = Number(p.stock ?? 0);
+                                        const cost = Number(p.cost_price ?? 0);
+                                        const stockTone =
+                                            stock === 0 ? 'text-red-600' : stock <= 2 ? 'text-red-500' : 'text-amber-600';
+                                        return (
+                                            <tr
+                                                key={p.id}
                                                 onClick={() => setPreviewProduct(p)}
-                                                className="w-full flex items-center gap-3 rounded-2xl border border-red-100/80 bg-white/90 px-3 py-2.5 text-left transition-colors hover:bg-white hover:border-red-200 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50"
+                                                className="border-b border-gray-50 hover:bg-red-50/30 transition-colors cursor-pointer"
                                             >
-                                                <div className="relative h-11 w-11 shrink-0 rounded-xl border border-red-50 overflow-hidden bg-brand-navy/[0.03]">
-                                                    {p.image_url ? (
-                                                        <img src={p.image_url} alt="" className="h-full w-full object-cover" />
-                                                    ) : (
-                                                        <div className="h-full w-full flex items-center justify-center">
-                                                            <Package className="w-4 h-4 text-brand-navy/25" />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <div className="min-w-0 flex-1">
-                                                    <TruncatedText as="p" text={p.name} className="font-bold text-brand-navy text-sm truncate" />
-                                                    <TruncatedText as="p" text={p.code} className="text-xs text-muted-foreground font-mono truncate" />
-                                                </div>
-                                                <Badge className="shrink-0 bg-red-600 text-white border-none tabular-nums font-black">
-                                                    {Number(p.stock ?? 0)} left
-                                                </Badge>
-                                                <Eye className="w-4 h-4 shrink-0 text-red-400" aria-hidden />
-                                            </button>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </ScrollArea>
+                                                <td className="py-1.5 px-4">
+                                                    <div className="flex items-center gap-2">
+                                                        {p.image_url ? (
+                                                            <img src={p.image_url} alt={p.name} className="w-6 h-6 rounded-sm object-cover border border-brand-navy/5 shrink-0" />
+                                                        ) : (
+                                                            <div className="w-6 h-6 rounded-sm bg-brand-navy/[0.04] flex items-center justify-center shrink-0">
+                                                                <Package className="w-3 h-3 text-brand-navy/20" />
+                                                            </div>
+                                                        )}
+                                                        <TruncatedText as="span" text={p.name} className="text-[11px] font-medium text-brand-navy truncate" />
+                                                    </div>
+                                                </td>
+                                                <td className="py-1.5 px-2 text-[10px] text-gray-400 font-mono truncate">{p.code}</td>
+                                                <td className={`py-1.5 px-2 text-right text-[11px] font-semibold tabular-nums ${stockTone}`}>
+                                                    {stock} left
+                                                </td>
+                                                <td className="py-1.5 px-2 text-right text-[11px] text-gray-500 tabular-nums">
+                                                    {cost.toLocaleString('fr-MA')}
+                                                    <span className="text-[9px] text-brand-navy/40 ml-0.5">MAD</span>
+                                                </td>
+                                                <td className="py-1.5 px-4 text-right text-[11px] text-brand-navy tabular-nums">
+                                                    {(stock * cost).toLocaleString('fr-MA')}
+                                                    <span className="text-[9px] text-brand-navy/40 ml-0.5">MAD</span>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
                         </div>
                     )}
                 </div>

@@ -39,7 +39,7 @@ export function PerformanceFunnel({ stages, dense, className }: PerformanceFunne
   return (
     <div
       className={cn(
-        'flex overflow-hidden rounded-2xl border border-gray-100 bg-white divide-x divide-gray-100',
+        'flex overflow-hidden rounded-md border border-gray-100 bg-white divide-x divide-gray-100',
         className,
       )}
     >
@@ -50,7 +50,7 @@ export function PerformanceFunnel({ stages, dense, className }: PerformanceFunne
             key={stage.key}
             className={cn(
               'relative flex-1 min-w-0',
-              dense ? 'px-3 py-2' : 'px-4 py-3',
+              dense ? 'px-2 py-1' : 'px-2.5 py-1.5',
             )}
           >
             <div
@@ -58,33 +58,33 @@ export function PerformanceFunnel({ stages, dense, className }: PerformanceFunne
               style={{ width: `${widthPct}%` }}
               aria-hidden
             />
-            <div className="relative z-10 flex items-baseline justify-between gap-2">
+            <div className="relative z-10 flex items-baseline justify-between gap-1.5">
               <span
                 className={cn(
-                  'font-bold uppercase tracking-[0.18em]',
-                  dense ? 'text-[9px]' : 'text-[10px]',
+                  'font-bold uppercase tracking-[0.14em]',
+                  dense ? 'text-[8px]' : 'text-[9px]',
                 )}
                 style={{ color: stage.accent }}
               >
                 {stage.label}
               </span>
               {stage.ratePct !== undefined && (
-                <span className={cn('text-[10px] font-bold tabular-nums', rateToneClass(stage.ratePct))}>
+                <span className={cn('text-[8px] font-bold tabular-nums', rateToneClass(stage.ratePct))}>
                   {stage.ratePct.toFixed(1)}%
                 </span>
               )}
             </div>
-            <div className="relative z-10 mt-0.5 flex items-baseline gap-1.5">
+            <div className="relative z-10 mt-0.5 flex items-baseline gap-1">
               <span
                 className={cn(
-                  'font-bold text-brand-navy tabular-nums leading-none',
-                  dense ? 'text-lg' : 'text-2xl',
+                  'font-semibold text-brand-navy tabular-nums leading-none',
+                  dense ? 'text-[12px]' : 'text-[15px]',
                 )}
               >
                 {stage.count.toLocaleString('fr-MA')}
               </span>
               {stage.sub && (
-                <span className="text-[10px] text-gray-400 truncate">{stage.sub}</span>
+                <span className="text-[8px] text-gray-400 truncate">{stage.sub}</span>
               )}
             </div>
           </div>

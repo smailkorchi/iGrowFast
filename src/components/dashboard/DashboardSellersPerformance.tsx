@@ -134,7 +134,7 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
             const { data } = await supabase
                 .from('orders')
                 .select(
-                    'id, date, assignment_date, confirmation_date, date_livraison, updated_at, price, raw_price, shipping_cost, include_delivery_in_total, order_status_id, package_status_id, package_status_label, seller_id, company_id, source_name, order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity), order_statuses(code, label, category), package_statuses(label, category)'
+                    'id, date, assignment_date, confirmation_date, date_livraison, updated_at, price, raw_price, shipping_cost, include_delivery_in_total, order_status_id, package_status_id, package_status_label, seller_id, company_id, source_name, order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price, product_unit_cost_snapshot), order_statuses(code, label, category), package_statuses(label, category)'
                 )
                 .eq('DigiCom Business', businessId)
                 .is('date_deleted', null);
@@ -358,17 +358,27 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                 revenue += productRevenueExcludingShipping(o);
                 shipping += Number(o.shipping_cost || 0);
                 for (const oi of o.order_items || []) {
-                    const q = Number(oi.quantity || 1);
+                    const q = Number(oi.quantity) || 0;
+                    if (q <= 0) continue;
                     if (oi.product_id) {
-                        cogs += (productCost.get(oi.product_id) || 0) * q;
+                        // Prefer the per-line cost snapshot so historical COGS
+                        // isn't re-priced when products.cost_price changes (§6).
+                        const snap = Number((oi as { product_unit_cost_snapshot?: number | null }).product_unit_cost_snapshot || 0);
+                        const unit = snap > 0 ? snap : (productCost.get(oi.product_id) || 0);
+                        cogs += unit * q;
                         sellerDeliveredQty.set(
                             oi.product_id,
                             (sellerDeliveredQty.get(oi.product_id) || 0) + q,
                         );
                     }
                     if (oi.accessory_id) {
-                        const aq = Number(oi.accessory_quantity || 0);
-                        cogs += (accessoryCost.get(oi.accessory_id) || 0) * aq;
+                        const aq = Number(oi.accessory_quantity) || 0;
+                        if (aq > 0) {
+                            // Same snapshot-first rule for accessories.
+                            const snap = Number((oi as { accessory_unit_price?: number | null }).accessory_unit_price || 0);
+                            const unit = snap > 0 ? snap : (accessoryCost.get(oi.accessory_id) || 0);
+                            cogs += unit * aq;
+                        }
                     }
                 }
             });
@@ -446,23 +456,19 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
     if (!metrics) return null;
 
     return (
-        <Card className="border-0 shadow-sm rounded-3xl">
-            <CardHeader className="pb-2">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-orange-50 flex items-center justify-center">
-                        <Users className="w-5 h-5 text-orange-600" />
+        <Card className="border border-gray-100 shadow-none rounded-xl">
+            <CardHeader className="px-3.5 pt-2.5 pb-1.5">
+                <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                        <Users className="w-3 h-3 text-gray-400" />
+                        <CardTitle className="text-[12px] font-semibold text-brand-navy">Sellers performance</CardTitle>
                     </div>
-                    <div>
-                        <CardTitle className="text-sm font-bold text-brand-navy">Sellers Performance</CardTitle>
-                        <p className="text-xs text-gray-400 mt-0.5">
-                            {metrics.sellerData.length} sellers &middot;{' '}
-                            {metrics.totalInWindow.toLocaleString('fr-MA')} orders in period &middot; Net =
-                            revenue &minus; COGS &minus; ads &minus; commission &minus; shipping
-                        </p>
-                    </div>
+                    <span className="text-[9px] text-gray-400 uppercase tracking-[0.14em] tabular-nums">
+                        {metrics.sellerData.length} sellers · {metrics.totalInWindow.toLocaleString('fr-MA')} orders
+                    </span>
                 </div>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="px-2.5 pb-2.5 pt-0 space-y-1">
                 {metrics.sellerData.map((s) => {
                     const isExpanded = expandedSellers.has(s.id);
                     const stages: FunnelStage[] = [
@@ -496,8 +502,8 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                         <div
                             key={s.id}
                             className={cn(
-                                'border rounded-3xl overflow-hidden transition-all bg-white',
-                                isExpanded ? 'border-gray-200 shadow-sm' : 'border-gray-100',
+                                'border rounded-xl overflow-hidden transition-colors bg-white',
+                                isExpanded ? 'border-gray-200' : 'border-gray-100',
                             )}
                         >
                             <SellerHeaderRow
@@ -508,15 +514,15 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                             />
 
                             {isExpanded && (
-                                <div className="px-4 pb-4 pt-3 border-t border-gray-100 bg-gradient-to-b from-gray-50/40 to-transparent">
-                                    <div className="grid grid-cols-1 lg:grid-cols-[1.15fr,1fr] gap-3">
-                                        <section className="rounded-2xl bg-white border border-gray-100 p-4 space-y-4">
+                                <div className="px-3 pb-3 pt-2 border-t border-gray-100 bg-gray-50/30 space-y-2">
+                                    <div className="grid grid-cols-1 lg:grid-cols-[1.15fr,1fr] gap-2">
+                                        <section className="rounded-lg bg-white border border-gray-100 p-3 space-y-3">
                                             <header className="flex items-baseline justify-between">
-                                                <h4 className="text-[11px] font-bold text-brand-navy uppercase tracking-[0.2em]">
+                                                <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.16em]">
                                                     Funnel dropoff
                                                 </h4>
                                                 <span className="text-[10px] text-gray-400 tabular-nums">
-                                                    {(s.assignedCount - s.deliveredCount).toLocaleString('fr-MA')} not delivered of {s.assignedCount.toLocaleString('fr-MA')}
+                                                    {(s.assignedCount - s.deliveredCount).toLocaleString('fr-MA')} / {s.assignedCount.toLocaleString('fr-MA')}
                                                 </span>
                                             </header>
                                             <StatusQueuePane
@@ -536,12 +542,12 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                                             />
                                         </section>
 
-                                        <section className="rounded-2xl bg-white border border-gray-100 p-4 space-y-3">
+                                        <section className="rounded-lg bg-white border border-gray-100 p-3 space-y-2">
                                             <header className="flex items-baseline justify-between">
-                                                <h4 className="text-[11px] font-bold text-brand-navy uppercase tracking-[0.2em]">
+                                                <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.16em]">
                                                     Financials
                                                 </h4>
-                                                <span className="text-[10px] text-gray-400">
+                                                <span className="text-[10px] text-gray-400 tabular-nums">
                                                     on {s.deliveredCount.toLocaleString('fr-MA')} delivered
                                                 </span>
                                             </header>
@@ -556,12 +562,11 @@ export const DashboardSellersPerformance = ({ businessId, dateFilter }: Dashboar
                                         </section>
                                     </div>
 
-                                    <section className="mt-3 rounded-2xl bg-white border border-gray-100 p-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-                                        <h4 className="text-[11px] font-bold text-brand-navy uppercase tracking-[0.2em] shrink-0">
+                                    <section className="rounded-lg bg-white border border-gray-100 px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                                        <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.16em] shrink-0">
                                             Sources
                                         </h4>
-                                        <span className="text-[10px] text-gray-400">hover for conversion</span>
-                                        <div className="flex-1 min-w-[220px]">
+                                        <div className="flex-1 min-w-[200px]">
                                             <SourcePills sources={s.sources} />
                                         </div>
                                     </section>
@@ -606,19 +611,19 @@ function SellerHeaderRow({
         <button
             type="button"
             onClick={onToggle}
-            className="w-full grid grid-cols-[minmax(150px,180px)_1fr_minmax(130px,150px)_20px] items-center gap-4 px-4 py-3 hover:bg-gray-50/50 transition-colors text-left"
+            className="w-full grid grid-cols-[minmax(120px,140px)_1fr_minmax(100px,120px)_14px] items-center gap-2.5 px-2.5 py-1.5 hover:bg-gray-50/50 transition-colors text-left"
         >
-            <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex items-center gap-1.5 min-w-0">
                 {seller.avatar_url ? (
-                    <img src={seller.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover shrink-0" />
+                    <img src={seller.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover shrink-0" />
                 ) : (
-                    <div className="w-10 h-10 rounded-full bg-brand-navy/10 flex items-center justify-center text-sm font-bold text-brand-navy shrink-0">
+                    <div className="w-6 h-6 rounded-full bg-brand-navy/10 flex items-center justify-center text-[10px] font-semibold text-brand-navy shrink-0">
                         {seller.name?.[0]}
                     </div>
                 )}
                 <div className="min-w-0">
-                    <p className="font-bold text-brand-navy text-sm truncate leading-tight">{seller.name}</p>
-                    <p className="text-[10px] text-gray-400 uppercase tracking-[0.18em] mt-0.5">
+                    <p className="font-semibold text-brand-navy text-[11px] truncate leading-tight">{seller.name}</p>
+                    <p className="text-[8px] text-gray-400 uppercase tracking-[0.14em] mt-0.5">
                         {seller.active === false ? 'Inactive' : 'Commercial'}
                     </p>
                 </div>
@@ -628,27 +633,25 @@ function SellerHeaderRow({
                 <PerformanceFunnel stages={stages} dense />
             </div>
 
-            <div className="min-w-0 pr-1 border-l border-gray-100 pl-4">
-                <p className="text-[9px] text-gray-400 font-bold uppercase tracking-[0.2em]">Net contribution</p>
+            <div className="min-w-0 border-l border-gray-100 pl-2.5">
+                <p className="text-[8px] text-gray-400 font-bold uppercase tracking-[0.14em]">Net</p>
                 <p
                     className={cn(
-                        'text-xl font-bold leading-tight tabular-nums',
+                        'text-[12px] font-semibold leading-tight tabular-nums',
                         netPositive ? 'text-emerald-600' : 'text-red-600',
                     )}
                 >
                     {Math.round(seller.netResult).toLocaleString('fr-MA')}
-                    <span className="text-[10px] text-gray-400 font-medium ml-1">MAD</span>
+                    <span className="text-[8px] text-gray-400 font-medium ml-0.5">MAD</span>
                 </p>
-                <p className="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
-                    <span className="tabular-nums">
-                        {Math.round(seller.commission).toLocaleString('fr-MA')} comm
-                    </span>
+                <p className="text-[8px] text-gray-400 mt-0.5 flex items-center gap-0.5">
+                    <span className="tabular-nums">{Math.round(seller.commission).toLocaleString('fr-MA')} comm</span>
                     {seller.commissionDrift && (
                         <TooltipProvider delayDuration={120}>
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <span className="inline-flex items-center text-amber-500">
-                                        <AlertTriangle className="w-3 h-3" />
+                                        <AlertTriangle className="w-2 h-2" />
                                     </span>
                                 </TooltipTrigger>
                                 <TooltipContent className="text-[10px]">
@@ -664,7 +667,7 @@ function SellerHeaderRow({
 
             <ChevronDown
                 className={cn(
-                    'w-4 h-4 text-gray-300 transition-transform justify-self-end',
+                    'w-3 h-3 text-gray-300 transition-transform justify-self-end',
                     isExpanded && 'rotate-180 text-gray-500',
                 )}
             />

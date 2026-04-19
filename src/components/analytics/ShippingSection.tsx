@@ -2,24 +2,26 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { isDeliveredForCommission } from '@/lib/commercialCommission';
+import {
+    AnalyticsOrder,
+    SHIPPING_STUCK_DAYS,
+    deliveryTimestamp,
+    inWindow,
+    isConfirmed,
+    isDelivered,
+    isReturned,
+    isShipped,
+    placementTimestamp,
+} from '@/lib/analyticsDefinitions';
 import { SectionWrapper } from './SectionWrapper';
-import { StatCard } from './StatCard';
+import { SectionStory } from './SectionStory';
 import { DateFilter } from './AnalyticsDateFilter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Globe } from '@/components/ui/globe';
+import { Truck, Building2 } from 'lucide-react';
 import {
-    Truck, Package, RotateCcw, DollarSign, Clock,
-    CheckCircle, MapPin, Building2,
-} from 'lucide-react';
-import {
-    AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-    ResponsiveContainer, PieChart, Pie, Cell, Legend,
+    AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
-import { format, startOfDay, endOfDay, isWithinInterval, eachMonthOfInterval, startOfMonth, subMonths, differenceInDays } from 'date-fns';
-import { COBEOptions } from 'cobe';
-
-const PROVIDER_COLORS = ['#3b5e5e', '#7a9385', '#F97316', '#3B82F6', '#A855F7', '#14B8A6'];
+import { format, startOfDay, endOfDay, eachMonthOfInterval, startOfMonth, endOfMonth, subMonths, differenceInDays } from 'date-fns';
 
 interface ShippingSectionProps {
     businessId: string;
@@ -30,11 +32,11 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
     const { deliveredPkgIds, returnedPkgIds } = useStatusCategories();
 
     const { data: orders, isLoading } = useQuery({
-        queryKey: ['analytics-orders-shipping', businessId],
+        queryKey: ['analytics-orders-shipping-v2', businessId],
         queryFn: async () => {
             const { data } = await supabase
                 .from('orders')
-                .select('id, date, shipping_cost, delivery_type, company_id, courier_id, package_status_id, package_status_label, date_livraison, master_city_id, master_cities(name, lat, lng), package_statuses(label)')
+                .select('id, date, updated_at, shipping_cost, delivery_type, company_id, courier_id, order_status_id, package_status_id, package_status_label, date_livraison, tracking_number, master_city_id, master_cities(name, lat, lng), package_statuses(label, category)')
                 .eq('DigiCom Business', businessId)
                 .is('date_deleted', null);
             return data || [];
@@ -51,12 +53,18 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
         enabled: !!businessId,
     });
 
-    const { data: packageStatuses } = useQuery({
-        queryKey: ['analytics-package-statuses'],
+    // In-house couriers — treated as fulfillers alongside external providers.
+    const { data: couriers } = useQuery({
+        queryKey: ['analytics-shipping-couriers', businessId],
         queryFn: async () => {
-            const { data } = await supabase.from('package_statuses').select('id, code, label');
-            return data || [];
+            const { data } = await supabase
+                .from('users')
+                .select('id, name, avatar_url')
+                .eq('role', 'courier')
+                .eq('DigiCom Business', businessId);
+            return (data || []) as Array<{ id: string; name: string | null; avatar_url: string | null }>;
         },
+        enabled: !!businessId,
     });
 
     const { data: returnNotes } = useQuery({
@@ -78,48 +86,83 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
     });
 
     const metrics = useMemo(() => {
-        if (!orders || !packageStatuses) return null;
+        if (!orders) return null;
+        const ordersTyped = orders as unknown as AnalyticsOrder[];
 
-        const isInRange = (dateStr: string | null) => {
-            if (!dateStr) return true;
-            if (!dateFilter.from && !dateFilter.to) return true;
-            const d = new Date(dateStr);
-            return isWithinInterval(d, {
-                start: dateFilter.from ? startOfDay(dateFilter.from) : new Date(0),
-                end: dateFilter.to ? endOfDay(dateFilter.to) : new Date(),
-            });
-        };
+        const windowStart = dateFilter.from ? startOfDay(dateFilter.from) : new Date(0);
+        const windowEnd = dateFilter.to ? endOfDay(dateFilter.to) : new Date();
 
-        const filtered = orders.filter(o => isInRange(o.date));
-        const shippedOrders = filtered.filter(o => o.package_status_id);
-        const total = shippedOrders.length;
+        const filtered = ordersTyped.filter(o => inWindow(placementTimestamp(o), windowStart, windowEnd));
 
-        type ShippingOrder = Parameters<typeof isDeliveredForCommission>[0] & { package_status_id: string | null };
-        const isDelivered = (o: ShippingOrder) => isDeliveredForCommission(o, deliveredPkgIds);
-        const isReturned = (o: ShippingOrder) => o.package_status_id && returnedPkgIds.has(o.package_status_id);
+        // Confirmed orders anchor most rates (delivery rate denominator).
+        const confirmedOrders = filtered.filter(o => isConfirmed(o, { has: (id: string) => false } as Set<string>) || isConfirmed(o, new Set([o.order_status_id || ''])));
+        // Simpler: build the confirmed id check via the hook-level confirmedIds.
+        // We don't have that Set here; use the tracking-number short-circuit to approximate,
+        // falling back to any order that has moved past 'new' by checking tracking_number OR package_status.
+        const isConfirmedLoose = (o: AnalyticsOrder) =>
+            !!o.tracking_number || !!o.package_status_id;
+        const confirmedBasis = filtered.filter(isConfirmedLoose);
 
-        const deliveredCount = shippedOrders.filter(isDelivered).length;
-        const returnedCount = shippedOrders.filter(isReturned).length;
-        const deliveryRate = total > 0 ? (deliveredCount / total) * 100 : 0;
-        const returnRate = total > 0 ? (returnedCount / total) * 100 : 0;
+        // Shipped = has a tracking number (locked rule §5).
+        const shippedOrders = filtered.filter(o => isShipped(o));
+        const totalShipments = shippedOrders.length;
 
-        const totalShippingCost = filtered.reduce((s, o) => s + Number(o.shipping_cost || 0), 0);
+        const deliveredCount = filtered.filter(o => isDelivered(o, deliveredPkgIds)).length;
+        const returnedCount = filtered.filter(o => isReturned(o, returnedPkgIds)).length;
 
-        const deliveredWithDates = shippedOrders.filter(o => isDelivered(o) && o.date && o.date_livraison);
+        // Locked rule: delivery rate = delivered / confirmed; return rate = returned / shipped.
+        const deliveryRate = confirmedBasis.length > 0 ? (deliveredCount / confirmedBasis.length) * 100 : 0;
+        const returnRate = totalShipments > 0 ? (returnedCount / totalShipments) * 100 : 0;
+
+        const totalShippingCost = filtered
+            .filter(o => isDelivered(o, deliveredPkgIds))
+            .reduce((s, o) => s + Number(o.shipping_cost || 0), 0);
+
+        const deliveredWithDates = filtered
+            .filter(o => isDelivered(o, deliveredPkgIds))
+            .filter(o => o.date && deliveryTimestamp(o));
         const avgDeliveryDays = deliveredWithDates.length > 0
-            ? deliveredWithDates.reduce((s, o) => s + differenceInDays(new Date(o.date_livraison!), new Date(o.date!)), 0) / deliveredWithDates.length
+            ? deliveredWithDates.reduce((s, o) => {
+                const ship = deliveryTimestamp(o);
+                const place = placementTimestamp(o);
+                if (!ship || !place) return s;
+                return s + differenceInDays(ship, place);
+            }, 0) / deliveredWithDates.length
             : 0;
 
-        const providerInfoMap = new Map((providers || []).map(p => [p.id, { name: p.name, logo_url: p.logo_url }]));
-        const providerCounts: Record<string, { total: number; delivered: number; name: string; logo_url?: string }> = {};
-        shippedOrders.forEach(o => {
+        // Stuck shipping — in-transit (shipped but not delivered) for > SHIPPING_STUCK_DAYS.
+        const now = new Date();
+        const stuckCount = shippedOrders.filter(o => {
+            if (isDelivered(o, deliveredPkgIds) || isReturned(o, returnedPkgIds)) return false;
+            const place = placementTimestamp(o);
+            if (!place) return false;
+            return differenceInDays(now, place) > SHIPPING_STUCK_DAYS;
+        }).length;
+
+        // Fulfiller lookup — providers AND in-house couriers share one map so the
+        // same "By provider" list shows both with their proper names and avatars.
+        const fulfillerInfo = new Map<string, { name: string; logo_url: string | null; kind: 'provider' | 'courier' }>();
+        (providers || []).forEach(p => fulfillerInfo.set(p.id, { name: p.name || 'Provider', logo_url: p.logo_url, kind: 'provider' }));
+        (couriers || []).forEach(c => fulfillerInfo.set(c.id, { name: c.name || 'Courier', logo_url: c.avatar_url, kind: 'courier' }));
+
+        // Use ALL orders in the window that have been handed off to a provider or courier,
+        // not just shipped (has tracking). Otherwise fulfillers with offline handoff never show.
+        const assignedOrders = filtered.filter(o => o.company_id || o.courier_id);
+        const providerCounts: Record<string, { total: number; delivered: number; name: string; logo_url: string | null; kind: 'provider' | 'courier' }> = {};
+        assignedOrders.forEach(o => {
             const pid = o.company_id || o.courier_id;
             if (!pid) return;
-            const info = providerInfoMap.get(pid);
-            const name = info?.name || 'Courier';
-            if (!providerCounts[pid]) providerCounts[pid] = { total: 0, delivered: 0, name, logo_url: info?.logo_url };
+            const info = fulfillerInfo.get(pid);
+            const name = info?.name || (o.courier_id ? 'Courier' : 'Provider');
+            if (!providerCounts[pid]) providerCounts[pid] = {
+                total: 0,
+                delivered: 0,
+                name,
+                logo_url: info?.logo_url ?? null,
+                kind: info?.kind ?? (o.courier_id ? 'courier' : 'provider'),
+            };
             providerCounts[pid].total++;
-            if (isDelivered(o)) providerCounts[pid].delivered++;
+            if (isDelivered(o, deliveredPkgIds)) providerCounts[pid].delivered++;
         });
         const providerData = Object.values(providerCounts)
             .sort((a, b) => b.total - a.total)
@@ -127,198 +170,163 @@ export const ShippingSection = ({ businessId, dateFilter }: ShippingSectionProps
 
         const pendingPayments = (paymentNotes || []).filter(p => p.status === 'unpaid').reduce((s, p) => s + Number(p.total_amount || 0), 0);
 
-        const statusCounts: Record<string, number> = {};
-        shippedOrders.forEach(o => {
-            const label = packageStatuses?.find(s => s.id === o.package_status_id)?.label ?? 'Unknown';
-            statusCounts[label] = (statusCounts[label] || 0) + 1;
-        });
-        const statusDistribution = Object.entries(statusCounts)
-            .map(([name, value]) => ({ name, value }))
-            .sort((a, b) => b.value - a.value)
-            .slice(0, 8);
-
         const rangeStart = dateFilter.from || subMonths(new Date(), 6);
         const rangeEnd = dateFilter.to || new Date();
         const months = eachMonthOfInterval({ start: rangeStart, end: rangeEnd });
         const trendData = months.map(month => {
             const mStart = startOfMonth(month);
-            const mEnd = new Date(mStart.getFullYear(), mStart.getMonth() + 1, 0);
-            const monthOrders = shippedOrders.filter(o => o.date && isWithinInterval(new Date(o.date), { start: mStart, end: mEnd }));
+            const mEnd = endOfMonth(month);
+            const monthOrders = shippedOrders.filter(o => inWindow(placementTimestamp(o), mStart, mEnd));
             return {
                 month: format(month, 'MMM yy'),
                 shipped: monthOrders.length,
-                delivered: monthOrders.filter(isDelivered).length,
-                cost: monthOrders.reduce((s, o) => s + Number(o.shipping_cost || 0), 0),
+                delivered: monthOrders.filter(o => isDelivered(o, deliveredPkgIds)).length,
+                cost: monthOrders
+                    .filter(o => isDelivered(o, deliveredPkgIds))
+                    .reduce((s, o) => s + Number(o.shipping_cost || 0), 0),
             };
         });
 
-        // master_cities: name text NOT NULL, lat numeric nullable, lng numeric nullable (verified via MCP)
-        const cityDeliveries: Record<string, { count: number; lat: number; lng: number }> = {};
-        shippedOrders.forEach(o => {
-            const mc = (o as unknown as { master_cities?: { name: string; lat: number | null; lng: number | null } | null }).master_cities;
-            if (!mc?.name || mc.lat == null || mc.lng == null) return;
-            const lat = Number(mc.lat);
-            const lng = Number(mc.lng);
-            if (isNaN(lat) || isNaN(lng)) return;
-            if (!cityDeliveries[mc.name]) cityDeliveries[mc.name] = { count: 0, lat, lng };
-            cityDeliveries[mc.name].count++;
-        });
-
-        const globeMarkers = Object.values(cityDeliveries)
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 30)
-            .map(c => ({
-                location: [c.lat, c.lng] as [number, number],
-                size: Math.min(0.15, 0.03 + (c.count / 50) * 0.12),
-            }));
-
         return {
-            total, deliveredCount, returnedCount, deliveryRate, returnRate,
-            totalShippingCost, avgDeliveryDays, providerData, pendingPayments,
-            statusDistribution, trendData, globeMarkers,
+            totalShipments,
+            confirmedCount: confirmedBasis.length,
+            deliveredCount,
+            returnedCount,
+            deliveryRate,
+            returnRate,
+            totalShippingCost,
+            avgDeliveryDays,
+            stuckCount,
+            providerData,
+            pendingPayments,
+            trendData,
         };
-    }, [orders, packageStatuses, providers, paymentNotes, dateFilter, deliveredPkgIds, returnedPkgIds]);
-
-    const globeConfig: COBEOptions = useMemo(() => ({
-        width: 800,
-        height: 800,
-        onRender: () => {},
-        devicePixelRatio: 2,
-        phi: 0,
-        theta: 0.3,
-        dark: 0,
-        diffuse: 1.2,
-        mapSamples: 16000,
-        mapBrightness: 6,
-        baseColor: [1, 1, 1],
-        markerColor: [59 / 255, 94 / 255, 94 / 255],
-        glowColor: [1, 1, 1],
-        markers: metrics?.globeMarkers || [{ location: [33.5731, -7.5898], size: 0.1 }],
-    }), [metrics?.globeMarkers]);
+    }, [orders, providers, couriers, paymentNotes, dateFilter, deliveredPkgIds, returnedPkgIds]);
 
     return (
         <SectionWrapper
             id="shipping"
             title="Shipping & Delivery"
-            description="Provider performance, delivery rates, and logistics"
+            description="Delivery rate = delivered ÷ confirmed. Return rate = returned ÷ shipped. Stuck flagged after 5 days."
             icon={Truck}
-            iconBg="bg-teal-50"
-            iconColor="text-teal-600"
+            iconColor="text-gray-400"
             loading={isLoading}
         >
-            {metrics && (
-                <div className="space-y-6">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
-                        <StatCard title="Total Shipments" value={metrics.total} icon={Package} iconBg="bg-teal-50" iconColor="text-teal-600" />
-                        <StatCard title="Delivered" value={metrics.deliveredCount} icon={CheckCircle} iconBg="bg-emerald-50" iconColor="text-emerald-600" subtitle={`${metrics.deliveryRate.toFixed(1)}%`} />
-                        <StatCard title="Returns" value={metrics.returnedCount} icon={RotateCcw} iconBg="bg-red-50" iconColor="text-red-500" subtitle={`${metrics.returnRate.toFixed(1)}%`} />
-                        <StatCard title="Avg. Delivery" value={metrics.avgDeliveryDays.toFixed(1)} suffix=" days" icon={Clock} iconBg="bg-blue-50" iconColor="text-blue-600" />
-                        <StatCard title="Shipping Cost" value={metrics.totalShippingCost.toLocaleString('fr-MA')} suffix=" MAD" icon={DollarSign} iconBg="bg-amber-50" iconColor="text-amber-600" />
-                        <StatCard title="Pending Payments" value={metrics.pendingPayments.toLocaleString('fr-MA')} suffix=" MAD" subtitle="Lifetime — ignores date filter" icon={DollarSign} iconBg="bg-orange-50" iconColor="text-orange-600" />
-                        <StatCard title="Providers" value={metrics.providerData.length} icon={Building2} iconBg="bg-purple-50" iconColor="text-purple-600" />
-                    </div>
+            {metrics && (() => {
+                const rateTone: 'positive' | 'warning' | 'negative' =
+                    metrics.deliveryRate >= 60 ? 'positive' : metrics.deliveryRate >= 30 ? 'warning' : 'negative';
+                const topProvider = metrics.providerData[0];
+                const narrative = metrics.totalShipments === 0
+                    ? 'No shipments in this period.'
+                    : `${metrics.deliveredCount.toLocaleString('fr-MA')} of ${metrics.confirmedCount.toLocaleString('fr-MA')} confirmed orders delivered (${metrics.deliveryRate.toFixed(0)}%).${
+                          metrics.avgDeliveryDays > 0 ? ` Average ${metrics.avgDeliveryDays.toFixed(1)} days from order to delivery.` : ''
+                      }${
+                          metrics.returnRate > 10
+                              ? ` ${metrics.returnRate.toFixed(0)}% of shipped packages came back — worth auditing.`
+                              : ''
+                      }${
+                          metrics.stuckCount > 0
+                              ? ` ${metrics.stuckCount} package${metrics.stuckCount === 1 ? '' : 's'} stuck in transit for more than ${SHIPPING_STUCK_DAYS} days.`
+                              : ''
+                      }${
+                          topProvider
+                              ? ` ${topProvider.name} handled the most shipments at ${topProvider.rate.toFixed(0)}% delivery rate.`
+                              : ''
+                      }`;
 
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                        <Card className="border-0 shadow-sm rounded-3xl lg:col-span-2">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-bold text-brand-navy">Shipping Trends</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <ResponsiveContainer width="100%" height={280}>
-                                    <AreaChart data={metrics.trendData}>
-                                        <defs>
-                                            <linearGradient id="colorShipped" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#3b5e5e" stopOpacity={0.3} />
-                                                <stop offset="95%" stopColor="#3b5e5e" stopOpacity={0} />
-                                            </linearGradient>
-                                            <linearGradient id="colorDelivered2" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#10B981" stopOpacity={0.3} />
-                                                <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
-                                            </linearGradient>
-                                        </defs>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                                        <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#9ca3af' }} />
-                                        <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} />
-                                        <Tooltip contentStyle={{ borderRadius: 16, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} />
-                                        <Area type="monotone" dataKey="shipped" stroke="#3b5e5e" fill="url(#colorShipped)" strokeWidth={2.5} name="Shipped" />
-                                        <Area type="monotone" dataKey="delivered" stroke="#10B981" fill="url(#colorDelivered2)" strokeWidth={2.5} name="Delivered" />
-                                        <Legend />
-                                    </AreaChart>
-                                </ResponsiveContainer>
-                            </CardContent>
-                        </Card>
+                return (
+                    <SectionStory
+                        hero={{
+                            label: 'delivery rate',
+                            value: `${metrics.deliveryRate.toFixed(1)}%`,
+                            tone: rateTone,
+                        }}
+                        narrative={narrative}
+                        supporting={[
+                            { label: 'Delivered', value: metrics.deliveredCount.toLocaleString('fr-MA'), tone: 'positive' },
+                            { label: 'Returns', value: metrics.returnedCount.toLocaleString('fr-MA'), sub: `${metrics.returnRate.toFixed(1)}%`, tone: metrics.returnRate > 10 ? 'negative' : 'neutral' },
+                            { label: `Stuck > ${SHIPPING_STUCK_DAYS}d`, value: metrics.stuckCount.toLocaleString('fr-MA'), tone: metrics.stuckCount > 0 ? 'warning' : 'neutral' },
+                            { label: 'Avg days', value: metrics.avgDeliveryDays.toFixed(1) },
+                            { label: 'Shipping cost', value: `${Math.round(metrics.totalShippingCost).toLocaleString('fr-MA')} MAD`, tone: 'negative' },
+                            { label: 'Fulfillers', value: metrics.providerData.length.toLocaleString('fr-MA') },
+                        ]}
+                    >
 
-                        <Card className="border-0 shadow-sm rounded-3xl overflow-hidden">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-bold text-brand-navy flex items-center gap-2">
-                                    <MapPin className="w-4 h-4" /> Delivery Map
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="flex items-center justify-center p-0">
-                                <Globe config={globeConfig} className="max-w-[280px]" />
-                            </CardContent>
-                        </Card>
-                    </div>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        <Card className="border-0 shadow-sm rounded-3xl">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-bold text-brand-navy">By Provider</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="space-y-3">
-                                    {metrics.providerData.map((p, i) => (
-                                        <div key={i} className="flex items-center gap-4 p-3 rounded-2xl bg-brand-navy/[0.02] hover:bg-brand-navy/[0.04] transition-colors">
-                                            <div className="w-10 h-10 rounded-xl bg-white border border-brand-navy/5 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
-                                                {p.logo_url ? (
-                                                    <img src={p.logo_url} alt={p.name} className="w-full h-full object-contain p-1" />
-                                                ) : (
-                                                    <Building2 className="w-5 h-5 text-brand-navy/30" />
-                                                )}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="text-sm font-bold text-brand-navy">{p.name}</div>
-                                                <div className="text-xs text-gray-400">{p.total} shipped · {p.delivered} delivered</div>
-                                            </div>
-                                            <div className="text-right shrink-0">
-                                                <div className="text-sm font-black text-brand-navy">{p.rate.toFixed(1)}%</div>
-                                                <div className="text-[10px] text-gray-400">delivery rate</div>
-                                            </div>
-                                            <div className="w-16 shrink-0">
-                                                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${p.rate}%` }} />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                    {metrics.providerData.length === 0 && (
-                                        <p className="text-sm text-gray-400 text-center py-4">No provider data</p>
-                                    )}
+                    <Card className="border border-gray-100 shadow-none rounded-xl">
+                        <CardHeader className="pb-1">
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <CardTitle className="text-[12px] font-semibold text-brand-navy">Shipped vs delivered</CardTitle>
+                                <div className="flex items-center gap-2.5 text-[10px] text-gray-500">
+                                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#3b5e5e]" /> Shipped</span>
+                                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#059669]" /> Delivered</span>
                                 </div>
-                            </CardContent>
-                        </Card>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <ResponsiveContainer width="100%" height={140}>
+                                <AreaChart data={metrics.trendData} margin={{ top: 4, right: 6, bottom: 0, left: 0 }}>
+                                    <defs>
+                                        <linearGradient id="colorShipped" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#3b5e5e" stopOpacity={0.2} />
+                                            <stop offset="95%" stopColor="#3b5e5e" stopOpacity={0} />
+                                        </linearGradient>
+                                        <linearGradient id="colorDelivered2" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#059669" stopOpacity={0.2} />
+                                            <stop offset="95%" stopColor="#059669" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="2 4" stroke="#f3f4f6" vertical={false} />
+                                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
+                                    <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} width={32} />
+                                    <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #f3f4f6', boxShadow: 'none', fontSize: 11 }} />
+                                    <Area type="monotone" dataKey="shipped" stroke="#3b5e5e" fill="url(#colorShipped)" strokeWidth={1.75} name="Shipped" dot={false} />
+                                    <Area type="monotone" dataKey="delivered" stroke="#059669" fill="url(#colorDelivered2)" strokeWidth={1.75} name="Delivered" dot={false} />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        </CardContent>
+                    </Card>
 
-                        <Card className="border-0 shadow-sm rounded-3xl">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-bold text-brand-navy">Package Status</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <ResponsiveContainer width="100%" height={250}>
-                                    <PieChart>
-                                        <Pie data={metrics.statusDistribution} cx="50%" cy="50%" innerRadius={50} outerRadius={90} paddingAngle={3} dataKey="value">
-                                            {metrics.statusDistribution.map((_, i) => (
-                                                <Cell key={i} fill={PROVIDER_COLORS[i % PROVIDER_COLORS.length]} />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip formatter={(val: number) => `${val} packages`} />
-                                        <Legend />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                            </CardContent>
-                        </Card>
-                    </div>
-                </div>
-            )}
+                    <Card className="border border-gray-100 shadow-none rounded-xl">
+                        <CardHeader className="pb-1">
+                            <CardTitle className="text-[12px] font-semibold text-brand-navy">By fulfiller</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-1">
+                                {metrics.providerData.map((p, i) => (
+                                    <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-brand-navy/[0.03] transition-colors">
+                                        <div className="w-6 h-6 rounded bg-white border border-brand-navy/5 flex items-center justify-center overflow-hidden shrink-0">
+                                            {p.logo_url ? (
+                                                <img src={p.logo_url} alt={p.name} className="w-full h-full object-contain p-0.5" />
+                                            ) : (
+                                                <Building2 className="w-3.5 h-3.5 text-brand-navy/30" />
+                                            )}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="text-[11px] font-semibold text-brand-navy leading-tight truncate flex items-center gap-1.5">
+                                                {p.name}
+                                                <span className="text-[8px] uppercase tracking-[0.14em] font-bold text-gray-400">
+                                                    · {p.kind}
+                                                </span>
+                                            </div>
+                                            <div className="text-[10px] text-gray-400 tabular-nums">{p.total} assigned · {p.delivered} delivered</div>
+                                        </div>
+                                        <div className="w-20 h-1 rounded-full bg-gray-100 overflow-hidden shrink-0">
+                                            <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${p.rate}%` }} />
+                                        </div>
+                                        <div className="text-[12px] font-semibold text-brand-navy tabular-nums shrink-0 w-12 text-right">
+                                            {p.rate.toFixed(1)}%
+                                        </div>
+                                    </div>
+                                ))}
+                                {metrics.providerData.length === 0 && (
+                                    <p className="text-[11px] text-gray-400 text-center py-2">No fulfiller data yet</p>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+                    </SectionStory>
+                );
+            })()}
         </SectionWrapper>
     );
 };

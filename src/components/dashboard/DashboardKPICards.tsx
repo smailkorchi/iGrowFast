@@ -7,13 +7,20 @@ import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import {
     ShoppingCart, CheckCircle2, Truck, XCircle, Clock,
-    Package, Ban, FileText, TrendingUp,
+    Package, Ban, FileText, TrendingUp, Target,
     type LucideIcon,
 } from 'lucide-react';
 import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
 import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { isDeliveredForCommission } from '@/lib/commercialCommission';
+import {
+    AnalyticsOrder,
+    inWindow,
+    isConfirmed,
+    isDelivered,
+    isFailed,
+    placementTimestamp,
+} from '@/lib/analyticsDefinitions';
 
 interface DashboardKPICardsProps {
     businessId: string;
@@ -25,8 +32,10 @@ interface KPICardData {
     value: string | number;
     subtitle?: string;
     icon: LucideIcon;
-    iconBg: string;
-    iconColor: string;
+    /** Hex accent used for the left border, icon tint, and (when rate is set) the progress bar. */
+    accent: string;
+    /** Progress fill 0..100; renders a thin bar under the value. */
+    rate?: number;
     onClick?: () => void;
     valueColor?: string;
 }
@@ -37,6 +46,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
         confirmedIds,
         cancelledIds,
         pendingIds,
+        newOrderIds,
         deliveredPkgIds,
         returnedPkgIds,
         getPkgsByCategories,
@@ -44,11 +54,11 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
     } = useStatusCategories();
 
     const { data: orders } = useQuery({
-        queryKey: ['dashboard-orders', businessId],
+        queryKey: ['kpi-cards-orders-v2', businessId],
         queryFn: async () => {
             const { data } = await supabase
                 .from('orders')
-                .select('id, date, price, shipping_cost, order_status_id, package_status_id, package_status_label, seller_id, company_id, source_name, order_statuses(code, label), package_statuses(label)')
+                .select('id, date, order_status_id, package_status_id, package_status_label, tracking_number, package_statuses(label, category)')
                 .eq('DigiCom Business', businessId)
                 .is('date_deleted', null);
             return data || [];
@@ -70,23 +80,17 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
 
     const cards = useMemo<KPICardData[]>(() => {
         if (!orders) return [];
+        const ordersTyped = orders as unknown as AnalyticsOrder[];
 
+        const windowStart = dateFilter.from ? startOfDay(dateFilter.from) : new Date(0);
+        const windowEnd = dateFilter.to ? endOfDay(dateFilter.to) : new Date();
         const isInRange = (dateStr: string | null) => {
-            if (!dateStr) return true;
-            if (!dateFilter.from && !dateFilter.to) return true;
+            if (!dateStr) return false;
             const d = new Date(dateStr);
-            return isWithinInterval(d, {
-                start: dateFilter.from ? startOfDay(dateFilter.from) : new Date(0),
-                end: dateFilter.to ? endOfDay(dateFilter.to) : new Date(),
-            });
+            return !Number.isNaN(d.getTime()) && isWithinInterval(d, { start: windowStart, end: windowEnd });
         };
 
-        type KPIOrder = Parameters<typeof isDeliveredForCommission>[0] & {
-            date: string | null;
-            order_status_id: string | null;
-            company_id: string | null;
-        };
-        const filtered = orders.filter((o: KPIOrder) => isInRange(o.date));
+        const filtered = ordersTyped.filter(o => inWindow(placementTimestamp(o), windowStart, windowEnd));
         const total = filtered.length;
 
         // Each "click card → filter Orders" link must pass ALL status ids the
@@ -108,46 +112,47 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
         const shippedPkgIdsSet = new Set(shippedPkgIdList);
         const refusedPkgIdList = Array.from(getPkgsByCategories(['refused']).map(s => s.id));
 
-        const confirmed = filtered.filter((o: KPIOrder) =>
-            o.order_status_id && confirmedIds.has(o.order_status_id)
-        );
-        const delivered = filtered.filter((o: KPIOrder) => isDeliveredForCommission(o, deliveredPkgIds));
+        // Confirmed = category match OR tracking_number set (§2).
+        const confirmed = filtered.filter(o => isConfirmed(o, confirmedIds));
+        const delivered = filtered.filter(o => isDelivered(o, deliveredPkgIds));
+        // Confirmation rate denominator = orders the team has touched (§5).
+        const touched = filtered.filter(o => !o.order_status_id || !newOrderIds.has(o.order_status_id));
 
-        const shippedOrders = filtered.filter((o: KPIOrder) => !!o.company_id);
-        const deliveryRate = shippedOrders.length > 0
-            ? ((delivered.length / shippedOrders.length) * 100).toFixed(1)
-            : '0';
+        const confirmationRateNum =
+            touched.length > 0 ? Math.min(100, (confirmed.length / touched.length) * 100) : 0;
+        const confirmationRate = confirmationRateNum.toFixed(1);
+        const deliveryRateNum =
+            confirmed.length > 0 ? Math.min(100, (delivered.length / confirmed.length) * 100) : 0;
+        const deliveryRate = deliveryRateNum.toFixed(1);
 
-        const pendingConfirmation = filtered.filter((o: KPIOrder) =>
-            o.order_status_id && pendingIds.has(o.order_status_id)
-        );
-
-        const enCoursLivraison = filtered.filter((o: KPIOrder) =>
-            !!o.package_status_id && shippedPkgIdsSet.has(o.package_status_id)
-        );
-
-        const canceled = filtered.filter((o: KPIOrder) =>
-            o.order_status_id && cancelledIds.has(o.order_status_id)
+        const pendingConfirmation = filtered.filter(o =>
+            !!o.order_status_id && pendingIds.has(o.order_status_id),
         );
 
-        const refused = filtered.filter((o: KPIOrder) =>
-            o.package_status_id && isPkgCategory(o.package_status_id, 'refused')
+        const enCoursLivraison = filtered.filter(o =>
+            !!o.package_status_id && shippedPkgIdsSet.has(o.package_status_id),
+        );
+
+        // Failed — merged bucket (§4): cancelled + fake + blacklisted + double.
+        const canceled = filtered.filter(o => isFailed(o, cancelledIds));
+
+        const refused = filtered.filter(o =>
+            !!o.package_status_id && isPkgCategory(o.package_status_id, 'refused'),
         );
 
         const pct = (n: number) => total > 0 ? ((n / total) * 100).toFixed(1) : '0';
 
-        // company_payment_notes: created_at timestamptz nullable, net_amount numeric NOT NULL (verified via MCP)
         type PaymentNote = { created_at: string | null; net_amount: number };
         const filteredNotes = (paymentNotes || []).filter((n: PaymentNote) => isInRange(n.created_at));
         const notesTotal = filteredNotes.reduce((s: number, n: PaymentNote) => s + Number(n.net_amount || 0), 0);
+        void returnedPkgIds;
 
         return [
             {
                 title: 'Total Orders',
                 value: total,
                 icon: ShoppingCart,
-                iconBg: 'bg-brand-navy/5',
-                iconColor: 'text-brand-navy',
+                accent: '#3b5e5e',
                 onClick: () => navigate('/orders'),
             },
             {
@@ -155,34 +160,42 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
                 value: confirmed.length,
                 subtitle: `${pct(confirmed.length)}% of total`,
                 icon: CheckCircle2,
-                iconBg: 'bg-emerald-50',
-                iconColor: 'text-emerald-600',
+                accent: '#10b981',
                 onClick: () => navigate('/orders', { state: { filterStatusIds: confirmedIdList, filterStatusLabel: 'Confirmed' } }),
+            },
+            {
+                title: 'Confirmation Rate',
+                value: `${confirmationRate}%`,
+                subtitle: `${confirmed.length}/${total} of total`,
+                icon: Target,
+                accent: '#8b5cf6',
+                rate: confirmationRateNum,
             },
             {
                 title: 'Delivered',
                 value: delivered.length,
-                subtitle: `${pct(delivered.length)}% of total`,
+                subtitle:
+                    confirmed.length > 0
+                        ? `${((delivered.length / confirmed.length) * 100).toFixed(1)}% of confirmed`
+                        : `${pct(delivered.length)}% of total`,
                 icon: Package,
-                iconBg: 'bg-green-50',
-                iconColor: 'text-green-600',
+                accent: '#059669',
                 onClick: () => navigate('/orders', { state: { filterPackageStatusIds: deliveredPkgIdList, filterPackageStatusLabel: 'Delivered' } }),
             },
             {
                 title: 'Delivery Rate',
                 value: `${deliveryRate}%`,
-                subtitle: `${delivered.length}/${shippedOrders.length} shipped`,
+                subtitle: `${delivered.length}/${confirmed.length} of confirmed`,
                 icon: TrendingUp,
-                iconBg: 'bg-blue-50',
-                iconColor: 'text-blue-600',
+                accent: '#2563eb',
+                rate: deliveryRateNum,
             },
             {
                 title: 'Pending Confirmation',
                 value: pendingConfirmation.length,
                 subtitle: `${pct(pendingConfirmation.length)}% of total`,
                 icon: Clock,
-                iconBg: 'bg-amber-50',
-                iconColor: 'text-amber-600',
+                accent: '#f59e0b',
                 onClick: () => navigate('/orders', { state: { filterStatusIds: pendingIdList, filterStatusLabel: 'Pending confirmation' } }),
             },
             {
@@ -190,8 +203,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
                 value: enCoursLivraison.length,
                 subtitle: `${pct(enCoursLivraison.length)}% of total`,
                 icon: Truck,
-                iconBg: 'bg-indigo-50',
-                iconColor: 'text-indigo-600',
+                accent: '#6366f1',
                 onClick: () => navigate('/orders', { state: { filterPackageStatusIds: shippedPkgIdList, filterPackageStatusLabel: 'In transit' } }),
             },
             {
@@ -199,8 +211,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
                 value: canceled.length,
                 subtitle: `${pct(canceled.length)}% of total`,
                 icon: XCircle,
-                iconBg: 'bg-red-50',
-                iconColor: 'text-red-600',
+                accent: '#ef4444',
                 valueColor: canceled.length > 0 ? 'text-red-600' : undefined,
                 onClick: () => navigate('/orders', { state: { filterStatusIds: cancelledIdList, filterStatusLabel: 'Canceled' } }),
             },
@@ -209,8 +220,7 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
                 value: refused.length,
                 subtitle: `${pct(refused.length)}% of total`,
                 icon: Ban,
-                iconBg: 'bg-orange-50',
-                iconColor: 'text-orange-600',
+                accent: '#f97316',
                 valueColor: refused.length > 0 ? 'text-orange-600' : undefined,
                 onClick: () => navigate('/orders', { state: { filterPackageStatusIds: refusedPkgIdList, filterPackageStatusLabel: 'Refused' } }),
             },
@@ -219,41 +229,69 @@ export const DashboardKPICards = ({ businessId, dateFilter }: DashboardKPICardsP
                 value: filteredNotes.length,
                 subtitle: `${notesTotal.toLocaleString('fr-MA')} MAD`,
                 icon: FileText,
-                iconBg: 'bg-purple-50',
-                iconColor: 'text-purple-600',
+                accent: '#a855f7',
                 onClick: () => navigate('/payments'),
             },
         ];
-    }, [orders, paymentNotes, dateFilter, navigate, confirmedIds, cancelledIds, pendingIds, deliveredPkgIds, returnedPkgIds, getPkgsByCategories, isPkgCategory]);
+    }, [orders, paymentNotes, dateFilter, navigate, confirmedIds, cancelledIds, pendingIds, newOrderIds, deliveredPkgIds, returnedPkgIds, getPkgsByCategories, isPkgCategory]);
 
     return (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
             {cards.map((card, i) => (
                 <motion.div
                     key={card.title}
-                    initial={{ opacity: 0, y: 20 }}
+                    initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: i * 0.04 }}
+                    transition={{ duration: 0.22, delay: i * 0.025 }}
                 >
                     <Card
                         className={cn(
-                            'border-0 shadow-sm rounded-3xl h-full transition-all duration-200',
-                            card.onClick && 'cursor-pointer hover:shadow-md hover:scale-[1.02] active:scale-[0.98]'
+                            'group relative border border-gray-100 shadow-none rounded-lg h-full overflow-hidden transition-all',
+                            card.onClick && 'cursor-pointer hover:border-gray-200 hover:shadow-[0_1px_2px_rgba(0,0,0,0.04)]',
                         )}
                         onClick={card.onClick}
                     >
-                        <CardContent className="p-4">
-                            <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center mb-2.5', card.iconBg)}>
-                                <card.icon className={cn('w-4.5 h-4.5', card.iconColor)} />
+                        <span
+                            aria-hidden
+                            className="absolute inset-y-0 left-0 w-[2px]"
+                            style={{ backgroundColor: card.accent }}
+                        />
+                        <CardContent className="p-2.5 pl-3">
+                            <div className="flex items-center justify-between gap-1.5">
+                                <span className="text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400 truncate">
+                                    {card.title}
+                                </span>
+                                <span
+                                    className="flex items-center justify-center w-4 h-4 rounded shrink-0"
+                                    style={{ backgroundColor: `${card.accent}14`, color: card.accent }}
+                                >
+                                    <card.icon className="w-2.5 h-2.5" strokeWidth={2.25} />
+                                </span>
                             </div>
-                            <div className={cn('text-2xl font-black text-brand-navy tracking-tight', card.valueColor)}>
+                            <div
+                                className={cn(
+                                    'font-semibold text-brand-navy tabular-nums mt-1.5 leading-none',
+                                    typeof card.value === 'string' && card.value.includes('%')
+                                        ? 'text-[17px]'
+                                        : 'text-[15px]',
+                                    card.valueColor,
+                                )}
+                            >
                                 {typeof card.value === 'number' ? card.value.toLocaleString('fr-MA') : card.value}
                             </div>
-                            <div className="text-[10px] uppercase tracking-widest font-bold text-gray-400 mt-0.5">
-                                {card.title}
-                            </div>
+                            {card.rate !== undefined && (
+                                <div
+                                    className="mt-1.5 h-[3px] rounded-full overflow-hidden"
+                                    style={{ backgroundColor: `${card.accent}1A` }}
+                                >
+                                    <div
+                                        className="h-full rounded-full transition-all duration-500"
+                                        style={{ width: `${Math.min(100, card.rate)}%`, backgroundColor: card.accent }}
+                                    />
+                                </div>
+                            )}
                             {card.subtitle && (
-                                <div className="text-[11px] text-gray-500 mt-1">
+                                <div className="text-[9px] text-gray-400 mt-1 truncate tabular-nums">
                                     {card.subtitle}
                                 </div>
                             )}

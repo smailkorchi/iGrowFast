@@ -2,9 +2,16 @@ import { useMemo, ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
-import { isDeliveredForCommission } from '@/lib/commercialCommission';
+import {
+    AnalyticsOrder,
+    inWindow,
+    isRevenueOrder,
+    normalizeSource,
+    placementTimestamp,
+    pureRevenueForOrder,
+} from '@/lib/analyticsDefinitions';
 import { SectionWrapper } from './SectionWrapper';
-import { StatCard } from './StatCard';
+import { SectionStory } from './SectionStory';
 import { DateFilter } from './AnalyticsDateFilter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -18,10 +25,9 @@ import {
 } from 'react-icons/fa';
 import { SiMessenger, SiShopee } from 'react-icons/si';
 import {
-    PieChart, Pie, Cell, Tooltip, Legend,
-    ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid,
+    Tooltip, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
-import { format, startOfDay, endOfDay, isWithinInterval, eachMonthOfInterval, startOfMonth, subMonths } from 'date-fns';
+import { format, startOfDay, endOfDay, eachMonthOfInterval, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 
 const getChannelIcon = (name: string): ReactNode => {
     const n = name.toLowerCase();
@@ -63,14 +69,14 @@ interface SalesChannelsSectionProps {
 }
 
 export const SalesChannelsSection = ({ businessId, dateFilter }: SalesChannelsSectionProps) => {
-    const { deliveredPkgIds, isOrderCategory } = useStatusCategories();
+    const { deliveredPkgIds, paidOrderIds } = useStatusCategories();
 
     const { data: orders, isLoading } = useQuery({
-        queryKey: ['analytics-orders-channels', businessId],
+        queryKey: ['analytics-orders-channels-v2', businessId],
         queryFn: async () => {
             const { data } = await supabase
                 .from('orders')
-                .select('id, source_name, source_id, price, date, order_status_id, package_status_id, package_status_label, package_statuses(label)')
+                .select('id, source_name, source_id, price, raw_price, shipping_cost, include_delivery_in_total, date, order_status_id, package_status_id, package_status_label, package_statuses(label, category), order_items(product_id, quantity, unit_price, total_price, accessory_id, accessory_quantity, accessory_unit_price)')
                 .eq('DigiCom Business', businessId)
                 .is('date_deleted', null);
             return data || [];
@@ -89,33 +95,31 @@ export const SalesChannelsSection = ({ businessId, dateFilter }: SalesChannelsSe
 
     const metrics = useMemo(() => {
         if (!orders) return null;
+        const ordersTyped = orders as unknown as (AnalyticsOrder & { source_id?: string | null })[];
 
-        const isInRange = (dateStr: string | null) => {
-            if (!dateStr) return true;
-            if (!dateFilter.from && !dateFilter.to) return true;
-            const d = new Date(dateStr);
-            return isWithinInterval(d, {
-                start: dateFilter.from ? startOfDay(dateFilter.from) : new Date(0),
-                end: dateFilter.to ? endOfDay(dateFilter.to) : new Date(),
-            });
-        };
+        const windowStart = dateFilter.from ? startOfDay(dateFilter.from) : new Date(0);
+        const windowEnd = dateFilter.to ? endOfDay(dateFilter.to) : new Date();
 
-        const filtered = orders.filter(o => isInRange(o.date));
+        const filtered = ordersTyped.filter(o => inWindow(placementTimestamp(o), windowStart, windowEnd));
         const channelMap = new Map((salesChannels || []).map(c => [c.id, c.name]));
 
-        type ChannelOrder = Parameters<typeof isDeliveredForCommission>[0] & { order_status_id: string | null };
-        const isPaidAndDelivered = (o: ChannelOrder) =>
-            isDeliveredForCommission(o, deliveredPkgIds) &&
-            o.order_status_id && isOrderCategory(o.order_status_id, 'paid');
+        // Normalize source via PLATFORM_SOURCE_MAP (§12). "Facebook ads" / "facebook" / "FB"
+        // all collapse to a single canonical key. Orders with no source fall to 'direct'.
+        const channelKeyFor = (o: AnalyticsOrder & { source_id?: string | null }): string => {
+            const raw = o.source_name || (o.source_id ? channelMap.get(o.source_id) : '') || '';
+            const normalized = normalizeSource(raw);
+            if (normalized) return normalized;
+            return raw ? raw.trim().toLowerCase() : 'direct';
+        };
 
         const channelBreakdown: Record<string, { orders: number; revenue: number; delivered: number }> = {};
         filtered.forEach(o => {
-            const source = o.source_name || (o.source_id ? channelMap.get(o.source_id) : null) || 'Direct';
-            if (!channelBreakdown[source]) channelBreakdown[source] = { orders: 0, revenue: 0, delivered: 0 };
-            channelBreakdown[source].orders++;
-            channelBreakdown[source].revenue += Number(o.price || 0);
-            if (isPaidAndDelivered(o)) {
-                channelBreakdown[source].delivered++;
+            const key = channelKeyFor(o);
+            if (!channelBreakdown[key]) channelBreakdown[key] = { orders: 0, revenue: 0, delivered: 0 };
+            channelBreakdown[key].orders++;
+            if (isRevenueOrder(o, deliveredPkgIds, paidOrderIds)) {
+                channelBreakdown[key].delivered++;
+                channelBreakdown[key].revenue += pureRevenueForOrder(o);
             }
         });
 
@@ -132,14 +136,14 @@ export const SalesChannelsSection = ({ businessId, dateFilter }: SalesChannelsSe
         const rangeStart = dateFilter.from || subMonths(new Date(), 6);
         const rangeEnd = dateFilter.to || new Date();
         const months = eachMonthOfInterval({ start: rangeStart, end: rangeEnd });
+        const topNames = channelData.slice(0, 5).map(c => c.name);
         const trendData = months.map(month => {
             const mStart = startOfMonth(month);
-            const mEnd = new Date(mStart.getFullYear(), mStart.getMonth() + 1, 0);
-            const monthOrders = filtered.filter(o => o.date && isWithinInterval(new Date(o.date), { start: mStart, end: mEnd }));
-
+            const mEnd = endOfMonth(month);
+            const monthOrders = filtered.filter(o => inWindow(placementTimestamp(o), mStart, mEnd));
             const result: Record<string, string | number> = { month: format(month, 'MMM yy') };
-            channelData.slice(0, 5).forEach(ch => {
-                result[ch.name] = monthOrders.filter(o => (o.source_name || 'Direct') === ch.name).length;
+            topNames.forEach(name => {
+                result[name] = monthOrders.filter(o => channelKeyFor(o) === name).length;
             });
             return result;
         });
@@ -148,98 +152,101 @@ export const SalesChannelsSection = ({ businessId, dateFilter }: SalesChannelsSe
             totalChannels: channelData.length,
             channelData,
             topChannel,
-            pieData: channelData.slice(0, 8).map(c => ({ name: c.name, value: c.orders, color: getChannelColor(c.name) })),
             trendData,
-            channelNames: channelData.slice(0, 5).map(c => c.name),
+            channelNames: topNames,
         };
-    }, [orders, salesChannels, dateFilter, deliveredPkgIds, isOrderCategory]);
+    }, [orders, salesChannels, dateFilter, deliveredPkgIds, paidOrderIds]);
 
     return (
         <SectionWrapper
             id="channels"
             title="Sales Channels"
-            description="Order sources and channel performance"
+            description="Sources normalized via the platform map. Revenue counts only paid+delivered orders."
             icon={Radio}
-            iconBg="bg-indigo-50"
-            iconColor="text-indigo-600"
+            iconColor="text-gray-400"
             loading={isLoading}
         >
-            {metrics && (
-                <div className="space-y-6">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                        <StatCard title="Total Channels" value={metrics.totalChannels} icon={Radio} iconBg="bg-indigo-50" iconColor="text-indigo-600" />
-                        <StatCard title="Top Channel" value={metrics.topChannel?.name || 'N/A'} icon={Award} iconBg="bg-amber-50" iconColor="text-amber-600" subtitle={`${metrics.topChannel?.orders || 0} orders`} />
-                        <StatCard title="Best Conversion" value={Math.max(...metrics.channelData.map(c => c.conversionRate), 0).toFixed(1)} suffix="%" icon={TrendingUp} iconBg="bg-emerald-50" iconColor="text-emerald-600" />
-                        <StatCard title="Total Via Channels" value={metrics.channelData.reduce((s, c) => s + c.orders, 0)} icon={ShoppingCart} iconBg="bg-blue-50" iconColor="text-blue-600" />
-                    </div>
+            {metrics && (() => {
+                const totalOrdersViaChannels = metrics.channelData.reduce((s, c) => s + c.orders, 0);
+                const topShare = metrics.topChannel && totalOrdersViaChannels > 0
+                    ? (metrics.topChannel.orders / totalOrdersViaChannels) * 100
+                    : 0;
+                const bestConv = Math.max(...metrics.channelData.map((c) => c.conversionRate), 0);
+                const narrative = metrics.totalChannels === 0
+                    ? 'No channel data for this period.'
+                    : `${metrics.topChannel?.name || 'No top channel'} leads with ${metrics.topChannel?.orders || 0} orders (${topShare.toFixed(0)}% of all channel traffic). Across ${metrics.totalChannels} active channels, best conversion rate is ${bestConv.toFixed(1)}%.`;
 
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        <Card className="border-0 shadow-sm rounded-3xl">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-bold text-brand-navy">Orders by Source</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <ResponsiveContainer width="100%" height={280}>
-                                    <PieChart>
-                                        <Pie data={metrics.pieData} cx="50%" cy="50%" innerRadius={55} outerRadius={95} paddingAngle={3} dataKey="value">
-                                            {metrics.pieData.map((entry, i) => (
-                                                <Cell key={i} fill={entry.color} />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip formatter={(val: number) => `${val} orders`} />
-                                        <Legend />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                            </CardContent>
-                        </Card>
+                return (
+                    <SectionStory
+                        hero={{
+                            label: 'top channel',
+                            value: metrics.topChannel?.name || 'N/A',
+                        }}
+                        narrative={narrative}
+                        supporting={[
+                            { label: 'Active channels', value: metrics.totalChannels.toString() },
+                            { label: 'Top channel orders', value: (metrics.topChannel?.orders || 0).toLocaleString('fr-MA'), sub: `${topShare.toFixed(0)}% share` },
+                            { label: 'Best conversion', value: `${bestConv.toFixed(1)}%`, tone: 'positive' },
+                            { label: 'Total via channels', value: totalOrdersViaChannels.toLocaleString('fr-MA') },
+                        ]}
+                    >
 
-                        <Card className="border-0 shadow-sm rounded-3xl">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-bold text-brand-navy">Channel Trends</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <ResponsiveContainer width="100%" height={280}>
-                                    <AreaChart data={metrics.trendData}>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                                        <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#9ca3af' }} />
-                                        <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} />
-                                        <Tooltip contentStyle={{ borderRadius: 16, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} />
-                                        {metrics.channelNames.map((name) => (
-                                            <Area key={name} type="monotone" dataKey={name} stroke={getChannelColor(name)} fill={getChannelColor(name)} fillOpacity={0.1} strokeWidth={2} />
-                                        ))}
-                                        <Legend />
-                                    </AreaChart>
-                                </ResponsiveContainer>
-                            </CardContent>
-                        </Card>
-                    </div>
-
-                    <Card className="border-0 shadow-sm rounded-3xl">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-bold text-brand-navy">Channel Breakdown</CardTitle>
+                    <Card className="border border-gray-100 shadow-none rounded-xl">
+                        <CardHeader className="pb-1">
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <CardTitle className="text-[12px] font-semibold text-brand-navy">Channel trends</CardTitle>
+                                <div className="flex items-center gap-2.5 text-[10px] text-gray-500 flex-wrap">
+                                    {metrics.channelNames.slice(0, 4).map((name) => (
+                                        <span key={name} className="inline-flex items-center gap-1 capitalize">
+                                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: getChannelColor(name) }} />
+                                            {name}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
                         </CardHeader>
                         <CardContent>
-                            <div className="space-y-3">
+                            <ResponsiveContainer width="100%" height={140}>
+                                <AreaChart data={metrics.trendData} margin={{ top: 4, right: 6, bottom: 0, left: 0 }}>
+                                    <CartesianGrid strokeDasharray="2 4" stroke="#f3f4f6" vertical={false} />
+                                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
+                                    <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} width={32} />
+                                    <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #f3f4f6', boxShadow: 'none', fontSize: 11 }} />
+                                    {metrics.channelNames.map((name) => (
+                                        <Area key={name} type="monotone" dataKey={name} stroke={getChannelColor(name)} fill={getChannelColor(name)} fillOpacity={0.08} strokeWidth={1.75} dot={false} />
+                                    ))}
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="border border-gray-100 shadow-none rounded-xl">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-[12px] font-semibold text-brand-navy">Channel Breakdown</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-1">
                                 {metrics.channelData.map((ch) => (
-                                    <div key={ch.name} className="flex items-center gap-4 p-3 rounded-2xl bg-brand-navy/[0.02] hover:bg-brand-navy/[0.04] transition-colors">
-                                        <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white shrink-0" style={{ backgroundColor: getChannelColor(ch.name) }}>
+                                    <div key={ch.name} className="flex items-center gap-2.5 px-2 py-1.5 rounded-md bg-brand-navy/[0.02] hover:bg-brand-navy/[0.04] transition-colors">
+                                        <div className="w-6 h-6 rounded-md flex items-center justify-center text-white shrink-0" style={{ backgroundColor: getChannelColor(ch.name) }}>
                                             {getChannelIcon(ch.name)}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <div className="text-sm font-bold text-brand-navy truncate capitalize">{ch.name}</div>
-                                            <div className="text-xs text-gray-400">{ch.orders} orders</div>
+                                            <div className="text-[11px] font-semibold text-brand-navy truncate capitalize leading-tight">{ch.name}</div>
+                                            <div className="text-[10px] text-gray-400 tabular-nums">{ch.orders} orders</div>
                                         </div>
                                         <div className="text-right shrink-0">
-                                            <div className="text-sm font-bold text-brand-navy">{ch.revenue.toLocaleString('fr-MA')} <span className="text-[10px] text-brand-navy/40">MAD</span></div>
-                                            <div className="text-xs text-gray-400">{ch.conversionRate.toFixed(1)}% conv.</div>
+                                            <div className="text-[12px] font-semibold text-brand-navy tabular-nums">{Math.round(ch.revenue).toLocaleString('fr-MA')} <span className="text-[9px] text-brand-navy/40">MAD</span></div>
+                                            <div className="text-[9px] text-gray-400 tabular-nums">{ch.conversionRate.toFixed(1)}% conv.</div>
                                         </div>
                                     </div>
                                 ))}
                             </div>
                         </CardContent>
                     </Card>
-                </div>
-            )}
+                    </SectionStory>
+                );
+            })()}
         </SectionWrapper>
     );
 };

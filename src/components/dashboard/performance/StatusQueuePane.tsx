@@ -33,35 +33,35 @@ export function StatusQueuePane({
   const shareDenom = Math.max(1, totalLost);
 
   return (
-    <div className={cn('space-y-2', className)}>
+    <div className={cn('space-y-1.5', className)}>
       <div className="flex items-baseline justify-between gap-2">
-        <h5 className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.18em]">
+        <h5 className="text-[9px] font-bold text-gray-500 uppercase tracking-[0.14em]">
           {title}
         </h5>
-        <span className="text-[10px] font-bold tabular-nums text-gray-400">
+        <span className="text-[9px] font-bold tabular-nums text-gray-400">
           <span className="text-brand-navy">−{totalLost.toLocaleString('fr-MA')}</span>
-          <span className="mx-1 text-gray-300">/</span>
+          <span className="mx-0.5 text-gray-300">/</span>
           <span>{cohortSize.toLocaleString('fr-MA')}</span>
         </span>
       </div>
 
       {sorted.length === 0 ? (
-        <p className="text-[10px] text-gray-400 italic py-1">{emptyText}</p>
+        <p className="text-[9px] text-gray-400 italic py-1">{emptyText}</p>
       ) : (
-        <div className="space-y-1.5">
+        <div className="space-y-1">
           {sorted.map((entry) => {
             const sharePct = (entry.count / shareDenom) * 100;
             return (
-              <div key={entry.id} className="flex items-center gap-2">
+              <div key={entry.id} className="flex items-center gap-1.5">
                 <span
-                  className="w-1 h-3.5 rounded-full shrink-0"
+                  className="w-[3px] h-3 rounded-full shrink-0"
                   style={{ backgroundColor: entry.color }}
                   aria-hidden
                 />
-                <span className="text-[11px] font-semibold text-gray-700 truncate flex-1 min-w-0">
+                <span className="text-[10px] font-medium text-gray-700 truncate flex-1 min-w-0">
                   {entry.label}
                 </span>
-                <div className="w-16 h-1 rounded-full bg-gray-100 overflow-hidden shrink-0">
+                <div className="w-14 h-[3px] rounded-full bg-gray-100 overflow-hidden shrink-0">
                   <div
                     className="h-full rounded-full"
                     style={{
@@ -70,7 +70,7 @@ export function StatusQueuePane({
                     }}
                   />
                 </div>
-                <span className="text-[11px] font-bold text-brand-navy tabular-nums shrink-0 w-7 text-right">
+                <span className="text-[10px] font-semibold text-brand-navy tabular-nums shrink-0 w-6 text-right">
                   {entry.count}
                 </span>
               </div>

@@ -38,7 +38,7 @@ export function SourcePills({ sources, limit = 0, className, emptyText = 'No sou
   const overflow = limit > 0 ? sorted.length - visible.length : 0;
 
   if (sorted.length === 0) {
-    return <span className="text-[10px] text-gray-400 italic">{emptyText}</span>;
+    return <span className="text-[9px] text-gray-400 italic">{emptyText}</span>;
   }
 
   return (
@@ -52,7 +52,7 @@ export function SourcePills({ sources, limit = 0, className, emptyText = 'No sou
               <TooltipTrigger asChild>
                 <span
                   className={cn(
-                    'inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full cursor-help',
+                    'inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full cursor-help',
                     SOURCE_COLORS[s.source] || SOURCE_COLORS.other,
                   )}
                 >
@@ -75,7 +75,7 @@ export function SourcePills({ sources, limit = 0, className, emptyText = 'No sou
           );
         })}
         {overflow > 0 && (
-          <span className="inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+          <span className="inline-flex items-center text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">
             +{overflow} more
           </span>
         )}

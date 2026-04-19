@@ -5,6 +5,7 @@ import { useStatusCategories } from '@/hooks/useStatusCategories';
 import {
     computeUnpaidCommission,
     normalizeCommissionBasis,
+    isConfirmed,
     isDeliveredForCommission,
     isDeliveredOnLocalDay,
     type CommissionBasis,
@@ -161,7 +162,7 @@ const SellerDashboard = () => {
             // Get seller config
             const { data: sellerData } = await supabase
                 .from('users')
-                .select('products, commission_price, commission_basis')
+                .select('products, commission_price, commission_basis, "DigiCom Business"')
                 .eq('id', userId)
                 .single();
 
@@ -170,14 +171,19 @@ const SellerDashboard = () => {
                 : [];
             const commissionRate = sellerData?.commission_price || 0;
             const commissionBasis = normalizeCommissionBasis(sellerData?.commission_basis as string | null | undefined);
+            const sellerBusinessId = (sellerData as { 'DigiCom Business'?: string | null } | null)?.['DigiCom Business'] ?? null;
 
-            // Get orders attributed to this seller
-            const { data: ordersData } = await supabase
+            // Get orders attributed to this seller, scoped to their business so multi-business
+            // sellers don't see cross-business data inflating their KPIs.
+            let ordersQuery = supabase
                 .from('orders')
                 .select('id, price, created_at, updated_at, date_livraison, name, order_status_id, package_status_id, package_status_label, order_statuses(code), package_statuses(label), order_items(product_id, quantity, products(name, image_url))')
                 .eq('seller_id', userId)
-                .is('date_deleted', null)
-                .order('created_at', { ascending: false });
+                .is('date_deleted', null);
+            if (sellerBusinessId) {
+                ordersQuery = ordersQuery.eq('DigiCom Business', sellerBusinessId);
+            }
+            const { data: ordersData } = await ordersQuery.order('created_at', { ascending: false });
 
             const orders = (ordersData || []).map(o => ({
                 ...o,
@@ -189,7 +195,7 @@ const SellerDashboard = () => {
 
             const isDelivered = (o: any) => isDeliveredForCommission(o, statusCats.deliveredPkgIds);
             const isPending = (o: any) => statusCats.pendingIds.has(o.order_status_id);
-            const isConfirmed = (o: any) => statusCats.confirmedIds.has(o.order_status_id);
+            const isOrderConfirmed = (o: any) => isConfirmed(o, statusCats.confirmedIds);
 
             const todayOrders = orders.filter(o => new Date(o.created_at) >= today);
 
@@ -199,7 +205,7 @@ const SellerDashboard = () => {
             ).length;
 
             const delivered = orders.filter(o => isDelivered(o)).length;
-            const confirmed = orders.filter(o => isConfirmed(o)).length;
+            const confirmed = orders.filter(o => isOrderConfirmed(o)).length;
             const successRate = orders.length > 0 ? (delivered / orders.length) * 100 : 0;
             const confirmRate = orders.length > 0 ? (confirmed / orders.length) * 100 : 0;
             

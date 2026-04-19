@@ -151,12 +151,25 @@ const SellerStatistics = () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
+            // Scope to the seller's business so a seller working across multiple businesses
+            // sees stats for their current business only.
+            const { data: sellerProfile } = await supabase
+                .from('users')
+                .select('"DigiCom Business"')
+                .eq('id', user.id)
+                .single();
+            const sellerBusinessId = (sellerProfile as { 'DigiCom Business'?: string | null } | null)?.['DigiCom Business'] ?? null;
+
             // 1. Fetch Orders with Items & Product Images for Granular Analysis + City Coordinates
-            const { data: ordersData, error: ordersError } = await supabase
+            let ordersBuilder = supabase
                 .from('orders')
                 .select('city_id, order_status_id, package_status_id, package_status_label, master_cities(name, lat, lng), order_statuses(code), package_statuses(label), order_items(product_id, unit_price, quantity, products(name, image_url))')
                 .eq('seller_id', user.id)
                 .is('date_deleted', null);
+            if (sellerBusinessId) {
+                ordersBuilder = ordersBuilder.eq('DigiCom Business', sellerBusinessId);
+            }
+            const { data: ordersData, error: ordersError } = await ordersBuilder;
 
             const orders = (ordersData || []).map(o => ({
                 ...o,

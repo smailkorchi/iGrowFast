@@ -317,64 +317,64 @@ export function SellerSelfPerformanceSection({
     ];
 
     return (
-        <Card className="border-0 shadow-sm rounded-3xl">
-            <CardHeader className="pb-2">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-orange-50 flex items-center justify-center">
-                        <Users className="w-5 h-5 text-orange-600" />
+        <Card className="border border-gray-100 shadow-none rounded-2xl">
+            <CardHeader className="px-4 pt-3 pb-2">
+                <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                        <Users className="w-3.5 h-3.5 text-gray-400" />
+                        <CardTitle className="text-[13px] font-semibold text-brand-navy">
+                            Your performance
+                        </CardTitle>
                     </div>
-                    <div>
-                        <CardTitle className="text-sm font-bold text-brand-navy">Performance breakdown</CardTitle>
-                        <p className="text-xs text-gray-400 mt-0.5">
-                            Your stats &middot; {s.totalInWindow.toLocaleString('fr-MA')} orders in period
-                            {businessId ? ' (business-wide)' : ''}
-                        </p>
-                    </div>
+                    <span className="text-[10px] text-gray-400 uppercase tracking-[0.16em] tabular-nums">
+                        {s.totalInWindow.toLocaleString('fr-MA')} orders
+                        {businessId ? ' · business' : ''}
+                    </span>
                 </div>
             </CardHeader>
-            <CardContent className="space-y-3">
-                <div className="grid grid-cols-[minmax(150px,180px)_1fr_minmax(140px,160px)] items-center gap-4">
-                    <div className="flex items-center gap-2.5 min-w-0">
+            <CardContent className="px-3 pb-3 pt-0 space-y-2">
+                <div className="grid grid-cols-[minmax(130px,150px)_1fr_minmax(110px,130px)] items-center gap-3 px-1 py-1">
+                    <div className="flex items-center gap-2 min-w-0">
                         {s.avatar_url ? (
-                            <img src={s.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover shrink-0" />
+                            <img src={s.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
                         ) : (
-                            <div className="w-10 h-10 rounded-full bg-brand-navy/10 flex items-center justify-center text-sm font-bold text-brand-navy shrink-0">
+                            <div className="w-7 h-7 rounded-full bg-brand-navy/10 flex items-center justify-center text-[11px] font-semibold text-brand-navy shrink-0">
                                 {s.name?.[0] ?? '?'}
                             </div>
                         )}
                         <div className="min-w-0">
-                            <p className="font-bold text-brand-navy text-sm truncate leading-tight">{s.name || 'You'}</p>
-                            <p className="text-[10px] text-gray-400 uppercase tracking-[0.18em] mt-0.5">
+                            <p className="font-semibold text-brand-navy text-[12px] truncate leading-tight">{s.name || 'You'}</p>
+                            <p className="text-[9px] text-gray-400 uppercase tracking-[0.16em] mt-0.5">
                                 {sellerRow && sellerRow.active === false ? 'Inactive' : 'Commercial'}
                             </p>
                         </div>
                     </div>
 
                     <div className="min-w-0">
-                        <PerformanceFunnel stages={stages} />
+                        <PerformanceFunnel stages={stages} dense />
                     </div>
 
-                    <div className="min-w-0 border-l border-gray-100 pl-4">
-                        <p className="text-[9px] text-gray-400 font-bold uppercase tracking-[0.2em]">Commission</p>
-                        <p className="text-xl font-bold text-emerald-600 leading-tight tabular-nums">
+                    <div className="min-w-0 border-l border-gray-100 pl-3">
+                        <p className="text-[9px] text-gray-400 font-bold uppercase tracking-[0.16em]">Commission</p>
+                        <p className="text-[14px] font-semibold text-emerald-600 leading-tight tabular-nums">
                             {Math.round(s.commission).toLocaleString('fr-MA')}
-                            <span className="text-[10px] text-gray-400 font-medium ml-1">MAD</span>
+                            <span className="text-[9px] text-gray-400 font-medium ml-1">MAD</span>
                         </p>
                         {s.commissionDrift && (
-                            <p className="text-[9px] text-amber-600 mt-0.5">
+                            <p className="text-[9px] text-amber-600 mt-0.5 tabular-nums">
                                 client {Math.round(s.commissionClient).toLocaleString('fr-MA')}
                             </p>
                         )}
                     </div>
                 </div>
 
-                <section className="rounded-2xl bg-white border border-gray-100 p-4 space-y-4">
+                <section className="rounded-lg bg-white border border-gray-100 p-3 space-y-3">
                     <header className="flex items-baseline justify-between">
-                        <h4 className="text-[11px] font-bold text-brand-navy uppercase tracking-[0.2em]">
+                        <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.16em]">
                             Funnel dropoff
                         </h4>
                         <span className="text-[10px] text-gray-400 tabular-nums">
-                            {(s.assignedCount - s.deliveredCount).toLocaleString('fr-MA')} not delivered of {s.assignedCount.toLocaleString('fr-MA')}
+                            {(s.assignedCount - s.deliveredCount).toLocaleString('fr-MA')} / {s.assignedCount.toLocaleString('fr-MA')}
                         </span>
                     </header>
                     <StatusQueuePane
@@ -394,12 +394,11 @@ export function SellerSelfPerformanceSection({
                     />
                 </section>
 
-                <section className="rounded-2xl bg-white border border-gray-100 p-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-                    <h4 className="text-[11px] font-bold text-brand-navy uppercase tracking-[0.2em] shrink-0">
+                <section className="rounded-lg bg-white border border-gray-100 px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                    <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.16em] shrink-0">
                         Sources
                     </h4>
-                    <span className="text-[10px] text-gray-400">hover for conversion</span>
-                    <div className="flex-1 min-w-[220px]">
+                    <div className="flex-1 min-w-[200px]">
                         <SourcePills sources={s.sources} />
                     </div>
                 </section>

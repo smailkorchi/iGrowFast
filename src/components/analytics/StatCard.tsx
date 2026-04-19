@@ -39,39 +39,39 @@ export const StatCard = ({
 
     return (
         <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
+            transition={{ duration: 0.25 }}
         >
-            <Card className={cn('border-0 shadow-sm rounded-3xl h-full', className)}>
-                <CardContent className="p-5">
-                    <div className="flex items-start justify-between mb-3">
-                        <div className={cn('w-10 h-10 rounded-2xl flex items-center justify-center', iconBg)}>
-                            <Icon className={cn('w-5 h-5', iconColor)} />
+            <Card className={cn('border border-gray-100 shadow-none rounded-lg h-full', className)}>
+                <CardContent className="p-2.5">
+                    <div className="flex items-center justify-between gap-1.5">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                            <Icon className={cn('w-3 h-3 shrink-0', iconColor)} />
+                            <span className="text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400 truncate">
+                                {title}
+                            </span>
                         </div>
                         {trend !== undefined && (
                             <div className={cn(
-                                'flex items-center gap-0.5 text-xs font-bold px-2 py-1 rounded-full',
+                                'flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-md tabular-nums shrink-0',
                                 trendIsPositive && 'bg-emerald-50 text-emerald-600',
                                 trendIsNegative && 'bg-red-50 text-red-600',
                                 trendIsZero && 'bg-gray-50 text-gray-500',
                             )}>
-                                {trendIsPositive && <ArrowUpRight className="w-3 h-3" />}
-                                {trendIsNegative && <ArrowDownRight className="w-3 h-3" />}
-                                {trendIsZero && <Minus className="w-3 h-3" />}
+                                {trendIsPositive && <ArrowUpRight className="w-2.5 h-2.5" />}
+                                {trendIsNegative && <ArrowDownRight className="w-2.5 h-2.5" />}
+                                {trendIsZero && <Minus className="w-2.5 h-2.5" />}
                                 {Math.abs(trend).toFixed(1)}%
                             </div>
                         )}
                     </div>
-                    <div className={cn('text-2xl font-black text-brand-navy tracking-tight', valueColor)}>
+                    <div className={cn('text-[17px] font-semibold text-brand-navy tabular-nums leading-none mt-1.5', valueColor)}>
                         {prefix}{typeof value === 'number' ? value.toLocaleString('fr-MA') : value}
-                        {suffix && <span className="text-[11px] font-bold text-brand-navy/40 ml-0.5">{suffix}</span>}
-                    </div>
-                    <div className="text-[10px] uppercase tracking-widest font-bold text-gray-400 mt-1">
-                        {title}
+                        {suffix && <span className="text-[9px] font-semibold text-brand-navy/40 ml-0.5">{suffix}</span>}
                     </div>
                     {(subtitle || trendLabel) && (
-                        <div className="text-xs text-gray-500 mt-1.5">
+                        <div className="text-[9px] text-gray-400 mt-1 truncate tabular-nums">
                             {subtitle || trendLabel}
                         </div>
                     )}

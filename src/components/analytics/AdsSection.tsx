@@ -2,7 +2,7 @@ import { useMemo, ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { SectionWrapper } from './SectionWrapper';
-import { StatCard } from './StatCard';
+import { SectionStory } from './SectionStory';
 import { DateFilter } from './AnalyticsDateFilter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
@@ -20,16 +20,17 @@ import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
     ResponsiveContainer, BarChart, Bar, Cell, Legend, ComposedChart, Line,
 } from 'recharts';
-import { format, startOfDay, endOfDay, isWithinInterval, eachMonthOfInterval, startOfMonth, subMonths } from 'date-fns';
-
-const PLATFORM_SOURCE_MAP: Record<string, string> = {
-    'whatsapp ads': 'whatsapp', 'messenger ads': 'messenger',
-    'instagram ads': 'instagram', 'facebook ads': 'facebook',
-    'google ads': 'google', 'tiktok ads': 'tiktok',
-    'native ads': 'native', 'snapchat ads': 'snapchat',
-    'twitter ads': 'twitter', 'bing ads': 'bing',
-    'pinterest ads': 'pinterest', 'reddit ads': 'reddit',
-};
+import { format, startOfDay, endOfDay, eachMonthOfInterval, startOfMonth, endOfMonth, subMonths } from 'date-fns';
+import {
+    AnalyticsOrder,
+    adSpendInWindow,
+    deliveredRevenueForOrder,
+    inWindow,
+    isDelivered as isDeliveredHelper,
+    normalizeSource,
+    overlapFraction,
+    placementTimestamp,
+} from '@/lib/analyticsDefinitions';
 
 const getPlatformIcon = (platformName: string): ReactNode => {
     switch (platformName.toLowerCase()) {
@@ -154,22 +155,28 @@ export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
     const metrics = useMemo(() => {
         if (!adsHistory || !allOrders) return null;
 
-        const isInRange = (dateStr: string | null) => {
-            if (!dateStr) return true;
-            if (!dateFilter.from && !dateFilter.to) return true;
-            const d = new Date(dateStr);
-            return isWithinInterval(d, {
-                start: dateFilter.from ? startOfDay(dateFilter.from) : new Date(0),
-                end: dateFilter.to ? endOfDay(dateFilter.to) : new Date(),
-            });
-        };
+        const windowStart = dateFilter.from ? startOfDay(dateFilter.from) : new Date(0);
+        const windowEnd = dateFilter.to ? endOfDay(dateFilter.to) : new Date();
 
-        // ── Filter both sources by the selected range ────────────────
-        const filteredProductAds = adsHistory.filter(a => isInRange(a.start_date));
-        const filteredEntries = campaignEntries.filter(e => isInRange(e.entry_date));
+        // ── Filter both sources — product ads use overlap math; campaign entries are daily rows.
+        //    Keep every ad whose [start, end] touches the window at all so per-ad attribution
+        //    works even when start_date is before the window.
+        const filteredProductAds = adsHistory.filter(a => {
+            const s = a.start_date ? new Date(a.start_date) : null;
+            const e = a.end_date ? new Date(a.end_date) : s;
+            return overlapFraction(s, e, windowStart, windowEnd) > 0;
+        });
+        const filteredEntries = campaignEntries.filter(e => {
+            if (!e.entry_date) return false;
+            const d = new Date(e.entry_date);
+            return !Number.isNaN(d.getTime()) && inWindow(d, windowStart, windowEnd);
+        });
 
-        // ── Spend totals (product ads + global ads) ─────────────────
-        const spendProductAds = filteredProductAds.reduce((s, a) => s + Number(a.amount || 0), 0);
+        // ── Spend totals — product ads pro-rated by overlap. ────────
+        const spendProductAds = filteredProductAds.reduce(
+            (s, a) => s + adSpendInWindow(a, windowStart, windowEnd),
+            0,
+        );
         const spendGlobalAds = filteredEntries.reduce((s, e) => s + Number(e.spend || 0), 0);
         const totalSpend = spendProductAds + spendGlobalAds;
 
@@ -180,11 +187,12 @@ export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
         ).size;
         const campaignCount = productCampaignCount + globalCampaignCount;
 
-        const orders = allOrders as AdsOrderForMatching[];
+        const orders = allOrders as unknown as (AdsOrderForMatching & AnalyticsOrder)[];
 
-        // Order classification using the SHARED status category hook (no more hardcoded codes/labels).
-        const classify = (o: AdsOrderForMatching) => {
-            const isDelivered = !!(o.package_status_id && deliveredPkgIds.has(o.package_status_id));
+        // Shared classification helpers. Delivered uses label OR category (consistent with
+        // seller_daily_earnings). Confirmed includes the tracking-number short-circuit.
+        const classify = (o: AnalyticsOrder) => {
+            const isDelivered = isDeliveredHelper(o, deliveredPkgIds);
             const isConfirmed = isDelivered || !!(o.order_status_id && confirmedIds.has(o.order_status_id));
             return { isDelivered, isConfirmed };
         };
@@ -198,34 +206,35 @@ export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
         let totalDelivered = 0;
         let totalGrossRevenue = 0;
 
-        const recordOrder = (o: AdsOrderForMatching) => {
+        const recordOrder = (o: AnalyticsOrder & { id: string }) => {
             if (seenOrderIds.has(o.id)) return;
             seenOrderIds.add(o.id);
             totalOrders++;
             const { isDelivered, isConfirmed } = classify(o);
             if (isDelivered) {
                 totalDelivered++;
-                totalGrossRevenue += Number(o.price || 0);
+                // ROAS uses delivered revenue (paid or not), product-only (shipping stripped).
+                totalGrossRevenue += deliveredRevenueForOrder(o);
             }
             if (isConfirmed) totalConfirmed++;
         };
 
-        // ── Product-ad matcher: source + in ad date range + order contains product_id ──
-        const matchProductAd = (o: AdsOrderForMatching, src: string, start: Date, end: Date, productId: string | null): boolean => {
+        // ── Product-ad matcher: normalized source + in ad date range + order contains product_id ──
+        const matchProductAd = (o: AnalyticsOrder, src: string, start: Date, end: Date, productId: string | null): boolean => {
             if (!src) return false;
-            if ((o.source_name || '').toLowerCase() !== src) return false;
-            const odate = new Date(o.date || 0);
-            if (odate < start || odate > end) return false;
+            if (normalizeSource(o.source_name) !== src) return false;
+            const odate = placementTimestamp(o);
+            if (!odate || odate < start || odate > end) return false;
             if (productId) {
                 return !!o.order_items?.some(item => item.product_id === productId);
             }
             return true;
         };
 
-        // ── Global-ad matcher: source + same day as entry (no product filter) ──
-        const matchGlobalEntry = (o: AdsOrderForMatching, src: string, entryDate: string): boolean => {
+        // ── Global-ad matcher: normalized source + same day as entry (no product filter) ──
+        const matchGlobalEntry = (o: AnalyticsOrder, src: string, entryDate: string): boolean => {
             if (!src) return false;
-            if ((o.source_name || '').toLowerCase() !== src) return false;
+            if (normalizeSource(o.source_name) !== src) return false;
             const odate = (o.date || '').slice(0, 10);
             return odate === entryDate;
         };
@@ -250,16 +259,16 @@ export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
             return platformBreakdown[platform];
         };
 
-        // Product ads → attribute orders + update buckets
+        // Product ads → attribute orders + update buckets (spend pro-rated by window overlap)
         filteredProductAds.forEach(ad => {
             const platform = ad.method || 'Other';
-            const src = PLATFORM_SOURCE_MAP[(ad.method || '').toLowerCase()] || '';
+            const src = normalizeSource(ad.method);
             const cStart = new Date(ad.start_date);
             const cEnd = new Date(ad.end_date);
             cEnd.setHours(23, 59, 59, 999);
 
             const b = bucket(platform);
-            b.spend += Number(ad.amount || 0);
+            b.spend += adSpendInWindow(ad, windowStart, windowEnd);
             b.productCount++;
 
             orders.forEach(o => {
@@ -270,17 +279,17 @@ export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
                     const { isDelivered } = classify(o);
                     if (isDelivered) {
                         b.delivered++;
-                        b.revenue += Number(o.price || 0);
+                        b.revenue += deliveredRevenueForOrder(o);
                     }
                 }
             });
         });
 
         // Global ads (campaign entries) → same treatment
-        const campaignCountedIntoPlatform = new Set<string>(); // dedupe distinct-campaign count per platform
+        const campaignCountedIntoPlatform = new Set<string>();
         filteredEntries.forEach(entry => {
             const platform = entry.platform || 'Other';
-            const src = PLATFORM_SOURCE_MAP[(entry.platform || '').toLowerCase()] || '';
+            const src = normalizeSource(entry.platform);
             const b = bucket(platform);
             b.spend += Number(entry.spend || 0);
             if (entry.campaign_id && !campaignCountedIntoPlatform.has(entry.campaign_id)) {
@@ -296,7 +305,7 @@ export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
                     const { isDelivered } = classify(o);
                     if (isDelivered) {
                         b.delivered++;
-                        b.revenue += Number(o.price || 0);
+                        b.revenue += deliveredRevenueForOrder(o);
                     }
                 }
             });
@@ -329,23 +338,29 @@ export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
 
         const trendData = months.map(month => {
             const mStart = startOfMonth(month);
-            const mEnd = new Date(mStart.getFullYear(), mStart.getMonth() + 1, 0);
-            mEnd.setHours(23, 59, 59, 999);
-            const inMonth = (d: Date) => d >= mStart && d <= mEnd;
+            const mEnd = endOfMonth(month);
 
-            // Spend this month from both sources.
-            const monthProductAds = filteredProductAds.filter(a => a.start_date && inMonth(new Date(a.start_date)));
-            const monthEntries = filteredEntries.filter(e => inMonth(new Date(e.entry_date)));
+            // Spend this month from both sources — product ads pro-rated by month overlap.
+            const monthProductAds = filteredProductAds.filter(a => {
+                const s = a.start_date ? new Date(a.start_date) : null;
+                const e = a.end_date ? new Date(a.end_date) : s;
+                return overlapFraction(s, e, mStart, mEnd) > 0;
+            });
+            const monthEntries = filteredEntries.filter(e => {
+                if (!e.entry_date) return false;
+                const d = new Date(e.entry_date);
+                return !Number.isNaN(d.getTime()) && inWindow(d, mStart, mEnd);
+            });
             const monthSpend =
-                monthProductAds.reduce((s, a) => s + Number(a.amount || 0), 0) +
+                monthProductAds.reduce((s, a) => s + adSpendInWindow(a, mStart, mEnd), 0) +
                 monthEntries.reduce((s, e) => s + Number(e.spend || 0), 0);
 
-            // Revenue this month — dedupe across ad rows within the month only.
+            // Revenue this month — dedupe orders across ad rows within the month.
             const monthSeen = new Set<string>();
             let monthRevenue = 0;
 
             monthProductAds.forEach(ad => {
-                const src = PLATFORM_SOURCE_MAP[(ad.method || '').toLowerCase()] || '';
+                const src = normalizeSource(ad.method);
                 const cStart = new Date(ad.start_date);
                 const cEnd = new Date(ad.end_date);
                 cEnd.setHours(23, 59, 59, 999);
@@ -355,19 +370,19 @@ export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
                     const { isDelivered } = classify(o);
                     if (!isDelivered) return;
                     monthSeen.add(o.id);
-                    monthRevenue += Number(o.price || 0);
+                    monthRevenue += deliveredRevenueForOrder(o);
                 });
             });
 
             monthEntries.forEach(entry => {
-                const src = PLATFORM_SOURCE_MAP[(entry.platform || '').toLowerCase()] || '';
+                const src = normalizeSource(entry.platform);
                 orders.forEach(o => {
                     if (!matchGlobalEntry(o, src, entry.entry_date)) return;
                     if (monthSeen.has(o.id)) return;
                     const { isDelivered } = classify(o);
                     if (!isDelivered) return;
                     monthSeen.add(o.id);
-                    monthRevenue += Number(o.price || 0);
+                    monthRevenue += deliveredRevenueForOrder(o);
                 });
             });
 
@@ -399,127 +414,110 @@ export const AdsSection = ({ businessId, dateFilter }: AdsSectionProps) => {
         <SectionWrapper
             id="ads"
             title="Advertising & Campaigns"
-            description="Combined product ads + global (media-buyer) ads. ROAS and delivery metrics auto-computed from attributed orders."
+            description="Product ads + campaign ads. Spend pro-rated by window overlap. ROAS uses delivered revenue (paid or not)."
             icon={Megaphone}
-            iconBg="bg-pink-50"
-            iconColor="text-pink-600"
+            iconColor="text-gray-400"
             loading={isLoading}
         >
-            {metrics && (
-                <div className="space-y-6">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-3">
-                        <StatCard
-                            title="Total Spend"
-                            value={metrics.totalSpend.toLocaleString('fr-MA')}
-                            suffix=" MAD"
-                            subtitle={`Product ${metrics.spendProductAds.toLocaleString('fr-MA')} · Global ${metrics.spendGlobalAds.toLocaleString('fr-MA')}`}
-                            icon={DollarSign}
-                            iconBg="bg-pink-50"
-                            iconColor="text-pink-600"
-                        />
-                        <StatCard
-                            title="Campaigns"
-                            value={metrics.campaignCount}
-                            subtitle={`${metrics.productCampaignCount} product · ${metrics.globalCampaignCount} global`}
-                            icon={Megaphone}
-                            iconBg="bg-purple-50"
-                            iconColor="text-purple-600"
-                        />
-                        <StatCard title="Orders" value={metrics.totalOrders} icon={MousePointerClick} iconBg="bg-blue-50" iconColor="text-blue-600" />
-                        <StatCard title="Confirmed" value={metrics.totalConfirmed} icon={Target} iconBg="bg-teal-50" iconColor="text-teal-600" />
-                        <StatCard title="Delivered" value={metrics.totalDelivered} icon={Zap} iconBg="bg-emerald-50" iconColor="text-emerald-600" />
-                        <StatCard title="Revenue" value={metrics.totalGrossRevenue.toLocaleString('fr-MA')} suffix=" MAD" icon={TrendingUp} iconBg="bg-green-50" iconColor="text-green-600" />
-                        <StatCard title="ROAS" value={metrics.roas.toFixed(2)} suffix="x" icon={TrendingUp} iconBg="bg-amber-50" iconColor="text-amber-600" valueColor={metrics.roas >= 1 ? 'text-emerald-600' : 'text-red-500'} />
-                        <StatCard title="CPD" value={metrics.costPerDelivered.toFixed(0)} suffix=" MAD" icon={BarChart3} iconBg="bg-orange-50" iconColor="text-orange-600" />
-                    </div>
+            {metrics && (() => {
+                const roasTone: 'positive' | 'warning' | 'negative' =
+                    metrics.roas >= 2 ? 'positive' : metrics.roas >= 1 ? 'warning' : 'negative';
+                const narrative = metrics.totalSpend === 0
+                    ? 'No ad spend recorded for this period.'
+                    : metrics.roas >= 1
+                        ? `Every 1 MAD in ads returned ${metrics.roas.toFixed(2)} MAD in delivered revenue across ${metrics.campaignCount} campaigns. ${metrics.totalDelivered.toLocaleString('fr-MA')} deliveries at ${Math.round(metrics.costPerDelivered).toLocaleString('fr-MA')} MAD per delivered order.`
+                        : `Ads cost ${Math.round(metrics.totalSpend).toLocaleString('fr-MA')} MAD but returned only ${Math.round(metrics.totalGrossRevenue).toLocaleString('fr-MA')} MAD (ROAS ${metrics.roas.toFixed(2)}x). Every delivery cost ${Math.round(metrics.costPerDelivered).toLocaleString('fr-MA')} MAD — review underperforming campaigns.`;
 
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        <Card className="border-0 shadow-sm rounded-3xl">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-bold text-brand-navy">Spend vs Revenue</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <ResponsiveContainer width="100%" height={280}>
-                                    <ComposedChart data={metrics.trendData}>
-                                        <defs>
-                                            <linearGradient id="colorAdSpend" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#c93942" stopOpacity={0.2} />
-                                                <stop offset="95%" stopColor="#c93942" stopOpacity={0} />
-                                            </linearGradient>
-                                            <linearGradient id="colorAdRevenue" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#10B981" stopOpacity={0.2} />
-                                                <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
-                                            </linearGradient>
-                                        </defs>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                                        <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#9ca3af' }} />
-                                        <YAxis yAxisId="left" tick={{ fontSize: 10, fill: '#9ca3af' }} />
-                                        <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#9ca3af' }} />
-                                        <Tooltip contentStyle={{ borderRadius: 16, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} formatter={(val: number, name: string) => name === 'ROAS' ? `${val.toFixed(2)}x` : `${val.toLocaleString('fr-MA')} MAD`} />
-                                        <Area yAxisId="left" type="monotone" dataKey="spend" stroke="#c93942" fill="url(#colorAdSpend)" strokeWidth={2} name="Ad Spend" />
-                                        <Area yAxisId="left" type="monotone" dataKey="revenue" stroke="#10B981" fill="url(#colorAdRevenue)" strokeWidth={2} name="Revenue" />
-                                        <Line yAxisId="right" type="monotone" dataKey="roas" stroke="#F97316" strokeWidth={2} dot={false} name="ROAS" />
-                                        <Legend />
-                                    </ComposedChart>
-                                </ResponsiveContainer>
-                            </CardContent>
-                        </Card>
+                return (
+                    <SectionStory
+                        hero={{
+                            label: 'ROAS',
+                            value: `${metrics.roas.toFixed(2)}x`,
+                            tone: roasTone,
+                        }}
+                        narrative={narrative}
+                        supporting={[
+                            { label: 'Spend', value: `${Math.round(metrics.totalSpend).toLocaleString('fr-MA')} MAD`, sub: `${metrics.campaignCount} campaigns`, tone: 'negative' },
+                            { label: 'Delivered revenue', value: `${Math.round(metrics.totalGrossRevenue).toLocaleString('fr-MA')} MAD`, tone: 'positive' },
+                            { label: 'Orders', value: metrics.totalOrders.toLocaleString('fr-MA') },
+                            { label: 'Confirmed', value: metrics.totalConfirmed.toLocaleString('fr-MA') },
+                            { label: 'Delivered', value: metrics.totalDelivered.toLocaleString('fr-MA'), tone: 'positive' },
+                            { label: 'Cost / delivery', value: `${Math.round(metrics.costPerDelivered).toLocaleString('fr-MA')} MAD` },
+                        ]}
+                    >
 
-                        <Card className="border-0 shadow-sm rounded-3xl">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-bold text-brand-navy">Spend by Platform</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <ResponsiveContainer width="100%" height={280}>
-                                    <BarChart data={metrics.platformData}>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                                        <XAxis dataKey="platform" tick={{ fontSize: 9, fill: '#9ca3af' }} />
-                                        <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} />
-                                        <Tooltip contentStyle={{ borderRadius: 16, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} formatter={(val: number) => `${val.toLocaleString('fr-MA')} MAD`} />
-                                        <Bar dataKey="spend" radius={[8, 8, 0, 0]} name="Spend">
-                                            {metrics.platformData.map((entry, i) => (
-                                                <Cell key={i} fill={entry.color} />
-                                            ))}
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </CardContent>
-                        </Card>
-                    </div>
+                    <Card className="border border-gray-100 shadow-none rounded-xl">
+                        <CardHeader className="pb-1">
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <CardTitle className="text-[12px] font-semibold text-brand-navy">Spend vs revenue</CardTitle>
+                                <div className="flex items-center gap-2.5 text-[10px] text-gray-500">
+                                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#ef4444]" /> Spend</span>
+                                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#059669]" /> Revenue</span>
+                                </div>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <ResponsiveContainer width="100%" height={140}>
+                                <AreaChart data={metrics.trendData} margin={{ top: 4, right: 6, bottom: 0, left: 0 }}>
+                                    <defs>
+                                        <linearGradient id="colorAdSpend" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#ef4444" stopOpacity={0.18} />
+                                            <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                                        </linearGradient>
+                                        <linearGradient id="colorAdRevenue" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#059669" stopOpacity={0.22} />
+                                            <stop offset="95%" stopColor="#059669" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="2 4" stroke="#f3f4f6" vertical={false} />
+                                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
+                                    <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} width={32} />
+                                    <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #f3f4f6', boxShadow: 'none', fontSize: 11 }} formatter={(val: number) => `${val.toLocaleString('fr-MA')} MAD`} />
+                                    <Area type="monotone" dataKey="spend" stroke="#ef4444" fill="url(#colorAdSpend)" strokeWidth={1.75} name="Spend" dot={false} />
+                                    <Area type="monotone" dataKey="revenue" stroke="#059669" fill="url(#colorAdRevenue)" strokeWidth={1.75} name="Revenue" dot={false} />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        </CardContent>
+                    </Card>
 
                     {metrics.platformData.length > 0 && (
-                        <Card className="border-0 shadow-sm rounded-3xl">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-bold text-brand-navy">Platform Breakdown</CardTitle>
+                        <Card className="border border-gray-100 shadow-none rounded-xl">
+                            <CardHeader className="pb-1">
+                                <CardTitle className="text-[12px] font-semibold text-brand-navy">By platform</CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <div className="space-y-2.5">
-                                    {metrics.platformData.map((p) => (
-                                        <div key={p.platform} className="flex items-center gap-4 p-3 rounded-2xl bg-brand-navy/[0.02] hover:bg-brand-navy/[0.04] transition-colors">
-                                            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white shrink-0" style={{ backgroundColor: p.color }}>
-                                                {getPlatformIcon(p.platform)}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="text-sm font-bold text-brand-navy">{p.platform}</div>
-                                                <div className="text-xs text-gray-400">
-                                                    {p.productCount > 0 && <span>{p.productCount} product</span>}
-                                                    {p.productCount > 0 && p.globalCount > 0 && <span> · </span>}
-                                                    {p.globalCount > 0 && <span>{p.globalCount} global</span>}
-                                                    <span> · {p.orders} orders</span>
+                                <div className="space-y-1">
+                                    {metrics.platformData.map((p) => {
+                                        const maxSpend = Math.max(...metrics.platformData.map((x) => x.spend), 1);
+                                        const sharePct = (p.spend / maxSpend) * 100;
+                                        return (
+                                            <div key={p.platform} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-brand-navy/[0.03] transition-colors">
+                                                <div className="w-6 h-6 rounded text-gray-500 flex items-center justify-center shrink-0">
+                                                    {getPlatformIcon(p.platform)}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="text-[11px] font-semibold text-brand-navy leading-tight truncate">{p.platform}</div>
+                                                    <div className="text-[10px] text-gray-400 tabular-nums">
+                                                        {p.orders} orders · {p.delivered} delivered
+                                                    </div>
+                                                </div>
+                                                <div className="w-20 h-1 rounded-full bg-gray-100 overflow-hidden shrink-0">
+                                                    <div className="h-full rounded-full bg-brand-navy/60" style={{ width: `${sharePct}%` }} />
+                                                </div>
+                                                <div className="text-right shrink-0 tabular-nums">
+                                                    <div className="text-[12px] font-semibold text-brand-navy">{Math.round(p.spend).toLocaleString('fr-MA')} <span className="text-[9px] text-brand-navy/40">MAD</span></div>
+                                                    <div className="text-[9px] text-gray-400">ROAS {p.roas.toFixed(2)}x</div>
                                                 </div>
                                             </div>
-                                            <div className="text-right shrink-0">
-                                                <div className="text-sm font-bold text-brand-navy">{p.spend.toLocaleString('fr-MA')} <span className="text-[10px] text-brand-navy/40">MAD</span></div>
-                                                <div className="text-xs text-gray-400">{p.delivered} delivered · ROAS {p.roas.toFixed(2)}x</div>
-                                            </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </CardContent>
                         </Card>
                     )}
-                </div>
-            )}
+                    </SectionStory>
+                );
+            })()}
         </SectionWrapper>
     );
 };
