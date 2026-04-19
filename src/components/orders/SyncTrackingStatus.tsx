@@ -47,7 +47,7 @@ export function SyncTrackingStatus({
     if (isSyncing) {
         const target = latestRun?.total ?? 0;
         pill = (
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-navy/5 border border-brand-navy/10 text-xs font-bold text-brand-navy select-none cursor-default">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-ant-ink/5 border border-ant-ink/10 text-xs font-bold text-ant-ink select-none cursor-default">
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 Synchronisation des suivis…
                 {target > 0 && (
@@ -58,7 +58,7 @@ export function SyncTrackingStatus({
     } else if (latestRun?.status === 'error') {
         pill = (
             <div
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-50 border border-red-200 text-xs font-bold text-red-700 select-none cursor-default"
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-ant-rose/10 border border-red-200 text-xs font-bold text-ant-rose select-none cursor-default"
                 title={latestRun.error || 'Erreur de synchronisation'}
             >
                 <AlertTriangle className="w-3.5 h-3.5" />
@@ -71,7 +71,7 @@ export function SyncTrackingStatus({
         const lastTotal = latestRun.total;
         pill = (
             <div
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-700 select-none cursor-default"
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-ant-green/10 border border-ant-green/30 text-xs font-bold text-ant-green select-none cursor-default"
                 title={`Dernière synchro : ${new Date(latestRun.started_at).toLocaleTimeString()} · ${lastChanged}/${lastTotal} mis à jour`}
             >
                 <CheckCircle2 className="w-3.5 h-3.5" />
@@ -90,7 +90,7 @@ export function SyncTrackingStatus({
         );
     } else {
         pill = (
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted border border-border text-xs font-bold text-muted-foreground select-none cursor-default">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted border border-border text-xs font-bold text-ant-muted select-none cursor-default">
                 <Clock className="w-3.5 h-3.5" />
                 Suivi automatique en attente…
             </div>
@@ -106,7 +106,7 @@ export function SyncTrackingStatus({
                 disabled={buttonDisabled}
                 className={cn(
                     'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all',
-                    'bg-brand-navy text-brand-white border-brand-navy hover:bg-brand-navy/90 active:scale-95',
+                    'bg-ant-ink text-ant-light border-ant-ink hover:bg-ant-ink/90 active:scale-95',
                     'disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100',
                 )}
                 title={buttonDisabled ? 'Synchronisation en cours…' : 'Synchroniser maintenant'}

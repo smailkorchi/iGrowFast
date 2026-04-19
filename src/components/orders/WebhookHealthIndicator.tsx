@@ -29,23 +29,23 @@ function getStatus(h: WebhookHealthState): Status {
 const statusConfig: Record<Status, { label: string; dotClass: string; pillClass: string }> = {
     live: {
         label: 'Webhooks Live',
-        dotClass: 'bg-emerald-500',
-        pillClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        dotClass: 'bg-ant-green',
+        pillClass: 'bg-ant-green/10 text-ant-green border-ant-green/30',
     },
     idle: {
         label: 'Webhooks Idle',
-        dotClass: 'bg-amber-500',
-        pillClass: 'bg-amber-50 text-amber-700 border-amber-200',
+        dotClass: 'bg-ant-orange',
+        pillClass: 'bg-ant-orange/10 text-ant-orange border-ant-orange/30',
     },
     error: {
         label: 'Webhook Errors',
-        dotClass: 'bg-red-500',
-        pillClass: 'bg-red-50 text-red-700 border-red-200',
+        dotClass: 'bg-ant-rose',
+        pillClass: 'bg-ant-rose/10 text-ant-rose border-red-200',
     },
     none: {
         label: 'No Webhooks',
         dotClass: 'bg-gray-400',
-        pillClass: 'bg-gray-50 text-gray-500 border-gray-200',
+        pillClass: 'bg-ant-line-soft text-ant-muted border-ant-line',
     },
 };
 
@@ -106,15 +106,15 @@ export function WebhookHealthIndicator({
                     {/* Header */}
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                            <Activity className="w-4 h-4 text-gray-600" />
-                            <span className="text-sm font-semibold text-gray-900">Webhook Status</span>
+                            <Activity className="w-4 h-4 text-ant-muted" />
+                            <span className="text-sm font-semibold text-ant-ink">Webhook Status</span>
                         </div>
                         {health.isListening ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-600">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-ant-green">
                                 <Wifi className="w-3 h-3" /> Realtime
                             </span>
                         ) : (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-gray-400">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-ant-mid">
                                 <WifiOff className="w-3 h-3" /> Disconnected
                             </span>
                         )}
@@ -122,30 +122,30 @@ export function WebhookHealthIndicator({
 
                     {/* Per-provider list */}
                     {health.providers.length === 0 ? (
-                        <p className="text-xs text-gray-400 py-2">No active webhook providers configured.</p>
+                        <p className="text-xs text-ant-mid py-2">No active webhook providers configured.</p>
                     ) : (
                         <div className="space-y-2">
                             {health.providers.map((p) => {
                                 const isRecent = p.lastReceivedAt &&
                                     (Date.now() - new Date(p.lastReceivedAt).getTime()) < 60 * 60 * 1000;
                                 return (
-                                    <div key={p.providerId} className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-gray-50">
+                                    <div key={p.providerId} className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-ant-line-soft">
                                         <div className="flex items-center gap-2">
                                             <div
                                                 className="w-2 h-2 rounded-full"
                                                 style={{ backgroundColor: p.providerColor || '#6b7280' }}
                                             />
-                                            <span className="text-xs font-medium text-gray-700">{p.providerName}</span>
+                                            <span className="text-xs font-medium text-ant-ink">{p.providerName}</span>
                                         </div>
                                         <div className="flex items-center gap-1.5">
                                             {isRecent ? (
-                                                <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                                                <CheckCircle2 className="w-3 h-3 text-ant-green" />
                                             ) : p.lastReceivedAt ? (
-                                                <Clock className="w-3 h-3 text-amber-500" />
+                                                <Clock className="w-3 h-3 text-ant-orange" />
                                             ) : (
-                                                <AlertTriangle className="w-3 h-3 text-gray-400" />
+                                                <AlertTriangle className="w-3 h-3 text-ant-mid" />
                                             )}
-                                            <span className="text-[10px] text-gray-500">
+                                            <span className="text-[10px] text-ant-muted">
                                                 {timeAgo(p.lastReceivedAt)}
                                             </span>
                                         </div>
@@ -157,13 +157,13 @@ export function WebhookHealthIndicator({
 
                     {/* Stats row */}
                     {health.recentTotal > 0 && (
-                        <div className="flex items-center gap-3 pt-1 border-t border-gray-100">
-                            <span className="text-[10px] text-gray-500">Last 1h:</span>
-                            <span className="text-[10px] font-medium text-emerald-600">
+                        <div className="flex items-center gap-3 pt-1 border-t border-ant-line">
+                            <span className="text-[10px] text-ant-muted">Last 1h:</span>
+                            <span className="text-[10px] font-medium text-ant-green">
                                 {health.recentProcessed} processed
                             </span>
                             {health.recentFailed > 0 && (
-                                <span className="text-[10px] font-medium text-red-500">
+                                <span className="text-[10px] font-medium text-ant-rose">
                                     {health.recentFailed} failed
                                 </span>
                             )}
@@ -173,7 +173,7 @@ export function WebhookHealthIndicator({
                     {/* Link to Webhooks page */}
                     <a
                         href="/webhooks"
-                        className="flex items-center gap-1.5 text-[11px] font-medium text-blue-600 hover:text-blue-700 pt-1"
+                        className="flex items-center gap-1.5 text-[11px] font-medium text-ant-blue hover:text-ant-blue pt-1"
                     >
                         Manage Webhooks <ExternalLink className="w-3 h-3" />
                     </a>

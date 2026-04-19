@@ -404,11 +404,11 @@ const Orders = () => {
                 background: transparent;
             }
             .custom-scrollbar::-webkit-scrollbar-thumb {
-                background: rgba(0, 31, 63, 0.1);
+                background: #e8e6dc;
                 border-radius: 10px;
             }
             .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-                background: rgba(0, 31, 63, 0.2);
+                background: #b0aea5;
             }
             @keyframes pulse-subtle {
                 0%, 100% { opacity: 1; transform: scale(1); }
@@ -1935,164 +1935,205 @@ const Orders = () => {
     };
 
     // Single-palette filter chip. Every active filter looks the same so the row
-    // reads as a list, not a rainbow. `tone="warning"` reserved for destructive/exchange flags.
+    // Active filter chip — lightweight pill matching the ant date-filter variant.
     const FilterChip: React.FC<{
         icon: React.ComponentType<{ className?: string }>;
         onClear: () => void;
         tone?: 'default' | 'warning';
         children: React.ReactNode;
     }> = ({ icon: Icon, onClear, tone = 'default', children }) => (
-        <span className={cn(
-            'inline-flex items-center gap-1 h-5 px-1.5 rounded-md text-[9px] font-semibold border',
-            tone === 'warning'
-                ? 'bg-amber-50 text-amber-700 border-amber-200'
-                : 'bg-gray-50 text-brand-navy/80 border-gray-200'
-        )}>
-            <Icon className="w-2.5 h-2.5 opacity-70 shrink-0" />
-            <span className="truncate max-w-[120px]">{children}</span>
-            <button onClick={onClear} className="ml-0.5 rounded-md hover:bg-white/60 p-0.5 transition-colors shrink-0">
-                <X className="w-2 h-2" />
+        <span
+            className={cn(
+                'inline-flex items-center gap-1.5 h-7 pl-2 pr-1 rounded-full text-[10.5px] font-medium border',
+                tone === 'warning'
+                    ? 'bg-ant-orange/10 text-ant-orange border-ant-orange/30'
+                    : 'bg-ant-paper text-ant-ink border-ant-line',
+            )}
+        >
+            <Icon className="w-3 h-3 text-ant-mid shrink-0" />
+            <span className="truncate max-w-[140px]">{children}</span>
+            <button
+                onClick={onClear}
+                className="rounded-full hover:bg-ant-line-soft p-0.5 transition-colors shrink-0"
+                aria-label="Clear filter"
+            >
+                <X className="w-2.5 h-2.5" />
             </button>
         </span>
     );
 
-    // Dense KPI tile — matches the DashboardKPICards pattern (left accent stripe).
-    const KpiTile: React.FC<{ label: string; value: string; accent: string }> = ({ label, value, accent }) => (
-        <Card className="border border-gray-100 shadow-none rounded-xl overflow-hidden">
-            <CardContent className="p-2.5 relative">
-                <span
-                    className="absolute top-2.5 left-0 w-[3px] h-8 rounded-r-full"
-                    style={{ backgroundColor: accent }}
-                    aria-hidden
-                />
-                <div className="pl-2">
-                    <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400">
+    // Editorial KPI tile — matches the Dashboard strip so the Orders surface
+    // feels continuous with the rest of the admin.
+    const OrderKpi: React.FC<{
+        label: string;
+        value: string;
+        suffix?: string;
+        accent: string;
+        icon: typeof ShoppingCart;
+    }> = ({ label, value, suffix, accent, icon: Icon }) => (
+        <div className="bg-ant-paper px-4 py-3">
+            <div className="flex items-center justify-between gap-1.5">
+                <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="w-1 h-1 rounded-full shrink-0" style={{ backgroundColor: accent }} aria-hidden />
+                    <span className="text-[9.5px] uppercase tracking-[0.22em] font-medium text-ant-mid truncate">
                         {label}
-                    </div>
-                    <div className="text-[18px] font-semibold text-brand-navy tabular-nums leading-tight mt-0.5 truncate">
-                        {value}
-                    </div>
+                    </span>
                 </div>
-            </CardContent>
-        </Card>
+                <span
+                    className="flex items-center justify-center w-5 h-5 rounded-md shrink-0"
+                    style={{ backgroundColor: `${accent}14`, color: accent }}
+                >
+                    <Icon className="w-3 h-3" strokeWidth={1.75} />
+                </span>
+            </div>
+            <div className="font-display text-[22px] font-semibold text-ant-ink tabular-nums tracking-[-0.02em] leading-none mt-2 truncate">
+                {value}
+                {suffix && <span className="text-[11px] font-medium text-ant-mid ml-1">{suffix}</span>}
+            </div>
+        </div>
     );
 
+    const openNewOrder = () => {
+        form.reset({
+            name: '',
+            phone: '',
+            city_id: '',
+            address: '',
+            source_name: '',
+            shipping_cost: 0,
+            include_delivery_in_total: false,
+            replace: false,
+            note: '',
+            delivery_note: '',
+            delivery_type: 'Home Delivery',
+            order_status_id: defaultNewOrderStatusId,
+            items: [{ product_id: '', quantity: 1, unit_price: 0, accessories: [] }],
+            courier_id: null,
+            company_id: null,
+            history_comment: '',
+            _reportedDate: '',
+            coliaty_old_tracking: '',
+            ameex_old_tracking: ''
+        });
+        setIsAddModalOpen(true);
+    };
+
+    const totalRevenue = filteredOrders.reduce((acc, o) => acc + (o.price || 0), 0);
+    const exchangeCount = filteredOrders.filter((o) => o.replace).length;
+    const avgOrderValue = filteredOrders.length > 0 ? Math.round(totalRevenue / filteredOrders.length) : 0;
+
     return (
-        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
-            {/* Header — matches Analytics compact style */}
-            <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div>
-                    <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">
-                        Order Pipeline
-                    </h1>
-                    <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">
-                        Sales flow · delivery tracking
-                    </p>
-                    <WebhookHealthIndicator activeBusinessId={activeBusinessId} className="mt-1.5" />
-                </div>
-                <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
-                    <div className="relative sm:w-72">
-                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
-                        <Input
-                            placeholder="Search any order detail…"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-7 h-8 rounded-md border-gray-200 bg-white text-[11px]"
-                        />
+        <div className="ant-surface mx-auto max-w-[1440px] px-2 md:px-3 py-2 space-y-4">
+            {/* Editorial header — orders is the seller's working tool, so the
+                title gets its own row with WebhookHealthIndicator as a status
+                stripe, and the search + primary CTA live in a dedicated bar
+                below so they are never cramped next to the title. */}
+            <header className="space-y-3 pt-1">
+                <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-3">
+                    <div className="space-y-1.5">
+                        <span className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                            <span className="w-1 h-1 rounded-full bg-ant-orange" />
+                            Operations · Pipeline
+                        </span>
+                        <h1 className="font-display text-[30px] md:text-[34px] font-semibold text-ant-ink leading-[1.05] tracking-[-0.02em]">
+                            Orders
+                        </h1>
+                        <p className="font-serif-display text-[13px] text-ant-muted italic">
+                            Every order, from cart to courier — in one pipeline.
+                        </p>
+                        <WebhookHealthIndicator activeBusinessId={activeBusinessId} className="mt-1" />
                     </div>
-                    <Button
-                        size="sm"
-                        onClick={() => {
-                            form.reset({
-                                name: '',
-                                phone: '',
-                                city_id: '',
-                                address: '',
-                                source_name: '',
-                                shipping_cost: 0,
-                                include_delivery_in_total: false,
-                                replace: false,
-                                note: '',
-                                delivery_note: '',
-                                delivery_type: 'Home Delivery',
-                                order_status_id: defaultNewOrderStatusId,
-                                items: [{ product_id: '', quantity: 1, unit_price: 0, accessories: [] }],
-                                courier_id: null,
-                                company_id: null,
-                                history_comment: '',
-                                _reportedDate: '',
-                                coliaty_old_tracking: '',
-                                ameex_old_tracking: ''
-                            });
-                            setIsAddModalOpen(true);
-                        }}
-                        className="bg-brand-navy hover:bg-brand-navy/90 text-white h-8 px-3 rounded-md text-[11px] font-semibold gap-1.5 shrink-0"
-                    >
-                        <PlusCircle className="w-3.5 h-3.5" />
-                        New order
-                    </Button>
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <div className="relative w-full sm:w-[320px]">
+                            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
+                            <Input
+                                placeholder="Search by name, phone, tracking, item…"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-9 h-10 rounded-full border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid focus-visible:ring-ant-orange focus-visible:ring-offset-0 focus-visible:border-ant-ink/25"
+                            />
+                        </div>
+                        <Button
+                            onClick={openNewOrder}
+                            className="h-10 px-5 rounded-full bg-ant-ink hover:bg-ant-ink/90 text-ant-light text-[12px] font-medium shadow-none gap-2 shrink-0"
+                        >
+                            <PlusCircle className="w-3.5 h-3.5" />
+                            New order
+                        </Button>
+                    </div>
                 </div>
             </header>
 
-            {/* KPI strip — 4 tiles, left-accent-stripe pattern from the dashboard. */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                <KpiTile label="Active orders" value={new Intl.NumberFormat('fr-FR').format(filteredOrders.length)} accent="#3b5e5e" />
-                <KpiTile
+            {/* KPI strip — unified editorial tiles matching Dashboard */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ant-line rounded-xl overflow-hidden border border-ant-line">
+                <OrderKpi
+                    label="Active orders"
+                    value={new Intl.NumberFormat('fr-FR').format(filteredOrders.length)}
+                    accent="#141413"
+                    icon={ShoppingCart}
+                />
+                <OrderKpi
                     label="Total sales"
-                    value={`${new Intl.NumberFormat('fr-FR').format(Math.round(filteredOrders.reduce((acc, o) => acc + (o.price || 0), 0)))} DH`}
-                    accent="#059669"
+                    value={`${new Intl.NumberFormat('fr-FR').format(Math.round(totalRevenue))}`}
+                    suffix="DH"
+                    accent="#788c5d"
+                    icon={DollarSign}
                 />
-                <KpiTile
+                <OrderKpi
                     label="Exchanges"
-                    value={new Intl.NumberFormat('fr-FR').format(filteredOrders.filter(o => o.replace).length)}
-                    accent="#d97706"
+                    value={new Intl.NumberFormat('fr-FR').format(exchangeCount)}
+                    accent="#d97757"
+                    icon={RefreshCcw}
                 />
-                <KpiTile
-                    label="Avg order value"
-                    value={`${filteredOrders.length > 0
-                        ? new Intl.NumberFormat('fr-FR').format(Math.round(filteredOrders.reduce((acc, o) => acc + (o.price || 0), 0) / filteredOrders.length))
-                        : '0'} DH`}
-                    accent="#3b5e5e"
+                <OrderKpi
+                    label="Avg order"
+                    value={`${new Intl.NumberFormat('fr-FR').format(avgOrderValue)}`}
+                    suffix="DH"
+                    accent="#6a9bcc"
+                    icon={BarChart3}
                 />
             </div>
 
-            {/* ── Attribution Progress Widget (collapsible) ── */}
+            {/* ── Today's Attribution — seller quota tracker ── */}
             {attributionProgress && attributionProgress.length > 0 && (
-                <div className="bg-white border border-gray-100 shadow-none rounded-xl overflow-hidden transition-all duration-300">
-                    {/* ── Collapsed bar (always visible, clickable) ── */}
+                <div className="bg-ant-paper border border-ant-line rounded-xl overflow-hidden transition-all duration-300">
+                    {/* Collapsed bar */}
                     <button
-                        onClick={() => setIsAttributionOpen(o => !o)}
-                        className="w-full flex items-center gap-2 px-3 py-2 group"
+                        onClick={() => setIsAttributionOpen((o) => !o)}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 group hover:bg-ant-line-soft transition-colors"
                     >
-                        <BarChart2 className="w-3 h-3 text-brand-navy/60 shrink-0" />
-                        <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-gray-500 shrink-0">
-                            Today's attribution
+                        <span className="flex items-center gap-1.5 shrink-0">
+                            <span className="w-1 h-1 rounded-full bg-ant-orange" aria-hidden />
+                            <span className="text-[9.5px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                                Today&rsquo;s attribution
+                            </span>
                         </span>
 
-                        {/* Global slim progress bar */}
-                        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden min-w-[60px]">
+                        {/* Global progress bar */}
+                        <div className="flex-1 h-1.5 bg-ant-line rounded-full overflow-hidden min-w-[60px]">
                             <div
-                                className="h-full rounded-full bg-brand-navy transition-all duration-700"
+                                className="h-full rounded-full bg-ant-ink transition-all duration-700"
                                 style={{ width: `${Math.min(attributionTotals.totalPct, 100)}%` }}
                             />
                         </div>
 
-                        {/* Pct label */}
-                        <span className="text-[11px] font-semibold text-brand-navy shrink-0 w-9 text-right tabular-nums">
+                        <span className="font-display text-[13px] font-semibold text-ant-ink shrink-0 w-10 text-right tabular-nums tracking-[-0.01em]">
                             {attributionTotals.totalPct}%
                         </span>
 
                         {/* Seller avatar chips */}
-                        <div className="flex items-center -space-x-1 shrink-0">
+                        <div className="flex items-center -space-x-1.5 shrink-0">
                             {attributionProgress.slice(0, 5).map((seller) => {
-                                const sellerData = sellers?.find(s => s.id === seller.seller_id);
+                                const sellerData = sellers?.find((s) => s.id === seller.seller_id);
                                 return (
                                     <div
                                         key={seller.seller_id}
                                         title={`${seller.seller_name}: ${seller.orders_today}/${seller.assignment}`}
                                         className={cn(
-                                            'w-5 h-5 rounded-full border border-white flex items-center justify-center text-[8px] font-bold overflow-hidden',
-                                            seller.is_full ? 'bg-emerald-500 text-white' : 'bg-brand-navy/10 text-brand-navy'
+                                            'w-6 h-6 rounded-full ring-2 ring-ant-paper flex items-center justify-center text-[9px] font-semibold overflow-hidden',
+                                            seller.is_full
+                                                ? 'bg-ant-green text-white'
+                                                : 'bg-ant-line-soft text-ant-ink border border-ant-line',
                                         )}
                                     >
                                         {sellerData?.avatar_url ? (
@@ -2104,7 +2145,7 @@ const Orders = () => {
                                 );
                             })}
                             {attributionProgress.length > 5 && (
-                                <div className="w-5 h-5 rounded-full border border-white bg-brand-navy/10 flex items-center justify-center text-[8px] font-bold text-brand-navy/60">
+                                <div className="w-6 h-6 rounded-full ring-2 ring-ant-paper bg-ant-line-soft border border-ant-line flex items-center justify-center text-[9px] font-semibold text-ant-muted">
                                     +{attributionProgress.length - 5}
                                 </div>
                             )}
@@ -2112,35 +2153,38 @@ const Orders = () => {
 
                         {/* Unassigned warning pill */}
                         {attributionTotals.unassigned > 0 && (
-                            <span className="shrink-0 text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md">
+                            <span className="shrink-0 inline-flex items-center gap-1 text-[10px] font-medium text-ant-orange bg-ant-orange/10 border border-ant-orange/30 px-2 py-0.5 rounded-full">
+                                <span className="w-1 h-1 rounded-full bg-ant-orange" />
                                 {attributionTotals.unassigned} unassigned
                             </span>
                         )}
 
                         {/* Chevron */}
-                        <div className={cn('shrink-0 text-gray-400 transition-transform duration-300', isAttributionOpen && 'rotate-180')}>
-                            <ChevronDown className="w-3 h-3" />
+                        <div className={cn('shrink-0 text-ant-mid transition-transform duration-300', isAttributionOpen && 'rotate-180')}>
+                            <ChevronDown className="w-3.5 h-3.5" />
                         </div>
                     </button>
 
-                    {/* ── Expanded panel ── */}
-                    <div className={cn(
-                        'transition-all duration-300 ease-in-out overflow-hidden',
-                        isAttributionOpen ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0'
-                    )}>
-                        {/* Global progress + actions */}
-                        <div className="flex items-center gap-2 px-3 py-2 border-t border-gray-100">
-                            <div className="flex-1 flex items-center gap-2">
-                                <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                    <div
-                                        className="h-full rounded-full bg-brand-navy transition-all duration-700"
-                                        style={{ width: `${Math.min(attributionTotals.totalPct, 100)}%` }}
-                                    />
-                                </div>
-                                <span className="text-[10px] font-semibold text-gray-500 w-20 shrink-0 tabular-nums">
-                                    {attributionTotals.totalAssigned} / {attributionTotals.totalQuota}
-                                </span>
+                    {/* Expanded seller panel */}
+                    <div
+                        className={cn(
+                            'transition-all duration-300 ease-in-out overflow-hidden',
+                            isAttributionOpen ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0',
+                        )}
+                    >
+                        {/* Summary + actions */}
+                        <div className="flex items-center gap-3 px-4 py-2.5 border-t border-ant-line bg-ant-light">
+                            <span className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid shrink-0">Queue</span>
+                            <div className="flex-1 h-1.5 bg-ant-line rounded-full overflow-hidden">
+                                <div
+                                    className="h-full rounded-full bg-ant-ink transition-all duration-700"
+                                    style={{ width: `${Math.min(attributionTotals.totalPct, 100)}%` }}
+                                />
                             </div>
+                            <span className="font-display text-[12px] text-ant-ink tabular-nums tracking-tight shrink-0">
+                                {attributionTotals.totalAssigned}
+                                <span className="text-ant-mid"> / {attributionTotals.totalQuota}</span>
+                            </span>
                             <div className="flex items-center gap-1 shrink-0">
                                 {attributionTotals.unassigned > 0 && (
                                     <Button
@@ -2148,16 +2192,17 @@ const Orders = () => {
                                         variant="outline"
                                         onClick={(e) => { e.stopPropagation(); reattributeMutation.mutate(); }}
                                         disabled={reattributeMutation.isPending}
-                                        className="h-6 px-2 rounded-md text-[10px] font-semibold border-amber-200 text-amber-700 hover:bg-amber-50 gap-1"
+                                        className="h-7 px-3 rounded-full text-[10.5px] font-medium border-ant-orange/30 bg-ant-paper text-ant-orange hover:bg-ant-orange/10 gap-1.5"
                                     >
-                                        {reattributeMutation.isPending ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <RefreshCw className="w-2.5 h-2.5" />}
+                                        {reattributeMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
                                         Assign unassigned
                                     </Button>
                                 )}
                                 <button
                                     onClick={(e) => { e.stopPropagation(); refetchAttribution(); }}
                                     disabled={isAttributionFetching}
-                                    className="w-6 h-6 flex items-center justify-center rounded-md text-gray-400 hover:text-brand-navy hover:bg-gray-50 transition-colors"
+                                    className="w-7 h-7 flex items-center justify-center rounded-full text-ant-mid hover:text-ant-ink hover:bg-ant-paper transition-colors"
+                                    title="Refresh"
                                 >
                                     <RefreshCw className={cn('w-3 h-3', isAttributionFetching && 'animate-spin')} />
                                 </button>
@@ -2165,47 +2210,49 @@ const Orders = () => {
                         </div>
 
                         {/* Per-seller rows */}
-                        <div className="divide-y divide-gray-50">
+                        <div className="divide-y divide-ant-line">
                             {attributionProgress.map((seller) => {
                                 const pct = Math.min(Number(seller.pct_complete), 100);
                                 const isFull = seller.is_full;
-                                const sellerData = sellers?.find(s => s.id === seller.seller_id);
+                                const sellerData = sellers?.find((s) => s.id === seller.seller_id);
                                 return (
-                                    <div key={seller.seller_id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50/60 transition-colors">
-                                        <div className={cn(
-                                            'w-6 h-6 rounded-md flex items-center justify-center text-[9px] font-semibold shrink-0 overflow-hidden',
-                                            isFull ? 'bg-emerald-100 text-emerald-700' : 'bg-brand-navy/[0.06] text-brand-navy'
-                                        )}>
+                                    <div
+                                        key={seller.seller_id}
+                                        className="flex items-center gap-3 px-4 py-2 hover:bg-ant-line-soft transition-colors"
+                                    >
+                                        <div
+                                            className={cn(
+                                                'w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0 overflow-hidden',
+                                                isFull ? 'bg-ant-green/15 text-ant-green ring-1 ring-ant-green/25' : 'bg-ant-line-soft text-ant-ink ring-1 ring-ant-line',
+                                            )}
+                                        >
                                             {sellerData?.avatar_url ? (
                                                 <img src={sellerData.avatar_url} alt={seller.seller_name} className="w-full h-full object-cover" />
                                             ) : (
                                                 seller.seller_name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
                                             )}
                                         </div>
-                                        <div className="w-28 shrink-0">
-                                            <p className="text-[11px] font-semibold text-brand-navy truncate leading-tight">{seller.seller_name}</p>
-                                            <p className="text-[9px] text-gray-400">Quota {seller.assignment}/day</p>
+                                        <div className="w-[140px] shrink-0">
+                                            <p className="text-[11.5px] font-semibold text-ant-ink truncate leading-tight">{seller.seller_name}</p>
+                                            <p className="text-[9.5px] text-ant-mid uppercase tracking-[0.18em] mt-0.5">Quota · {seller.assignment}/day</p>
                                         </div>
-                                        <div className="flex-1 flex items-center gap-1.5">
-                                            <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
+                                        <div className="flex-1 flex items-center gap-2">
+                                            <div className="flex-1 h-1 bg-ant-line rounded-full overflow-hidden">
                                                 <div
-                                                    className={cn(
-                                                        'h-full rounded-full transition-all duration-700',
-                                                        isFull ? 'bg-emerald-500' : 'bg-brand-navy'
-                                                    )}
+                                                    className={cn('h-full rounded-full transition-all duration-700', isFull ? 'bg-ant-green' : 'bg-ant-ink')}
                                                     style={{ width: `${pct}%` }}
                                                 />
                                             </div>
-                                            <span className="text-[9px] font-semibold text-gray-500 w-7 text-right shrink-0 tabular-nums">{pct}%</span>
+                                            <span className="text-[10px] font-medium text-ant-mid w-8 text-right shrink-0 tabular-nums">{pct}%</span>
                                         </div>
-                                        <div className="text-right shrink-0 tabular-nums">
-                                            <span className={cn('text-[11px] font-semibold', isFull ? 'text-emerald-600' : 'text-brand-navy')}>
+                                        <div className="font-display text-right shrink-0 tabular-nums">
+                                            <span className={cn('text-[14px] font-semibold tracking-[-0.01em]', isFull ? 'text-ant-green' : 'text-ant-ink')}>
                                                 {seller.orders_today}
                                             </span>
-                                            <span className="text-gray-400 text-[10px]"> / {seller.assignment}</span>
+                                            <span className="text-ant-mid text-[10px]"> / {seller.assignment}</span>
                                         </div>
                                         {isFull && (
-                                            <span className="shrink-0 text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-100 uppercase tracking-wider">
+                                            <span className="shrink-0 text-[9.5px] font-medium text-ant-green bg-ant-green/10 px-2 py-0.5 rounded-full border border-ant-green/25 uppercase tracking-[0.18em]">
                                                 Full
                                             </span>
                                         )}
@@ -2218,42 +2265,53 @@ const Orders = () => {
             )}
 
             {/* Filters Toolbar */}
-            <div className="space-y-2 pb-2">
+            <div className="space-y-3 pb-2">
                 {/* Top Bar: View Switcher + Filters Toggle + Active Pills + Count */}
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                        {/* View Switcher — native shadcn ToggleGroup */}
+                    <div className="flex flex-wrap items-center gap-2">
+                        {/* View Switcher — pill-group with orange active state */}
                         <ToggleGroup
                             type="single"
                             value={viewMode}
                             onValueChange={(v) => { if (v) setViewMode(v as 'grid' | 'list'); }}
-                            variant="outline"
-                            size="sm"
-                            className="gap-0 shrink-0"
+                            className="gap-0 shrink-0 rounded-full border border-ant-line bg-ant-paper p-0.5"
                         >
-                            <ToggleGroupItem value="grid" aria-label="Grid view" className="h-8 w-8 p-0 rounded-r-none">
+                            <ToggleGroupItem
+                                value="grid"
+                                aria-label="Grid view"
+                                className="h-8 w-8 p-0 rounded-full border-0 text-ant-mid data-[state=on]:bg-ant-ink data-[state=on]:text-ant-light"
+                            >
                                 <LayoutGrid className="w-3.5 h-3.5" />
                             </ToggleGroupItem>
-                            <ToggleGroupItem value="list" aria-label="List view" className="h-8 w-8 p-0 rounded-l-none border-l-0">
+                            <ToggleGroupItem
+                                value="list"
+                                aria-label="List view"
+                                className="h-8 w-8 p-0 rounded-full border-0 text-ant-mid data-[state=on]:bg-ant-ink data-[state=on]:text-ant-light"
+                            >
                                 <List className="w-3.5 h-3.5" />
                             </ToggleGroupItem>
                         </ToggleGroup>
 
                         {/* Filter Toggle */}
-                        <Button variant="ghost" size="sm" onClick={() => setShowAllFilters(!showAllFilters)}
+                        <Button
+                            variant="ghost"
+                            onClick={() => setShowAllFilters(!showAllFilters)}
                             className={cn(
-                                "h-7 px-2.5 rounded-md gap-1.5 text-[10px] font-semibold transition-all",
+                                'h-9 px-4 rounded-full gap-2 text-[11.5px] font-medium transition-all border',
                                 showAllFilters
-                                    ? "bg-brand-navy text-white"
-                                    : "bg-white text-brand-navy/70 border border-gray-200 hover:border-gray-300 hover:text-brand-navy"
-                            )}>
-                            <Filter className="w-3 h-3" />
+                                    ? 'bg-ant-ink text-ant-light border-ant-ink hover:bg-ant-ink/90 hover:text-ant-light'
+                                    : 'bg-ant-paper text-ant-ink border-ant-line hover:border-ant-ink/25 hover:text-ant-ink',
+                            )}
+                        >
+                            <Filter className="w-3.5 h-3.5" />
                             Filters
                             {activeFilterCount > 0 && (
-                                <span className={cn(
-                                    "ml-0.5 min-w-[16px] h-4 flex items-center justify-center rounded-full text-[9px] font-bold leading-none px-1",
-                                    showAllFilters ? "bg-white/25 text-white" : "bg-brand-navy text-white"
-                                )}>
+                                <span
+                                    className={cn(
+                                        'ml-0.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full text-[10px] font-semibold leading-none px-1 tabular-nums',
+                                        showAllFilters ? 'bg-ant-orange text-ant-light' : 'bg-ant-ink text-ant-light',
+                                    )}
+                                >
                                     {activeFilterCount}
                                 </span>
                             )}
@@ -2336,7 +2394,10 @@ const Orders = () => {
                                     </FilterChip>
                                 )}
 
-                                <button onClick={clearAllFilters} className="h-5 px-1.5 rounded-md text-[9px] font-bold text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors">
+                                <button
+                                    onClick={clearAllFilters}
+                                    className="h-7 px-2.5 rounded-full text-[10.5px] font-medium text-ant-rose hover:bg-ant-rose/10 transition-colors"
+                                >
                                     Clear all
                                 </button>
                             </div>
@@ -2344,10 +2405,12 @@ const Orders = () => {
                     </div>
 
                     <div className="flex items-center gap-2">
-                        <div className="h-6 px-2 rounded-md bg-gray-100 flex items-center">
-                            <span className="text-[10px] font-semibold text-brand-navy/70 tabular-nums">
-                                {filteredOrders.length}
-                                <span className="text-gray-400 font-medium"> records</span>
+                        <div className="inline-flex items-baseline gap-1.5 h-8 px-3 rounded-full bg-ant-paper border border-ant-line">
+                            <span className="font-display text-[13px] font-semibold text-ant-ink tabular-nums tracking-[-0.01em]">
+                                {filteredOrders.length.toLocaleString('fr-FR')}
+                            </span>
+                            <span className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                                orders
                             </span>
                         </div>
                     </div>
@@ -2355,36 +2418,36 @@ const Orders = () => {
 
                 {/* Expandable Filter Panel */}
                 {showAllFilters && (
-                    <div className="bg-white rounded-xl border border-gray-100 overflow-hidden animate-in slide-in-from-top-2 fade-in duration-300">
+                    <div className="bg-ant-paper rounded-xl border border-ant-line overflow-hidden animate-in slide-in-from-top-2 fade-in duration-300">
                         {/* Time Section */}
-                        <div className="p-3 border-b border-gray-100">
-                            <div className="flex items-center gap-1.5 mb-2">
-                                <Calendar className="w-3 h-3 text-gray-400" />
-                                <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400">Date &amp; time</span>
+                        <div className="px-4 py-3.5 border-b border-ant-line">
+                            <div className="flex items-center gap-2 mb-3">
+                                <span className="w-1 h-1 rounded-full bg-ant-orange" />
+                                <span className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Date &amp; time</span>
                             </div>
                             <div className="flex flex-wrap items-end gap-4">
-                                <div className="space-y-1 min-w-[130px]">
-                                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.14em]">Filter by</span>
+                                <div className="space-y-1.5 min-w-[150px]">
+                                    <span className="text-[10px] font-medium text-ant-mid uppercase tracking-[0.22em]">Filter by</span>
                                     <Select value={filterDateField} onValueChange={setFilterDateField}>
-                                        <SelectTrigger className="h-7 rounded-md border-gray-200 bg-white text-[11px] font-semibold text-brand-navy">
+                                        <SelectTrigger className="h-9 rounded-full border-ant-line bg-ant-paper text-[11.5px] font-medium text-ant-ink px-3.5">
                                             <SelectValue />
                                         </SelectTrigger>
-                                        <SelectContent className="rounded-md border-gray-100">
-                                            <SelectItem value="date" className="text-[11px] font-semibold rounded-md">Order date</SelectItem>
-                                            <SelectItem value="created_at" className="text-[11px] font-semibold rounded-md">Created date</SelectItem>
-                                            <SelectItem value="updated_at" className="text-[11px] font-semibold rounded-md">Updated date</SelectItem>
-                                            <SelectItem value="assignment_date" className="text-[11px] font-semibold rounded-md">Assigned date</SelectItem>
-                                            <SelectItem value="confirmation_date" className="text-[11px] font-semibold rounded-md">Confirmed date</SelectItem>
-                                            <SelectItem value="annulation_date" className="text-[11px] font-semibold rounded-md">Cancelled date</SelectItem>
-                                            <SelectItem value="date_livraison" className="text-[11px] font-semibold rounded-md">Delivered date</SelectItem>
-                                            <SelectItem value="reported_date" className="text-[11px] font-semibold rounded-md">Reported date</SelectItem>
+                                        <SelectContent className="rounded-xl border-ant-line bg-ant-paper">
+                                            <SelectItem value="date" className="text-[11.5px] font-medium rounded-md">Order date</SelectItem>
+                                            <SelectItem value="created_at" className="text-[11.5px] font-medium rounded-md">Created date</SelectItem>
+                                            <SelectItem value="updated_at" className="text-[11.5px] font-medium rounded-md">Updated date</SelectItem>
+                                            <SelectItem value="assignment_date" className="text-[11.5px] font-medium rounded-md">Assigned date</SelectItem>
+                                            <SelectItem value="confirmation_date" className="text-[11.5px] font-medium rounded-md">Confirmed date</SelectItem>
+                                            <SelectItem value="annulation_date" className="text-[11.5px] font-medium rounded-md">Cancelled date</SelectItem>
+                                            <SelectItem value="date_livraison" className="text-[11.5px] font-medium rounded-md">Delivered date</SelectItem>
+                                            <SelectItem value="reported_date" className="text-[11.5px] font-medium rounded-md">Reported date</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
 
-                                <div className="space-y-1">
-                                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.14em]">Range</span>
-                                    <div className="flex flex-wrap gap-1">
+                                <div className="space-y-1.5">
+                                    <span className="text-[10px] font-medium text-ant-mid uppercase tracking-[0.22em]">Range</span>
+                                    <div className="flex flex-wrap gap-1.5">
                                         {([
                                             { v: 'all', l: 'All' },
                                             { v: 'today', l: 'Today' },
@@ -2394,15 +2457,15 @@ const Orders = () => {
                                             { v: 'thisMonth', l: 'This Month' },
                                             { v: 'lastMonth', l: 'Last Month' },
                                             { v: 'custom', l: 'Custom' },
-                                        ] as const).map(opt => (
+                                        ] as const).map((opt) => (
                                             <button
                                                 key={opt.v}
                                                 onClick={() => { setFilterTimeRange(opt.v); if (opt.v !== 'custom') setShowCalendar(false); else setShowCalendar(true); }}
                                                 className={cn(
-                                                    "h-7 px-2.5 rounded-md text-[10px] font-semibold transition border",
+                                                    'h-9 px-3.5 rounded-full text-[11px] font-medium transition border',
                                                     filterTimeRange === opt.v
-                                                        ? "bg-brand-navy text-white border-brand-navy"
-                                                        : "bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-brand-navy"
+                                                        ? 'bg-ant-ink text-ant-light border-ant-ink'
+                                                        : 'bg-ant-paper text-ant-ink border-ant-line hover:border-ant-ink/25',
                                                 )}
                                             >
                                                 {opt.l}
@@ -2412,12 +2475,12 @@ const Orders = () => {
                                 </div>
 
                                 {filterTimeRange === 'custom' && (
-                                    <div className="space-y-1">
-                                        <span className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.14em]">Pick dates</span>
+                                    <div className="space-y-1.5">
+                                        <span className="text-[10px] font-medium text-ant-mid uppercase tracking-[0.22em]">Pick dates</span>
                                         <Popover>
                                             <PopoverTrigger asChild>
-                                                <Button variant="outline" className="h-7 rounded-md border-gray-200 bg-white text-[11px] font-semibold text-brand-navy gap-1.5 px-2.5 hover:border-gray-300">
-                                                    <Calendar className="w-3 h-3 text-brand-navy/60" />
+                                                <Button variant="outline" className="h-9 rounded-full border-ant-line bg-ant-paper text-[11.5px] font-medium text-ant-ink gap-2 px-3.5 hover:border-ant-ink/25">
+                                                    <Calendar className="w-3.5 h-3.5 text-ant-orange" />
                                                     {filterCustomRange?.from ? (
                                                         filterCustomRange.to ? (
                                                             <>{format(filterCustomRange.from, 'MMM dd')} — {format(filterCustomRange.to, 'MMM dd, yyyy')}</>
@@ -2425,7 +2488,7 @@ const Orders = () => {
                                                     ) : 'Select range…'}
                                                 </Button>
                                             </PopoverTrigger>
-                                            <PopoverContent className="w-auto p-0 rounded-xl border border-gray-100" align="start">
+                                            <PopoverContent className="ant-surface ant-calendar w-auto p-0 rounded-2xl border border-ant-line bg-ant-paper" align="start">
                                                 <CalendarComponent
                                                     mode="range"
                                                     selected={calendarRange}
@@ -2433,9 +2496,9 @@ const Orders = () => {
                                                     onDayMouseEnter={(day) => setHoveredCalendarDate(day)}
                                                     onDayMouseLeave={() => setHoveredCalendarDate(undefined)}
                                                     modifiers={calendarPreviewRange ? { preview: calendarPreviewRange } : undefined}
-                                                    modifiersClassNames={{ preview: 'bg-accent text-accent-foreground' }}
+                                                    modifiersClassNames={{ preview: 'bg-ant-orange/15 text-ant-ink' }}
                                                     numberOfMonths={2}
-                                                    className="rounded-xl p-3"
+                                                    className="rounded-2xl p-3"
                                                 />
                                             </PopoverContent>
                                         </Popover>
@@ -2445,39 +2508,39 @@ const Orders = () => {
                         </div>
 
                         {/* Search Section */}
-                        <div className="p-5 border-b border-brand-navy/[0.04]">
+                        <div className="p-5 border-b border-ant-line">
                             <div className="flex items-center gap-2 mb-3.5">
-                                <div className="w-6 h-6 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                                    <Search className="w-3.5 h-3.5 text-emerald-500" />
+                                <div className="w-6 h-6 rounded-lg bg-ant-green/10 flex items-center justify-center">
+                                    <Search className="w-3.5 h-3.5 text-ant-green" />
                                 </div>
-                                <span className="text-[11px] font-black uppercase tracking-widest text-brand-navy/40">Customer Search</span>
+                                <span className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Customer Search</span>
                             </div>
                             <div className="flex flex-wrap items-center gap-3">
                                 <div className="relative group">
-                                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-navy/20 group-focus-within:text-brand-navy/50 transition-colors" />
+                                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid group-focus-within:text-ant-mid transition-colors" />
                                     <Input
                                         placeholder="Customer name..."
                                         value={filterCustomerName}
                                         onChange={(e) => setFilterCustomerName(e.target.value)}
-                                        className="h-10 w-[200px] pl-9 rounded-xl border-brand-navy/[0.06] bg-brand-navy/[0.02] text-xs font-medium hover:border-brand-navy/10 focus-visible:ring-1 focus-visible:ring-brand-navy/10"
+                                        className="h-10 w-[200px] pl-9 rounded-xl border-ant-line bg-ant-paper text-xs font-medium hover:border-ant-ink/10 focus-visible:ring-1 focus-visible:ring-ant-ink/10"
                                     />
                                 </div>
                                 <div className="relative group">
-                                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-navy/20 group-focus-within:text-brand-navy/50 transition-colors" />
+                                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid group-focus-within:text-ant-mid transition-colors" />
                                     <Input
                                         placeholder="Phone number..."
                                         value={filterPhone}
                                         onChange={(e) => setFilterPhone(e.target.value)}
-                                        className="h-10 w-[180px] pl-9 rounded-xl border-brand-navy/[0.06] bg-brand-navy/[0.02] text-xs font-medium hover:border-brand-navy/10 focus-visible:ring-1 focus-visible:ring-brand-navy/10"
+                                        className="h-10 w-[180px] pl-9 rounded-xl border-ant-line bg-ant-paper text-xs font-medium hover:border-ant-ink/10 focus-visible:ring-1 focus-visible:ring-ant-ink/10"
                                     />
                                 </div>
                                 <div className="relative group">
-                                    <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-navy/20 group-focus-within:text-brand-navy/50 transition-colors" />
+                                    <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid group-focus-within:text-ant-mid transition-colors" />
                                     <Input
                                         placeholder="Tracking number..."
                                         value={filterTracking}
                                         onChange={(e) => setFilterTracking(e.target.value)}
-                                        className="h-10 w-[200px] pl-9 rounded-xl border-brand-navy/[0.06] bg-brand-navy/[0.02] text-xs font-medium hover:border-brand-navy/10 focus-visible:ring-1 focus-visible:ring-brand-navy/10"
+                                        className="h-10 w-[200px] pl-9 rounded-xl border-ant-line bg-ant-paper text-xs font-medium hover:border-ant-ink/10 focus-visible:ring-1 focus-visible:ring-ant-ink/10"
                                     />
                                 </div>
                             </div>
@@ -2486,15 +2549,15 @@ const Orders = () => {
                         {/* Dropdowns Grid */}
                         <div className="p-5">
                             <div className="flex items-center gap-2 mb-3.5">
-                                <div className="w-6 h-6 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                                    <Filter className="w-3.5 h-3.5 text-purple-500" />
+                                <div className="w-6 h-6 rounded-lg bg-ant-orange/10 flex items-center justify-center">
+                                    <Filter className="w-3.5 h-3.5 text-ant-orange" />
                                 </div>
-                                <span className="text-[11px] font-black uppercase tracking-widest text-brand-navy/40">Filters</span>
+                                <span className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Filters</span>
                             </div>
                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                                 {/* Order Status */}
                                 <div className="space-y-1.5">
-                                    <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider flex items-center gap-1">
+                                    <span className="text-[10px] font-bold text-ant-mid uppercase tracking-wider flex items-center gap-1">
                                         <ShieldCheck className="w-3 h-3" /> Status
                                     </span>
                                     <Select
@@ -2507,10 +2570,10 @@ const Orders = () => {
                                             setFilterStatusLabel(null);
                                         }}
                                     >
-                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterStatus !== 'all' || (filterStatusIds && filterStatusIds.length > 0) ? "border-purple-200 bg-purple-50/50 text-purple-700" : "border-brand-navy/[0.06] bg-brand-navy/[0.02] text-brand-navy")}>
+                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterStatus !== 'all' || (filterStatusIds && filterStatusIds.length > 0) ? "border-ant-orange/30 bg-ant-orange/10 text-ant-orange" : "border-ant-line bg-ant-paper text-ant-ink")}>
                                             <SelectValue placeholder={filterStatusIds && filterStatusIds.length > 0 ? `${filterStatusLabel || 'Category'} (${filterStatusIds.length})` : 'All'} />
                                         </SelectTrigger>
-                                        <SelectContent className="rounded-2xl border-none shadow-2xl shadow-brand-navy/10 max-h-[300px]">
+                                        <SelectContent className="rounded-2xl border-none shadow-[0_12px_40px_-20px_rgba(20,20,19,0.3)] max-h-[300px]">
                                             <SelectItem value="all" className="font-bold text-xs rounded-xl">All Statuses</SelectItem>
                                             {orderStatuses?.map((s: any) => (
                                                 <SelectItem key={s.id} value={s.id} className="font-bold text-xs rounded-xl">
@@ -2526,7 +2589,7 @@ const Orders = () => {
 
                                 {/* Package Status */}
                                 <div className="space-y-1.5">
-                                    <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider flex items-center gap-1">
+                                    <span className="text-[10px] font-bold text-ant-mid uppercase tracking-wider flex items-center gap-1">
                                         <Package className="w-3 h-3" /> Package
                                     </span>
                                     <Select
@@ -2537,10 +2600,10 @@ const Orders = () => {
                                             setFilterPackageStatusLabel(null);
                                         }}
                                     >
-                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterPackageStatus !== 'all' || (filterPackageStatusIds && filterPackageStatusIds.length > 0) ? "border-orange-200 bg-orange-50/50 text-orange-700" : "border-brand-navy/[0.06] bg-brand-navy/[0.02] text-brand-navy")}>
+                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterPackageStatus !== 'all' || (filterPackageStatusIds && filterPackageStatusIds.length > 0) ? "border-ant-orange/30 bg-ant-orange/10 text-ant-orange" : "border-ant-line bg-ant-paper text-ant-ink")}>
                                             <SelectValue placeholder={filterPackageStatusIds && filterPackageStatusIds.length > 0 ? `${filterPackageStatusLabel || 'Category'} (${filterPackageStatusIds.length})` : 'All'} />
                                         </SelectTrigger>
-                                        <SelectContent className="rounded-2xl border-none shadow-2xl shadow-brand-navy/10 max-h-[300px]">
+                                        <SelectContent className="rounded-2xl border-none shadow-[0_12px_40px_-20px_rgba(20,20,19,0.3)] max-h-[300px]">
                                             <SelectItem value="all" className="font-bold text-xs rounded-xl">All Packages</SelectItem>
                                             {packageStatuses?.map((s: any) => (
                                                 <SelectItem key={s.id} value={s.id} className="font-bold text-xs rounded-xl">
@@ -2556,14 +2619,14 @@ const Orders = () => {
 
                                 {/* City */}
                                 <div className="space-y-1.5">
-                                    <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider flex items-center gap-1">
+                                    <span className="text-[10px] font-bold text-ant-mid uppercase tracking-wider flex items-center gap-1">
                                         <MapPin className="w-3 h-3" /> City
                                     </span>
                                     <Select value={filterCity} onValueChange={setFilterCity}>
-                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterCity !== 'all' ? "border-emerald-200 bg-emerald-50/50 text-emerald-700" : "border-brand-navy/[0.06] bg-brand-navy/[0.02] text-brand-navy")}>
+                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterCity !== 'all' ? "border-ant-green/30 bg-ant-green/10/50 text-ant-green" : "border-ant-line bg-ant-paper text-ant-ink")}>
                                             <SelectValue placeholder="All" />
                                         </SelectTrigger>
-                                        <SelectContent className="rounded-2xl border-none shadow-2xl shadow-brand-navy/10 max-h-[300px]">
+                                        <SelectContent className="rounded-2xl border-none shadow-[0_12px_40px_-20px_rgba(20,20,19,0.3)] max-h-[300px]">
                                             <SelectItem value="all" className="font-bold text-xs rounded-xl">All Cities</SelectItem>
                                             {cities?.map((c: any) => (
                                                 <SelectItem key={c.id} value={c.id} className="font-bold text-xs rounded-xl">{c.name}</SelectItem>
@@ -2574,14 +2637,14 @@ const Orders = () => {
 
                                 {/* Product */}
                                 <div className="space-y-1.5">
-                                    <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider flex items-center gap-1">
+                                    <span className="text-[10px] font-bold text-ant-mid uppercase tracking-wider flex items-center gap-1">
                                         <ShoppingBag className="w-3 h-3" /> Product
                                     </span>
                                     <Select value={filterProduct} onValueChange={setFilterProduct}>
-                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterProduct !== 'all' ? "border-pink-200 bg-pink-50/50 text-pink-700" : "border-brand-navy/[0.06] bg-brand-navy/[0.02] text-brand-navy")}>
+                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterProduct !== 'all' ? "border-pink-200 bg-pink-50/50 text-pink-700" : "border-ant-line bg-ant-paper text-ant-ink")}>
                                             <SelectValue placeholder="All" />
                                         </SelectTrigger>
-                                        <SelectContent className="rounded-2xl border-none shadow-2xl shadow-brand-navy/10 max-h-[300px]">
+                                        <SelectContent className="rounded-2xl border-none shadow-[0_12px_40px_-20px_rgba(20,20,19,0.3)] max-h-[300px]">
                                             <SelectItem value="all" className="font-bold text-xs rounded-xl">All Products</SelectItem>
                                             {products?.map((p: any) => (
                                                 <SelectItem key={p.id} value={p.id} className="font-bold text-xs rounded-xl">{p.name}</SelectItem>
@@ -2592,14 +2655,14 @@ const Orders = () => {
 
                                 {/* Source */}
                                 <div className="space-y-1.5">
-                                    <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider flex items-center gap-1">
+                                    <span className="text-[10px] font-bold text-ant-mid uppercase tracking-wider flex items-center gap-1">
                                         <ExternalLink className="w-3 h-3" /> Source
                                     </span>
                                     <Select value={filterSource} onValueChange={setFilterSource}>
-                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterSource !== 'all' ? "border-cyan-200 bg-cyan-50/50 text-cyan-700" : "border-brand-navy/[0.06] bg-brand-navy/[0.02] text-brand-navy")}>
+                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterSource !== 'all' ? "border-cyan-200 bg-cyan-50/50 text-cyan-700" : "border-ant-line bg-ant-paper text-ant-ink")}>
                                             <SelectValue placeholder="All" />
                                         </SelectTrigger>
-                                        <SelectContent className="rounded-2xl border-none shadow-2xl shadow-brand-navy/10">
+                                        <SelectContent className="rounded-2xl border-none shadow-[0_12px_40px_-20px_rgba(20,20,19,0.3)]">
                                             <SelectItem value="all" className="font-bold text-xs rounded-xl">All Sources</SelectItem>
                                             {SALES_SOURCES.map((s) => (
                                                 <SelectItem key={s} value={s} className="font-bold text-xs capitalize rounded-xl">{s}</SelectItem>
@@ -2610,14 +2673,14 @@ const Orders = () => {
 
                                 {/* Confirmed By */}
                                 <div className="space-y-1.5">
-                                    <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider flex items-center gap-1">
+                                    <span className="text-[10px] font-bold text-ant-mid uppercase tracking-wider flex items-center gap-1">
                                         <CheckCircle2 className="w-3 h-3" /> Confirmed By
                                     </span>
                                     <Select value={filterConfirmedBy} onValueChange={setFilterConfirmedBy}>
-                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterConfirmedBy !== 'all' ? "border-green-200 bg-green-50/50 text-green-700" : "border-brand-navy/[0.06] bg-brand-navy/[0.02] text-brand-navy")}>
+                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterConfirmedBy !== 'all' ? "border-green-200 bg-green-50/50 text-green-700" : "border-ant-line bg-ant-paper text-ant-ink")}>
                                             <SelectValue placeholder="All" />
                                         </SelectTrigger>
-                                        <SelectContent className="rounded-2xl border-none shadow-2xl shadow-brand-navy/10 max-h-[300px]">
+                                        <SelectContent className="rounded-2xl border-none shadow-[0_12px_40px_-20px_rgba(20,20,19,0.3)] max-h-[300px]">
                                             <SelectItem value="all" className="font-bold text-xs rounded-xl">All Users</SelectItem>
                                             {confirmers?.map((u: any) => (
                                                 <SelectItem key={u.id} value={u.id} className="font-bold text-xs rounded-xl">{u.name}</SelectItem>
@@ -2628,14 +2691,14 @@ const Orders = () => {
 
                                 {/* Assigned To */}
                                 <div className="space-y-1.5">
-                                    <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider flex items-center gap-1">
+                                    <span className="text-[10px] font-bold text-ant-mid uppercase tracking-wider flex items-center gap-1">
                                         <User className="w-3 h-3" /> Assigned To
                                     </span>
                                     <Select value={filterAssignedTo} onValueChange={setFilterAssignedTo}>
-                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterAssignedTo !== 'all' ? "border-indigo-200 bg-indigo-50/50 text-indigo-700" : "border-brand-navy/[0.06] bg-brand-navy/[0.02] text-brand-navy")}>
+                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterAssignedTo !== 'all' ? "border-indigo-200 bg-indigo-50/50 text-indigo-700" : "border-ant-line bg-ant-paper text-ant-ink")}>
                                             <SelectValue placeholder="All" />
                                         </SelectTrigger>
-                                        <SelectContent className="rounded-2xl border-none shadow-2xl shadow-brand-navy/10 max-h-[300px]">
+                                        <SelectContent className="rounded-2xl border-none shadow-[0_12px_40px_-20px_rgba(20,20,19,0.3)] max-h-[300px]">
                                             <SelectItem value="all" className="font-bold text-xs rounded-xl">All Commercials</SelectItem>
                                             {sellers?.map((s: any) => (
                                                 <SelectItem key={s.id} value={s.id} className="font-bold text-xs rounded-xl">{s.name}</SelectItem>
@@ -2646,19 +2709,19 @@ const Orders = () => {
 
                                 {/* Delivery Service */}
                                 <div className="space-y-1.5">
-                                    <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider flex items-center gap-1">
+                                    <span className="text-[10px] font-bold text-ant-mid uppercase tracking-wider flex items-center gap-1">
                                         <Truck className="w-3 h-3" /> Delivery
                                     </span>
                                     <Select value={filterProvider} onValueChange={setFilterProvider}>
-                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterProvider !== 'all' ? "border-amber-200 bg-amber-50/50 text-amber-700" : "border-brand-navy/[0.06] bg-brand-navy/[0.02] text-brand-navy")}>
+                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterProvider !== 'all' ? "border-ant-orange/30 bg-ant-orange/10/50 text-ant-orange" : "border-ant-line bg-ant-paper text-ant-ink")}>
                                             <SelectValue placeholder="All" />
                                         </SelectTrigger>
-                                        <SelectContent className="rounded-2xl border-none shadow-2xl shadow-brand-navy/10 max-h-[300px]">
+                                        <SelectContent className="rounded-2xl border-none shadow-[0_12px_40px_-20px_rgba(20,20,19,0.3)] max-h-[300px]">
                                             <SelectItem value="all" className="font-bold text-xs rounded-xl">All Services</SelectItem>
                                             {allProviders.map((p: any) => (
                                                 <SelectItem key={p.id} value={p.id} className="font-bold text-xs rounded-xl">
                                                     <div className="flex items-center gap-2">
-                                                        {p.type === 'courier' ? <Truck className="w-3 h-3 text-orange-500" /> : <Building2 className="w-3 h-3 text-blue-500" />}
+                                                        {p.type === 'courier' ? <Truck className="w-3 h-3 text-orange-500" /> : <Building2 className="w-3 h-3 text-ant-blue" />}
                                                         {p.name}
                                                     </div>
                                                 </SelectItem>
@@ -2669,14 +2732,14 @@ const Orders = () => {
 
                                 {/* Exchange Filter */}
                                 <div className="space-y-1.5">
-                                    <span className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-wider flex items-center gap-1">
+                                    <span className="text-[10px] font-bold text-ant-mid uppercase tracking-wider flex items-center gap-1">
                                         <RefreshCcw className="w-3 h-3" /> Exchange
                                     </span>
                                     <Select value={filterExchange} onValueChange={setFilterExchange}>
-                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterExchange !== 'all' ? "border-red-200 bg-red-50/50 text-red-700" : "border-brand-navy/[0.06] bg-brand-navy/[0.02] text-brand-navy")}>
+                                        <SelectTrigger className={cn("h-10 rounded-xl text-xs font-bold transition-all", filterExchange !== 'all' ? "border-red-200 bg-ant-rose/10/50 text-ant-rose" : "border-ant-line bg-ant-paper text-ant-ink")}>
                                             <SelectValue placeholder="All" />
                                         </SelectTrigger>
-                                        <SelectContent className="rounded-2xl border-none shadow-2xl shadow-brand-navy/10">
+                                        <SelectContent className="rounded-2xl border-none shadow-[0_12px_40px_-20px_rgba(20,20,19,0.3)]">
                                             <SelectItem value="all" className="font-bold text-xs rounded-xl">All Orders</SelectItem>
                                             <SelectItem value="yes" className="font-bold text-xs rounded-xl">Yes (Exchange)</SelectItem>
                                             <SelectItem value="no" className="font-bold text-xs rounded-xl">No (Normal)</SelectItem>
@@ -2693,17 +2756,17 @@ const Orders = () => {
             {isLoading ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {Array.from({ length: 6 }).map((_, i) => (
-                        <Skeleton key={i} className="h-64 w-full rounded-[32px]" />
+                        <Skeleton key={i} className="h-64 w-full rounded-2xl" />
                     ))}
                 </div>
             ) : filteredOrders.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-32 space-y-6 bg-brand-white rounded-[40px] shadow-sm border border-brand-navy/[0.03]">
-                    <div className="w-24 h-24 bg-brand-navy/[0.04] rounded-full flex items-center justify-center">
-                        <ShoppingCart className="w-12 h-12 text-brand-navy/20" />
+                <div className="flex flex-col items-center justify-center py-32 space-y-6 bg-ant-paper rounded-2xl shadow-sm border border-ant-line">
+                    <div className="w-24 h-24 bg-ant-ink/[0.04] rounded-full flex items-center justify-center">
+                        <ShoppingCart className="w-12 h-12 text-ant-mid" />
                     </div>
                     <div className="text-center space-y-2">
-                        <h3 className="text-2xl font-bold text-brand-navy">No orders found</h3>
-                        <p className="text-muted-foreground max-w-xs mx-auto">Start by adding your first customer order to track its progress.</p>
+                        <h3 className="text-2xl font-bold text-ant-ink">No orders found</h3>
+                        <p className="text-ant-muted max-w-xs mx-auto">Start by adding your first customer order to track its progress.</p>
                     </div>
                 </div>
             ) : (
@@ -2721,14 +2784,15 @@ const Orders = () => {
                                                 <div
                                         key={order.id}
                                         className={cn(
-                                            "group relative bg-white rounded-2xl border transition-all duration-300 hover:shadow-lg cursor-default",
+                                            "group relative bg-ant-paper rounded-2xl border overflow-hidden transition-all duration-300 hover:shadow-lg cursor-default",
                                             selectedOrders.includes(order.id)
-                                                ? "border-brand-navy/20 shadow-md ring-1 ring-brand-navy/10"
-                                                : "border-brand-navy/[0.06] shadow-sm hover:border-brand-navy/10"
+                                                ? "border-ant-ink/20 shadow-md ring-1 ring-ant-ink/10"
+                                                : "border-ant-line shadow-sm hover:border-ant-ink/10"
                                         )}
                                     >
-                                        {/* Top accent line */}
-                                        <div className="h-[3px] rounded-t-2xl" style={{ backgroundColor: order.status?.color || '#cbd5e1' }} />
+                                        {/* Top accent line — `overflow-hidden` on the card keeps the
+                                            stripe inside the rounded corners. */}
+                                        <div className="h-[3px]" style={{ backgroundColor: order.status?.color || '#cbd5e1' }} />
 
                                         <div className="p-4 space-y-3">
                                             {/* Row 1: Status + Package + Checkbox */}
@@ -2737,7 +2801,7 @@ const Orders = () => {
                                                     <Checkbox
                                                         checked={selectedOrders.includes(order.id)}
                                                         onCheckedChange={() => toggleOrderSelection(order.id)}
-                                                        className="h-4 w-4 rounded border-brand-navy/15 data-[state=checked]:bg-brand-navy data-[state=checked]:text-brand-white shrink-0"
+                                                        className="h-4 w-4 rounded border-ant-ink/15 data-[state=checked]:bg-ant-ink data-[state=checked]:text-ant-light shrink-0"
                                                     />
                                                     <span
                                                         className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide"
@@ -2765,14 +2829,14 @@ const Orders = () => {
                                                         );
                                                     })()}
                                                     {order.replace && (
-                                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-red-50 text-red-600 text-[10px] font-bold">
+                                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-ant-rose/10 text-ant-rose text-[10px] font-bold">
                                                             <RefreshCcw className="w-2.5 h-2.5" />EXCH
                                                         </span>
                                                     )}
                                                 </div>
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
-                                                        <button className="w-7 h-7 rounded-lg flex items-center justify-center text-brand-navy/25 hover:text-brand-navy hover:bg-brand-navy/5 transition-colors shrink-0">
+                                                        <button className="w-7 h-7 rounded-lg flex items-center justify-center text-ant-ink/25 hover:text-ant-ink hover:bg-ant-ink/5 transition-colors shrink-0">
                                                             <MoreVertical className="w-4 h-4" />
                                                         </button>
                                                     </DropdownMenuTrigger>
@@ -2798,7 +2862,7 @@ const Orders = () => {
                                                         <DropdownMenuSeparator />
                                                         <DropdownMenuItem
                                                             onClick={() => setOrderPendingDelete({ id: order.id, name: order.name })}
-                                                            className="rounded-lg px-3 py-2 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-2.5 text-xs font-bold"
+                                                            className="rounded-lg px-3 py-2 cursor-pointer text-ant-rose focus:bg-ant-rose/10 focus:text-ant-rose gap-2.5 text-xs font-bold"
                                                         >
                                                             <Trash2 className="w-3.5 h-3.5" /> Delete
                                                         </DropdownMenuItem>
@@ -2812,13 +2876,13 @@ const Orders = () => {
                                                     <div
                                                         className={cn(
                                                             'w-9 h-9 rounded-xl flex shrink-0 items-center justify-center',
-                                                            isDuplicateClient ? 'bg-[#d4c438]' : 'bg-brand-navy/[0.06]'
+                                                            isDuplicateClient ? 'bg-[#d4c438]' : 'bg-ant-ink/[0.06]'
                                                         )}
                                                     >
                                                         <User
                                                             className={cn(
                                                                 'w-4 h-4',
-                                                                isDuplicateClient ? 'text-[#9a7f00]' : 'text-brand-navy/50'
+                                                                isDuplicateClient ? 'text-[#9a7f00]' : 'text-ant-mid'
                                                             )}
                                                         />
                                                     </div>
@@ -2826,50 +2890,50 @@ const Orders = () => {
                                                         <p
                                                             className={cn(
                                                                 'text-sm font-bold truncate leading-tight',
-                                                                isDuplicateClient ? 'text-[#9a7f00]' : 'text-brand-navy'
+                                                                isDuplicateClient ? 'text-[#9a7f00]' : 'text-ant-ink'
                                                             )}
                                                             title={isDuplicateClient ? 'Same phone number on multiple orders' : undefined}
                                                         >
                                                             {order.name}
                                                         </p>
-                                                        <p className="text-[11px] text-brand-navy/40 font-medium tracking-wide truncate">{order.phone}</p>
+                                                        <p className="text-[11px] text-ant-mid font-medium tracking-wide truncate">{order.phone}</p>
                                                     </div>
                                                 </div>
                                                 {order.assignee ? (
                                                     <div className="flex items-center gap-1.5 shrink-0">
                                                         <Avatar className="w-6 h-6 border border-white shadow-sm">
                                                             <AvatarImage src={order.assignee.avatar_url} />
-                                                            <AvatarFallback className="bg-brand-navy/10 text-brand-navy text-[9px] font-bold">
+                                                            <AvatarFallback className="bg-ant-ink/10 text-ant-ink text-[9px] font-bold">
                                                                 {order.assignee.name?.[0]}
                                                             </AvatarFallback>
                                                         </Avatar>
-                                                        <span className="text-[10px] font-bold text-brand-navy/50 truncate max-w-[60px]">{order.assignee.name}</span>
+                                                        <span className="text-[10px] font-bold text-ant-mid truncate max-w-[60px]">{order.assignee.name}</span>
                                                     </div>
                                                 ) : (
-                                                    <span className="text-[10px] italic text-brand-navy/20">—</span>
+                                                    <span className="text-[10px] italic text-ant-mid">—</span>
                                                 )}
                                             </div>
 
                                             {/* Row 3: Metadata chips */}
                                             <div className="flex flex-wrap items-center gap-1.5">
                                                 {order.city?.name && (
-                                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-brand-navy/[0.03] text-[10px] font-bold text-brand-navy/60">
-                                                        <MapPin className="w-3 h-3 text-brand-navy/30" />{order.city.name}
+                                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-ant-ink/[0.03] text-[10px] font-bold text-ant-ink/60">
+                                                        <MapPin className="w-3 h-3 text-ant-mid" />{order.city.name}
                                                     </span>
                                                 )}
                                                 {order.source_name && (
-                                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-brand-navy/[0.03] text-[10px] font-bold text-brand-navy/60 capitalize">
-                                                        <Hash className="w-3 h-3 text-brand-navy/30" />{order.source_name}
+                                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-ant-ink/[0.03] text-[10px] font-bold text-ant-ink/60 capitalize">
+                                                        <Hash className="w-3 h-3 text-ant-mid" />{order.source_name}
                                                     </span>
                                                 )}
                                                 {(order.company?.name || order.courier?.name) && (
-                                                    <span className="inline-flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-lg bg-brand-navy/[0.03] text-[10px] font-bold text-brand-navy/60">
+                                                    <span className="inline-flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-lg bg-ant-ink/[0.03] text-[10px] font-bold text-ant-ink/60">
                                                         {order.company?.logo_url ? (
                                                             <img src={order.company.logo_url} alt="" className="w-4 h-4 rounded-full object-contain bg-white" />
                                                         ) : order.courier?.avatar_url ? (
                                                             <img src={order.courier.avatar_url} alt="" className="w-4 h-4 rounded-full object-cover" />
                                                         ) : (
-                                                            <span className="w-4 h-4 rounded-full bg-brand-navy/10 flex items-center justify-center text-[8px] font-black text-brand-navy/60">
+                                                            <span className="w-4 h-4 rounded-full bg-ant-ink/10 flex items-center justify-center text-[8px] font-semibold text-ant-ink/60">
                                                                 {(order.company?.name || order.courier?.name || '?').slice(0, 1).toUpperCase()}
                                                             </span>
                                                         )}
@@ -2888,32 +2952,32 @@ const Orders = () => {
 
                                             {/* Row 5: Reported recall */}
                                             {isOrderCategory(order.order_status_id, 'postponed') && order.reported_date && (
-                                                <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-amber-50 border border-amber-100">
+                                                <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-ant-orange/10 border border-ant-orange/25">
                                                     <div className="flex items-center gap-2">
-                                                        <Calendar className="w-3.5 h-3.5 text-amber-600" />
+                                                        <Calendar className="w-3.5 h-3.5 text-ant-orange" />
                                                         <span className="text-[11px] font-bold text-amber-800">
                                                             {format(new Date(order.reported_date), 'dd MMM yyyy')}
                                                         </span>
                                                     </div>
-                                                    <span className="text-[10px] font-bold bg-amber-500 text-white px-1.5 py-0.5 rounded">
+                                                    <span className="text-[10px] font-bold bg-ant-orange text-white px-1.5 py-0.5 rounded">
                                                         {format(new Date(order.reported_date), 'HH:mm')}
                                                     </span>
                                                 </div>
                                             )}
 
                                             {/* Row 6: Footer — Price + View */}
-                                            <div className="flex items-center justify-between pt-2 border-t border-brand-navy/[0.04] gap-2">
+                                            <div className="flex items-center justify-between pt-2 border-t border-ant-line gap-2">
                                                 <div className="flex items-baseline gap-1 min-w-0">
-                                                    <span className="text-xl font-black text-brand-navy tabular-nums">
+                                                    <span className="text-xl font-semibold text-ant-ink tabular-nums">
                                                         {new Intl.NumberFormat('fr-FR').format(order.price || 0)}
                                                     </span>
-                                                    <span className="text-[10px] font-bold text-brand-navy/35 uppercase">DH</span>
+                                                    <span className="text-[10px] font-bold text-ant-ink/35 uppercase">DH</span>
                                                 </div>
                                                 <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
                                                     <button
                                                         type="button"
                                                         onClick={() => { setSelectedOrder(order); setIsViewModalOpen(true); }}
-                                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-navy/[0.05] hover:bg-brand-navy text-brand-navy/50 hover:text-white text-[11px] font-bold transition-all duration-200"
+                                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-ant-ink/[0.05] hover:bg-ant-ink text-ant-mid hover:text-white text-[11px] font-bold transition-all duration-200"
                                                     >
                                                         <Eye className="w-3.5 h-3.5" />View
                                                     </button>
@@ -2927,7 +2991,7 @@ const Orders = () => {
                                                             setParcelTrackingOpen(true);
                                                         }}
                                                         className={cn(
-                                                            'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-navy/[0.05] hover:bg-brand-navy text-brand-navy/50 hover:text-white text-[11px] font-bold transition-all duration-200',
+                                                            'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-ant-ink/[0.05] hover:bg-ant-ink text-ant-mid hover:text-white text-[11px] font-bold transition-all duration-200',
                                                             !canTrackParcel && 'opacity-40 pointer-events-none'
                                                         )}
                                                     >
@@ -2938,7 +3002,7 @@ const Orders = () => {
                                                         type="button"
                                                         title="Status history"
                                                         onClick={() => setHistoryDialogOrder(order)}
-                                                        className="w-7 h-7 rounded-lg flex items-center justify-center bg-brand-navy/[0.05] hover:bg-brand-navy text-brand-navy/50 hover:text-white transition-all duration-200"
+                                                        className="w-7 h-7 rounded-lg flex items-center justify-center bg-ant-ink/[0.05] hover:bg-ant-ink text-ant-mid hover:text-white transition-all duration-200"
                                                     >
                                                         <Package className="w-3.5 h-3.5" />
                                                     </button>
@@ -2970,9 +3034,9 @@ const Orders = () => {
                     {/* Bulk Edit Bar */}
                     {selectedOrders.length > 0 && (
                         <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-10 duration-500">
-                            <div className="bg-brand-navy text-brand-white px-6 py-4 rounded-[32px] shadow-2xl flex flex-row items-center gap-4 md:gap-6 backdrop-blur-xl bg-brand-navy/90 border border-white/10 mx-4 w-max max-w-[95vw] overflow-x-auto custom-scrollbar">
+                            <div className="bg-ant-ink text-ant-light px-6 py-4 rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] flex flex-row items-center gap-4 md:gap-6 backdrop-blur-xl bg-ant-ink/90 border border-white/10 mx-4 w-max max-w-[95vw] overflow-x-auto custom-scrollbar">
                                 <div className="flex items-center gap-3 pr-4 md:pr-6 border-r border-white/10 shrink-0">
-                                    <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center font-black text-xs shrink-0">
+                                    <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center font-semibold text-xs shrink-0">
                                         {selectedOrders.length}
                                     </div>
                                     <span className="text-sm font-bold whitespace-nowrap shrink-0">Orders Selected</span>
@@ -2983,7 +3047,7 @@ const Orders = () => {
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => setIsBulkStatusModalOpen(true)}
-                                        className="text-brand-white hover:bg-white/10 rounded-2xl gap-2 font-bold px-4 shrink-0"
+                                        className="text-ant-light hover:bg-white/10 rounded-2xl gap-2 font-bold px-4 shrink-0"
                                     >
                                         <ShieldCheck className="w-4 h-4" /> Change Status
                                     </Button>
@@ -2991,7 +3055,7 @@ const Orders = () => {
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => setIsAttributionModalOpen(true)}
-                                        className="text-brand-white hover:bg-white/10 rounded-2xl gap-2 font-bold px-4 shrink-0"
+                                        className="text-ant-light hover:bg-white/10 rounded-2xl gap-2 font-bold px-4 shrink-0"
                                     >
                                         <User className="w-4 h-4" /> Attribute Seller
                                     </Button>
@@ -3000,7 +3064,7 @@ const Orders = () => {
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => setSelectedOrders([])}
-                                        className="text-red-400 hover:bg-red-500/10 rounded-2xl gap-2 font-bold px-4 shrink-0"
+                                        className="text-red-400 hover:bg-ant-rose/10 rounded-2xl gap-2 font-bold px-4 shrink-0"
                                     >
                                         <X className="w-4 h-4" /> Cancel
                                     </Button>
@@ -3048,7 +3112,7 @@ const Orders = () => {
                     }
                 }}
             >
-                <DialogContent className="w-[min(96vw,1180px)] max-w-[1180px] p-0 gap-0 border-none bg-brand-white rounded-[28px] shadow-2xl overflow-hidden flex flex-col h-[min(92dvh,820px)] max-h-[92dvh]">
+                <DialogContent className="ant-surface w-[min(96vw,1180px)] max-w-[1180px] p-0 gap-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden flex flex-col h-[min(92dvh,820px)] max-h-[92dvh]">
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit((values) => {
                             const targetStatusId = values.order_status_id;
@@ -3140,12 +3204,18 @@ const Orders = () => {
 
                             if (isEditModalOpen) updateOrderMutation.mutate(values); else createOrderMutation.mutate(values);
                         })} className="flex flex-col h-full overflow-hidden">
-                            <DialogHeader className="px-5 py-3 pr-12 shrink-0 border-b border-brand-navy/[0.08] bg-brand-navy/[0.02]">
-                                <DialogTitle className="text-lg sm:text-xl font-black text-brand-navy tracking-tight leading-tight">
+                            <DialogHeader className="px-6 py-4 pr-12 shrink-0 border-b border-ant-line bg-ant-paper">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <span className="w-1 h-1 rounded-full bg-ant-orange" />
+                                    <span className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                                        {isEditModalOpen ? 'Editing order' : 'Create order'}
+                                    </span>
+                                </div>
+                                <DialogTitle className="font-display text-[24px] font-semibold text-ant-ink tracking-[-0.02em] leading-tight">
                                     {isEditModalOpen ? 'Update order' : 'New order'}
                                 </DialogTitle>
-                                <DialogDescription className="text-muted-foreground text-xs sm:text-sm mt-0.5 leading-snug">
-                                    Details left · Lines scroll on the right · Notes below
+                                <DialogDescription className="font-serif-display text-[13px] text-ant-muted italic mt-0.5">
+                                    Customer on the left, cart on the right. Add as many lines as you need.
                                 </DialogDescription>
                             </DialogHeader>
 
@@ -3154,7 +3224,7 @@ const Orders = () => {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 shrink-0">
                                     {/* Column 1: Customer Data */}
                                     <div className="space-y-3.5">
-                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-brand-navy/45 border-b border-brand-navy/[0.08] pb-2 flex items-center gap-2">
+                                        <h4 className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid border-b border-ant-line pb-2 flex items-center gap-2">
                                             <User className="w-3 h-3" /> Customer
                                         </h4>
                                         <FormField
@@ -3162,9 +3232,9 @@ const Orders = () => {
                                             name="name"
                                             render={({ field }) => (
                                                 <FormItem className="space-y-2">
-                                                    <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Full Name</FormLabel>
+                                                    <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Full Name</FormLabel>
                                                     <FormControl>
-                                                        <Input placeholder="Client Name" {...field} className="h-10 rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
+                                                        <Input placeholder="Client Name" {...field} className="h-10 rounded-lg border border-ant-line bg-ant-paper text-[13px] font-medium text-ant-ink placeholder:text-ant-mid focus-visible:ring-ant-orange focus-visible:ring-offset-0 focus-visible:border-ant-ink/25" />
                                                     </FormControl>
                                                     <FormMessage />
                                                 </FormItem>
@@ -3186,7 +3256,7 @@ const Orders = () => {
                                                             : '';
                                                 return (
                                                 <FormItem className="space-y-2">
-                                                    <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Contact Number</FormLabel>
+                                                    <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Contact Number</FormLabel>
                                                     <div className="relative">
                                                         <FormControl>
                                                             <Input
@@ -3200,7 +3270,7 @@ const Orders = () => {
                                                                         field.onChange(text.replace(/^\s+/, ''));
                                                                     }
                                                                 }}
-                                                                className={cn("h-10 rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner", inputPr)}
+                                                                className={cn("h-10 rounded-lg border border-ant-line bg-ant-paper text-[13px] font-medium text-ant-ink placeholder:text-ant-mid focus-visible:ring-ant-orange focus-visible:ring-offset-0 focus-visible:border-ant-ink/25", inputPr)}
                                                             />
                                                         </FormControl>
                                                         {hasPhoneQuick && (
@@ -3216,15 +3286,15 @@ const Orders = () => {
                                                                         className={cn(
                                                                             "absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-200",
                                                                             showCustomerInsights
-                                                                                ? "bg-brand-navy text-brand-white shadow-lg shadow-brand-navy/20 scale-105"
-                                                                                : "bg-brand-navy/10 text-brand-navy/50 hover:bg-brand-navy/20 hover:text-brand-navy"
+                                                                                ? "bg-ant-ink text-ant-light shadow-sm scale-105"
+                                                                                : "bg-ant-ink/10 text-ant-mid hover:bg-ant-ink/20 hover:text-ant-ink"
                                                                         )}
                                                                     >
                                                                         <BarChart3 className="w-4 h-4" />
                                                                     </button>
                                                                 </PopoverTrigger>
                                                                 <PopoverContent
-                                                                    className="w-[420px] p-4 rounded-2xl border-none shadow-2xl bg-white/95 backdrop-blur-xl"
+                                                                    className="w-[420px] p-4 rounded-xl border-ant-line bg-ant-paper shadow-[0_12px_40px_-20px_rgba(20,20,19,0.3)] bg-white/95 backdrop-blur-xl"
                                                                     align="end"
                                                                     side="right"
                                                                     sideOffset={12}
@@ -3244,7 +3314,7 @@ const Orders = () => {
                                             name="city_id"
                                             render={({ field }) => (
                                                 <FormItem className="flex flex-col space-y-2">
-                                                    <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Target City</FormLabel>
+                                                    <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Target City</FormLabel>
                                                     <Popover open={citySearchOpen} onOpenChange={setCitySearchOpen}>
                                                         <PopoverTrigger asChild>
                                                             <FormControl>
@@ -3252,8 +3322,8 @@ const Orders = () => {
                                                                     variant="outline"
                                                                     role="combobox"
                                                                     className={cn(
-                                                                        "h-10 w-full justify-between rounded-xl border-none bg-brand-navy/[0.04] text-sm text-brand-navy font-bold shadow-inner text-left px-3",
-                                                                        !field.value && "text-muted-foreground"
+                                                                        "h-10 w-full justify-between rounded-lg border border-ant-line bg-ant-paper text-[13px] text-ant-ink font-medium text-left px-3",
+                                                                        !field.value && "text-ant-muted"
                                                                     )}
                                                                 >
                                                                     {field.value
@@ -3286,7 +3356,7 @@ const Orders = () => {
                                                                                     form.setValue('shipping_cost', 0);
                                                                                     setCitySearchOpen(false);
                                                                                 }}
-                                                                                className="py-3 px-4 font-bold text-brand-navy cursor-pointer hover:bg-brand-navy hover:text-brand-white"
+                                                                                className="py-3 px-4 font-bold text-ant-ink cursor-pointer hover:bg-ant-ink hover:text-ant-light"
                                                                             >
                                                                                 <Check
                                                                                     className={cn(
@@ -3311,9 +3381,9 @@ const Orders = () => {
                                             name="address"
                                             render={({ field }) => (
                                                 <FormItem className="space-y-2">
-                                                    <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Full Address</FormLabel>
+                                                    <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Full Address</FormLabel>
                                                     <FormControl>
-                                                        <Textarea placeholder="Street, building, floor…" {...field} className="min-h-[72px] rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner resize-y p-3 leading-relaxed" />
+                                                        <Textarea placeholder="Street, building, floor…" {...field} className="min-h-[72px] rounded-lg border border-ant-line bg-ant-paper text-[13px] font-medium text-ant-ink placeholder:text-ant-mid focus-visible:ring-ant-orange focus-visible:ring-offset-0 focus-visible:border-ant-ink/25 resize-y p-3 leading-relaxed" />
                                                     </FormControl>
                                                     <FormMessage />
                                                 </FormItem>
@@ -3323,7 +3393,7 @@ const Orders = () => {
 
                                     {/* Column 2: Logistics & Status */}
                                     <div className="space-y-3.5">
-                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-brand-navy/45 border-b border-brand-navy/[0.08] pb-2 flex items-center gap-2">
+                                        <h4 className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid border-b border-ant-line pb-2 flex items-center gap-2">
                                             <Truck className="w-3 h-3" /> Logistics
                                         </h4>
                                         <FormField
@@ -3331,14 +3401,14 @@ const Orders = () => {
                                             name="source_name"
                                             render={({ field }) => (
                                                 <FormItem className="space-y-2">
-                                                    <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Sales Channel</FormLabel>
+                                                    <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Sales Channel</FormLabel>
                                                     <Select onValueChange={field.onChange} value={field.value}>
                                                         <FormControl>
-                                                            <SelectTrigger className="h-10 rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy shadow-inner">
+                                                            <SelectTrigger className="h-10 rounded-lg border border-ant-line bg-ant-paper text-[13px] font-medium text-ant-ink">
                                                                 <SelectValue placeholder="Select channel" />
                                                             </SelectTrigger>
                                                         </FormControl>
-                                                        <SelectContent className="rounded-2xl border-none shadow-2xl">
+                                                        <SelectContent className="rounded-xl border-ant-line bg-ant-paper shadow-[0_12px_40px_-20px_rgba(20,20,19,0.3)]">
                                                             {SALES_SOURCES.map(source => (
                                                                 <SelectItem key={source} value={source} className="rounded-xl font-bold capitalize">{source}</SelectItem>
                                                             ))}
@@ -3355,7 +3425,7 @@ const Orders = () => {
                                                     name="courier_id"
                                                     render={({ field }) => (
                                                         <FormItem className="space-y-2 animate-in fade-in slide-in-from-top-1 duration-300">
-                                                            <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Shipping Provider</FormLabel>
+                                                            <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Shipping Provider</FormLabel>
                                                             <Select
                                                                 onValueChange={(val) => {
                                                                     const provider = availableProviders.find(p => p.id === val);
@@ -3374,11 +3444,11 @@ const Orders = () => {
                                                                 value={field.value || selectedCompanyId || ''}
                                                             >
                                                                 <FormControl>
-                                                                    <SelectTrigger className="h-10 rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy shadow-inner">
+                                                                    <SelectTrigger className="h-10 rounded-lg border border-ant-line bg-ant-paper text-[13px] font-medium text-ant-ink">
                                                                         <SelectValue placeholder="Choose provider..." />
                                                                     </SelectTrigger>
                                                                 </FormControl>
-                                                                <SelectContent className="rounded-2xl border-none shadow-2xl">
+                                                                <SelectContent className="rounded-xl border-ant-line bg-ant-paper shadow-[0_12px_40px_-20px_rgba(20,20,19,0.3)]">
                                                                     {availableProviders.map((p: any) => (
                                                                         <SelectItem key={p.id} value={p.id} className="rounded-xl font-bold">
                                                                             <div className="flex items-center gap-2">
@@ -3386,15 +3456,15 @@ const Orders = () => {
                                                                                     p.avatar_url ? (
                                                                                         <img src={p.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
                                                                                     ) : (
-                                                                                        <span className="w-5 h-5 rounded-full bg-brand-navy/10 flex items-center justify-center text-[9px] font-black text-brand-navy/60">
+                                                                                        <span className="w-5 h-5 rounded-full bg-ant-ink/10 flex items-center justify-center text-[9px] font-semibold text-ant-ink/60">
                                                                                             {(p.name || '?').slice(0, 1).toUpperCase()}
                                                                                         </span>
                                                                                     )
                                                                                 ) : (
                                                                                     p.logo_url ? (
-                                                                                        <img src={p.logo_url} alt="" className="w-5 h-5 rounded-full object-contain bg-white border border-brand-navy/[0.06]" />
+                                                                                        <img src={p.logo_url} alt="" className="w-5 h-5 rounded-full object-contain bg-white border border-ant-line" />
                                                                                     ) : (
-                                                                                        <span className="w-5 h-5 rounded-full bg-brand-navy/10 flex items-center justify-center text-[9px] font-black text-brand-navy/60">
+                                                                                        <span className="w-5 h-5 rounded-full bg-ant-ink/10 flex items-center justify-center text-[9px] font-semibold text-ant-ink/60">
                                                                                             {(p.name || '?').slice(0, 1).toUpperCase()}
                                                                                         </span>
                                                                                     )
@@ -3415,14 +3485,14 @@ const Orders = () => {
                                                 name="shipping_cost"
                                                 render={({ field }) => (
                                                     <FormItem className="space-y-2">
-                                                        <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Shipping Fee</FormLabel>
+                                                        <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Shipping Fee</FormLabel>
                                                         <FormControl>
                                                             <div className="relative">
                                                                 <Input
                                                                     type="number"
                                                                     {...field}
                                                                     readOnly={shippingFeeReadOnly}
-                                                                    className={`h-10 rounded-xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy shadow-inner pl-3 pr-10 ${shippingFeeReadOnly ? 'cursor-not-allowed opacity-60' : ''}`}
+                                                                    className={`h-10 rounded-lg border border-ant-line bg-ant-paper text-[13px] font-medium text-ant-ink pl-3 pr-10 ${shippingFeeReadOnly ? 'cursor-not-allowed opacity-60' : ''}`}
                                                                 />
                                                                 <div className="absolute right-4 top-1/2 -translate-y-1/2">
                                                                     <Button
@@ -3430,7 +3500,7 @@ const Orders = () => {
                                                                         variant="ghost"
                                                                         size="icon"
                                                                         onClick={calculateShippingFee}
-                                                                        className="h-6 w-6 text-brand-navy/30 hover:text-brand-navy"
+                                                                        className="h-6 w-6 text-ant-mid hover:text-ant-ink"
                                                                         title="Calculate Fees"
                                                                         disabled={
                                                                             !selectedCityId ||
@@ -3453,7 +3523,7 @@ const Orders = () => {
                                             name="order_status_id"
                                             render={({ field }) => (
                                                 <FormItem className="flex flex-col space-y-2">
-                                                    <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Pipeline Stage</FormLabel>
+                                                    <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Pipeline Stage</FormLabel>
                                                     <Popover open={statusSearchOpen} onOpenChange={setStatusSearchOpen}>
                                                         <PopoverTrigger asChild>
                                                             <FormControl>
@@ -3461,8 +3531,8 @@ const Orders = () => {
                                                                     variant="outline"
                                                                     role="combobox"
                                                                     className={cn(
-                                                                        "h-10 w-full justify-between rounded-xl border-none bg-brand-navy/[0.04] text-sm text-brand-navy font-bold shadow-inner text-left px-3",
-                                                                        !field.value && "text-muted-foreground"
+                                                                        "h-10 w-full justify-between rounded-lg border border-ant-line bg-ant-paper text-[13px] text-ant-ink font-medium text-left px-3",
+                                                                        !field.value && "text-ant-muted"
                                                                     )}
                                                                 >
                                                                     {field.value
@@ -3527,7 +3597,7 @@ const Orders = () => {
                                                                                     );
                                                                                     setIsReportedModalOpen(true);
                                                                                 }}
-                                                                                className="py-3 px-4 font-bold text-brand-navy cursor-pointer hover:bg-brand-navy hover:text-brand-white"
+                                                                                className="py-3 px-4 font-bold text-ant-ink cursor-pointer hover:bg-ant-ink hover:text-ant-light"
                                                                             >
                                                                                 <div
                                                                                     className="w-3 h-3 rounded-full mr-3"
@@ -3561,11 +3631,11 @@ const Orders = () => {
                                                 name="history_comment"
                                                 render={({ field }) => (
                                                     <FormItem className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
-                                                        <FormLabel className="text-[10px] font-black uppercase tracking-wider text-brand-navy/60 flex items-center gap-1">
-                                                            <MessageSquare className="w-3 h-3 text-brand-navy/40" /> Status change reason (required)
+                                                        <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid flex items-center gap-1">
+                                                            <MessageSquare className="w-3 h-3 text-ant-mid" /> Status change reason (required)
                                                         </FormLabel>
                                                         <FormControl>
-                                                            <Textarea placeholder="Explain why you are moving to this status…" {...field} className="min-h-[56px] resize-y rounded-xl border-none bg-brand-navy/[0.03] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner focus-visible:ring-brand-navy/20" />
+                                                            <Textarea placeholder="Explain why you are moving to this status…" {...field} className="min-h-[56px] resize-y rounded-lg border border-ant-line bg-ant-paper text-[13px] font-medium text-ant-ink placeholder:text-ant-mid focus-visible:ring-ant-orange focus-visible:ring-offset-0 focus-visible:border-ant-ink/25" />
                                                         </FormControl>
                                                         <FormMessage />
                                                     </FormItem>
@@ -3574,10 +3644,10 @@ const Orders = () => {
                                         )}
 
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                            <div className="p-3 rounded-xl bg-brand-navy/[0.03] border border-brand-navy/[0.06] flex items-center justify-between gap-3">
+                                            <div className="p-3 rounded-xl bg-ant-ink/[0.03] border border-ant-line flex items-center justify-between gap-3">
                                                 <div className="space-y-0.5 min-w-0">
-                                                    <FormLabel className="text-xs font-bold text-brand-navy">Exchange order</FormLabel>
-                                                    <p className="text-[10px] text-muted-foreground leading-snug">Replacing a previous order?</p>
+                                                    <FormLabel className="text-xs font-bold text-ant-ink">Exchange order</FormLabel>
+                                                    <p className="text-[10px] text-ant-muted leading-snug">Replacing a previous order?</p>
                                                 </div>
                                                 <FormField
                                                     control={form.control}
@@ -3589,10 +3659,10 @@ const Orders = () => {
                                                     )}
                                                 />
                                             </div>
-                                            <div className="p-3 rounded-xl bg-brand-navy/[0.03] border border-brand-navy/[0.06] flex items-center justify-between gap-3">
+                                            <div className="p-3 rounded-xl bg-ant-ink/[0.03] border border-ant-line flex items-center justify-between gap-3">
                                                 <div className="space-y-0.5 min-w-0">
-                                                    <FormLabel className="text-xs font-bold text-brand-navy">Include delivery fees</FormLabel>
-                                                    <p className="text-[10px] text-muted-foreground leading-snug">Add shipping to order total</p>
+                                                    <FormLabel className="text-xs font-bold text-ant-ink">Include delivery fees</FormLabel>
+                                                    <p className="text-[10px] text-ant-muted leading-snug">Add shipping to order total</p>
                                                 </div>
                                                 <FormField
                                                     control={form.control}
@@ -3612,11 +3682,11 @@ const Orders = () => {
                                                     control={form.control}
                                                     name="coliaty_old_tracking"
                                                     render={({ field }) => (
-                                                        <FormItem className="space-y-2 rounded-xl border border-amber-200/80 bg-amber-50/40 p-3">
-                                                            <FormLabel className="text-[10px] font-black uppercase tracking-wider text-brand-navy">
+                                                        <FormItem className="space-y-2 rounded-xl border border-ant-orange/30/80 bg-ant-orange/10/40 p-3">
+                                                            <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-ink">
                                                                 Previous parcel tracking (Coliaty)
                                                             </FormLabel>
-                                                            <p className="text-[10px] text-muted-foreground leading-snug">
+                                                            <p className="text-[10px] text-ant-muted leading-snug">
                                                                 Required for exchange: maps to Coliaty{' '}
                                                                 <code className="text-[10px]">package_old_tracking</code>.
                                                             </p>
@@ -3624,7 +3694,7 @@ const Orders = () => {
                                                                 <Input
                                                                     placeholder="Old tracking number"
                                                                     {...field}
-                                                                    className="h-11 rounded-xl border border-brand-navy/10 bg-white text-sm font-bold text-brand-navy"
+                                                                    className="h-11 rounded-xl border border-ant-ink/10 bg-white text-sm font-bold text-ant-ink"
                                                                 />
                                                             </FormControl>
                                                             <FormMessage />
@@ -3638,11 +3708,11 @@ const Orders = () => {
                                                     control={form.control}
                                                     name="ameex_old_tracking"
                                                     render={({ field }) => (
-                                                        <FormItem className="space-y-2 rounded-xl border border-amber-200/80 bg-amber-50/40 p-3">
-                                                            <FormLabel className="text-[10px] font-black uppercase tracking-wider text-brand-navy">
+                                                        <FormItem className="space-y-2 rounded-xl border border-ant-orange/30/80 bg-ant-orange/10/40 p-3">
+                                                            <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-ink">
                                                                 Previous parcel tracking (AMEEX)
                                                             </FormLabel>
-                                                            <p className="text-[10px] text-muted-foreground leading-snug">
+                                                            <p className="text-[10px] text-ant-muted leading-snug">
                                                                 Required for exchange: sent as AMEEX{' '}
                                                                 <code className="text-[10px]">exchange_code</code>.
                                                             </p>
@@ -3650,7 +3720,7 @@ const Orders = () => {
                                                                 <Input
                                                                     placeholder="Old tracking number"
                                                                     {...field}
-                                                                    className="h-11 rounded-xl border border-brand-navy/10 bg-white text-sm font-bold text-brand-navy"
+                                                                    className="h-11 rounded-xl border border-ant-ink/10 bg-white text-sm font-bold text-ant-ink"
                                                                 />
                                                             </FormControl>
                                                             <FormMessage />
@@ -3661,12 +3731,12 @@ const Orders = () => {
                                     </div>
                                 </div>
 
-                                <section className="rounded-xl border border-brand-navy/[0.08] bg-brand-navy/[0.02] p-3 sm:p-4 space-y-3 shrink-0">
+                                <section className="rounded-xl border border-ant-line bg-ant-paper p-3 sm:p-4 space-y-3 shrink-0">
                                     <div className="space-y-0.5">
-                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-brand-navy/50 flex items-center gap-2">
-                                            <MessageSquare className="w-3 h-3 text-brand-navy/45" /> Notes
+                                        <h4 className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid flex items-center gap-2">
+                                            <MessageSquare className="w-3 h-3 text-ant-ink/45" /> Notes
                                         </h4>
-                                        <p className="text-[10px] text-muted-foreground leading-snug">
+                                        <p className="text-[10px] text-ant-muted leading-snug">
                                             Internal vs courier-facing. Optional.
                                         </p>
                                     </div>
@@ -3676,9 +3746,9 @@ const Orders = () => {
                                             name="note"
                                             render={({ field }) => (
                                                 <FormItem className="space-y-2">
-                                                    <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Order Note (Internal)</FormLabel>
+                                                    <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Order Note (Internal)</FormLabel>
                                                     <FormControl>
-                                                        <Textarea placeholder="Packaging, gifts…" {...field} className="min-h-[64px] rounded-xl border-none bg-white/90 text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner resize-y p-3 leading-relaxed" />
+                                                        <Textarea placeholder="Packaging, gifts…" {...field} className="min-h-[64px] rounded-lg border border-ant-line bg-ant-paper text-[13px] font-medium text-ant-ink placeholder:text-ant-mid focus-visible:ring-ant-orange focus-visible:ring-offset-0 focus-visible:border-ant-ink/25 resize-y p-3 leading-relaxed" />
                                                     </FormControl>
                                                 </FormItem>
                                             )}
@@ -3688,9 +3758,9 @@ const Orders = () => {
                                             name="delivery_note"
                                             render={({ field }) => (
                                                 <FormItem className="space-y-2">
-                                                    <FormLabel className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Courier Note (Public)</FormLabel>
+                                                    <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Courier Note (Public)</FormLabel>
                                                     <FormControl>
-                                                        <Textarea placeholder="Courier instructions…" {...field} className="min-h-[64px] rounded-xl border-none bg-white/90 text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner resize-y p-3 leading-relaxed" />
+                                                        <Textarea placeholder="Courier instructions…" {...field} className="min-h-[64px] rounded-lg border border-ant-line bg-ant-paper text-[13px] font-medium text-ant-ink placeholder:text-ant-mid focus-visible:ring-ant-orange focus-visible:ring-offset-0 focus-visible:border-ant-ink/25 resize-y p-3 leading-relaxed" />
                                                     </FormControl>
                                                 </FormItem>
                                             )}
@@ -3699,15 +3769,15 @@ const Orders = () => {
                                 </section>
                                     </div>
 
-                                    <aside className="w-full xl:w-[min(26rem,34vw)] xl:max-w-[420px] xl:shrink-0 flex flex-col min-h-0 border-t xl:border-t-0 xl:border-l border-brand-navy/[0.1] bg-brand-navy/[0.03]">
-                                    <div className="shrink-0 flex items-center justify-between gap-2 px-3 py-2.5 border-b border-brand-navy/[0.08] bg-brand-navy/[0.02]">
+                                    <aside className="w-full xl:w-[min(26rem,34vw)] xl:max-w-[420px] xl:shrink-0 flex flex-col min-h-0 border-t xl:border-t-0 xl:border-l border-ant-ink/[0.1] bg-ant-ink/[0.03]">
+                                    <div className="shrink-0 flex items-center justify-between gap-2 px-3 py-2.5 border-b border-ant-line bg-ant-paper">
                                         <div className="flex items-center gap-2 min-w-0">
-                                            <div className="w-8 h-8 rounded-lg bg-brand-navy/10 flex items-center justify-center shrink-0">
-                                                <ShoppingBag className="w-4 h-4 text-brand-navy" />
+                                            <div className="w-8 h-8 rounded-lg bg-ant-ink/10 flex items-center justify-center shrink-0">
+                                                <ShoppingBag className="w-4 h-4 text-ant-ink" />
                                             </div>
                                             <div className="min-w-0">
-                                                <h4 className="text-[10px] font-black uppercase tracking-widest text-brand-navy leading-tight">Order lines</h4>
-                                                <p className="text-[9px] text-brand-navy/45 font-medium truncate">Scroll here only</p>
+                                                <h4 className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-ink">Order lines</h4>
+                                                <p className="text-[9px] text-ant-ink/45 font-medium truncate">Scroll here only</p>
                                             </div>
                                         </div>
                                         <Button
@@ -3715,7 +3785,7 @@ const Orders = () => {
                                             variant="outline"
                                             size="sm"
                                             onClick={() => append({ product_id: '', quantity: 1, unit_price: 0, accessories: [] })}
-                                            className="text-[9px] font-black uppercase text-brand-navy border-brand-navy/15 bg-white h-8 px-2.5 gap-1 rounded-lg shrink-0"
+                                            className="text-[10px] font-medium text-ant-ink border-ant-line bg-ant-paper h-8 px-3 gap-1.5 rounded-full shrink-0 hover:border-ant-ink/25"
                                         >
                                             <Plus className="w-3.5 h-3.5" /> Line
                                         </Button>
@@ -3727,16 +3797,16 @@ const Orders = () => {
                                             const hasProduct = !!form.watch(`items.${index}.product_id`) && form.watch(`items.${index}.product_id`) !== 'none';
                                             const productSubtotal = (form.watch(`items.${index}.quantity`) || 0) * (form.watch(`items.${index}.unit_price`) || 0);
                                             return (
-                                                <div key={field.id} className="rounded-2xl border border-brand-navy/10 bg-white p-3 shadow-sm space-y-3 animate-in slide-in-from-left-2 duration-200">
+                                                <div key={field.id} className="rounded-2xl border border-ant-ink/10 bg-white p-3 shadow-sm space-y-3 animate-in slide-in-from-left-2 duration-200">
                                                     <div className="flex items-center justify-between gap-2">
-                                                        <span className="text-[9px] font-black uppercase tracking-wider text-brand-navy/35 tabular-nums">Line {index + 1}</span>
+                                                        <span className="text-[9.5px] font-medium uppercase tracking-[0.22em] text-ant-mid tabular-nums">Line {index + 1}</span>
                                                         <Button
                                                             type="button"
                                                             variant="ghost"
                                                             size="icon"
                                                             onClick={() => remove(index)}
                                                             disabled={fields.length === 1}
-                                                            className="h-7 w-7 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 shrink-0"
+                                                            className="h-7 w-7 rounded-lg text-red-400 hover:text-ant-rose hover:bg-ant-rose/10 shrink-0"
                                                         >
                                                             <Trash2 className="w-3.5 h-3.5" />
                                                         </Button>
@@ -3807,8 +3877,8 @@ const Orders = () => {
                                                             name={`items.${index}.unit_price`}
                                                             render={({ field }) => (
                                                                 <FormItem className="space-y-1">
-                                                                    <FormLabel className="text-[8px] uppercase font-black text-brand-navy/45">Unit</FormLabel>
-                                                                    <Input type="number" {...field} disabled={!hasProduct} className="h-9 rounded-lg border border-brand-navy/10 bg-brand-navy/[0.03] text-sm font-bold text-brand-navy text-center px-1" />
+                                                                    <FormLabel className="text-[9px] font-medium uppercase tracking-[0.2em] text-ant-mid">Unit</FormLabel>
+                                                                    <Input type="number" {...field} disabled={!hasProduct} className="h-9 rounded-lg border border-ant-ink/10 bg-ant-ink/[0.03] text-sm font-bold text-ant-ink text-center px-1" />
                                                                 </FormItem>
                                                             )}
                                                         />
@@ -3817,32 +3887,32 @@ const Orders = () => {
                                                             name={`items.${index}.quantity`}
                                                             render={({ field }) => (
                                                                 <FormItem className="space-y-1">
-                                                                    <FormLabel className="text-[8px] uppercase font-black text-brand-navy/45">Qty</FormLabel>
-                                                                    <Input type="number" {...field} disabled={!hasProduct} className="h-9 rounded-lg border border-brand-navy/10 bg-brand-navy/[0.03] text-sm font-bold text-brand-navy text-center px-1" />
+                                                                    <FormLabel className="text-[9px] font-medium uppercase tracking-[0.2em] text-ant-mid">Qty</FormLabel>
+                                                                    <Input type="number" {...field} disabled={!hasProduct} className="h-9 rounded-lg border border-ant-ink/10 bg-ant-ink/[0.03] text-sm font-bold text-ant-ink text-center px-1" />
                                                                 </FormItem>
                                                             )}
                                                         />
-                                                        <div className="rounded-lg bg-brand-navy/[0.08] px-1.5 py-1 flex flex-col justify-center items-center text-center">
-                                                            <span className="text-[7px] font-black uppercase text-brand-navy/50 leading-none">Total</span>
-                                                            <span className="text-xs font-black text-brand-navy tabular-nums leading-tight">{productSubtotal.toFixed(2)} <span className="text-[9px] font-bold text-brand-navy/65">DH</span></span>
+                                                        <div className="rounded-lg bg-ant-ink/10 px-1.5 py-1 flex flex-col justify-center items-center text-center">
+                                                            <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-ant-mid leading-none">Total</span>
+                                                            <span className="font-display text-[13px] font-semibold text-ant-ink tabular-nums leading-tight tracking-[-0.01em]">{productSubtotal.toFixed(2)} <span className="text-[10px] font-medium text-ant-mid">DH</span></span>
                                                         </div>
                                                     </div>
 
-                                                    <div className="rounded-xl bg-brand-navy/[0.04] border border-brand-navy/[0.07] p-2.5 space-y-2">
-                                                        <p className="text-[9px] font-black uppercase tracking-wider text-brand-navy/35">Add-ons</p>
+                                                    <div className="rounded-xl bg-ant-ink/[0.04] border border-ant-ink/[0.07] p-2.5 space-y-2">
+                                                        <p className="text-[9.5px] font-medium uppercase tracking-[0.22em] text-ant-mid">Add-ons</p>
                                                         {(form.watch(`items.${index}.accessories`) || []).map((acc: any, accIdx: number) => {
                                                             const accSubtotal = (form.watch(`items.${index}.accessories.${accIdx}.accessory_quantity`) || 0) * (form.watch(`items.${index}.accessories.${accIdx}.accessory_unit_price`) || 0);
                                                             const hasAccessory = !!form.watch(`items.${index}.accessories.${accIdx}.accessory_id`) && form.watch(`items.${index}.accessories.${accIdx}.accessory_id`) !== 'none';
 
                                                             return (
-                                                                <div key={accIdx} className="space-y-2 pb-2 border-b border-brand-navy/[0.08] last:border-0 last:pb-0">
+                                                                <div key={accIdx} className="space-y-2 pb-2 border-b border-ant-line last:border-0 last:pb-0">
                                                                     <div className="flex gap-2 items-end">
                                                                         <FormField
                                                                             control={form.control}
                                                                             name={`items.${index}.accessories.${accIdx}.accessory_id`}
                                                                             render={({ field }) => (
                                                                                 <FormItem className="space-y-1 flex-1 min-w-0">
-                                                                                    <FormLabel className="text-[8px] uppercase font-black text-brand-navy/45 flex items-center gap-1"><Puzzle className="w-3 h-3 opacity-60" /> Item</FormLabel>
+                                                                                    <FormLabel className="text-[9px] font-medium uppercase tracking-[0.2em] text-ant-mid flex items-center gap-1"><Puzzle className="w-3 h-3 opacity-60" /> Item</FormLabel>
                                                                                     <Select
                                                                                         onValueChange={(val) => {
                                                                                             field.onChange(val);
@@ -3862,15 +3932,15 @@ const Orders = () => {
                                                                                         value={field.value || ''}
                                                                                     >
                                                                                         <FormControl>
-                                                                                            <SelectTrigger className="h-9 rounded-lg border border-brand-navy/10 bg-white text-sm font-bold text-brand-navy shadow-none">
+                                                                                            <SelectTrigger className="h-9 rounded-lg border border-ant-ink/10 bg-white text-sm font-bold text-ant-ink shadow-none">
                                                                                                 <SelectValue placeholder="Accessory…" />
                                                                                             </SelectTrigger>
                                                                                         </FormControl>
                                                                                         <SelectContent className="rounded-xl border-none shadow-2xl max-h-[200px] overflow-y-auto custom-scrollbar">
-                                                                                            <SelectItem value="none" className="rounded-lg font-medium text-muted-foreground text-sm">— None —</SelectItem>
+                                                                                            <SelectItem value="none" className="rounded-lg font-medium text-ant-muted text-sm">— None —</SelectItem>
                                                                                             {accessories?.map((a: any) => (
                                                                                                 <SelectItem key={a.id} value={a.id} className="rounded-lg font-medium text-sm py-2">
-                                                                                                    {a.name} <span className="text-muted-foreground ml-1 text-xs">({a.code})</span>
+                                                                                                    {a.name} <span className="text-ant-muted ml-1 text-xs">({a.code})</span>
                                                                                                 </SelectItem>
                                                                                             ))}
                                                                                         </SelectContent>
@@ -3881,14 +3951,14 @@ const Orders = () => {
                                                                                         if (selectedAccessory && selectedAccessory.stock !== null && selectedAccessory.stock !== undefined) {
                                                                                             if (selectedAccessory.stock === 0) {
                                                                                                 return (
-                                                                                                    <div className="mt-1 flex items-center gap-1.5 px-2 py-1 rounded-md bg-red-50 border border-red-200">
-                                                                                                        <span className="text-[8px] font-bold text-red-600 uppercase">Out of stock</span>
+                                                                                                    <div className="mt-1 flex items-center gap-1.5 px-2 py-1 rounded-md bg-ant-rose/10 border border-red-200">
+                                                                                                        <span className="text-[8px] font-bold text-ant-rose uppercase">Out of stock</span>
                                                                                                     </div>
                                                                                                 );
                                                                                             } else if (selectedAccessory.stock < 10) {
                                                                                                 return (
-                                                                                                    <div className="mt-1 flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-50 border border-amber-200">
-                                                                                                        <span className="text-[8px] font-bold text-amber-700 uppercase">Low: {selectedAccessory.stock}</span>
+                                                                                                    <div className="mt-1 flex items-center gap-1.5 px-2 py-1 rounded-md bg-ant-orange/10 border border-ant-orange/30">
+                                                                                                        <span className="text-[8px] font-bold text-ant-orange uppercase">Low: {selectedAccessory.stock}</span>
                                                                                                     </div>
                                                                                                 );
                                                                                             }
@@ -3907,7 +3977,7 @@ const Orders = () => {
                                                                                 current.splice(accIdx, 1);
                                                                                 form.setValue(`items.${index}.accessories`, current);
                                                                             }}
-                                                                            className="h-9 w-9 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 shrink-0"
+                                                                            className="h-9 w-9 rounded-lg text-red-400 hover:text-ant-rose hover:bg-ant-rose/10 shrink-0"
                                                                         >
                                                                             <Trash2 className="w-3.5 h-3.5" />
                                                                         </Button>
@@ -3918,8 +3988,8 @@ const Orders = () => {
                                                                             name={`items.${index}.accessories.${accIdx}.accessory_unit_price`}
                                                                             render={({ field }) => (
                                                                                 <FormItem className="space-y-1">
-                                                                                    <FormLabel className="text-[8px] uppercase font-black text-brand-navy/40">Cost</FormLabel>
-                                                                                    <Input type="number" {...field} disabled={!hasAccessory} className="h-9 rounded-lg border border-brand-navy/10 bg-white text-sm font-bold text-brand-navy text-center px-1" />
+                                                                                    <FormLabel className="text-[9px] font-medium uppercase tracking-[0.2em] text-ant-mid">Cost</FormLabel>
+                                                                                    <Input type="number" {...field} disabled={!hasAccessory} className="h-9 rounded-lg border border-ant-ink/10 bg-white text-sm font-bold text-ant-ink text-center px-1" />
                                                                                 </FormItem>
                                                                             )}
                                                                         />
@@ -3928,14 +3998,14 @@ const Orders = () => {
                                                                             name={`items.${index}.accessories.${accIdx}.accessory_quantity`}
                                                                             render={({ field }) => (
                                                                                 <FormItem className="space-y-1">
-                                                                                    <FormLabel className="text-[8px] uppercase font-black text-brand-navy/40">Qty</FormLabel>
-                                                                                    <Input type="number" {...field} disabled={!hasAccessory} className="h-9 rounded-lg border border-brand-navy/10 bg-white text-sm font-bold text-brand-navy text-center px-1" />
+                                                                                    <FormLabel className="text-[9px] font-medium uppercase tracking-[0.2em] text-ant-mid">Qty</FormLabel>
+                                                                                    <Input type="number" {...field} disabled={!hasAccessory} className="h-9 rounded-lg border border-ant-ink/10 bg-white text-sm font-bold text-ant-ink text-center px-1" />
                                                                                 </FormItem>
                                                                             )}
                                                                         />
-                                                                        <div className="rounded-lg bg-white/80 border border-brand-navy/10 px-1.5 py-1 flex flex-col justify-center items-center">
-                                                                            <span className="text-[7px] font-black uppercase text-brand-navy/45">Sum</span>
-                                                                            <span className="text-xs font-black text-brand-navy tabular-nums">{accSubtotal.toFixed(2)}</span>
+                                                                        <div className="rounded-lg bg-white/80 border border-ant-ink/10 px-1.5 py-1 flex flex-col justify-center items-center">
+                                                                            <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-ant-mid">Sum</span>
+                                                                            <span className="font-display text-[13px] font-semibold text-ant-ink tabular-nums tracking-[-0.01em]">{accSubtotal.toFixed(2)}</span>
                                                                         </div>
                                                                     </div>
                                                                 </div>
@@ -3950,7 +4020,7 @@ const Orders = () => {
                                                                 current.push({ accessory_id: 'none', accessory_quantity: 0, accessory_unit_price: 0 });
                                                                 form.setValue(`items.${index}.accessories`, current);
                                                             }}
-                                                            className="text-[9px] font-black uppercase text-brand-navy border-brand-navy/15 h-7 rounded-lg gap-1 w-full bg-white/80"
+                                                            className="text-[9px] font-semibold uppercase text-ant-ink border-ant-ink/15 h-7 rounded-lg gap-1 w-full bg-white/80"
                                                         >
                                                             <Plus className="w-3 h-3" /> Add add-on
                                                         </Button>
@@ -3963,14 +4033,14 @@ const Orders = () => {
                                     </aside>
                             </div>
 
-                            <DialogFooter className="px-4 py-2.5 sm:px-5 shrink-0 bg-brand-navy/[0.02] border-t border-brand-navy/[0.08] flex flex-row flex-wrap items-center justify-between gap-3">
+                            <DialogFooter className="px-4 py-2.5 sm:px-5 shrink-0 bg-ant-line-soft border-t border-ant-line flex flex-row flex-wrap items-center justify-between gap-3">
                                 <div className="flex items-center gap-2.5 min-w-0">
-                                    <div className="w-9 h-9 rounded-xl bg-brand-navy flex items-center justify-center text-brand-white shadow-md shrink-0">
+                                    <div className="w-9 h-9 rounded-xl bg-ant-ink flex items-center justify-center text-ant-light shadow-md shrink-0">
                                         <DollarSign className="w-4 h-4" />
                                     </div>
                                     <div className="min-w-0">
-                                        <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/70 leading-none">Total</p>
-                                        <p className="text-lg sm:text-xl font-black text-brand-navy tabular-nums leading-tight truncate">
+                                        <p className="text-[9px] font-semibold uppercase tracking-widest text-ant-muted/70 leading-none">Total</p>
+                                        <p className="text-lg sm:text-xl font-semibold text-ant-ink tabular-nums leading-tight truncate">
                                             {(form.watch('items').reduce((acc, item) => acc + (item.quantity * item.unit_price), 0) + (form.watch('include_delivery_in_total') !== false ? Number(form.watch('shipping_cost') || 0) : 0)).toFixed(2)} DH
                                         </p>
                                     </div>
@@ -3985,7 +4055,7 @@ const Orders = () => {
                                             setIsAddModalOpen(false);
                                             setIsEditModalOpen(false);
                                         }}
-                                        className="rounded-lg h-9 px-4 text-sm font-bold text-brand-navy hover:bg-brand-navy/10 m-0"
+                                        className="rounded-lg h-9 px-4 text-sm font-bold text-ant-ink hover:bg-ant-ink/10 m-0"
                                     >
                                         Discard
                                     </Button>
@@ -3997,7 +4067,7 @@ const Orders = () => {
                                             updateOrderMutation.isPending ||
                                             (!isEditModalOpen && newOrderHasZeroStockProduct)
                                         }
-                                        className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-lg h-9 px-6 sm:px-8 text-sm font-bold shadow-md transition-all active:scale-[0.98] flex items-center gap-2 m-0"
+                                        className="bg-ant-ink hover:bg-ant-ink/90 text-ant-light rounded-lg h-9 px-6 sm:px-8 text-sm font-bold shadow-md transition-all active:scale-[0.98] flex items-center gap-2 m-0"
                                     >
                                         {(createOrderMutation.isPending || updateOrderMutation.isPending) && <Loader2 className="w-4 h-4 animate-spin" />}
                                         {isEditModalOpen ? 'Save Changes' : 'Confirm Order'}
@@ -4011,31 +4081,43 @@ const Orders = () => {
 
             {/* View Modal */}
             <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
-                <DialogContent className="max-w-4xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden flex flex-col h-[90vh] md:h-auto md:max-h-[90vh]">
+                <DialogContent className="ant-surface max-w-4xl p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden flex flex-col h-[90vh] md:h-auto md:max-h-[90vh]">
                     {selectedOrder && (
                         <div className="flex flex-col h-full overflow-hidden">
-                            <div className="p-10 pb-0 flex flex-col md:flex-row justify-between items-start gap-6 shrink-0">
+                            <div className="p-8 pb-0 flex flex-col md:flex-row justify-between items-start gap-6 shrink-0">
                                 <div className="space-y-4">
                                     <div className="flex items-center gap-4">
-                                        <div className="w-16 h-16 rounded-[28px] bg-brand-navy flex items-center justify-center text-brand-white shadow-2xl shadow-brand-navy/20">
-                                            <ShoppingCart className="w-8 h-8" />
+                                        <div className="w-14 h-14 rounded-2xl bg-ant-ink flex items-center justify-center text-ant-light">
+                                            <ShoppingCart className="w-6 h-6" strokeWidth={1.75} />
                                         </div>
                                         <div>
-                                            <h2 className="text-4xl font-black text-brand-navy tracking-tight">{selectedOrder.name}</h2>
-                                            <div className="flex items-center gap-4 text-muted-foreground font-bold text-sm tracking-wide">
-                                                <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4" /> {format(new Date(selectedOrder.date || selectedOrder.created_at), 'MMMM dd, yyyy')}</span>
-                                                <span className="flex items-center gap-1.5">{selectedOrder.phone}<OrderPhoneQuickActions phone={selectedOrder.phone} className="h-7 w-7" /></span>
+                                            <span className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                                                <span className="w-1 h-1 rounded-full bg-ant-orange" />
+                                                Order details
+                                            </span>
+                                            <h2 className="font-display text-[28px] font-semibold text-ant-ink tracking-[-0.02em] mt-0.5">
+                                                {selectedOrder.name}
+                                            </h2>
+                                            <div className="flex items-center gap-4 text-ant-muted text-[12px] mt-1">
+                                                <span className="flex items-center gap-1.5 tabular-nums">
+                                                    <Calendar className="w-3.5 h-3.5 text-ant-mid" />
+                                                    {format(new Date(selectedOrder.date || selectedOrder.created_at), 'MMMM dd, yyyy')}
+                                                </span>
+                                                <span className="flex items-center gap-1.5 tabular-nums">
+                                                    {selectedOrder.phone}
+                                                    <OrderPhoneQuickActions phone={selectedOrder.phone} className="h-7 w-7" />
+                                                </span>
                                             </div>
                                         </div>
                                     </div>
                                     <div className="flex flex-wrap gap-2">
-                                        <div className="flex items-center gap-2 px-4 py-2 rounded-xl shadow-sm border border-brand-navy/[0.03]" style={{ backgroundColor: `${selectedOrder.status?.color}12` }}>
+                                        <div className="flex items-center gap-2 px-4 py-2 rounded-xl shadow-sm border border-ant-line" style={{ backgroundColor: `${selectedOrder.status?.color}12` }}>
                                             {selectedOrder.status?.icon ? (
                                                 <DynamicIcon name={selectedOrder.status.icon} className="w-4 h-4" style={{ color: selectedOrder.status?.color }} />
                                             ) : (
                                                 <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: selectedOrder.status?.color }} />
                                             )}
-                                            <span className="text-xs font-black uppercase tracking-widest" style={{ color: selectedOrder.status?.color }}>
+                                            <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: selectedOrder.status?.color }}>
                                                 {selectedOrder.status?.label || 'DRAFT'}
                                             </span>
                                         </div>
@@ -4045,7 +4127,7 @@ const Orders = () => {
                                             const pkgColor = selectedOrder.package_status?.color || courierPkg?.color || null;
                                             if (!pkgLabel) return null;
                                             return (
-                                                <div className="flex items-center gap-2 px-4 py-2 rounded-xl shadow-sm border border-brand-navy/[0.03]" style={{ backgroundColor: pkgColor ? `${pkgColor}12` : 'rgba(0,31,63,0.04)' }}>
+                                                <div className="flex items-center gap-2 px-4 py-2 rounded-xl shadow-sm border border-ant-line" style={{ backgroundColor: pkgColor ? `${pkgColor}12` : 'rgba(0,31,63,0.04)' }}>
                                                     {selectedOrder.package_status?.icon ? (
                                                         <DynamicIcon name={selectedOrder.package_status.icon} className="w-4 h-4" style={{ color: pkgColor || undefined }} />
                                                     ) : pkgColor ? (
@@ -4053,37 +4135,37 @@ const Orders = () => {
                                                     ) : (
                                                         <Truck className="w-4 h-4" style={{ color: pkgColor || undefined }} />
                                                     )}
-                                                    <span className="text-xs font-black uppercase tracking-widest" style={{ color: pkgColor || 'rgba(0,31,63,0.45)' }}>
+                                                    <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: pkgColor || 'rgba(0,31,63,0.45)' }}>
                                                         {pkgLabel}
                                                     </span>
                                                 </div>
                                             );
                                         })()}
-                                        <Badge variant="outline" className="border-brand-navy/10 text-brand-navy font-bold uppercase tracking-widest px-4 py-2 rounded-xl text-[10px]">
+                                        <Badge variant="outline" className="border-ant-ink/10 text-ant-ink font-bold uppercase tracking-widest px-4 py-2 rounded-xl text-[10px]">
                                             {selectedOrder.source_name}
                                         </Badge>
                                         {selectedOrder.replace && (
-                                            <Badge className="bg-red-500 text-white font-black uppercase tracking-widest px-4 py-2 rounded-xl text-[10px]">
+                                            <Badge className="bg-ant-rose text-white font-semibold uppercase tracking-widest px-4 py-2 rounded-xl text-[10px]">
                                                 Exchange
                                             </Badge>
                                         )}
                                         {orderParcel?.tracking_code && (
                                             <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-50 border border-indigo-100">
                                                 <Package className="w-4 h-4 text-indigo-500" />
-                                                <span className="text-xs font-black uppercase tracking-widest text-indigo-600">
+                                                <span className="text-xs font-semibold uppercase tracking-widest text-indigo-600">
                                                     {orderParcel.tracking_code}
                                                 </span>
                                             </div>
                                         )}
                                     </div>
                                 </div>
-                                <div className="p-8 pb-10 flex items-center justify-between border-b-2 border-brand-navy/5 bg-gradient-to-br from-brand-navy/[0.02] to-transparent">
+                                <div className="p-8 pb-10 flex items-center justify-between border-b-2 border-ant-ink/5 bg-gradient-to-br from-ant-ink/[0.02] to-transparent">
                                     <div className="space-y-1">
-                                        <p className="text-sm font-black text-brand-navy/40 uppercase tracking-widest">Total Order Value</p>
-                                        <h3 className="text-4xl font-black text-brand-navy">{selectedOrder.price || 0} <span className="text-lg">DH</span></h3>
+                                        <p className="text-sm font-semibold text-ant-mid uppercase tracking-widest">Total Order Value</p>
+                                        <h3 className="text-4xl font-semibold text-ant-ink">{selectedOrder.price || 0} <span className="text-lg">DH</span></h3>
                                     </div>
                                     {selectedOrder.include_delivery_in_total && selectedOrder.shipping_cost > 0 && (
-                                        <div className="text-[10px] font-bold text-brand-navy/30 uppercase tracking-tighter">
+                                        <div className="text-[10px] font-bold text-ant-mid uppercase tracking-tighter">
                                             Products + {selectedOrder.shipping_cost} DH delivery
                                         </div>
                                     )}
@@ -4097,9 +4179,9 @@ const Orders = () => {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                                     {/* Logistics Info */}
                                     <div className="space-y-6">
-                                        <div className="flex items-center gap-3 border-b border-brand-navy/[0.05] pb-3">
-                                            <Truck className="w-6 h-6 text-brand-navy/20" />
-                                            <h4 className="text-lg font-black text-brand-navy uppercase tracking-widest">Delivery Details</h4>
+                                        <div className="flex items-center gap-3 border-b border-ant-line pb-3">
+                                            <Truck className="w-6 h-6 text-ant-mid" />
+                                            <h4 className="text-lg font-semibold text-ant-ink uppercase tracking-widest">Delivery Details</h4>
                                         </div>
                                         <div className="space-y-6">
                                             <div className="flex items-start gap-4">
@@ -4107,38 +4189,38 @@ const Orders = () => {
                                                     <MapPinned className="w-5 h-5" />
                                                 </div>
                                                 <div className="space-y-1">
-                                                    <p className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest leading-none">Destination</p>
-                                                    <p className="text-lg font-bold text-brand-navy leading-tight">{selectedOrder.city?.name}</p>
-                                                    <p className="text-sm font-medium text-muted-foreground italic">"{selectedOrder.address}"</p>
+                                                    <p className="text-[10px] font-semibold uppercase text-ant-muted/60 tracking-widest leading-none">Destination</p>
+                                                    <p className="text-lg font-bold text-ant-ink leading-tight">{selectedOrder.city?.name}</p>
+                                                    <p className="text-sm font-medium text-ant-muted italic">"{selectedOrder.address}"</p>
                                                 </div>
                                             </div>
                                             <div className="flex items-start gap-4">
-                                                <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-500 shrink-0 shadow-sm shadow-blue-500/10">
+                                                <div className="w-10 h-10 rounded-2xl bg-ant-blue/10 flex items-center justify-center text-ant-blue shrink-0 shadow-sm shadow-blue-500/10">
                                                     <ShoppingCart className="w-5 h-5" />
                                                 </div>
                                                 <div className="space-y-1">
-                                                    <p className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest leading-none">Shipping Configuration</p>
-                                                    <p className="text-lg font-bold text-brand-navy leading-tight">{selectedOrder.delivery_type || 'Standard Delivery'}</p>
-                                                    <p className="text-sm font-bold text-emerald-600 uppercase tracking-widest">{selectedOrder.shipping_cost === 0 ? 'Free Shipping' : `Paid: ${selectedOrder.shipping_cost} DH`}</p>
+                                                    <p className="text-[10px] font-semibold uppercase text-ant-muted/60 tracking-widest leading-none">Shipping Configuration</p>
+                                                    <p className="text-lg font-bold text-ant-ink leading-tight">{selectedOrder.delivery_type || 'Standard Delivery'}</p>
+                                                    <p className="text-sm font-bold text-ant-green uppercase tracking-widest">{selectedOrder.shipping_cost === 0 ? 'Free Shipping' : `Paid: ${selectedOrder.shipping_cost} DH`}</p>
                                                 </div>
                                             </div>
                                             {(selectedOrder.courier || selectedOrder.company) && (
                                                 <div className="flex items-start gap-4">
-                                                    <div className="w-10 h-10 rounded-2xl bg-brand-navy/5 flex items-center justify-center text-brand-navy/40 shrink-0 shadow-sm overflow-hidden">
+                                                    <div className="w-10 h-10 rounded-2xl bg-ant-ink/5 flex items-center justify-center text-ant-mid shrink-0 shadow-sm overflow-hidden">
                                                         {selectedOrder.company?.logo_url ? (
                                                             <img src={selectedOrder.company.logo_url} alt={selectedOrder.company.name} className="w-full h-full object-contain" />
                                                         ) : selectedOrder.courier?.avatar_url ? (
                                                             <img src={selectedOrder.courier.avatar_url} alt={selectedOrder.courier.name} className="w-full h-full object-cover" />
                                                         ) : (
-                                                            selectedOrder.courier ? <Truck className="w-5 h-5 text-orange-500" /> : <Building2 className="w-5 h-5 text-blue-500" />
+                                                            selectedOrder.courier ? <Truck className="w-5 h-5 text-orange-500" /> : <Building2 className="w-5 h-5 text-ant-blue" />
                                                         )}
                                                     </div>
                                                     <div className="space-y-1">
-                                                        <p className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest leading-none">Assigned Provider</p>
-                                                        <p className="text-lg font-bold text-brand-navy leading-tight">
+                                                        <p className="text-[10px] font-semibold uppercase text-ant-muted/60 tracking-widest leading-none">Assigned Provider</p>
+                                                        <p className="text-lg font-bold text-ant-ink leading-tight">
                                                             {selectedOrder.courier?.name || selectedOrder.company?.name}
                                                         </p>
-                                                        <Badge variant="outline" className="h-5 px-2 text-[8px] font-black uppercase tracking-tighter bg-brand-navy/[0.03] text-brand-navy/40 border-none">
+                                                        <Badge variant="outline" className="h-5 px-2 text-[8px] font-semibold uppercase tracking-tighter bg-ant-ink/[0.03] text-ant-mid border-none">
                                                             {selectedOrder.courier ? 'Independent Courier' : 'Delivery Company'}
                                                         </Badge>
                                                     </div>
@@ -4146,14 +4228,14 @@ const Orders = () => {
                                             )}
                                             {String(selectedOrder.coliaty_old_tracking || '').trim() && (
                                                 <div className="flex items-start gap-4">
-                                                    <div className="w-10 h-10 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-600 shrink-0 shadow-sm shadow-amber-500/10">
+                                                    <div className="w-10 h-10 rounded-2xl bg-ant-orange/10 flex items-center justify-center text-ant-orange shrink-0 shadow-sm shadow-amber-500/10">
                                                         <RefreshCcw className="w-5 h-5" />
                                                     </div>
                                                     <div className="space-y-1 min-w-0">
-                                                        <p className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest leading-none">
+                                                        <p className="text-[10px] font-semibold uppercase text-ant-muted/60 tracking-widest leading-none">
                                                             Previous parcel tracking (Coliaty)
                                                         </p>
-                                                        <p className="text-sm font-mono font-bold text-brand-navy break-all">
+                                                        <p className="text-sm font-mono font-bold text-ant-ink break-all">
                                                             {String(selectedOrder.coliaty_old_tracking).trim()}
                                                         </p>
                                                     </div>
@@ -4161,14 +4243,14 @@ const Orders = () => {
                                             )}
                                             {String(selectedOrder.ameex_old_tracking || '').trim() && (
                                                 <div className="flex items-start gap-4">
-                                                    <div className="w-10 h-10 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-600 shrink-0 shadow-sm shadow-amber-500/10">
+                                                    <div className="w-10 h-10 rounded-2xl bg-ant-orange/10 flex items-center justify-center text-ant-orange shrink-0 shadow-sm shadow-amber-500/10">
                                                         <RefreshCcw className="w-5 h-5" />
                                                     </div>
                                                     <div className="space-y-1 min-w-0">
-                                                        <p className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest leading-none">
+                                                        <p className="text-[10px] font-semibold uppercase text-ant-muted/60 tracking-widest leading-none">
                                                             Previous parcel tracking (AMEEX)
                                                         </p>
-                                                        <p className="text-sm font-mono font-bold text-brand-navy break-all">
+                                                        <p className="text-sm font-mono font-bold text-ant-ink break-all">
                                                             {String(selectedOrder.ameex_old_tracking).trim()}
                                                         </p>
                                                     </div>
@@ -4179,33 +4261,33 @@ const Orders = () => {
 
                                     {/* Internal Notes */}
                                     <div className="space-y-6">
-                                        <div className="flex items-center gap-3 border-b border-brand-navy/[0.05] pb-3">
-                                            <MessageSquare className="w-6 h-6 text-brand-navy/20" />
-                                            <h4 className="text-lg font-black text-brand-navy uppercase tracking-widest">Client & Note Info</h4>
+                                        <div className="flex items-center gap-3 border-b border-ant-line pb-3">
+                                            <MessageSquare className="w-6 h-6 text-ant-mid" />
+                                            <h4 className="text-lg font-semibold text-ant-ink uppercase tracking-widest">Client & Note Info</h4>
                                         </div>
                                         <div className="space-y-4">
-                                            <div className="p-6 rounded-[28px] bg-brand-navy/[0.02] border border-brand-navy/[0.05] space-y-2">
-                                                <p className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest">Internal Instruction</p>
-                                                <p className="text-sm font-medium text-brand-navy">{selectedOrder.note || 'No internal notes provided.'}</p>
+                                            <div className="p-6 rounded-2xl bg-ant-light border border-ant-line space-y-2">
+                                                <p className="text-[10px] font-semibold uppercase text-ant-muted/60 tracking-widest">Internal Instruction</p>
+                                                <p className="text-sm font-medium text-ant-ink">{selectedOrder.note || 'No internal notes provided.'}</p>
                                             </div>
-                                            <div className="p-6 rounded-[28px] bg-brand-navy/[0.04] border border-brand-navy/[0.05] space-y-2">
-                                                <p className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest text-brand-navy/40 text-blue-600">Public Delivery Note</p>
-                                                <p className="text-sm font-bold text-brand-navy italic">"{selectedOrder.delivery_note || 'No special delivery instructions.'}"</p>
+                                            <div className="p-6 rounded-2xl bg-ant-light border border-ant-line space-y-2">
+                                                <p className="text-[10px] font-semibold uppercase text-ant-muted/60 tracking-widest text-ant-mid text-ant-blue">Public Delivery Note</p>
+                                                <p className="text-sm font-bold text-ant-ink italic">"{selectedOrder.delivery_note || 'No special delivery instructions.'}"</p>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                <Separator className="bg-brand-navy/[0.05]" />
+                                <Separator className="bg-ant-ink/[0.05]" />
 
                                 {/* Order Items Table */}
                                 <div className="space-y-6 pb-6">
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-3">
-                                            <Package className="w-6 h-6 text-brand-navy/20" />
-                                            <h4 className="text-xl font-black text-brand-navy uppercase tracking-[0.15em]">Cart Items</h4>
+                                            <Package className="w-6 h-6 text-ant-mid" />
+                                            <h4 className="text-xl font-semibold text-ant-ink uppercase tracking-[0.15em]">Cart Items</h4>
                                         </div>
-                                        <Badge variant="outline" className="text-xs font-black border-brand-navy/10 tracking-widest rounded-xl px-4 py-1.5 h-auto">
+                                        <Badge variant="outline" className="text-xs font-semibold border-ant-ink/10 tracking-widest rounded-xl px-4 py-1.5 h-auto">
                                             {selectedOrder.items?.length || 0} Unique SKU(s)
                                         </Badge>
                                     </div>
@@ -4232,38 +4314,38 @@ const Orders = () => {
                                                 return (
                                                     <div
                                                         key={item.id}
-                                                        className="group p-6 rounded-[32px] bg-brand-navy/[0.01] border border-brand-navy/[0.03] flex flex-col gap-4 animate-in slide-in-from-bottom-2 duration-300"
+                                                        className="group p-6 rounded-2xl bg-ant-light border border-ant-line flex flex-col gap-4 animate-in slide-in-from-bottom-2 duration-300"
                                                     >
                                                         {/* Product Info */}
                                                         {item.product && (
                                                             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                                                                 <div className="flex items-center gap-5 flex-1 w-full md:w-auto">
-                                                                    <div className="w-16 h-16 rounded-[20px] bg-brand-navy/5 flex items-center justify-center overflow-hidden shrink-0">
+                                                                    <div className="w-16 h-16 rounded-[20px] bg-ant-ink/5 flex items-center justify-center overflow-hidden shrink-0">
                                                                         {item.product?.image_url ? (
                                                                             <img src={item.product?.image_url} alt="" className="w-full h-full object-cover" />
                                                                         ) : (
-                                                                            <Package className="w-8 h-8 text-brand-navy/20" />
+                                                                            <Package className="w-8 h-8 text-ant-mid" />
                                                                         )}
                                                                     </div>
                                                                     <div>
-                                                                        <h5 className="text-lg font-black text-brand-navy leading-none mb-1 group-hover:text-blue-600 transition-colors uppercase">{item.product?.name}</h5>
+                                                                        <h5 className="text-lg font-semibold text-ant-ink leading-none mb-1 group-hover:text-ant-blue transition-colors uppercase">{item.product?.name}</h5>
                                                                         <div className="flex items-center gap-3">
-                                                                            <p className="text-[10px] font-bold text-muted-foreground/60 tracking-widest bg-brand-navy/5 px-2 py-0.5 rounded-md inline-block">{item.product?.code}</p>
+                                                                            <p className="text-[10px] font-bold text-ant-muted/60 tracking-widest bg-ant-ink/5 px-2 py-0.5 rounded-md inline-block">{item.product?.code}</p>
                                                                         </div>
                                                                     </div>
                                                                 </div>
                                                                 <div className="flex items-center justify-between md:justify-end w-full md:w-auto gap-8  md:gap-12 text-right">
                                                                     <div>
-                                                                        <p className="text-[10px] font-black uppercase text-muted-foreground/40 tracking-widest mb-1">Unit Price</p>
-                                                                        <p className="text-lg font-black text-brand-navy">{item.unit_price} DH</p>
+                                                                        <p className="text-[10px] font-semibold uppercase text-ant-muted/40 tracking-widest mb-1">Unit Price</p>
+                                                                        <p className="text-lg font-semibold text-ant-ink">{item.unit_price} DH</p>
                                                                     </div>
                                                                     <div>
-                                                                        <p className="text-[10px] font-black uppercase text-muted-foreground/40 tracking-widest mb-1">Qty</p>
-                                                                        <p className="text-lg font-black text-brand-navy">x{item.quantity}</p>
+                                                                        <p className="text-[10px] font-semibold uppercase text-ant-muted/40 tracking-widest mb-1">Qty</p>
+                                                                        <p className="text-lg font-semibold text-ant-ink">x{item.quantity}</p>
                                                                     </div>
                                                                     <div className="min-w-[80px] md:min-w-[100px]">
-                                                                        <p className="text-[10px] font-black uppercase text-muted-foreground/40 tracking-widest mb-1">Subtotal</p>
-                                                                        <p className="text-xl font-black text-brand-navy">{prodTotal} DH</p>
+                                                                        <p className="text-[10px] font-semibold uppercase text-ant-muted/40 tracking-widest mb-1">Subtotal</p>
+                                                                        <p className="text-xl font-semibold text-ant-ink">{prodTotal} DH</p>
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -4273,34 +4355,34 @@ const Orders = () => {
                                                         {item.accessoriesList && item.accessoriesList.length > 0 && item.accessoriesList.map((accItem: any, idx: number) => {
                                                             const accTotal = (accItem.accessory_quantity || 0) * (accItem.accessory_unit_price || 0);
                                                             return (
-                                                                <div key={accItem.id || idx} className="flex flex-col md:flex-row justify-between items-center gap-4 pt-4 border-t border-brand-navy/[0.04]">
+                                                                <div key={accItem.id || idx} className="flex flex-col md:flex-row justify-between items-center gap-4 pt-4 border-t border-ant-line">
                                                                     <div className="flex items-center gap-5 flex-1 w-full md:w-auto">
-                                                                        <div className="w-12 h-12 rounded-[16px] bg-brand-navy/5 flex items-center justify-center overflow-hidden shrink-0 md:ml-4">
+                                                                        <div className="w-12 h-12 rounded-[16px] bg-ant-ink/5 flex items-center justify-center overflow-hidden shrink-0 md:ml-4">
                                                                             {accItem.accessory?.image_url ? (
                                                                                 <img src={accItem.accessory?.image_url} alt="" className="w-full h-full object-cover" />
                                                                             ) : (
-                                                                                <Puzzle className="w-5 h-5 text-brand-navy/20" />
+                                                                                <Puzzle className="w-5 h-5 text-ant-mid" />
                                                                             )}
                                                                         </div>
                                                                         <div>
-                                                                            <h5 className="text-sm font-black text-brand-navy/70 leading-none mb-1 uppercase flex items-center gap-2">
+                                                                            <h5 className="text-sm font-semibold text-ant-ink/70 leading-none mb-1 uppercase flex items-center gap-2">
                                                                                 <Puzzle className="w-3 h-3" /> {accItem.accessory?.name}
                                                                             </h5>
-                                                                            <p className="text-[10px] font-bold text-muted-foreground/60 tracking-widest bg-brand-navy/5 px-2 py-0.5 rounded-md inline-block">{accItem.accessory?.code}</p>
+                                                                            <p className="text-[10px] font-bold text-ant-muted/60 tracking-widest bg-ant-ink/5 px-2 py-0.5 rounded-md inline-block">{accItem.accessory?.code}</p>
                                                                         </div>
                                                                     </div>
                                                                     <div className="flex items-center justify-between md:justify-end w-full md:w-auto gap-8 md:gap-12 text-right">
                                                                         <div>
-                                                                            <p className="text-[10px] font-black uppercase text-muted-foreground/40 tracking-widest mb-1">Unit Cost</p>
-                                                                            <p className="text-sm font-black text-brand-navy/80">{accItem.accessory_unit_price} DH</p>
+                                                                            <p className="text-[10px] font-semibold uppercase text-ant-muted/40 tracking-widest mb-1">Unit Cost</p>
+                                                                            <p className="text-sm font-semibold text-ant-ink/80">{accItem.accessory_unit_price} DH</p>
                                                                         </div>
                                                                         <div>
-                                                                            <p className="text-[10px] font-black uppercase text-muted-foreground/40 tracking-widest mb-1">Qty</p>
-                                                                            <p className="text-sm font-black text-brand-navy/80">x{accItem.accessory_quantity}</p>
+                                                                            <p className="text-[10px] font-semibold uppercase text-ant-muted/40 tracking-widest mb-1">Qty</p>
+                                                                            <p className="text-sm font-semibold text-ant-ink/80">x{accItem.accessory_quantity}</p>
                                                                         </div>
                                                                         <div className="min-w-[80px] md:min-w-[100px]">
-                                                                            <p className="text-[10px] font-black uppercase text-muted-foreground/40 tracking-widest mb-1">Cost Total</p>
-                                                                            <p className="text-sm font-black text-brand-navy/80">{accTotal} DH</p>
+                                                                            <p className="text-[10px] font-semibold uppercase text-ant-muted/40 tracking-widest mb-1">Cost Total</p>
+                                                                            <p className="text-sm font-semibold text-ant-ink/80">{accTotal} DH</p>
                                                                         </div>
                                                                     </div>
                                                                 </div>
@@ -4308,10 +4390,10 @@ const Orders = () => {
                                                         })}
 
                                                         {item.product && (
-                                                            <div className="pt-3 border-t border-brand-navy/[0.04] flex justify-end">
-                                                                <div className="bg-emerald-50 text-emerald-700 px-4 py-2 rounded-2xl flex items-center gap-4">
-                                                                    <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Row Subtotal</span>
-                                                                    <span className="text-xl font-black">{prodTotal} DH</span>
+                                                            <div className="pt-3 border-t border-ant-line flex justify-end">
+                                                                <div className="bg-ant-green/10 text-ant-green px-4 py-2 rounded-2xl flex items-center gap-4">
+                                                                    <span className="text-[10px] font-semibold uppercase tracking-widest opacity-60">Row Subtotal</span>
+                                                                    <span className="text-xl font-semibold">{prodTotal} DH</span>
                                                                 </div>
                                                             </div>
                                                         )}
@@ -4325,34 +4407,34 @@ const Orders = () => {
                                 {/* Parcel Info (no API call — use Track Order button for full timeline) */}
                                 <div className="space-y-4 pb-6">
                                     <div className="flex items-center gap-3">
-                                        <Truck className="w-6 h-6 text-brand-navy/20" />
-                                        <h4 className="text-xl font-black text-brand-navy uppercase tracking-[0.15em]">Suivi du Colis</h4>
+                                        <Truck className="w-6 h-6 text-ant-mid" />
+                                        <h4 className="text-xl font-semibold text-ant-ink uppercase tracking-[0.15em]">Suivi du Colis</h4>
                                     </div>
 
                                     {isParcelLoading ? (
                                         <div className="flex items-center justify-center py-6">
-                                            <Loader2 className="w-6 h-6 text-brand-navy animate-spin" />
+                                            <Loader2 className="w-6 h-6 text-ant-ink animate-spin" />
                                         </div>
                                     ) : !orderParcel ? (
-                                        <div className="text-center p-6 bg-brand-navy/[0.02] rounded-2xl border border-brand-navy/[0.05]">
-                                            <p className="text-sm font-bold text-muted-foreground">Aucun colis créé pour cette commande.</p>
+                                        <div className="text-center p-6 bg-ant-line-soft rounded-2xl border border-ant-line">
+                                            <p className="text-sm font-bold text-ant-muted">Aucun colis créé pour cette commande.</p>
                                         </div>
                                     ) : (() => {
                                         const pkgMatch = matchPkgColor(orderParcel.status_label || '', orderParcel.status_label || '');
                                         const pColor = pkgMatch.color;
                                         const pIcon = pkgMatch.icon;
                                         return (
-                                        <div className="flex items-center justify-between p-4 bg-brand-navy/[0.02] rounded-2xl border border-brand-navy/[0.05]">
+                                        <div className="flex items-center justify-between p-4 bg-ant-line-soft rounded-2xl border border-ant-line">
                                             <div className="flex items-center gap-3 min-w-0">
                                                 <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-white" style={{ backgroundColor: pColor }}>
                                                     {pIcon ? <DynamicIcon name={pIcon} className="w-4 h-4" /> : <div className="w-2.5 h-2.5 rounded-full bg-white" />}
                                                 </div>
                                                 <div className="min-w-0">
-                                                    <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md" style={{ color: pColor, backgroundColor: `${pColor}15` }}>
+                                                    <span className="text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-md" style={{ color: pColor, backgroundColor: `${pColor}15` }}>
                                                         {orderParcel.status_label || 'En attente'}
                                                     </span>
                                                     {orderParcel.tracking_code && (
-                                                        <p className="text-[10px] font-mono font-bold text-muted-foreground/50 truncate mt-1">{orderParcel.tracking_code}</p>
+                                                        <p className="text-[10px] font-mono font-bold text-ant-muted/50 truncate mt-1">{orderParcel.tracking_code}</p>
                                                     )}
                                                 </div>
                                             </div>
@@ -4361,7 +4443,7 @@ const Orders = () => {
                                                     variant="ghost"
                                                     size="sm"
                                                     onClick={() => { setParcelTrackingOrderId(selectedOrder.id); setParcelTrackingOpen(true); }}
-                                                    className="text-xs font-bold text-brand-navy hover:bg-brand-navy/5 hover:text-brand-navy gap-2 rounded-xl h-9 px-4 shrink-0"
+                                                    className="text-xs font-bold text-ant-ink hover:bg-ant-ink/5 hover:text-ant-ink gap-2 rounded-xl h-9 px-4 shrink-0"
                                                 >
                                                     <Truck className="w-3.5 h-3.5" />
                                                     Suivre
@@ -4372,21 +4454,21 @@ const Orders = () => {
                                     })()}
                                 </div>
 
-                                <Separator className="bg-brand-navy/[0.05]" />
+                                <Separator className="bg-ant-ink/[0.05]" />
 
                                 {/* Status History Timeline */}
                                 <div className="space-y-6 pb-6">
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-3">
-                                            <ShieldCheck className="w-6 h-6 text-brand-navy/20" />
-                                            <h4 className="text-xl font-black text-brand-navy uppercase tracking-[0.15em]">Status History</h4>
+                                            <ShieldCheck className="w-6 h-6 text-ant-mid" />
+                                            <h4 className="text-xl font-semibold text-ant-ink uppercase tracking-[0.15em]">Status History</h4>
                                         </div>
                                     </div>
 
                                     <div className="px-4">
                                         {selectedOrder.history && selectedOrder.history.length > 0 ? (
                                             <div className="relative pl-10">
-                                                <div className="absolute left-[15px] top-4 bottom-4 w-0.5 bg-gradient-to-b from-slate-200 via-slate-200 to-brand-navy/30" />
+                                                <div className="absolute left-[15px] top-4 bottom-4 w-0.5 bg-gradient-to-b from-ant-line via-ant-line to-ant-ink/30" />
                                                 <div className="space-y-0">
                                                 {[...selectedOrder.history].sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).map((record: any, idx: number, arr: any[]) => {
                                                     const color = record.status?.color || '#94a3b8';
@@ -4403,30 +4485,30 @@ const Orders = () => {
                                                             </div>
                                                             <div className="space-y-1.5">
                                                                 <div className="flex items-center gap-2 flex-wrap">
-                                                                    <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg" style={{ color, backgroundColor: `${color}15` }}>{record.status?.label || 'Inconnu'}</span>
+                                                                    <span className="text-[10px] font-semibold uppercase tracking-widest px-2.5 py-1 rounded-lg" style={{ color, backgroundColor: `${color}15` }}>{record.status?.label || 'Inconnu'}</span>
                                                                 </div>
-                                                                {record.created_at && <p className="text-[10px] font-bold text-muted-foreground/50">{format(new Date(record.created_at), 'dd/MM/yyyy HH:mm')}</p>}
+                                                                {record.created_at && <p className="text-[10px] font-bold text-ant-muted/50">{format(new Date(record.created_at), 'dd/MM/yyyy HH:mm')}</p>}
                                                                 <div className="flex items-center gap-2">
                                                                     {record.user ? (
                                                                         <Avatar className="w-5 h-5 border bg-white">
                                                                             <AvatarImage src={record.user.avatar_url} />
-                                                                            <AvatarFallback className="text-[9px] font-bold bg-brand-navy/5 text-brand-navy">{record.user.name?.[0] || '?'}</AvatarFallback>
+                                                                            <AvatarFallback className="text-[9px] font-bold bg-ant-ink/5 text-ant-ink">{record.user.name?.[0] || '?'}</AvatarFallback>
                                                                         </Avatar>
                                                                     ) : (
-                                                                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-brand-navy/10 to-brand-navy/20 flex items-center justify-center">
-                                                                            <DynamicIcon name="TbRobot" className="w-3 h-3 text-brand-navy/60" />
+                                                                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-ant-ink/10 to-ant-ink/20 flex items-center justify-center">
+                                                                            <DynamicIcon name="TbRobot" className="w-3 h-3 text-ant-ink/60" />
                                                                         </div>
                                                                     )}
-                                                                    <span className="text-[11px] font-bold text-brand-navy/70 truncate max-w-[200px]">{record.user?.name || 'Système'}</span>
+                                                                    <span className="text-[11px] font-bold text-ant-ink/70 truncate max-w-[200px]">{record.user?.name || 'Système'}</span>
                                                                 </div>
                                                                 {postponed && reportedText && (
-                                                                    <div className="flex flex-col gap-1 p-3 bg-amber-50 rounded-xl border border-amber-100">
-                                                                        <div className="flex items-center gap-2"><Calendar className="w-3 h-3 text-amber-600" /><span className="text-[10px] font-black uppercase text-amber-700">Rappel programmé</span></div>
+                                                                    <div className="flex flex-col gap-1 p-3 bg-ant-orange/10 rounded-xl border border-ant-orange/25">
+                                                                        <div className="flex items-center gap-2"><Calendar className="w-3 h-3 text-ant-orange" /><span className="text-[10px] font-semibold uppercase text-ant-orange">Rappel programmé</span></div>
                                                                         <p className="text-xs font-bold text-amber-900">{reportedText}</p>
                                                                         {cleanedComment && <p className="text-[11px] font-medium text-amber-800 italic mt-1 border-t border-amber-500/10 pt-1">"{cleanedComment}"</p>}
                                                                     </div>
                                                                 )}
-                                                                {!postponed && record.comment && <p className="text-[11px] font-medium text-muted-foreground leading-relaxed italic">"{record.comment}"</p>}
+                                                                {!postponed && record.comment && <p className="text-[11px] font-medium text-ant-muted leading-relaxed italic">"{record.comment}"</p>}
                                                             </div>
                                                         </div>
                                                     );
@@ -4434,25 +4516,25 @@ const Orders = () => {
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="text-center p-8 bg-brand-navy/[0.02] rounded-3xl border border-brand-navy/[0.05]">
-                                                <p className="text-sm font-bold text-muted-foreground">No tracking history available yet.</p>
+                                            <div className="text-center p-8 bg-ant-line-soft rounded-3xl border border-ant-line">
+                                                <p className="text-sm font-bold text-ant-muted">No tracking history available yet.</p>
                                             </div>
                                         )}
                                     </div>
                                 </div>
                             </div>
 
-                            <DialogFooter className="p-8 pb-10 flex gap-4 bg-brand-white border-t border-brand-navy/[0.03]">
+                            <DialogFooter className="p-8 pb-10 flex gap-4 bg-ant-paper border-t border-ant-line">
                                 <Button
                                     onClick={() => handleEdit(selectedOrder)}
-                                    className="flex-1 bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-3xl h-16 text-lg font-black shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-3"
+                                    className="flex-1 bg-ant-ink hover:bg-ant-ink/90 text-ant-light rounded-3xl h-16 text-lg font-semibold shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-3"
                                 >
                                     <Edit2 className="w-6 h-6" /> Edit Sales Order
                                 </Button>
                                 <Button
                                     onClick={() => setIsViewModalOpen(false)}
                                     variant="ghost"
-                                    className="rounded-3xl h-16 px-10 font-bold text-brand-navy hover:bg-muted"
+                                    className="rounded-3xl h-16 px-10 font-bold text-ant-ink hover:bg-muted"
                                 >
                                     Done
                                 </Button>
@@ -4493,22 +4575,31 @@ const Orders = () => {
                     setBulkCommentSectionVisible(false);
                 }
             }}>
-                <DialogContent className="max-w-4xl p-0 border-none bg-brand-white rounded-[32px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-                    <DialogHeader className="p-8 pb-4 shrink-0 border-b border-brand-navy/[0.05]">
-                        <DialogTitle className="text-2xl font-black text-brand-navy">Update Status</DialogTitle>
-                        <DialogDescription className="text-sm font-bold text-muted-foreground">
-                            Change status for {selectedOrders.length} selected orders
+                <DialogContent className="ant-surface max-w-4xl p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden max-h-[90vh] flex flex-col">
+                    <DialogHeader className="p-6 pb-4 shrink-0 border-b border-ant-line">
+                        <div className="flex items-center gap-2 mb-1">
+                            <span className="w-1 h-1 rounded-full bg-ant-orange" />
+                            <span className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Bulk update</span>
+                        </div>
+                        <DialogTitle className="font-display text-[22px] font-semibold text-ant-ink tracking-[-0.02em]">
+                            Update status
+                        </DialogTitle>
+                        <DialogDescription className="font-serif-display text-[12.5px] text-ant-muted italic mt-0.5">
+                            Change status for <span className="not-italic font-medium text-ant-ink">{selectedOrders.length}</span>{' '}
+                            selected {selectedOrders.length === 1 ? 'order' : 'orders'}.
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="p-8 overflow-y-auto custom-scrollbar flex-1 space-y-6">
+                    <div className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-5">
                         {bulkCommentSectionVisible && (
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase text-brand-navy/60 tracking-widest">Comment / reason (required for selected statuses)</label>
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                                    Comment / reason (required for selected statuses)
+                                </label>
                                 <Textarea
                                     placeholder="Why are these orders changing to this status?"
                                     value={bulkStatusComment}
                                     onChange={(e) => setBulkStatusComment(e.target.value)}
-                                    className="min-h-[80px] resize-none rounded-2xl border-none bg-brand-navy/[0.04] text-brand-navy shadow-inner focus-visible:ring-1 focus-visible:ring-brand-navy/20 p-4"
+                                    className="min-h-[80px] resize-none rounded-xl border border-ant-line bg-ant-paper text-[13px] text-ant-ink placeholder:text-ant-mid focus-visible:ring-ant-orange focus-visible:ring-offset-0 focus-visible:border-ant-ink/25 p-3"
                                 />
                             </div>
                         )}
@@ -4549,10 +4640,10 @@ const Orders = () => {
                                         bulkStatusMutation.mutate({ orderIds: selectedOrders, statusId: status.id })
                                     }}
                                     disabled={bulkStatusMutation.isPending}
-                                    className="h-14 justify-start gap-4 rounded-2xl border-none bg-brand-navy/[0.02] hover:bg-brand-navy/[0.05] text-brand-navy font-bold transition-all group px-4"
+                                    className="h-12 justify-start gap-3 rounded-xl border border-ant-line bg-ant-paper hover:border-ant-ink/25 hover:bg-ant-line-soft text-ant-ink font-medium transition-all group px-4 text-[12.5px]"
                                 >
                                     <div
-                                        className="w-4 h-4 rounded-full shadow-sm group-hover:scale-110 transition-transform shrink-0"
+                                        className="w-3 h-3 rounded-full group-hover:scale-110 transition-transform shrink-0"
                                         style={{ backgroundColor: status.color }}
                                     />
                                     <span className="flex-1 text-left truncate">{status.label}</span>
@@ -4566,22 +4657,22 @@ const Orders = () => {
 
             {/* Commercial Attribution Modal */}
             <Dialog open={isAttributionModalOpen} onOpenChange={setIsAttributionModalOpen}>
-                <DialogContent className="max-w-md p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-                    <DialogHeader className="p-8 pb-6 shrink-0 border-b border-brand-navy/[0.05]">
-                        <DialogTitle className="text-3xl font-black text-brand-navy tracking-tight">Assign Commercial</DialogTitle>
-                        <DialogDescription className="text-sm font-bold text-muted-foreground mt-1">
+                <DialogContent className="max-w-md p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden max-h-[90vh] flex flex-col">
+                    <DialogHeader className="p-8 pb-6 shrink-0 border-b border-ant-line">
+                        <DialogTitle className="text-3xl font-semibold text-ant-ink tracking-tight">Assign Commercial</DialogTitle>
+                        <DialogDescription className="text-sm font-bold text-ant-muted mt-1">
                             Team attribution for {selectedOrders.length} orders
                         </DialogDescription>
                     </DialogHeader>
 
                     <div className="p-8 pt-6 flex-1 flex flex-col overflow-hidden space-y-6">
                         <div className="relative group shrink-0">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-navy/20 group-focus-within:text-brand-navy/40 transition-colors" />
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-ant-mid group-focus-within:text-ant-mid transition-colors" />
                             <Input
                                 placeholder="Search commercial..."
                                 value={sellerSearchQuery}
                                 onChange={(e) => setSellerSearchQuery(e.target.value)}
-                                className="h-14 pl-12 pr-4 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy placeholder:text-brand-navy/20 focus-visible:ring-1 focus-visible:ring-brand-navy/10 shadow-inner"
+                                className="h-14 pl-12 pr-4 rounded-2xl border-none bg-ant-ink/[0.04] text-base font-bold text-ant-ink placeholder:text-ant-mid focus-visible:ring-1 focus-visible:ring-ant-ink/10 shadow-inner"
                             />
                         </div>
 
@@ -4591,19 +4682,19 @@ const Orders = () => {
                                 variant="ghost"
                                 onClick={() => bulkAttributeMutation.mutate({ orderIds: selectedOrders, sellerId: null })}
                                 disabled={bulkAttributeMutation.isPending}
-                                className="w-full h-16 justify-start gap-4 rounded-[24px] hover:bg-red-50 text-red-600 hover:text-red-700 transition-all font-bold px-4 border border-transparent hover:border-red-100"
+                                className="w-full h-16 justify-start gap-4 rounded-[24px] hover:bg-ant-rose/10 text-ant-rose hover:text-ant-rose transition-all font-bold px-4 border border-transparent hover:border-ant-rose/25"
                             >
-                                <div className="w-10 h-10 rounded-2xl bg-red-100 flex items-center justify-center text-red-600 shadow-sm shadow-red-500/10">
+                                <div className="w-10 h-10 rounded-2xl bg-ant-rose/15 flex items-center justify-center text-ant-rose shadow-sm shadow-red-500/10">
                                     <X className="w-5 h-5" />
                                 </div>
                                 <div className="text-left">
-                                    <p className="text-sm font-black uppercase tracking-tight">Clear Assignee</p>
+                                    <p className="text-sm font-semibold uppercase tracking-tight">Clear Assignee</p>
                                     <p className="text-[10px] opacity-60">Set orders as unassigned</p>
                                 </div>
                                 {bulkAttributeMutation.isPending && <Loader2 className="w-4 h-4 ml-auto animate-spin" />}
                             </Button>
 
-                            <Separator className="bg-brand-navy/[0.05] my-4" />
+                            <Separator className="bg-ant-ink/[0.05] my-4" />
 
                             {sellers
                                 ?.filter((s: any) => s.name?.toLowerCase().includes(sellerSearchQuery.toLowerCase()))
@@ -4613,17 +4704,17 @@ const Orders = () => {
                                         variant="ghost"
                                         onClick={() => bulkAttributeMutation.mutate({ orderIds: selectedOrders, sellerId: seller.id })}
                                         disabled={bulkAttributeMutation.isPending}
-                                        className="w-full h-16 justify-start gap-4 rounded-[24px] hover:bg-brand-navy/[0.03] text-brand-navy hover:text-brand-navy transition-all font-bold px-4 border border-transparent hover:border-brand-navy/[0.05]"
+                                        className="w-full h-16 justify-start gap-4 rounded-[24px] hover:bg-ant-ink/[0.03] text-ant-ink hover:text-ant-ink transition-all font-bold px-4 border border-transparent hover:border-ant-line"
                                     >
                                         <Avatar className="w-10 h-10 border-2 border-white shadow-md">
                                             <AvatarImage src={seller.avatar_url} />
-                                            <AvatarFallback className="bg-brand-navy text-brand-white text-xs">
+                                            <AvatarFallback className="bg-ant-ink text-ant-light text-xs">
                                                 {seller.name?.[0]}
                                             </AvatarFallback>
                                         </Avatar>
                                         <div className="text-left">
-                                            <p className="text-sm font-black uppercase tracking-tight">{seller.name}</p>
-                                            <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">{seller.role}</p>
+                                            <p className="text-sm font-semibold uppercase tracking-tight">{seller.name}</p>
+                                            <p className="text-[10px] text-ant-muted uppercase font-bold tracking-widest">{seller.role}</p>
                                         </div>
                                         {bulkAttributeMutation.isPending && <Loader2 className="w-4 h-4 ml-auto animate-spin opacity-40 shrink-0" />}
                                     </Button>
@@ -4639,49 +4730,49 @@ const Orders = () => {
                     if (!v) dismissReportedModal(reportedStatusRevertRef.current !== null);
                 }}
             >
-                <DialogContent className="max-w-[min(100vw-2rem,40rem)] p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden flex flex-col">
-                    <DialogHeader className="p-6 sm:p-8 pb-4 shrink-0 border-b border-brand-navy/[0.05]">
-                        <DialogTitle className="text-2xl font-black text-brand-navy">Reported Action</DialogTitle>
-                        <DialogDescription className="text-sm font-bold text-muted-foreground">
+                <DialogContent className="max-w-[min(100vw-2rem,40rem)] p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden flex flex-col">
+                    <DialogHeader className="p-6 sm:p-8 pb-4 shrink-0 border-b border-ant-line">
+                        <DialogTitle className="text-2xl font-semibold text-ant-ink">Reported Action</DialogTitle>
+                        <DialogDescription className="text-sm font-bold text-ant-muted">
                             Please provide the scheduled date and time.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="p-6 sm:p-8 flex flex-col md:flex-row gap-6 md:gap-8 md:items-start">
                         <div className="space-y-2 flex flex-col shrink-0 md:max-w-[min(100%,280px)]">
-                            <label className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/70">Date</label>
+                            <label className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Date</label>
                             <CalendarComponent
                                 mode="single"
                                 selected={reportedData.date}
                                 onSelect={(d) => setReportedData(prev => ({ ...prev, date: d }))}
                                 initialFocus
-                                className="rounded-2xl border-none shadow-inner bg-brand-navy/[0.02] w-full p-2"
+                                className="rounded-2xl border-none shadow-inner bg-ant-line-soft w-full p-2"
                             />
                         </div>
                         <div className="flex flex-col gap-4 flex-1 min-w-0 min-h-0">
                             <div className="space-y-2">
-                                <label className="text-[10px] flex font-black uppercase tracking-wider text-muted-foreground/70">Time</label>
+                                <label className="text-[10px] flex font-semibold uppercase tracking-wider text-ant-muted/70">Time</label>
                                 <div className="relative">
-                                    <Clock className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-brand-navy/30 pointer-events-none" />
+                                    <Clock className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-ant-mid pointer-events-none" />
                                     <Input
                                         type="time"
                                         value={reportedData.time}
                                         onChange={(e) => setReportedData(prev => ({ ...prev, time: e.target.value }))}
-                                        className="h-14 pl-12 rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner w-full"
+                                        className="h-14 pl-12 rounded-2xl border-none bg-ant-ink/[0.04] text-base font-bold text-ant-ink shadow-inner w-full"
                                     />
                                 </div>
                             </div>
                             <div className="space-y-2 flex flex-col flex-1 min-h-[120px]">
-                                <label className="text-[10px] flex font-black uppercase tracking-wider text-muted-foreground/70">Comment (Optional)</label>
+                                <label className="text-[10px] flex font-semibold uppercase tracking-wider text-ant-muted/70">Comment (Optional)</label>
                                 <Textarea
                                     value={reportedData.comment}
                                     onChange={(e) => setReportedData(prev => ({ ...prev, comment: e.target.value }))}
                                     placeholder="Add a note why it was reported..."
-                                    className="resize-none rounded-2xl border-none bg-brand-navy/[0.04] text-base font-bold text-brand-navy shadow-inner flex-1 min-h-[120px] md:min-h-[200px]"
+                                    className="resize-none rounded-2xl border-none bg-ant-ink/[0.04] text-base font-bold text-ant-ink shadow-inner flex-1 min-h-[120px] md:min-h-[200px]"
                                 />
                             </div>
                         </div>
                     </div>
-                    <DialogFooter className="p-8 pt-4 border-t border-brand-navy/[0.05] bg-brand-navy/[0.01]">
+                    <DialogFooter className="p-8 pt-4 border-t border-ant-line bg-ant-light">
                         <Button
                             variant="ghost"
                             onClick={() => dismissReportedModal(true)}
@@ -4696,7 +4787,7 @@ const Orders = () => {
                                     pendingReportedAction(reportedData.date, reportedData.time, reportedData.comment);
                                 }
                             }}
-                            className="bg-brand-navy text-white hover:bg-brand-navy/90 h-12 rounded-2xl font-bold px-8 shadow-xl shadow-brand-navy/20"
+                            className="bg-ant-ink text-white hover:bg-ant-ink/90 h-12 rounded-2xl font-bold px-8 shadow-xl shadow-brand-navy/20"
                         >
                             Confirm Action
                         </Button>
@@ -4705,19 +4796,19 @@ const Orders = () => {
             </Dialog>
 
             <AlertDialog open={!!orderPendingDelete} onOpenChange={(open) => { if (!open) setOrderPendingDelete(null); }}>
-                <AlertDialogContent className="rounded-[32px] border-none shadow-2xl max-w-md p-8">
+                <AlertDialogContent className="rounded-2xl border-none shadow-2xl max-w-md p-8">
                     <AlertDialogHeader className="space-y-3">
-                        <AlertDialogTitle className="text-2xl font-black text-brand-navy tracking-tight">
+                        <AlertDialogTitle className="text-2xl font-semibold text-ant-ink tracking-tight">
                             Move to trash?
                         </AlertDialogTitle>
-                        <AlertDialogDescription className="text-base text-brand-navy/60 font-medium leading-relaxed">
+                        <AlertDialogDescription className="text-base text-ant-ink/60 font-medium leading-relaxed">
                             {orderPendingDelete
                                 ? `This will move the order for "${orderPendingDelete.name}" to trash. You can restore it within 14 days.`
                                 : null}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter className="flex-col-reverse sm:flex-row gap-2 sm:gap-3 pt-2">
-                        <AlertDialogCancel className="rounded-2xl h-12 font-bold border border-brand-navy/10 bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy/[0.08] m-0">
+                        <AlertDialogCancel className="rounded-2xl h-12 font-bold border border-ant-ink/10 bg-ant-ink/[0.04] text-ant-ink hover:bg-ant-ink/10 m-0">
                             Cancel
                         </AlertDialogCancel>
                         <Button

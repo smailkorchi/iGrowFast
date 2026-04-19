@@ -326,18 +326,18 @@ export function WhatsAppQuickSend({ phone, open, onClose }: Props) {
       >
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-white/80 hover:bg-gray-100 border border-gray-100 flex items-center justify-center transition-colors"
+          className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-white/80 hover:bg-ant-line border border-ant-line flex items-center justify-center transition-colors"
           type="button"
         >
-          <X className="w-4 h-4 text-gray-500" />
+          <X className="w-4 h-4 text-ant-muted" />
         </button>
 
         {/* Header */}
-        <div className="bg-gradient-to-br from-emerald-50/60 via-white to-teal-50/40 p-7 pb-5 text-center border-b border-gray-100">
+        <div className="bg-gradient-to-br from-emerald-50/60 via-white to-teal-50/40 p-7 pb-5 text-center border-b border-ant-line">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-[#25D366]/10 mb-3">
             <FaWhatsapp className="w-6 h-6 text-[#25D366]" />
           </div>
-          <h3 className="text-xl font-extralight text-gray-900 tracking-tight">
+          <h3 className="text-xl font-extralight text-ant-ink tracking-tight">
             {step === 'lookup' && 'Checking number...'}
             {step === 'not-found' && 'Not on WhatsApp'}
             {step === 'preview' && 'Contact found'}
@@ -348,7 +348,7 @@ export function WhatsAppQuickSend({ phone, open, onClose }: Props) {
             {step === 'error' && 'Something went wrong'}
             {step === 'no-instances' && 'No connected devices'}
           </h3>
-          <p className="text-xs text-gray-500 font-light mt-1.5">
+          <p className="text-xs text-ant-muted font-light mt-1.5">
             +{targetDigits || phone}
           </p>
         </div>
@@ -359,23 +359,23 @@ export function WhatsAppQuickSend({ phone, open, onClose }: Props) {
             <div className="relative">
               <Loader2 className="w-9 h-9 animate-spin text-[#25D366]" />
             </div>
-            <p className="text-xs text-gray-400 font-light mt-4">Looking up on WhatsApp...</p>
+            <p className="text-xs text-ant-mid font-light mt-4">Looking up on WhatsApp...</p>
           </div>
         )}
 
         {/* ── Step: Not on WhatsApp ────────────────────────────────── */}
         {step === 'not-found' && (
           <div className="p-8 flex flex-col items-center text-center">
-            <div className="w-16 h-16 rounded-full bg-amber-50 flex items-center justify-center mb-4">
-              <AlertCircle className="w-8 h-8 text-amber-500" />
+            <div className="w-16 h-16 rounded-full bg-ant-orange/10 flex items-center justify-center mb-4">
+              <AlertCircle className="w-8 h-8 text-ant-orange" />
             </div>
-            <p className="text-sm font-medium text-gray-900">This number isn't on WhatsApp</p>
-            <p className="text-xs text-gray-500 font-light mt-1.5 max-w-[280px]">
+            <p className="text-sm font-medium text-ant-ink">This number isn't on WhatsApp</p>
+            <p className="text-xs text-ant-muted font-light mt-1.5 max-w-[280px]">
               We couldn't find an active WhatsApp account for this phone. Double-check the number or try a different contact channel.
             </p>
             <button
               onClick={onClose}
-              className="mt-6 w-full h-11 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium"
+              className="mt-6 w-full h-11 rounded-2xl bg-ant-line hover:bg-ant-line text-ant-ink text-xs font-medium"
               type="button"
             >
               Close
@@ -396,7 +396,7 @@ export function WhatsAppQuickSend({ phone, open, onClose }: Props) {
                   />
                 ) : (
                   <div className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-100 to-emerald-50 border-4 border-white shadow-lg flex items-center justify-center">
-                    <User className="w-9 h-9 text-emerald-500" strokeWidth={1.5} />
+                    <User className="w-9 h-9 text-ant-green" strokeWidth={1.5} />
                   </div>
                 )}
                 {contact.isBusiness && (
@@ -405,13 +405,13 @@ export function WhatsAppQuickSend({ phone, open, onClose }: Props) {
                   </div>
                 )}
               </div>
-              <h4 className="text-base font-medium text-gray-900 mt-3">
+              <h4 className="text-base font-medium text-ant-ink mt-3">
                 {contact.name || `+${contact.number}`}
               </h4>
-              <p className="text-xs text-gray-500 font-light mt-0.5">+{contact.number}</p>
+              <p className="text-xs text-ant-muted font-light mt-0.5">+{contact.number}</p>
               <span className={cn(
                 "mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest",
-                contact.isBusiness ? "bg-[#25D366]/10 text-[#0d8a3f]" : "bg-emerald-50 text-emerald-700"
+                contact.isBusiness ? "bg-[#25D366]/10 text-[#0d8a3f]" : "bg-ant-green/10 text-ant-green"
               )}>
                 <FaWhatsapp className="w-3 h-3" />
                 {contact.isBusiness ? 'WhatsApp Business' : 'WhatsApp'}
@@ -431,33 +431,33 @@ export function WhatsAppQuickSend({ phone, open, onClose }: Props) {
         {/* ── Step: Pick instance ──────────────────────────────────── */}
         {step === 'pick' && (
           <div className="p-6 space-y-3">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 px-1">Choose a device</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-ant-mid px-1">Choose a device</p>
             {instances.map((inst) => (
               <button
                 key={inst.id}
                 type="button"
                 onClick={() => { setSelected(inst); setStep('compose'); }}
-                className="w-full flex items-center gap-3 p-3 rounded-2xl border border-gray-100 hover:border-emerald-200 hover:bg-emerald-50/30 transition-all text-left"
+                className="w-full flex items-center gap-3 p-3 rounded-2xl border border-ant-line hover:border-ant-green/30 hover:bg-ant-green/10/30 transition-all text-left"
               >
                 {inst.profile_pic ? (
-                  <img src={inst.profile_pic} alt="" className="w-11 h-11 rounded-full object-cover border border-gray-100" />
+                  <img src={inst.profile_pic} alt="" className="w-11 h-11 rounded-full object-cover border border-ant-line" />
                 ) : (
                   <div className="w-11 h-11 rounded-full bg-gradient-to-br from-emerald-100 to-emerald-50 flex items-center justify-center">
-                    <Smartphone className="w-5 h-5 text-emerald-600" />
+                    <Smartphone className="w-5 h-5 text-ant-green" />
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{inst.instance_name}</p>
+                  <p className="text-sm font-medium text-ant-ink truncate">{inst.instance_name}</p>
                   {inst.phone_number && (
-                    <p className="text-[11px] text-gray-500 font-light mt-0.5">+{inst.phone_number}</p>
+                    <p className="text-[11px] text-ant-muted font-light mt-0.5">+{inst.phone_number}</p>
                   )}
                 </div>
-                <ArrowRight className="w-4 h-4 text-gray-300" />
+                <ArrowRight className="w-4 h-4 text-ant-mid" />
               </button>
             ))}
             <button
               onClick={() => setStep('preview')}
-              className="w-full mt-1 text-[11px] text-gray-400 hover:text-gray-600 font-medium"
+              className="w-full mt-1 text-[11px] text-ant-mid hover:text-ant-muted font-medium"
               type="button"
             >
               <ArrowLeft className="w-3 h-3 inline mr-1" /> Back
@@ -469,24 +469,24 @@ export function WhatsAppQuickSend({ phone, open, onClose }: Props) {
         {step === 'compose' && selected && contact && (
           <div className="p-6 space-y-4">
             {/* Recipient + sender summary */}
-            <div className="flex items-center gap-3 p-3 rounded-2xl bg-gray-50">
+            <div className="flex items-center gap-3 p-3 rounded-2xl bg-ant-line-soft">
               {contact.profilePicBase64 ? (
-                <img src={contact.profilePicBase64} alt="" className="w-10 h-10 rounded-full object-cover border border-gray-100" />
+                <img src={contact.profilePicBase64} alt="" className="w-10 h-10 rounded-full object-cover border border-ant-line" />
               ) : (
-                <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
-                  <User className="w-5 h-5 text-emerald-600" />
+                <div className="w-10 h-10 rounded-full bg-ant-green/15 flex items-center justify-center">
+                  <User className="w-5 h-5 text-ant-green" />
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-gray-900 truncate">
+                <p className="text-xs font-medium text-ant-ink truncate">
                   {contact.name || `+${contact.number}`}
                 </p>
-                <p className="text-[10px] text-gray-500 font-light">via {selected.instance_name}</p>
+                <p className="text-[10px] text-ant-muted font-light">via {selected.instance_name}</p>
               </div>
               {instances.length > 1 && (
                 <button
                   onClick={() => setStep('pick')}
-                  className="text-[10px] font-medium text-gray-400 hover:text-gray-700 uppercase tracking-wider"
+                  className="text-[10px] font-medium text-ant-mid hover:text-ant-ink uppercase tracking-wider"
                   type="button"
                 >
                   Change
@@ -495,7 +495,7 @@ export function WhatsAppQuickSend({ phone, open, onClose }: Props) {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Message</label>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-ant-mid">Message</label>
               <textarea
                 autoFocus
                 value={message}
@@ -505,9 +505,9 @@ export function WhatsAppQuickSend({ phone, open, onClose }: Props) {
                 }}
                 placeholder="Type your message..."
                 rows={5}
-                className="w-full rounded-2xl bg-gray-50/50 border border-gray-100 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
+                className="w-full rounded-2xl bg-ant-line-soft border border-ant-line px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
               />
-              <p className="text-[10px] text-gray-400 text-right">⌘+Enter to send</p>
+              <p className="text-[10px] text-ant-mid text-right">⌘+Enter to send</p>
             </div>
 
             <button
@@ -517,7 +517,7 @@ export function WhatsAppQuickSend({ phone, open, onClose }: Props) {
                 "w-full h-12 rounded-2xl font-medium text-sm flex items-center justify-center gap-2 transition-colors",
                 message.trim()
                   ? "bg-[#25D366] hover:bg-[#1ebe57] text-white shadow-sm"
-                  : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                  : "bg-ant-line text-ant-mid cursor-not-allowed"
               )}
             >
               <FaWhatsapp className="w-4 h-4" />
@@ -530,24 +530,24 @@ export function WhatsAppQuickSend({ phone, open, onClose }: Props) {
         {step === 'sending' && (
           <div className="p-12 flex flex-col items-center justify-center">
             <Loader2 className="w-8 h-8 animate-spin text-[#25D366]" />
-            <p className="text-sm text-gray-600 font-light mt-4">Sending message...</p>
+            <p className="text-sm text-ant-muted font-light mt-4">Sending message...</p>
           </div>
         )}
 
         {/* ── Step: Success ────────────────────────────────────────── */}
         {step === 'success' && contact && (
           <div className="p-8 flex flex-col items-center justify-center text-center animate-in fade-in zoom-in-95 duration-300">
-            <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mb-4">
-              <CheckCircle2 className="w-8 h-8 text-emerald-600" />
+            <div className="w-16 h-16 rounded-full bg-ant-green/15 flex items-center justify-center mb-4">
+              <CheckCircle2 className="w-8 h-8 text-ant-green" />
             </div>
-            <h4 className="text-lg font-medium text-gray-900">Message sent</h4>
-            <p className="text-xs text-gray-500 font-light mt-1">
+            <h4 className="text-lg font-medium text-ant-ink">Message sent</h4>
+            <p className="text-xs text-ant-muted font-light mt-1">
               Delivered to {contact.name || `+${contact.number}`}
             </p>
             <div className="flex gap-2 w-full mt-6">
               <button
                 onClick={onClose}
-                className="flex-1 h-11 rounded-2xl border border-gray-200 text-gray-600 hover:bg-gray-50 text-xs font-medium"
+                className="flex-1 h-11 rounded-2xl border border-ant-line text-ant-muted hover:bg-ant-line-soft text-xs font-medium"
                 type="button"
               >
                 Close
@@ -567,15 +567,15 @@ export function WhatsAppQuickSend({ phone, open, onClose }: Props) {
         {/* ── Step: Error ──────────────────────────────────────────── */}
         {step === 'error' && (
           <div className="p-8 flex flex-col items-center justify-center text-center animate-in fade-in zoom-in-95 duration-300">
-            <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mb-4">
-              <AlertCircle className="w-8 h-8 text-red-500" />
+            <div className="w-16 h-16 rounded-full bg-ant-rose/10 flex items-center justify-center mb-4">
+              <AlertCircle className="w-8 h-8 text-ant-rose" />
             </div>
-            <h4 className="text-lg font-medium text-gray-900">Send failed</h4>
-            <p className="text-xs text-gray-500 font-light mt-1 max-w-[300px]">{errorMsg || 'An unknown error occurred.'}</p>
+            <h4 className="text-lg font-medium text-ant-ink">Send failed</h4>
+            <p className="text-xs text-ant-muted font-light mt-1 max-w-[300px]">{errorMsg || 'An unknown error occurred.'}</p>
             <div className="flex gap-2 w-full mt-6">
               <button
                 onClick={onClose}
-                className="flex-1 h-11 rounded-2xl border border-gray-200 text-gray-600 hover:bg-gray-50 text-xs font-medium"
+                className="flex-1 h-11 rounded-2xl border border-ant-line text-ant-muted hover:bg-ant-line-soft text-xs font-medium"
                 type="button"
               >
                 Cancel
@@ -594,11 +594,11 @@ export function WhatsAppQuickSend({ phone, open, onClose }: Props) {
         {/* ── Step: No connected devices ───────────────────────────── */}
         {step === 'no-instances' && (
           <div className="p-8 flex flex-col items-center justify-center text-center">
-            <div className="w-16 h-16 rounded-full bg-amber-50 flex items-center justify-center mb-4">
-              <Smartphone className="w-8 h-8 text-amber-500" />
+            <div className="w-16 h-16 rounded-full bg-ant-orange/10 flex items-center justify-center mb-4">
+              <Smartphone className="w-8 h-8 text-ant-orange" />
             </div>
-            <p className="text-sm font-medium text-gray-900">No connected devices</p>
-            <p className="text-xs text-gray-500 font-light mt-1 max-w-[280px]">
+            <p className="text-sm font-medium text-ant-ink">No connected devices</p>
+            <p className="text-xs text-ant-muted font-light mt-1 max-w-[280px]">
               Connect a WhatsApp device first to send messages from your business.
             </p>
             <button

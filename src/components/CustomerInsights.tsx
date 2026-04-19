@@ -5,14 +5,11 @@ import { isDeliveredForCommission } from '@/lib/commercialCommission';
 import {
     ShoppingBag,
     Truck,
-    CheckCircle2,
     XCircle,
     DollarSign,
     TrendingUp,
     User,
-    BarChart3,
     Loader2,
-    AlertCircle,
 } from 'lucide-react';
 import {
     AreaChart,
@@ -57,7 +54,7 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
     const [searched, setSearched] = useState(false);
     const activeBusinessId = localStorage.getItem('activeBusinessId');
 
-    // Debounce phone search
+    // Debounce phone search — normalize digits only, skip below 6 chars.
     useEffect(() => {
         const cleaned = phone?.replace(/[^0-9+]/g, '') || '';
         if (cleaned.length < 6) {
@@ -129,17 +126,17 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
         return () => clearTimeout(timer);
     }, [phone, activeBusinessId]);
 
-    // Stats
+    // Rolled-up KPIs for the intelligence strip.
     const stats = useMemo(() => {
         const total = orders.length;
-        const delivered = orders.filter(o => isDeliveredForCommission(o, deliveredPkgIds)).length;
-        const cancelled = orders.filter(o => o.order_status_id && cancelledIds.has(o.order_status_id)).length;
+        const delivered = orders.filter((o) => isDeliveredForCommission(o, deliveredPkgIds)).length;
+        const cancelled = orders.filter((o) => o.order_status_id && cancelledIds.has(o.order_status_id)).length;
         const totalSpent = orders.reduce((acc, o) => acc + o.raw_price, 0);
         const deliveryRate = total > 0 ? Math.round((delivered / total) * 100) : 0;
         return { total, delivered, cancelled, totalSpent, deliveryRate };
     }, [orders, deliveredPkgIds, cancelledIds]);
 
-    // Chart data: last 6 months
+    // Last 6 months of order volume — feeds the sparkline area chart.
     const chartData = useMemo((): MonthData[] => {
         if (orders.length === 0) return [];
         const now = new Date();
@@ -149,144 +146,143 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
             const m = subMonths(now, i);
             const start = startOfMonth(m);
             const end = endOfMonth(m);
-            const monthOrders = orders.filter(o => {
+            const monthOrders = orders.filter((o) => {
                 const d = new Date(o.date);
                 return d >= start && d <= end;
             });
-
             months.push({
                 month: format(m, 'MMM'),
                 orders: monthOrders.length,
                 revenue: monthOrders.reduce((acc, o) => acc + o.raw_price, 0),
             });
         }
-
         return months;
     }, [orders]);
 
-    // Risk level based on cancel rate
+    // Risk bucket based on cancellation rate.
     const riskLevel = useMemo(() => {
         if (stats.total === 0) return null;
         const cancelRate = stats.total > 0 ? (stats.cancelled / stats.total) * 100 : 0;
-        if (cancelRate > 60) return { label: 'High Risk', color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-100' };
-        if (cancelRate > 30) return { label: 'Medium Risk', color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100' };
-        return { label: 'Low Risk', color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100' };
+        if (cancelRate > 60) {
+            return {
+                label: 'High risk',
+                tone: 'rose' as const,
+                dot: 'bg-ant-rose',
+                chip: 'bg-ant-rose/10 text-ant-rose border-ant-rose/25',
+            };
+        }
+        if (cancelRate > 30) {
+            return {
+                label: 'Medium risk',
+                tone: 'orange' as const,
+                dot: 'bg-ant-orange',
+                chip: 'bg-ant-orange/10 text-ant-orange border-ant-orange/30',
+            };
+        }
+        return {
+            label: 'Low risk',
+            tone: 'green' as const,
+            dot: 'bg-ant-green',
+            chip: 'bg-ant-green/10 text-ant-green border-ant-green/25',
+        };
     }, [stats]);
+
+    const deliveryTone =
+        stats.deliveryRate >= 60 ? 'text-ant-green' : stats.deliveryRate >= 30 ? 'text-ant-orange' : 'text-ant-rose';
+    const deliveryBar =
+        stats.deliveryRate >= 60 ? 'bg-ant-green' : stats.deliveryRate >= 30 ? 'bg-ant-orange' : 'bg-ant-rose';
 
     const cleaned = phone?.replace(/[^0-9+]/g, '') || '';
     if (cleaned.length < 6) return null;
 
     return (
-        <div className={cn("space-y-3", className)}>
+        <div className={cn('ant-surface space-y-3', className)}>
+            {/* Section header */}
             <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <div className="w-5 h-5 rounded-md bg-brand-navy/10 flex items-center justify-center">
-                        <BarChart3 className="w-3 h-3 text-brand-navy" />
-                    </div>
-                    <span className="text-[10px] font-black uppercase tracking-widest text-brand-navy/40">
-                        Customer Intelligence
+                <div className="flex items-center gap-1.5">
+                    <span className="w-1 h-1 rounded-full bg-ant-orange" aria-hidden />
+                    <span className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                        Customer intelligence
                     </span>
                 </div>
-                {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-navy/30" />}
-                {riskLevel && !loading && (
-                    <span className={cn("text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border", riskLevel.color, riskLevel.bg, riskLevel.border)}>
-                        {riskLevel.label}
-                    </span>
-                )}
+                <div className="flex items-center gap-2">
+                    {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-ant-orange" />}
+                    {riskLevel && !loading && (
+                        <span
+                            className={cn(
+                                'inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-[0.2em] px-2 py-0.5 rounded-full border',
+                                riskLevel.chip,
+                            )}
+                        >
+                            <span className={cn('w-1 h-1 rounded-full', riskLevel.dot)} />
+                            {riskLevel.label}
+                        </span>
+                    )}
+                </div>
             </div>
 
             {loading ? (
-                <div className="flex items-center justify-center py-6">
-                    <div className="flex items-center gap-2 text-brand-navy/30">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span className="text-xs font-bold">Analyzing customer...</span>
+                <div className="flex items-center justify-center py-8 rounded-xl border border-ant-line bg-ant-paper">
+                    <div className="flex items-center gap-2 text-ant-muted">
+                        <Loader2 className="w-4 h-4 animate-spin text-ant-orange" />
+                        <span className="font-serif-display text-[12px] italic">Analysing this customer…</span>
                     </div>
                 </div>
             ) : searched && orders.length === 0 ? (
-                <div className="flex items-center gap-3 py-4 px-4 rounded-2xl bg-blue-50/80 border border-blue-100">
-                    <div className="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
-                        <User className="w-4 h-4 text-blue-500" />
+                <div className="flex items-center gap-3 py-3 px-4 rounded-xl bg-ant-blue/10 border border-ant-blue/25">
+                    <div className="w-8 h-8 rounded-lg bg-ant-blue/15 ring-1 ring-ant-blue/25 flex items-center justify-center shrink-0">
+                        <User className="w-4 h-4 text-ant-blue" strokeWidth={1.75} />
                     </div>
                     <div>
-                        <p className="text-xs font-bold text-blue-700">New Customer</p>
-                        <p className="text-[10px] text-blue-500 font-medium">No previous orders found for this number.</p>
+                        <p className="font-display text-[13px] font-semibold text-ant-ink tracking-tight">New customer</p>
+                        <p className="font-serif-display text-[11.5px] text-ant-muted italic">
+                            No previous orders found for this number.
+                        </p>
                     </div>
                 </div>
             ) : searched && orders.length > 0 ? (
                 <>
-                    {/* Stats Grid */}
-                    <div className="grid grid-cols-4 gap-2">
-                        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-navy to-brand-navy/90 p-3 text-white">
-                            <div className="relative z-10">
-                                <div className="flex items-center gap-1 mb-1">
-                                    <ShoppingBag className="w-3 h-3 opacity-60" />
-                                    <span className="text-[9px] font-black uppercase tracking-widest opacity-60">Total</span>
-                                </div>
-                                <span className="text-2xl font-black leading-none">{stats.total}</span>
-                            </div>
-                            <div className="absolute -right-2 -bottom-2 w-12 h-12 bg-white/5 rounded-full blur-lg" />
-                        </div>
-
-                        <div className="relative overflow-hidden rounded-2xl bg-emerald-50 border border-emerald-100 p-3">
-                            <div className="relative z-10">
-                                <div className="flex items-center gap-1 mb-1">
-                                    <Truck className="w-3 h-3 text-emerald-400" />
-                                    <span className="text-[9px] font-black uppercase tracking-widest text-emerald-500/60">Delivered</span>
-                                </div>
-                                <span className="text-2xl font-black text-emerald-700 leading-none">{stats.delivered}</span>
-                            </div>
-                        </div>
-
-                        <div className="relative overflow-hidden rounded-2xl bg-red-50 border border-red-100 p-3">
-                            <div className="relative z-10">
-                                <div className="flex items-center gap-1 mb-1">
-                                    <XCircle className="w-3 h-3 text-red-400" />
-                                    <span className="text-[9px] font-black uppercase tracking-widest text-red-500/60">Cancelled</span>
-                                </div>
-                                <span className="text-2xl font-black text-red-700 leading-none">{stats.cancelled}</span>
-                            </div>
-                        </div>
-
-                        <div className="relative overflow-hidden rounded-2xl bg-amber-50 border border-amber-100 p-3">
-                            <div className="relative z-10">
-                                <div className="flex items-center gap-1 mb-1">
-                                    <DollarSign className="w-3 h-3 text-amber-400" />
-                                    <span className="text-[9px] font-black uppercase tracking-widest text-amber-500/60">Spent</span>
-                                </div>
-                                <span className="text-lg font-black text-amber-700 leading-none">{stats.totalSpent.toLocaleString()}<span className="text-[10px] font-bold ml-0.5">DH</span></span>
-                            </div>
-                        </div>
+                    {/* Stats Grid — hairline divider row */}
+                    <div className="grid grid-cols-4 gap-px bg-ant-line rounded-xl overflow-hidden border border-ant-line">
+                        <InsightTile label="Total" value={stats.total} icon={ShoppingBag} accent="#141413" />
+                        <InsightTile label="Delivered" value={stats.delivered} icon={Truck} accent="#788c5d" />
+                        <InsightTile label="Cancelled" value={stats.cancelled} icon={XCircle} accent="#c96356" />
+                        <InsightTile
+                            label="Spent"
+                            value={stats.totalSpent}
+                            suffix="DH"
+                            icon={DollarSign}
+                            accent="#d97757"
+                        />
                     </div>
 
                     {/* Delivery Rate Bar */}
-                    <div className="rounded-xl bg-white border border-brand-navy/[0.04] p-3">
+                    <div className="rounded-xl bg-ant-paper border border-ant-line px-4 py-3">
                         <div className="flex items-center justify-between mb-2">
-                            <span className="text-[10px] font-bold text-brand-navy/40 uppercase tracking-wider">Delivery Rate</span>
-                            <span className={cn(
-                                "text-sm font-black",
-                                stats.deliveryRate >= 60 ? "text-emerald-600" : stats.deliveryRate >= 30 ? "text-amber-600" : "text-red-600"
-                            )}>{stats.deliveryRate}%</span>
+                            <span className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                                Delivery rate
+                            </span>
+                            <span className={cn('font-display text-[15px] font-semibold tabular-nums tracking-[-0.01em]', deliveryTone)}>
+                                {stats.deliveryRate}%
+                            </span>
                         </div>
-                        <div className="w-full h-2 bg-brand-navy/[0.04] rounded-full overflow-hidden">
+                        <div className="w-full h-1.5 bg-ant-line rounded-full overflow-hidden">
                             <div
-                                className={cn(
-                                    "h-full rounded-full transition-all duration-700 ease-out",
-                                    stats.deliveryRate >= 60 ? "bg-gradient-to-r from-emerald-400 to-emerald-500" :
-                                        stats.deliveryRate >= 30 ? "bg-gradient-to-r from-amber-400 to-amber-500" :
-                                            "bg-gradient-to-r from-red-400 to-red-500"
-                                )}
+                                className={cn('h-full rounded-full transition-all duration-700 ease-out', deliveryBar)}
                                 style={{ width: `${stats.deliveryRate}%` }}
                             />
                         </div>
                     </div>
 
-                    {/* Chart */}
-                    {chartData.some(d => d.orders > 0) && (
-                        <div className="rounded-2xl bg-white border border-brand-navy/[0.04] p-3 pb-1">
+                    {/* Chart — 6 month order history */}
+                    {chartData.some((d) => d.orders > 0) && (
+                        <div className="rounded-xl bg-ant-paper border border-ant-line px-4 py-3">
                             <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-1.5">
-                                    <TrendingUp className="w-3 h-3 text-brand-navy/30" />
-                                    <span className="text-[10px] font-bold text-brand-navy/40 uppercase tracking-wider">Order History (6 months)</span>
+                                    <TrendingUp className="w-3 h-3 text-ant-orange" strokeWidth={1.75} />
+                                    <span className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                                        Order history · 6 months
+                                    </span>
                                 </div>
                             </div>
                             <div className="h-[100px] w-full">
@@ -294,46 +290,46 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
                                     <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                                         <defs>
                                             <linearGradient id="customerInsightsGrad" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="0%" stopColor="#1e293b" stopOpacity={0.15} />
-                                                <stop offset="100%" stopColor="#1e293b" stopOpacity={0} />
+                                                <stop offset="0%" stopColor="#d97757" stopOpacity={0.25} />
+                                                <stop offset="100%" stopColor="#d97757" stopOpacity={0} />
                                             </linearGradient>
                                         </defs>
-                                        <CartesianGrid vertical={false} stroke="#e2e8f0" strokeDasharray="3 3" />
+                                        <CartesianGrid vertical={false} stroke="#e8e6dc" strokeDasharray="2 4" />
                                         <XAxis
                                             dataKey="month"
                                             axisLine={false}
                                             tickLine={false}
-                                            tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }}
+                                            tick={{ fill: '#b0aea5', fontSize: 10 }}
                                             dy={4}
                                         />
                                         <YAxis
                                             axisLine={false}
                                             tickLine={false}
-                                            tick={{ fill: '#94a3b8', fontSize: 10 }}
+                                            tick={{ fill: '#b0aea5', fontSize: 10 }}
                                             allowDecimals={false}
                                         />
                                         <Tooltip
                                             contentStyle={{
-                                                borderRadius: '12px',
-                                                border: 'none',
-                                                boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+                                                borderRadius: '10px',
+                                                border: '1px solid #e8e6dc',
+                                                background: '#ffffff',
+                                                boxShadow: '0 6px 20px rgba(20,20,19,0.08)',
                                                 fontSize: '11px',
-                                                fontWeight: 700,
                                                 padding: '8px 12px',
                                             }}
                                             formatter={(value: number | string, name: string) => [
                                                 name === 'orders' ? `${value} orders` : `${value} DH`,
-                                                name === 'orders' ? 'Orders' : 'Revenue'
+                                                name === 'orders' ? 'Orders' : 'Revenue',
                                             ]}
                                         />
                                         <Area
                                             type="monotone"
                                             dataKey="orders"
-                                            stroke="#1e293b"
-                                            strokeWidth={2.5}
+                                            stroke="#d97757"
+                                            strokeWidth={2}
                                             fillOpacity={1}
                                             fill="url(#customerInsightsGrad)"
-                                            activeDot={{ r: 4, strokeWidth: 0, fill: '#1e293b' }}
+                                            activeDot={{ r: 4, strokeWidth: 0, fill: '#d97757' }}
                                         />
                                     </AreaChart>
                                 </ResponsiveContainer>
@@ -345,5 +341,36 @@ const CustomerInsights: React.FC<CustomerInsightsProps> = ({ phone, className })
         </div>
     );
 };
+
+// Single cell in the 4-up insights strip. Keeps every tile on `#e8e6dc`
+// divider lines so the row reads as one table, not four cards.
+function InsightTile({
+    label,
+    value,
+    suffix,
+    icon: Icon,
+    accent,
+}: {
+    label: string;
+    value: number;
+    suffix?: string;
+    icon: typeof ShoppingBag;
+    accent: string;
+}) {
+    return (
+        <div className="bg-ant-paper px-3 py-2.5">
+            <div className="flex items-center gap-1.5">
+                <Icon className="w-3 h-3 text-ant-mid shrink-0" strokeWidth={1.75} />
+                <span className="text-[9.5px] font-medium uppercase tracking-[0.22em] text-ant-mid truncate">
+                    {label}
+                </span>
+            </div>
+            <div className="font-display text-[18px] font-semibold text-ant-ink tabular-nums tracking-[-0.02em] leading-none mt-1">
+                <span style={{ color: accent }}>{value.toLocaleString('fr-FR')}</span>
+                {suffix && <span className="text-[10px] font-medium text-ant-mid ml-1">{suffix}</span>}
+            </div>
+        </div>
+    );
+}
 
 export default CustomerInsights;

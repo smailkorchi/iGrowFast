@@ -78,14 +78,14 @@ export function OrderStatusHistoryDialog({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[560px] rounded-[32px] border-none p-0 overflow-hidden bg-white">
                 <DialogHeader className="p-8 pb-0">
-                    <DialogTitle className="text-2xl font-black text-brand-navy flex items-center gap-3">
-                        <div className="p-2 bg-brand-navy/5 rounded-xl">
-                            <Package className="w-5 h-5 text-brand-navy" />
+                    <DialogTitle className="text-2xl font-black text-ant-ink flex items-center gap-3">
+                        <div className="p-2 bg-ant-ink/5 rounded-xl">
+                            <Package className="w-5 h-5 text-ant-ink" />
                         </div>
                         Historique des Statuts
                     </DialogTitle>
-                    <DialogDescription className="font-bold text-muted-foreground">
-                        {order?.name ? <>Commande de <span className="text-brand-navy">{order.name}</span></> : 'Commande sélectionnée'}
+                    <DialogDescription className="font-bold text-ant-muted">
+                        {order?.name ? <>Commande de <span className="text-ant-ink">{order.name}</span></> : 'Commande sélectionnée'}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -93,14 +93,14 @@ export function OrderStatusHistoryDialog({
                     {records.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-12 text-center space-y-3">
                             <div className="p-4 bg-slate-50 rounded-full">
-                                <SearchX className="w-8 h-8 text-muted-foreground/40" />
+                                <SearchX className="w-8 h-8 text-ant-muted/40" />
                             </div>
-                            <p className="font-bold text-muted-foreground">Aucun historique disponible pour cette commande.</p>
+                            <p className="font-bold text-ant-muted">Aucun historique disponible pour cette commande.</p>
                         </div>
                     ) : (
                         <div className="relative pl-10">
                             {/* Vertical line */}
-                            <div className="absolute left-[15px] top-4 bottom-4 w-0.5 bg-gradient-to-b from-slate-200 via-slate-200 to-brand-navy/30" />
+                            <div className="absolute left-[15px] top-4 bottom-4 w-0.5 bg-gradient-to-b from-ant-line via-ant-line to-ant-ink/30" />
 
                             <div className="space-y-0">
                                 {records.map((record, idx) => {
@@ -151,7 +151,7 @@ export function OrderStatusHistoryDialog({
 
                                                 {/* Date */}
                                                 {record.created_at && (
-                                                    <p className="text-[10px] font-bold text-muted-foreground/50">
+                                                    <p className="text-[10px] font-bold text-ant-muted/50">
                                                         {format(new Date(record.created_at), 'dd/MM/yyyy HH:mm')}
                                                     </p>
                                                 )}
@@ -161,26 +161,26 @@ export function OrderStatusHistoryDialog({
                                                     {record.user ? (
                                                         <Avatar className="w-5 h-5 border bg-white">
                                                             <AvatarImage src={record.user.avatar_url || undefined} />
-                                                            <AvatarFallback className="text-[9px] font-bold bg-brand-navy/5 text-brand-navy">
+                                                            <AvatarFallback className="text-[9px] font-bold bg-ant-ink/5 text-ant-ink">
                                                                 {record.user.name?.[0] || '?'}
                                                             </AvatarFallback>
                                                         </Avatar>
                                                     ) : (
-                                                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-brand-navy/10 to-brand-navy/20 flex items-center justify-center">
-                                                            <DynamicIcon name="TbRobot" className="w-3 h-3 text-brand-navy/60" />
+                                                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-ant-ink/10 to-ant-ink/20 flex items-center justify-center">
+                                                            <DynamicIcon name="TbRobot" className="w-3 h-3 text-ant-ink/60" />
                                                         </div>
                                                     )}
-                                                    <span className="text-[11px] font-bold text-brand-navy/70 truncate max-w-[200px]">
+                                                    <span className="text-[11px] font-bold text-ant-ink/70 truncate max-w-[200px]">
                                                         {record.user?.name || 'Système'}
                                                     </span>
                                                 </div>
 
                                                 {/* Postponed schedule */}
                                                 {postponed && reportedText && (
-                                                    <div className="flex flex-col gap-1 p-3 bg-amber-50 rounded-xl border border-amber-100">
+                                                    <div className="flex flex-col gap-1 p-3 bg-ant-orange/10 rounded-xl border border-ant-orange/25">
                                                         <div className="flex items-center gap-2">
-                                                            <Calendar className="w-3 h-3 text-amber-600" />
-                                                            <span className="text-[10px] font-black uppercase text-amber-700">Rappel programmé</span>
+                                                            <Calendar className="w-3 h-3 text-ant-orange" />
+                                                            <span className="text-[10px] font-black uppercase text-ant-orange">Rappel programmé</span>
                                                         </div>
                                                         <p className="text-xs font-bold text-amber-900">{reportedText}</p>
                                                         {cleanedComment && (
@@ -191,7 +191,7 @@ export function OrderStatusHistoryDialog({
                                                     </div>
                                                 )}
                                                 {!postponed && record.comment && (
-                                                    <p className="text-[11px] font-medium text-muted-foreground leading-relaxed italic">
+                                                    <p className="text-[11px] font-medium text-ant-muted leading-relaxed italic">
                                                         "{record.comment}"
                                                     </p>
                                                 )}
@@ -208,7 +208,7 @@ export function OrderStatusHistoryDialog({
                     <Button
                         variant="ghost"
                         onClick={() => onOpenChange(false)}
-                        className="w-full h-14 rounded-2xl font-black text-sm tracking-widest uppercase text-brand-navy hover:bg-slate-100 hover:text-brand-navy"
+                        className="w-full h-14 rounded-2xl font-black text-sm tracking-widest uppercase text-ant-ink hover:bg-slate-100 hover:text-ant-ink"
                     >
                         Fermer
                     </Button>

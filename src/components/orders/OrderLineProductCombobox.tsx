@@ -30,17 +30,17 @@ export function toProductStockNumber(stock: unknown): number | null {
 }
 
 export function productStockTextClass(stock: number | null) {
-    if (stock === null) return 'text-brand-navy';
-    if (stock <= 0) return 'text-red-600';
-    if (stock < 10) return 'text-amber-600';
-    return 'text-emerald-700';
+    if (stock === null) return 'text-ant-ink';
+    if (stock <= 0) return 'text-ant-rose';
+    if (stock < 10) return 'text-ant-orange';
+    return 'text-ant-green';
 }
 
 function stockPillClass(stock: number | null) {
-    if (stock === null) return 'bg-brand-navy/[0.06] text-brand-navy/60 ring-brand-navy/10';
-    if (stock <= 0) return 'bg-red-50 text-red-700 ring-red-200/70';
-    if (stock < 10) return 'bg-amber-50 text-amber-800 ring-amber-200/70';
-    return 'bg-emerald-50 text-emerald-800 ring-emerald-200/70';
+    if (stock === null) return 'bg-ant-ink/[0.06] text-ant-ink/60 ring-ant-ink/10';
+    if (stock <= 0) return 'bg-ant-rose/10 text-ant-rose ring-red-200/70';
+    if (stock < 10) return 'bg-ant-orange/10 text-amber-800 ring-amber-200/70';
+    return 'bg-ant-green/10 text-emerald-800 ring-emerald-200/70';
 }
 
 type ProductThumbProps = {
@@ -55,7 +55,7 @@ function ProductThumb({ src, alt, size = 'md' }: ProductThumbProps) {
         <div
             className={cn(
                 dims,
-                'shrink-0 overflow-hidden rounded-xl bg-brand-navy/[0.06] ring-1 ring-inset ring-brand-navy/10 flex items-center justify-center'
+                'shrink-0 overflow-hidden rounded-xl bg-ant-ink/[0.06] ring-1 ring-inset ring-ant-ink/10 flex items-center justify-center'
             )}
         >
             {src ? (
@@ -72,7 +72,7 @@ function ProductThumb({ src, alt, size = 'md' }: ProductThumbProps) {
                 />
             ) : null}
             <div
-                className={cn('h-full w-full items-center justify-center text-brand-navy/30', src ? 'hidden' : 'flex')}
+                className={cn('h-full w-full items-center justify-center text-ant-mid', src ? 'hidden' : 'flex')}
                 aria-hidden
             >
                 <ImageOff className="h-4 w-4" />
@@ -141,7 +141,7 @@ export const OrderLineProductCombobox = React.forwardRef<HTMLButtonElement, Orde
                         role="combobox"
                         aria-expanded={open}
                         className={cn(
-                            'h-auto min-h-[60px] w-full justify-between rounded-2xl border border-brand-navy/10 bg-white px-2.5 py-2 text-left shadow-none hover:bg-brand-navy/[0.02]',
+                            'h-auto min-h-[60px] w-full justify-between rounded-2xl border border-ant-ink/10 bg-white px-2.5 py-2 text-left shadow-none hover:bg-ant-ink/[0.02]',
                             triggerClassName
                         )}
                     >
@@ -152,11 +152,11 @@ export const OrderLineProductCombobox = React.forwardRef<HTMLButtonElement, Orde
                                     <ProductThumb src={selected.image_url} alt={selected.name} />
                                     </ImageHoverPreview>
                                     <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                                        <span className="line-clamp-2 text-[13px] font-bold leading-snug text-brand-navy break-words">
+                                        <span className="line-clamp-2 text-[13px] font-bold leading-snug text-ant-ink break-words">
                                             {formatLabel(selected)}
                                         </span>
                                         <span className="flex items-center gap-1.5 min-w-0">
-                                            <span className="truncate text-[10px] font-bold uppercase tracking-wider text-brand-navy/45">
+                                            <span className="truncate text-[10px] font-bold uppercase tracking-wider text-ant-ink/45">
                                                 SKU {selected.code || '—'}
                                             </span>
                                             {selStock !== null && (
@@ -174,25 +174,25 @@ export const OrderLineProductCombobox = React.forwardRef<HTMLButtonElement, Orde
                                 </>
                             ) : (
                                 <>
-                                    <div className="h-12 w-12 shrink-0 rounded-xl bg-brand-navy/[0.04] ring-1 ring-inset ring-brand-navy/10 flex items-center justify-center text-brand-navy/30">
+                                    <div className="h-12 w-12 shrink-0 rounded-xl bg-ant-ink/[0.04] ring-1 ring-inset ring-ant-ink/10 flex items-center justify-center text-ant-mid">
                                         <Package className="h-4 w-4" />
                                     </div>
                                     <span className="flex min-w-0 flex-1 flex-col">
-                                        <span className="text-[13px] font-bold leading-tight text-brand-navy/55">
+                                        <span className="text-[13px] font-bold leading-tight text-ant-ink/55">
                                             Choose product…
                                         </span>
-                                        <span className="text-[10px] font-medium text-brand-navy/35">
+                                        <span className="text-[10px] font-medium text-ant-ink/35">
                                             Search by name or SKU
                                         </span>
                                     </span>
                                 </>
                             )}
                         </span>
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-brand-navy/40" />
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-ant-mid" />
                     </Button>
                 </PopoverTrigger>
                 <PopoverContent
-                    className="w-[var(--radix-popover-trigger-width)] min-w-[min(100vw-2rem,440px)] p-0 rounded-2xl border border-brand-navy/10 shadow-2xl overflow-hidden"
+                    className="w-[var(--radix-popover-trigger-width)] min-w-[min(100vw-2rem,440px)] p-0 rounded-2xl border border-ant-ink/10 shadow-2xl overflow-hidden"
                     align="start"
                     onWheel={(e) => e.stopPropagation()}
                 >
@@ -204,7 +204,7 @@ export const OrderLineProductCombobox = React.forwardRef<HTMLButtonElement, Orde
                             onValueChange={setSearch}
                         />
                         <CommandList className="max-h-[min(60vh,360px)]">
-                            <CommandEmpty className="py-8 text-center text-xs font-bold text-brand-navy/45">
+                            <CommandEmpty className="py-8 text-center text-xs font-bold text-ant-ink/45">
                                 No product found.
                             </CommandEmpty>
                             <CommandGroup className="p-1.5">
@@ -215,7 +215,7 @@ export const OrderLineProductCombobox = React.forwardRef<HTMLButtonElement, Orde
                                             onProductIdChange('none');
                                             setOpen(false);
                                         }}
-                                        className="cursor-pointer rounded-xl px-2.5 py-2 text-[11px] font-bold uppercase tracking-wider text-brand-navy/45 data-[selected=true]:bg-brand-navy/[0.05]"
+                                        className="cursor-pointer rounded-xl px-2.5 py-2 text-[11px] font-bold uppercase tracking-wider text-ant-ink/45 data-[selected=true]:bg-ant-ink/[0.05]"
                                     >
                                         {noneLabel}
                                     </CommandItem>
@@ -236,8 +236,8 @@ export const OrderLineProductCombobox = React.forwardRef<HTMLButtonElement, Orde
                                                 setOpen(false);
                                             }}
                                             className={cn(
-                                                'cursor-pointer rounded-xl px-2.5 py-2 my-0.5 data-[selected=true]:bg-brand-navy/[0.04]',
-                                                isSelected && 'bg-brand-navy/[0.05]',
+                                                'cursor-pointer rounded-xl px-2.5 py-2 my-0.5 data-[selected=true]:bg-ant-ink/[0.04]',
+                                                isSelected && 'bg-ant-ink/[0.05]',
                                                 disabled && 'cursor-not-allowed opacity-50'
                                             )}
                                         >
@@ -247,7 +247,7 @@ export const OrderLineProductCombobox = React.forwardRef<HTMLButtonElement, Orde
                                                 </ImageHoverPreview>
                                                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                                                     <div className="flex items-start justify-between gap-2">
-                                                        <span className="line-clamp-2 min-w-0 text-[13px] font-bold leading-snug text-brand-navy break-words">
+                                                        <span className="line-clamp-2 min-w-0 text-[13px] font-bold leading-snug text-ant-ink break-words">
                                                             {formatLabel(p)}
                                                         </span>
                                                         {sn !== null && (
@@ -262,13 +262,13 @@ export const OrderLineProductCombobox = React.forwardRef<HTMLButtonElement, Orde
                                                         )}
                                                     </div>
                                                     <div className="flex items-center gap-2 min-w-0">
-                                                        <span className="truncate text-[10px] font-bold uppercase tracking-wider text-brand-navy/45">
+                                                        <span className="truncate text-[10px] font-bold uppercase tracking-wider text-ant-ink/45">
                                                             SKU {p.code || '—'}
                                                         </span>
                                                         {p.selling_price != null && Number(p.selling_price) > 0 && (
                                                             <>
-                                                                <span className="text-brand-navy/15">·</span>
-                                                                <span className="shrink-0 text-[10px] font-bold tabular-nums text-brand-navy/55">
+                                                                <span className="text-ant-ink/15">·</span>
+                                                                <span className="shrink-0 text-[10px] font-bold tabular-nums text-ant-ink/55">
                                                                     {Number(p.selling_price).toLocaleString()} DH
                                                                 </span>
                                                             </>
@@ -276,7 +276,7 @@ export const OrderLineProductCombobox = React.forwardRef<HTMLButtonElement, Orde
                                                     </div>
                                                 </div>
                                                 {isSelected && (
-                                                    <Check className="h-4 w-4 shrink-0 text-brand-navy/60" />
+                                                    <Check className="h-4 w-4 shrink-0 text-ant-ink/60" />
                                                 )}
                                             </div>
                                         </CommandItem>
@@ -306,9 +306,9 @@ export function OrderLineProductStockHint({ stock, blockZeroStock }: StockHintPr
         <div
             className={cn(
                 'mt-1.5 rounded-lg border px-2.5 py-1.5 text-[10px] font-bold leading-snug',
-                out && 'border-red-200 bg-red-50 text-red-700',
-                low && 'border-amber-200 bg-amber-50 text-amber-800',
-                !out && !low && 'border-emerald-100 bg-emerald-50/90 text-emerald-800'
+                out && 'border-red-200 bg-ant-rose/10 text-ant-rose',
+                low && 'border-ant-orange/30 bg-ant-orange/10 text-amber-800',
+                !out && !low && 'border-ant-green/25 bg-ant-green/10/90 text-emerald-800'
             )}
         >
             In stock: <span className="tabular-nums">{stock}</span>

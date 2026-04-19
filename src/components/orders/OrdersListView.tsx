@@ -48,25 +48,25 @@ export default function OrdersListView({
   getCourierPackageStatus,
 }: OrdersListViewProps) {
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-brand-navy/[0.05] overflow-hidden mb-20 animate-in fade-in duration-300">
+    <div className="bg-white rounded-2xl shadow-sm border border-ant-line overflow-hidden mb-20 animate-in fade-in duration-300">
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse min-w-[1100px]">
           <thead>
-            <tr className="border-b-2 border-brand-navy/[0.06] sticky top-0 z-10 bg-white/95 backdrop-blur-sm">
+            <tr className="border-b-2 border-ant-line sticky top-0 z-10 bg-white/95 backdrop-blur-sm">
               <th className="px-4 py-3.5 w-10">
                 <Checkbox
                   checked={selectedOrders.length === orders.length && orders.length > 0}
                   onCheckedChange={() => toggleSelectAll(orders.map((o) => o.id))}
-                  className="h-4 w-4 rounded border-brand-navy/15 data-[state=checked]:bg-brand-navy data-[state=checked]:text-brand-white"
+                  className="h-4 w-4 rounded border-ant-ink/15 data-[state=checked]:bg-ant-ink data-[state=checked]:text-ant-light"
                 />
               </th>
-              <th className="px-4 py-3.5 text-[10px] font-bold uppercase tracking-wider text-brand-navy/40">Customer</th>
-              <th className="px-4 py-3.5 text-[10px] font-bold uppercase tracking-wider text-brand-navy/40">City / Source</th>
-              <th className="px-4 py-3.5 text-[10px] font-bold uppercase tracking-wider text-brand-navy/40">Order Status</th>
-              <th className="px-4 py-3.5 text-[10px] font-bold uppercase tracking-wider text-brand-navy/40">Package</th>
-              <th className="px-4 py-3.5 text-[10px] font-bold uppercase tracking-wider text-brand-navy/40">Delivery</th>
-              <th className="px-4 py-3.5 text-[10px] font-bold uppercase tracking-wider text-brand-navy/40">Commercial</th>
-              <th className="px-4 py-3.5 text-[10px] font-bold uppercase tracking-wider text-brand-navy/40 text-right">Amount</th>
+              <th className="px-4 py-3.5 text-[10px] font-bold uppercase tracking-wider text-ant-mid">Customer</th>
+              <th className="px-4 py-3.5 text-[10px] font-bold uppercase tracking-wider text-ant-mid">City / Source</th>
+              <th className="px-4 py-3.5 text-[10px] font-bold uppercase tracking-wider text-ant-mid">Order Status</th>
+              <th className="px-4 py-3.5 text-[10px] font-bold uppercase tracking-wider text-ant-mid">Package</th>
+              <th className="px-4 py-3.5 text-[10px] font-bold uppercase tracking-wider text-ant-mid">Delivery</th>
+              <th className="px-4 py-3.5 text-[10px] font-bold uppercase tracking-wider text-ant-mid">Commercial</th>
+              <th className="px-4 py-3.5 text-[10px] font-bold uppercase tracking-wider text-ant-mid text-right">Amount</th>
               <th className="px-3 py-3.5 w-[120px]" />
             </tr>
           </thead>
@@ -89,11 +89,11 @@ export default function OrdersListView({
                 <tr
                   key={order.id}
                   className={cn(
-                    'border-b border-brand-navy/[0.04] transition-all duration-200 group',
+                    'border-b border-ant-line transition-all duration-200 group',
                     isSelected
-                      ? 'bg-brand-navy/[0.025] border-l-[3px] border-l-brand-navy/25'
-                      : 'border-l-[3px] border-l-transparent hover:bg-brand-navy/[0.012]',
-                    idx % 2 === 0 && !isSelected && 'bg-brand-navy/[0.005]'
+                      ? 'bg-ant-ink/[0.025] border-l-[3px] border-l-brand-navy/25'
+                      : 'border-l-[3px] border-l-transparent hover:bg-ant-ink/[0.012]',
+                    idx % 2 === 0 && !isSelected && 'bg-ant-ink/[0.005]'
                   )}
                 >
                   {/* Checkbox */}
@@ -101,7 +101,7 @@ export default function OrdersListView({
                     <Checkbox
                       checked={isSelected}
                       onCheckedChange={() => toggleOrderSelection(order.id)}
-                      className="h-4 w-4 rounded border-brand-navy/15 data-[state=checked]:bg-brand-navy data-[state=checked]:text-brand-white"
+                      className="h-4 w-4 rounded border-ant-ink/15 data-[state=checked]:bg-ant-ink data-[state=checked]:text-ant-light"
                     />
                   </td>
 
@@ -111,28 +111,28 @@ export default function OrdersListView({
                       <div
                         className={cn(
                           'w-8 h-8 rounded-xl flex items-center justify-center shrink-0',
-                          isDuplicate ? 'bg-[#d4c438]/20' : 'bg-brand-navy/[0.05]'
+                          isDuplicate ? 'bg-[#d4c438]/20' : 'bg-ant-ink/[0.05]'
                         )}
                       >
-                        <User className={cn('w-4 h-4', isDuplicate ? 'text-[#9a7f00]' : 'text-brand-navy/40')} />
+                        <User className={cn('w-4 h-4', isDuplicate ? 'text-[#9a7f00]' : 'text-ant-mid')} />
                       </div>
                       <div className="min-w-0">
                         <p className="text-[13px] font-bold truncate leading-tight flex items-center gap-1.5">
                           <span
-                            className={cn('truncate', isDuplicate ? 'text-[#9a7f00]' : 'text-brand-navy')}
+                            className={cn('truncate', isDuplicate ? 'text-[#9a7f00]' : 'text-ant-ink')}
                             title={isDuplicate ? 'Same phone number on multiple orders' : undefined}
                           >
                             {order.name}
                           </span>
                           {order.replace && (
                             <span className="inline-flex shrink-0" title="Exchange">
-                              <RefreshCcw className="w-3 h-3 text-red-500" />
+                              <RefreshCcw className="w-3 h-3 text-ant-rose" />
                             </span>
                           )}
                         </p>
-                        <p className="text-[11px] text-brand-navy/35 font-medium truncate">{order.phone}</p>
+                        <p className="text-[11px] text-ant-ink/35 font-medium truncate">{order.phone}</p>
                         {order.created_at && (
-                          <p className="text-[10px] text-brand-navy/25 font-medium flex items-center gap-1 mt-0.5">
+                          <p className="text-[10px] text-ant-ink/25 font-medium flex items-center gap-1 mt-0.5">
                             <Calendar className="w-2.5 h-2.5" />
                             {format(new Date(order.created_at), 'dd MMM · HH:mm')}
                           </p>
@@ -144,8 +144,8 @@ export default function OrdersListView({
                   {/* City / Source */}
                   <td className="px-4 py-3">
                     <div className="space-y-1">
-                      <p className="text-[12px] font-bold text-brand-navy leading-tight flex items-center gap-1">
-                        <MapPin className="w-3 h-3 text-brand-navy/25 shrink-0" />
+                      <p className="text-[12px] font-bold text-ant-ink leading-tight flex items-center gap-1">
+                        <MapPin className="w-3 h-3 text-ant-ink/25 shrink-0" />
                         {order.city?.name || '—'}
                       </p>
                       {order.source_name && (
@@ -178,7 +178,7 @@ export default function OrdersListView({
                         <Pencil className="w-2.5 h-2.5 opacity-0 group-hover/status:opacity-60 transition-opacity ml-0.5" />
                       </button>
                       {isOrderCategory(order.order_status_id, 'postponed') && order.reported_date && (
-                        <span className="flex items-center gap-1 text-[9px] font-bold text-amber-700">
+                        <span className="flex items-center gap-1 text-[9px] font-bold text-ant-orange">
                           <Calendar className="w-2.5 h-2.5" />
                           {format(new Date(order.reported_date), 'dd/MM HH:mm')}
                         </span>
@@ -206,7 +206,7 @@ export default function OrdersListView({
                         {pkgLabel}
                       </span>
                     ) : (
-                      <span className="text-[10px] text-brand-navy/15">—</span>
+                      <span className="text-[10px] text-ant-ink/15">—</span>
                     )}
                   </td>
 
@@ -222,18 +222,18 @@ export default function OrdersListView({
                                   <img
                                     src={order.company.logo_url}
                                     alt=""
-                                    className="w-7 h-7 rounded-lg object-contain bg-white border border-brand-navy/[0.06] p-0.5"
+                                    className="w-7 h-7 rounded-lg object-contain bg-white border border-ant-line p-0.5"
                                   />
                                 ) : order.courier?.avatar_url ? (
-                                  <Avatar className="w-7 h-7 border border-brand-navy/[0.06]">
+                                  <Avatar className="w-7 h-7 border border-ant-line">
                                     <AvatarImage src={order.courier.avatar_url} />
-                                    <AvatarFallback className="bg-brand-navy/10 text-brand-navy text-[9px] font-bold">
+                                    <AvatarFallback className="bg-ant-ink/10 text-ant-ink text-[9px] font-bold">
                                       {(order.courier.name || '?')[0]}
                                     </AvatarFallback>
                                   </Avatar>
                                 ) : (
-                                  <div className="w-7 h-7 rounded-lg bg-brand-navy/[0.06] flex items-center justify-center">
-                                    <Truck className="w-3.5 h-3.5 text-brand-navy/30" />
+                                  <div className="w-7 h-7 rounded-lg bg-ant-ink/[0.06] flex items-center justify-center">
+                                    <Truck className="w-3.5 h-3.5 text-ant-mid" />
                                   </div>
                                 )}
                               </div>
@@ -244,7 +244,7 @@ export default function OrdersListView({
                           </Tooltip>
                         </TooltipProvider>
                         <div className="min-w-0">
-                          <p className="text-[11px] font-bold text-brand-navy/60 truncate max-w-[80px]">
+                          <p className="text-[11px] font-bold text-ant-ink/60 truncate max-w-[80px]">
                             {order.company?.name || order.courier?.name}
                           </p>
                           {trackingCode && (
@@ -255,7 +255,7 @@ export default function OrdersListView({
                         </div>
                       </div>
                     ) : (
-                      <span className="text-[10px] text-brand-navy/15">—</span>
+                      <span className="text-[10px] text-ant-ink/15">—</span>
                     )}
                   </td>
 
@@ -265,25 +265,25 @@ export default function OrdersListView({
                       <div className="flex items-center gap-1.5">
                         <Avatar className="w-6 h-6 border border-white shadow-sm">
                           <AvatarImage src={order.assignee.avatar_url} />
-                          <AvatarFallback className="bg-brand-navy/10 text-brand-navy text-[9px] font-bold">
+                          <AvatarFallback className="bg-ant-ink/10 text-ant-ink text-[9px] font-bold">
                             {order.assignee.name?.[0]}
                           </AvatarFallback>
                         </Avatar>
-                        <span className="text-[11px] font-bold text-brand-navy/60 truncate max-w-[70px]">
+                        <span className="text-[11px] font-bold text-ant-ink/60 truncate max-w-[70px]">
                           {order.assignee.name}
                         </span>
                       </div>
                     ) : (
-                      <span className="text-[10px] text-brand-navy/15">—</span>
+                      <span className="text-[10px] text-ant-ink/15">—</span>
                     )}
                   </td>
 
                   {/* Amount */}
                   <td className="px-4 py-3 text-right">
-                    <span className="text-sm font-black text-brand-navy tabular-nums">
+                    <span className="text-sm font-black text-ant-ink tabular-nums">
                       {new Intl.NumberFormat('fr-FR').format(order.price || 0)}
                     </span>
-                    <span className="text-[10px] font-bold text-brand-navy/30 ml-1">DH</span>
+                    <span className="text-[10px] font-bold text-ant-mid ml-1">DH</span>
                   </td>
 
                   {/* Actions */}
@@ -292,7 +292,7 @@ export default function OrdersListView({
                       <button
                         type="button"
                         onClick={() => onView(order)}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-brand-navy/25 hover:text-brand-navy hover:bg-brand-navy/5 transition-colors"
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-ant-ink/25 hover:text-ant-ink hover:bg-ant-ink/5 transition-colors"
                         title="View details"
                       >
                         <Eye className="w-3.5 h-3.5" />
@@ -303,7 +303,7 @@ export default function OrdersListView({
                         disabled={!canTrack}
                         title={canTrack ? 'Track parcel' : 'No parcel to track'}
                         onClick={() => { if (canTrack) onTrackParcel(order.id); }}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-brand-navy/25 hover:text-brand-navy hover:bg-brand-navy/5 transition-colors disabled:opacity-25 disabled:pointer-events-none"
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-ant-ink/25 hover:text-ant-ink hover:bg-ant-ink/5 transition-colors disabled:opacity-25 disabled:pointer-events-none"
                       >
                         <Truck className="w-3.5 h-3.5" />
                       </button>
@@ -311,7 +311,7 @@ export default function OrdersListView({
                         type="button"
                         title="Status history"
                         onClick={() => onStatusHistory(order)}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-brand-navy/25 hover:text-brand-navy hover:bg-brand-navy/5 transition-colors"
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-ant-ink/25 hover:text-ant-ink hover:bg-ant-ink/5 transition-colors"
                       >
                         <Package className="w-3.5 h-3.5" />
                       </button>
@@ -319,7 +319,7 @@ export default function OrdersListView({
                         <DropdownMenuTrigger asChild>
                           <button
                             type="button"
-                            className="w-7 h-7 rounded-lg flex items-center justify-center text-brand-navy/20 hover:text-brand-navy hover:bg-brand-navy/5 transition-colors"
+                            className="w-7 h-7 rounded-lg flex items-center justify-center text-ant-mid hover:text-ant-ink hover:bg-ant-ink/5 transition-colors"
                           >
                             <MoreVertical className="w-3.5 h-3.5" />
                           </button>
@@ -339,7 +339,7 @@ export default function OrdersListView({
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             onClick={() => onDelete({ id: order.id, name: order.name })}
-                            className="rounded-lg px-3 py-2 cursor-pointer text-red-500 focus:bg-red-50 focus:text-red-600 gap-2.5 text-xs font-bold"
+                            className="rounded-lg px-3 py-2 cursor-pointer text-ant-rose focus:bg-ant-rose/10 focus:text-ant-rose gap-2.5 text-xs font-bold"
                           >
                             <Trash2 className="w-3.5 h-3.5" /> Delete
                           </DropdownMenuItem>

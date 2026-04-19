@@ -176,9 +176,9 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
     };
 
     const situationMap: Record<string, { label: string; className: string }> = {
-        PAID: { label: 'Payé', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-        NOT_PAID: { label: 'Non payé', className: 'bg-amber-50 text-amber-700 border-amber-200' },
-        INVOICED: { label: 'Facturé', className: 'bg-blue-50 text-blue-700 border-blue-200' },
+        PAID: { label: 'Payé', className: 'bg-ant-green/10 text-ant-green border-ant-green/30' },
+        NOT_PAID: { label: 'Non payé', className: 'bg-ant-orange/10 text-ant-orange border-ant-orange/30' },
+        INVOICED: { label: 'Facturé', className: 'bg-ant-blue/10 text-ant-blue border-blue-200' },
     };
 
     /** Match an event's raw status string to a package_statuses row for icon/color */
@@ -206,22 +206,22 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[560px] rounded-[32px] border-none p-0 overflow-hidden bg-white">
                 <DialogHeader className="p-8 pb-0">
-                    <DialogTitle className="text-2xl font-black text-brand-navy flex items-center gap-3">
-                        <div className="p-2 bg-brand-navy/5 rounded-xl">
-                            <Truck className="w-5 h-5 text-brand-navy" />
+                    <DialogTitle className="text-2xl font-black text-ant-ink flex items-center gap-3">
+                        <div className="p-2 bg-ant-ink/5 rounded-xl">
+                            <Truck className="w-5 h-5 text-ant-ink" />
                         </div>
                         Suivi du colis
                     </DialogTitle>
-                    <DialogDescription className="font-bold text-muted-foreground">
-                        Code: <span className="text-brand-navy">{trackingCode || '—'}</span>
+                    <DialogDescription className="font-bold text-ant-muted">
+                        Code: <span className="text-ant-ink">{trackingCode || '—'}</span>
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="p-8 max-h-[65vh] overflow-y-auto">
                     {isLoading ? (
                         <div className="flex flex-col items-center justify-center py-12 gap-4">
-                            <Loader2 className="w-10 h-10 text-brand-navy animate-spin" />
-                            <p className="font-bold text-muted-foreground animate-pulse">Récupération des données...</p>
+                            <Loader2 className="w-10 h-10 text-ant-ink animate-spin" />
+                            <p className="font-bold text-ant-muted animate-pulse">Récupération des données...</p>
                         </div>
                     ) : trackingHistory ? (
                         <div className="relative">
@@ -249,7 +249,7 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
                                 return (
                                     <div className="relative pl-10">
                                         {/* Vertical line */}
-                                        <div className="absolute left-[15px] top-4 bottom-4 w-0.5 bg-gradient-to-b from-slate-200 via-slate-200 to-brand-navy/30" />
+                                        <div className="absolute left-[15px] top-4 bottom-4 w-0.5 bg-gradient-to-b from-ant-line via-ant-line to-ant-ink/30" />
 
                                         <div className="space-y-0">
                                             {sorted.map((raw: unknown, idx: number) => {
@@ -321,21 +321,21 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
 
                                                             {/* Date */}
                                                             {date && (
-                                                                <p className="text-[10px] font-bold text-muted-foreground/50">
+                                                                <p className="text-[10px] font-bold text-ant-muted/50">
                                                                     {format(new Date(date), 'dd/MM/yyyy HH:mm')}
                                                                 </p>
                                                             )}
 
                                                             {/* Comment */}
                                                             {comment && (
-                                                                <p className="text-[11px] font-medium text-muted-foreground leading-relaxed italic">
+                                                                <p className="text-[11px] font-medium text-ant-muted leading-relaxed italic">
                                                                     &quot;{comment}&quot;
                                                                 </p>
                                                             )}
 
                                                             {/* Location */}
                                                             {location && (
-                                                                <div className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground/70">
+                                                                <div className="flex items-center gap-1.5 text-[10px] font-semibold text-ant-muted/70">
                                                                     <MapPin className="w-3 h-3 shrink-0" />
                                                                     <span>{location}</span>
                                                                 </div>
@@ -345,7 +345,7 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
                                                             {(user || phone) && (
                                                                 <div className="flex items-center gap-3 flex-wrap">
                                                                     {user && (
-                                                                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground">
+                                                                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-ant-muted">
                                                                             <div className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center">
                                                                                 <Hash className="w-2 h-2" />
                                                                             </div>
@@ -353,7 +353,7 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
                                                                         </div>
                                                                     )}
                                                                     {phone && (
-                                                                        <a href={`tel:${phone}`} className="flex items-center gap-1 text-[10px] font-bold text-brand-navy/70 hover:text-brand-navy transition-colors">
+                                                                        <a href={`tel:${phone}`} className="flex items-center gap-1 text-[10px] font-bold text-ant-ink/70 hover:text-ant-ink transition-colors">
                                                                             <Phone className="w-3 h-3" />
                                                                             {phone}
                                                                         </a>
@@ -363,7 +363,7 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
 
                                                             {/* Scheduled date */}
                                                             {scheduledDate && (
-                                                                <div className="flex items-center gap-1.5 text-[10px] font-semibold text-blue-600/70">
+                                                                <div className="flex items-center gap-1.5 text-[10px] font-semibold text-ant-blue/70">
                                                                     <CalendarClock className="w-3 h-3 shrink-0" />
                                                                     <span>Programmé: {format(new Date(scheduledDate), 'dd/MM/yyyy')}</span>
                                                                 </div>
@@ -376,13 +376,13 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
                                                                         const isPhone = /^0[5-8]\d{8}$/.test(String(item.value));
                                                                         const isDate = /^\d{4}-\d{2}-\d{2}$/.test(String(item.value));
                                                                         return (
-                                                                            <div key={i} className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground/80">
+                                                                            <div key={i} className="flex items-center gap-1.5 text-[10px] font-medium text-ant-muted/80">
                                                                                 <Info className="w-2.5 h-2.5 shrink-0 opacity-50" />
                                                                                 <span className="font-semibold">{item.title}:</span>
                                                                                 {isPhone ? (
-                                                                                    <a href={`tel:${item.value}`} className="text-brand-navy/70 hover:text-brand-navy font-bold transition-colors">{item.value}</a>
+                                                                                    <a href={`tel:${item.value}`} className="text-ant-ink/70 hover:text-ant-ink font-bold transition-colors">{item.value}</a>
                                                                                 ) : isDate ? (
-                                                                                    <span className="text-blue-600/70 font-semibold">{item.value}</span>
+                                                                                    <span className="text-ant-blue/70 font-semibold">{item.value}</span>
                                                                                 ) : (
                                                                                     <span className="font-semibold">{item.value}</span>
                                                                                 )}
@@ -403,9 +403,9 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
                     ) : (
                         <div className="flex flex-col items-center justify-center py-12 text-center space-y-3">
                             <div className="p-4 bg-slate-50 rounded-full">
-                                <SearchX className="w-8 h-8 text-muted-foreground/40" />
+                                <SearchX className="w-8 h-8 text-ant-muted/40" />
                             </div>
-                            <p className="font-bold text-muted-foreground">Aucun historique disponible pour ce colis.</p>
+                            <p className="font-bold text-ant-muted">Aucun historique disponible pour ce colis.</p>
                         </div>
                     )}
                 </div>
@@ -414,7 +414,7 @@ export function ParcelTrackingDialog({ open, onOpenChange, orderId }: ParcelTrac
                     <Button
                         variant="ghost"
                         onClick={() => onOpenChange(false)}
-                        className="w-full h-14 rounded-2xl font-black text-sm tracking-widest uppercase text-brand-navy hover:bg-slate-100 hover:text-brand-navy"
+                        className="w-full h-14 rounded-2xl font-black text-sm tracking-widest uppercase text-ant-ink hover:bg-slate-100 hover:text-ant-ink"
                     >
                         Fermer
                     </Button>

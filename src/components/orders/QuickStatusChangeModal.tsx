@@ -109,16 +109,16 @@ export default function QuickStatusChangeModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-lg p-0 border-none bg-brand-white rounded-[28px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-lg p-0 border-none bg-ant-paper rounded-[28px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
         {/* Header */}
-        <DialogHeader className="p-6 pb-4 shrink-0 border-b border-brand-navy/[0.05]">
+        <DialogHeader className="p-6 pb-4 shrink-0 border-b border-ant-line">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-brand-navy/[0.06] flex items-center justify-center">
-              <User className="w-5 h-5 text-brand-navy/50" />
+            <div className="w-10 h-10 rounded-xl bg-ant-ink/[0.06] flex items-center justify-center">
+              <User className="w-5 h-5 text-ant-mid" />
             </div>
             <div className="min-w-0 flex-1">
-              <DialogTitle className="text-lg font-black text-brand-navy truncate">{order.name}</DialogTitle>
-              <DialogDescription className="text-xs font-bold text-brand-navy/40">{order.phone}</DialogDescription>
+              <DialogTitle className="text-lg font-black text-ant-ink truncate">{order.name}</DialogTitle>
+              <DialogDescription className="text-xs font-bold text-ant-mid">{order.phone}</DialogDescription>
             </div>
             {order.status && (
               <span
@@ -136,10 +136,10 @@ export default function QuickStatusChangeModal({
         <div className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-5">
           {/* Extra input section (shown when a status requiring comment/date is selected) */}
           {needsExtraInput && selectedStatus && (
-            <div className="space-y-4 p-4 rounded-2xl bg-brand-navy/[0.02] border border-brand-navy/[0.05]">
+            <div className="space-y-4 p-4 rounded-2xl bg-ant-ink/[0.02] border border-ant-line">
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full" style={{ backgroundColor: selectedStatus.color }} />
-                <span className="text-sm font-black text-brand-navy">{selectedStatus.label}</span>
+                <span className="text-sm font-black text-ant-ink">{selectedStatus.label}</span>
               </div>
 
               {isPostponed && (
@@ -149,11 +149,11 @@ export default function QuickStatusChangeModal({
                       <Button
                         variant="outline"
                         className={cn(
-                          'flex-1 h-10 justify-start gap-2 rounded-xl border-brand-navy/[0.08] bg-white text-sm font-bold',
-                          !reportedDate && 'text-brand-navy/30'
+                          'flex-1 h-10 justify-start gap-2 rounded-xl border-ant-line bg-white text-sm font-bold',
+                          !reportedDate && 'text-ant-mid'
                         )}
                       >
-                        <CalendarIcon className="w-4 h-4 text-brand-navy/30" />
+                        <CalendarIcon className="w-4 h-4 text-ant-mid" />
                         {reportedDate ? format(reportedDate, 'dd MMM yyyy') : 'Pick date'}
                       </Button>
                     </PopoverTrigger>
@@ -168,12 +168,12 @@ export default function QuickStatusChangeModal({
                     </PopoverContent>
                   </Popover>
                   <div className="relative w-28 shrink-0">
-                    <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-navy/30" />
+                    <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" />
                     <Input
                       type="time"
                       value={reportedTime}
                       onChange={(e) => setReportedTime(e.target.value)}
-                      className="h-10 pl-9 rounded-xl border-brand-navy/[0.08] bg-white text-sm font-bold"
+                      className="h-10 pl-9 rounded-xl border-ant-line bg-white text-sm font-bold"
                     />
                   </div>
                 </div>
@@ -183,7 +183,7 @@ export default function QuickStatusChangeModal({
                 placeholder={needsComment ? 'Comment required for this status...' : 'Add a comment (optional)...'}
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                className="min-h-[70px] resize-none rounded-xl border-brand-navy/[0.08] bg-white text-sm font-bold text-brand-navy placeholder:text-brand-navy/25 focus-visible:ring-1 focus-visible:ring-brand-navy/20"
+                className="min-h-[70px] resize-none rounded-xl border-ant-line bg-white text-sm font-bold text-ant-ink placeholder:text-ant-ink/25 focus-visible:ring-1 focus-visible:ring-ant-ink/20"
               />
 
               <div className="flex items-center gap-2 justify-end">
@@ -191,7 +191,7 @@ export default function QuickStatusChangeModal({
                   variant="ghost"
                   size="sm"
                   onClick={handleReset}
-                  className="rounded-xl text-xs font-bold text-brand-navy/50 hover:text-brand-navy"
+                  className="rounded-xl text-xs font-bold text-ant-mid hover:text-ant-ink"
                 >
                   Back
                 </Button>
@@ -199,7 +199,7 @@ export default function QuickStatusChangeModal({
                   size="sm"
                   onClick={handleConfirm}
                   disabled={isPending || (needsComment && !comment.trim()) || (isPostponed && !reportedDate)}
-                  className="rounded-xl text-xs font-bold bg-brand-navy text-brand-white hover:bg-brand-navy/90 px-6"
+                  className="rounded-xl text-xs font-bold bg-ant-ink text-ant-light hover:bg-ant-ink/90 px-6"
                 >
                   {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm'}
                 </Button>
@@ -221,8 +221,8 @@ export default function QuickStatusChangeModal({
                     className={cn(
                       'flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-200 group',
                       isCurrent
-                        ? 'bg-brand-navy/[0.06] ring-2 ring-brand-navy/15 cursor-default'
-                        : 'bg-brand-navy/[0.015] hover:bg-brand-navy/[0.05] hover:shadow-sm cursor-pointer',
+                        ? 'bg-ant-ink/[0.06] ring-2 ring-ant-ink/15 cursor-default'
+                        : 'bg-ant-ink/[0.015] hover:bg-ant-ink/[0.05] hover:shadow-sm cursor-pointer',
                       isPending && 'opacity-50 pointer-events-none'
                     )}
                   >
@@ -235,12 +235,12 @@ export default function QuickStatusChangeModal({
                     />
                     <span className={cn(
                       'text-[13px] font-bold truncate flex-1',
-                      isCurrent ? 'text-brand-navy' : 'text-brand-navy/70 group-hover:text-brand-navy'
+                      isCurrent ? 'text-ant-ink' : 'text-ant-ink/70 group-hover:text-ant-ink'
                     )}>
                       {status.label}
                     </span>
                     {isCurrent && (
-                      <span className="text-[9px] font-black uppercase tracking-wider text-brand-navy/30">Current</span>
+                      <span className="text-[9px] font-black uppercase tracking-wider text-ant-mid">Current</span>
                     )}
                   </button>
                 );

@@ -79,7 +79,7 @@ function ContactChannelItems({
 }
 
 const contentClass =
-    'min-w-[168px] rounded-xl border border-brand-navy/10 p-1 shadow-xl z-50 bg-popover text-popover-foreground';
+    'min-w-[168px] rounded-xl border border-ant-ink/10 p-1 shadow-xl z-50 bg-popover text-popover-foreground';
 
 type OrderPhoneContactDropdownProps = {
     phone: string | null | undefined;
@@ -107,7 +107,7 @@ export function OrderPhoneContactDropdown({
                         <button
                             type="button"
                             className={cn(
-                                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-navy/[0.05] hover:bg-brand-navy text-brand-navy/50 hover:text-white text-[11px] font-bold transition-all duration-200 shrink-0',
+                                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-ant-ink/[0.05] hover:bg-ant-ink text-ant-mid hover:text-white text-[11px] font-bold transition-all duration-200 shrink-0',
                                 className
                             )}
                             onClick={(e) => e.stopPropagation()}
@@ -119,7 +119,7 @@ export function OrderPhoneContactDropdown({
                         <button
                             type="button"
                             className={cn(
-                                'w-8 h-8 rounded-lg flex items-center justify-center text-brand-navy/30 hover:text-brand-navy hover:bg-brand-navy/5 transition-colors shrink-0',
+                                'w-8 h-8 rounded-lg flex items-center justify-center text-ant-mid hover:text-ant-ink hover:bg-ant-ink/5 transition-colors shrink-0',
                                 className
                             )}
                             onClick={(e) => e.stopPropagation()}
@@ -152,7 +152,7 @@ export function OrderContactSubmenu({ phone }: { phone: string | null | undefine
         <>
             <DropdownMenuSub>
                 <DropdownMenuSubTrigger
-                    className="rounded-lg px-3 py-2 cursor-pointer gap-2.5 text-xs font-bold flex items-center outline-none data-[state=open]:bg-brand-navy/[0.06] focus:bg-brand-navy/[0.06]"
+                    className="rounded-lg px-3 py-2 cursor-pointer gap-2.5 text-xs font-bold flex items-center outline-none data-[state=open]:bg-ant-ink/[0.06] focus:bg-ant-ink/[0.06]"
                     onClick={(e) => e.stopPropagation()}
                 >
                     <Phone className="w-3.5 h-3.5" />
@@ -183,7 +183,7 @@ export function OrderPhoneQuickActions({ phone, className }: { phone: string | n
                     <button
                         type="button"
                         className={cn(
-                            'h-6 w-6 shrink-0 rounded-md flex items-center justify-center text-brand-navy/35 hover:text-brand-navy hover:bg-brand-navy/10',
+                            'h-6 w-6 shrink-0 rounded-md flex items-center justify-center text-ant-ink/35 hover:text-ant-ink hover:bg-ant-ink/10',
                             className
                         )}
                         onClick={(e) => e.stopPropagation()}
