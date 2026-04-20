@@ -377,7 +377,7 @@ const Payments = () => {
     const handlePrint = async (note: PaymentNote) => {
         const w = window.open('', '_blank');
         if (!w) return;
-        w.document.write('<!doctype html><html><head><title>' + note.reference + '</title></head><body style="font-family:system-ui;padding:40px;color:#3b5e5e">Loading…</body></html>');
+        w.document.write('<!doctype html><html><head><title>' + note.reference + '</title></head><body style="font-family:Inter,system-ui;padding:40px;color:#141413;background:#faf9f5">Loading…</body></html>');
         w.document.close();
 
         let businessName = 'DigiCom';
@@ -389,67 +389,107 @@ const Payments = () => {
 
         const entityName = note.kind === 'courier' ? (note.courier?.name || 'Unknown courier') : (note.provider?.name || 'Unknown provider');
         const entityImage = note.kind === 'courier' ? (note.courier?.avatar_url || null) : (note.provider?.logo_url || null);
-        const entityLabel = note.kind === 'courier' ? 'Courier Agent' : 'Provider';
-        const createdAt = format(new Date(note.created_at), 'dd MMM yyyy • HH:mm');
+        const entityLabel = note.kind === 'courier' ? 'Courier agent' : 'Provider';
+        const createdAt = format(new Date(note.created_at), "dd MMM yyyy 'at' HH:mm");
+        const paidAt = note.paid_at ? format(new Date(note.paid_at), "dd MMM yyyy 'at' HH:mm") : null;
 
         const rows = note.line_items.map((li, i) => `
             <tr>
                 <td class="num">${String(i + 1).padStart(2, '0')}</td>
                 <td class="track">${li.tracking_code || '—'}</td>
                 <td class="right">${Number(li.amount).toFixed(2)}</td>
-                <td class="right red">-${Number(li.shipping_fee).toFixed(2)}</td>
-                <td class="right bold">${(Number(li.amount) - Number(li.shipping_fee)).toFixed(2)}</td>
+                <td class="right rose">−${Number(li.shipping_fee).toFixed(2)}</td>
+                <td class="right net">${(Number(li.amount) - Number(li.shipping_fee)).toFixed(2)}</td>
             </tr>`).join('');
 
-        const html = `<!doctype html><html><head><meta charset="utf-8"/><title>${note.reference}</title>
+        const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"/><title>${note.reference}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@500;600;700&family=Lora:ital,wght@1,400;1,500&display=swap" rel="stylesheet">
 <style>
   @page { size: A4; margin: 0; }
   * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-  html, body { margin: 0; padding: 0; background: #fff; color: #3b5e5e; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; font-feature-settings: "ss01","cv11"; }
+  :root {
+    --ink: #141413;
+    --ink-soft: #2a2926;
+    --light: #faf9f5;
+    --paper: #ffffff;
+    --line: #e8e6dc;
+    --line-soft: #f1efe8;
+    --mid: #b0aea5;
+    --muted: #6b6a63;
+    --orange: #d97757;
+    --green: #788c5d;
+    --rose: #c96356;
+  }
+  html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-feature-settings: 'ss01','cv11'; }
   .sheet { padding: 22mm 18mm; min-height: 297mm; display: flex; flex-direction: column; }
-  .hdr { display: flex; align-items: flex-start; justify-content: space-between; padding-bottom: 28px; border-bottom: 1px solid #eef1ee; }
-  .brand { display: flex; align-items: center; gap: 16px; }
-  .brand .logo { width: 56px; height: 56px; border-radius: 16px; background: #f6f7f3; border: 1px solid #eef1ee; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-  .brand .logo img { max-width: 100%; max-height: 100%; object-fit: contain; }
-  .brand .logo.fallback { background: #3b5e5e; color: #daddcc; font-weight: 900; font-size: 18px; letter-spacing: 0.5px; }
-  .brand .name { font-size: 18px; font-weight: 800; color: #3b5e5e; letter-spacing: -0.3px; line-height: 1; }
-  .brand .sub { font-size: 9px; font-weight: 700; color: #9aa6a0; text-transform: uppercase; letter-spacing: 2.5px; margin-top: 6px; }
+
+  /* ── Header ───────────────────────────────────────────────── */
+  .hdr { display: flex; align-items: flex-start; justify-content: space-between; gap: 32px; padding-bottom: 24px; border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .brand .logo { width: 52px; height: 52px; border-radius: 14px; background: var(--light); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .brand .logo img { max-width: 100%; max-height: 100%; object-fit: contain; padding: 6px; }
+  .brand .logo.fallback { background: var(--ink); color: var(--light); font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 17px; letter-spacing: -0.01em; padding: 0; }
+  .brand .name { font-family: 'Poppins', sans-serif; font-size: 17px; font-weight: 600; color: var(--ink); letter-spacing: -0.02em; line-height: 1; }
+  .brand .sub { font-size: 9.5px; font-weight: 500; color: var(--mid); text-transform: uppercase; letter-spacing: 0.22em; margin-top: 6px; }
   .meta { text-align: right; }
-  .meta .kicker { font-size: 9px; font-weight: 800; color: #3b5e5e; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 6px; opacity: 0.55; }
-  .meta h1 { margin: 0; font-size: 26px; font-weight: 900; color: #3b5e5e; font-family: "SF Mono", Menlo, monospace; letter-spacing: -0.5px; }
-  .meta .date { font-size: 11px; color: #9aa6a0; margin-top: 6px; font-weight: 500; }
-  .entity { margin-top: 32px; display: flex; align-items: center; gap: 18px; padding: 20px 22px; background: #f9faf7; border: 1px solid #eef1ee; border-radius: 20px; }
-  .entity .ava { width: 60px; height: 60px; border-radius: 18px; overflow: hidden; background: #fff; border: 1px solid #eef1ee; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+  .meta .kicker { display: inline-flex; align-items: center; gap: 6px; font-size: 9.5px; font-weight: 500; color: var(--mid); text-transform: uppercase; letter-spacing: 0.22em; margin-bottom: 6px; }
+  .meta .kicker::before { content: ''; display: inline-block; width: 4px; height: 4px; border-radius: 999px; background: var(--orange); }
+  .meta h1 { margin: 0; font-family: 'Poppins', sans-serif; font-size: 28px; font-weight: 600; color: var(--ink); letter-spacing: -0.03em; line-height: 1; }
+  .meta .date { font-family: 'Lora', Georgia, serif; font-style: italic; font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+  /* ── Entity strip ─────────────────────────────────────────── */
+  .entity { margin-top: 24px; display: flex; align-items: center; gap: 14px; padding: 16px 18px; background: var(--light); border: 1px solid var(--line); border-radius: 16px; }
+  .entity .ava { width: 52px; height: 52px; border-radius: 14px; overflow: hidden; background: var(--paper); border: 1px solid var(--line); flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
   .entity .ava img { width: 100%; height: 100%; object-fit: ${note.kind === 'courier' ? 'cover' : 'contain'}; padding: ${note.kind === 'courier' ? '0' : '6px'}; }
-  .entity .ava.fallback { background: ${note.kind === 'courier' ? '#3b5e5e' : '#f6f7f3'}; color: ${note.kind === 'courier' ? '#daddcc' : '#3b5e5e'}; font-weight: 900; font-size: 18px; }
-  .entity .info .label { font-size: 9px; font-weight: 800; color: #9aa6a0; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 4px; }
-  .entity .info .val { font-size: 20px; font-weight: 800; color: #3b5e5e; letter-spacing: -0.3px; }
-  .entity .badge { margin-left: auto; padding: 8px 16px; border-radius: 999px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; }
-  .entity .badge.unpaid { background: #fef3c7; color: #92400e; }
-  .entity .badge.paid { background: #d1fae5; color: #065f46; }
-  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 22px; }
-  .stat { padding: 18px 20px; background: #fff; border: 1px solid #eef1ee; border-radius: 18px; }
-  .stat .k { font-size: 9px; font-weight: 800; color: #9aa6a0; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 6px; }
-  .stat .v { font-size: 18px; font-weight: 900; color: #3b5e5e; font-variant-numeric: tabular-nums; }
-  .stat .v.red { color: #c93942; }
-  .stat .v.green { color: #059669; }
-  table { width: 100%; border-collapse: collapse; margin-top: 28px; font-variant-numeric: tabular-nums; }
-  thead th { text-align: left; padding: 12px 14px; font-size: 9px; font-weight: 800; color: #9aa6a0; text-transform: uppercase; letter-spacing: 1.5px; border-bottom: 1px solid #eef1ee; }
+  .entity .ava.fallback { background: var(--ink); color: var(--light); font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 15px; }
+  .entity .info { flex: 1; min-width: 0; }
+  .entity .info .label { font-size: 9.5px; font-weight: 500; color: var(--mid); text-transform: uppercase; letter-spacing: 0.22em; margin-bottom: 4px; }
+  .entity .info .val { font-family: 'Poppins', sans-serif; font-size: 17px; font-weight: 600; color: var(--ink); letter-spacing: -0.02em; }
+  .entity .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 9.5px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.22em; border: 1px solid; }
+  .entity .badge::before { content: ''; display: inline-block; width: 4px; height: 4px; border-radius: 999px; }
+  .entity .badge.unpaid { background: rgba(217, 119, 87, 0.10); color: var(--orange); border-color: rgba(217, 119, 87, 0.30); }
+  .entity .badge.unpaid::before { background: var(--orange); }
+  .entity .badge.paid { background: rgba(120, 140, 93, 0.10); color: var(--green); border-color: rgba(120, 140, 93, 0.25); }
+  .entity .badge.paid::before { background: var(--green); }
+
+  /* ── KPI strip ────────────────────────────────────────────── */
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin-top: 16px; background: var(--line); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .stat { padding: 14px 16px; background: var(--paper); }
+  .stat .k { display: inline-flex; align-items: center; gap: 6px; font-size: 9.5px; font-weight: 500; color: var(--mid); text-transform: uppercase; letter-spacing: 0.22em; margin-bottom: 6px; }
+  .stat .k::before { content: ''; display: inline-block; width: 4px; height: 4px; border-radius: 999px; background: var(--ink); }
+  .stat.rose .k::before { background: var(--rose); }
+  .stat.green .k::before { background: var(--green); }
+  .stat .v { font-family: 'Poppins', sans-serif; font-size: 20px; font-weight: 600; color: var(--ink); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .stat .v .suffix { font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 500; color: var(--mid); margin-left: 4px; letter-spacing: 0; }
+  .stat .v.rose { color: var(--rose); }
+  .stat .v.green { color: var(--green); }
+
+  /* ── Line items table ────────────────────────────────────── */
+  table { width: 100%; border-collapse: collapse; margin-top: 22px; font-variant-numeric: tabular-nums; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  thead th { text-align: left; padding: 10px 14px; font-size: 9.5px; font-weight: 500; color: var(--mid); text-transform: uppercase; letter-spacing: 0.22em; background: var(--line-soft); border-bottom: 1px solid var(--line); }
   thead th.right { text-align: right; }
-  tbody td { padding: 14px; font-size: 12px; border-bottom: 1px solid #f4f6f2; color: #3b5e5e; }
-  tbody tr:last-child td { border-bottom: none; }
-  td.num { font-family: "SF Mono", Menlo, monospace; font-size: 10px; color: #9aa6a0; font-weight: 700; width: 40px; }
-  td.track { font-family: "SF Mono", Menlo, monospace; font-size: 11px; font-weight: 700; letter-spacing: -0.3px; }
-  td.right { text-align: right; }
-  td.red { color: #c93942; font-weight: 600; }
-  td.bold { font-weight: 800; }
-  .totals { margin-top: 24px; padding: 24px; background: #3b5e5e; color: #fff; border-radius: 20px; display: flex; justify-content: space-between; align-items: center; }
-  .totals .col .lbl { font-size: 9px; font-weight: 800; color: rgba(255,255,255,0.55); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 6px; }
-  .totals .col .val { font-size: 18px; font-weight: 900; font-variant-numeric: tabular-nums; }
-  .totals .col.net .lbl { color: rgba(167, 243, 208, 0.75); }
-  .totals .col.net .val { font-size: 28px; color: #a7f3d0; }
-  .totals .divider { width: 1px; height: 48px; background: rgba(255,255,255,0.12); }
-  .foot { margin-top: auto; padding-top: 24px; border-top: 1px solid #eef1ee; display: flex; justify-content: space-between; font-size: 9px; color: #9aa6a0; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; }
+  tbody td { padding: 11px 14px; font-size: 12px; border-top: 1px solid var(--line); color: var(--ink); }
+  tbody tr:first-child td { border-top: none; }
+  td.num { font-family: 'SF Mono', Menlo, monospace; font-size: 10.5px; color: var(--mid); width: 44px; }
+  td.track { font-family: 'SF Mono', Menlo, monospace; font-size: 11px; color: var(--ink); letter-spacing: -0.01em; }
+  td.right { text-align: right; font-weight: 500; }
+  td.rose { color: var(--rose); }
+  td.net { font-family: 'Poppins', sans-serif; font-weight: 600; color: var(--ink); letter-spacing: -0.01em; }
+
+  /* ── Summary totals (ink panel) ──────────────────────────── */
+  .totals { margin-top: 20px; padding: 4px; background: var(--ink); border-radius: 18px; }
+  .totals .inner { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: rgba(250, 249, 245, 0.08); border-radius: 14px; overflow: hidden; }
+  .totals .col { padding: 14px 18px; background: var(--ink); }
+  .totals .col .lbl { font-size: 9.5px; font-weight: 500; color: rgba(250, 249, 245, 0.5); text-transform: uppercase; letter-spacing: 0.22em; margin-bottom: 6px; }
+  .totals .col .val { font-family: 'Poppins', sans-serif; font-size: 22px; font-weight: 600; color: var(--light); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .totals .col .val .suffix { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500; color: rgba(250, 249, 245, 0.5); margin-left: 4px; letter-spacing: 0; }
+  .totals .col.rose .val { color: var(--rose); }
+  .totals .col.net .val { color: var(--green); }
+
+  /* ── Footer ───────────────────────────────────────────────── */
+  .foot { margin-top: auto; padding-top: 22px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: var(--mid); font-weight: 500; text-transform: uppercase; letter-spacing: 0.22em; }
+  .foot .paid { font-family: 'Lora', Georgia, serif; font-style: italic; font-weight: 500; color: var(--green); text-transform: none; letter-spacing: 0; font-size: 11.5px; }
 </style></head><body>
 <div class="sheet">
   <div class="hdr">
@@ -457,13 +497,13 @@ const Payments = () => {
       ${businessLogo ? `<div class="logo"><img src="${businessLogo}" alt=""/></div>` : `<div class="logo fallback">${businessName.substring(0, 2).toUpperCase()}</div>`}
       <div>
         <div class="name">${businessName}</div>
-        <div class="sub">Payment Note</div>
+        <div class="sub">Payment note</div>
       </div>
     </div>
     <div class="meta">
       <div class="kicker">Document</div>
       <h1>${note.reference}</h1>
-      <div class="date">${createdAt}</div>
+      <div class="date">Issued on ${createdAt}</div>
     </div>
   </div>
 
@@ -475,13 +515,13 @@ const Payments = () => {
       <div class="label">${entityLabel}</div>
       <div class="val">${entityName}</div>
     </div>
-    <span class="badge ${note.status}">${note.status}</span>
+    <span class="badge ${note.status}">${note.status === 'paid' ? 'Paid' : 'Unpaid'}</span>
   </div>
 
   <div class="stats">
     <div class="stat"><div class="k">Orders</div><div class="v">${note.order_count}</div></div>
-    <div class="stat"><div class="k">Gross Collected</div><div class="v">${Number(note.total_amount).toFixed(2)} MAD</div></div>
-    <div class="stat"><div class="k">Shipping Fees</div><div class="v red">-${Number(note.total_shipping_fees).toFixed(2)} MAD</div></div>
+    <div class="stat"><div class="k">Gross collected</div><div class="v">${Number(note.total_amount).toFixed(2)}<span class="suffix">MAD</span></div></div>
+    <div class="stat rose"><div class="k">Shipping fees</div><div class="v rose">−${Number(note.total_shipping_fees).toFixed(2)}<span class="suffix">MAD</span></div></div>
   </div>
 
   <table>
@@ -490,19 +530,19 @@ const Payments = () => {
   </table>
 
   <div class="totals">
-    <div class="col"><div class="lbl">Gross</div><div class="val">${Number(note.total_amount).toFixed(2)} MAD</div></div>
-    <div class="divider"></div>
-    <div class="col"><div class="lbl">Shipping Fees</div><div class="val">-${Number(note.total_shipping_fees).toFixed(2)} MAD</div></div>
-    <div class="divider"></div>
-    <div class="col net"><div class="lbl">Net Payable</div><div class="val">${Number(note.net_amount).toFixed(2)} MAD</div></div>
+    <div class="inner">
+      <div class="col"><div class="lbl">Gross</div><div class="val">${Number(note.total_amount).toFixed(2)}<span class="suffix">MAD</span></div></div>
+      <div class="col rose"><div class="lbl">Shipping fees</div><div class="val">−${Number(note.total_shipping_fees).toFixed(2)}<span class="suffix">MAD</span></div></div>
+      <div class="col net"><div class="lbl">Net payable</div><div class="val">${Number(note.net_amount).toFixed(2)}<span class="suffix">MAD</span></div></div>
+    </div>
   </div>
 
   <div class="foot">
-    <span>${businessName} • Payment Note</span>
-    <span>${note.reference}</span>
+    <span>${businessName} · Payment note</span>
+    ${paidAt ? `<span class="paid">Settled on ${paidAt}</span>` : `<span>Reference · ${note.reference}</span>`}
   </div>
 </div>
-<script>window.onload=function(){setTimeout(function(){window.print();},120);};</script>
+<script>window.onload=function(){setTimeout(function(){window.print();},300);};</script>
 </body></html>`;
 
         w.document.open();
