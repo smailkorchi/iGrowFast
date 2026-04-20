@@ -2,6 +2,7 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { supabase } from '@/lib/supabase';
 import {
     buildCourierPayoutPdfBlob,
@@ -11,8 +12,6 @@ import {
 import { saveBlob, canDirectSave } from '@/lib/saveBlob';
 import { useToast } from '@/hooks/use-toast';
 import {
-    Wallet,
-    Package,
     CheckCircle2,
     Eye,
     Download,
@@ -21,13 +20,9 @@ import {
     Loader2,
     Hash,
     X,
-    Receipt,
     FileText,
     Save,
-    Calendar,
 } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
@@ -58,7 +53,6 @@ const CourierPayments = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedNote, setSelectedNote] = useState<PaymentNote | null>(null);
 
-    // ─── Current courier ───
     const { data: me } = useQuery({
         queryKey: ['courier-me-payments'],
         queryFn: async () => {
@@ -77,7 +71,6 @@ const CourierPayments = () => {
     const courierId = me?.id;
     const businessId = me?.['DigiCom Business'];
 
-    // ─── Fetch courier's PAID payment notes only ───
     const { data: notes = [], isLoading } = useQuery({
         queryKey: ['courier-payment-notes', courierId, businessId],
         queryFn: async () => {
@@ -98,7 +91,6 @@ const CourierPayments = () => {
         enabled: !!courierId && !!businessId,
     });
 
-    // ─── Aggregate stats ───
     const stats = useMemo(() => {
         const lifetimeEarnings = notes.reduce((s, n) => s + Number(n.total_shipping_fees || 0), 0);
         const lifetimeDelivered = notes.reduce((s, n) => s + Number(n.order_count || 0), 0);
@@ -122,7 +114,6 @@ const CourierPayments = () => {
         };
     }, [notes]);
 
-    // ─── Search filter ───
     const filteredNotes = useMemo(() => {
         if (!searchQuery.trim()) return notes;
         const q = searchQuery.toLowerCase();
@@ -133,7 +124,6 @@ const CourierPayments = () => {
         );
     }, [notes, searchQuery]);
 
-    // ─── PDF save flow ───────────────────────────────────────────────────
     const { toast } = useToast();
     const [downloadingId, setDownloadingId] = useState<string | null>(null);
     const [readyBlob, setReadyBlob] = useState<{
@@ -142,7 +132,6 @@ const CourierPayments = () => {
         noteRef: string;
     } | null>(null);
 
-    // ── Fetch business meta once ───────────────────────────────────────
     const { data: businessMeta } = useQuery({
         queryKey: ['courier-payments-business-meta', businessId],
         queryFn: async () => {
@@ -158,7 +147,6 @@ const CourierPayments = () => {
         staleTime: 10 * 60_000,
     });
 
-    // ── Pre-resolve remote images into data URIs ───────────────────────
     const { data: resolvedImages } = useQuery({
         queryKey: [
             'courier-payments-pdf-images',
@@ -276,132 +264,225 @@ const CourierPayments = () => {
         setTimeout(() => URL.revokeObjectURL(url), 60_000);
     };
 
+    const kpiTiles = [
+        { label: 'Gains cumulés', value: `${fmtMAD(stats.lifetimeEarnings)}`, unit: 'MAD', accent: 'bg-ant-green' },
+        { label: 'Ce mois-ci', value: `${fmtMAD(stats.thisMonthEarnings)}`, unit: 'MAD', accent: 'bg-ant-orange' },
+        { label: 'Livrés', value: String(stats.lifetimeDelivered), unit: 'colis', accent: 'bg-ant-ink' },
+        { label: 'Paiements', value: String(stats.totalNotes), unit: 'reçus', accent: 'bg-ant-ink' },
+    ];
+
     return (
-        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
-            {/* Header */}
-            <header className="space-y-2.5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Payout History</h1>
-                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">
-                            {me?.name || 'Courier'} · Settled payments
+        <div className="space-y-5 md:space-y-6">
+            {/* Editorial header */}
+            <header className="space-y-3">
+                <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-ant-orange" />
+                    <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                        Livreur · Paiements
+                    </span>
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+                    <div className="space-y-1.5">
+                        <h1 className="font-display text-[26px] sm:text-[32px] leading-[1.05] tracking-[-0.02em] text-ant-ink">
+                            Historique des paiements
+                        </h1>
+                        <p className="font-serif italic text-[13px] sm:text-[14px] leading-relaxed text-ant-mid">
+                            Versements réglés par votre business — reçus détaillés, téléchargeables en PDF.
                         </p>
                     </div>
                 </div>
             </header>
 
-            {/* KPI strip */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {[
-                    { label: 'Lifetime Earned', value: `${fmtMAD(stats.lifetimeEarnings)} MAD`, accent: '#059669' },
-                    { label: 'This Month', value: `${fmtMAD(stats.thisMonthEarnings)} MAD`, accent: '#3b5e5e' },
-                    { label: 'Total Delivered', value: String(stats.lifetimeDelivered), accent: '#059669' },
-                    { label: 'Payouts', value: String(stats.totalNotes), accent: '#3b5e5e' },
-                ].map((s) => (
-                    <div key={s.label} className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
-                        <span className="w-[3px] self-stretch rounded-full shrink-0" style={{ background: s.accent }} />
-                        <div className="flex-1 min-w-0">
-                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400 truncate">{s.label}</p>
-                            <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1 leading-none truncate">{s.value}</p>
+            {/* KPI hairline strip */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ant-line rounded-2xl overflow-hidden border border-ant-line">
+                {kpiTiles.map((k) => (
+                    <div key={k.label} className="bg-ant-paper p-4 md:p-5 flex flex-col gap-2">
+                        <div className="flex items-center gap-2">
+                            <span className={cn('w-1 h-4 rounded-full', k.accent)} />
+                            <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-ant-mid truncate">
+                                {k.label}
+                            </span>
                         </div>
+                        <p className="font-display text-[20px] md:text-[24px] leading-none tabular-nums text-ant-ink">
+                            {k.value}
+                            <span className="text-[11px] text-ant-mid ml-1 font-normal tracking-normal">{k.unit}</span>
+                        </p>
                     </div>
                 ))}
             </div>
 
             {/* Search */}
             <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-                <Input
-                    placeholder="Search by ref or tracking code..."
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
+                <input
+                    type="search"
+                    placeholder="Rechercher par référence ou tracking…"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="h-8 pl-8 rounded-md border-gray-200 bg-white text-[11px]"
+                    className="w-full h-11 pl-10 pr-10 rounded-full border border-ant-line bg-ant-paper text-[13px] text-ant-ink placeholder:text-ant-mid/70 focus:outline-none focus:border-ant-ink focus:ring-2 focus:ring-ant-orange/20 transition-all"
                 />
+                {searchQuery && (
+                    <button
+                        type="button"
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-ant-mid hover:text-ant-ink"
+                        aria-label="Effacer"
+                    >
+                        <X className="w-3.5 h-3.5" />
+                    </button>
+                )}
             </div>
 
             {/* List */}
             {isLoading ? (
-                <div className="flex flex-col items-center justify-center py-16 gap-3">
-                    <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
-                    <p className="text-[11px] text-gray-400 uppercase tracking-widest">Chargement…</p>
+                <div className="flex flex-col items-center justify-center py-20 gap-3">
+                    <Loader2 className="w-6 h-6 text-ant-mid animate-spin" />
+                    <p className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">Chargement…</p>
                 </div>
             ) : filteredNotes.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-gray-200 bg-white py-10 flex flex-col items-center gap-2 text-center">
-                    <SearchX className="w-6 h-6 text-gray-400" />
-                    <p className="text-[12px] font-semibold text-brand-navy">
-                        {searchQuery ? 'Aucun paiement trouvé' : 'Aucun paiement pour le moment'}
-                    </p>
-                    <p className="text-[11px] text-gray-400 max-w-xs">
-                        {searchQuery
-                            ? 'Essayez un autre terme de recherche.'
-                            : 'Vos payouts apparaîtront ici une fois versés par le business.'}
-                    </p>
-                </div>
+                <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                    <div className="h-[3px] w-full bg-ant-orange" />
+                    <div className="p-10 flex flex-col items-center gap-3 text-center">
+                        <SearchX className="w-6 h-6 text-ant-mid" />
+                        <div className="space-y-1">
+                            <p className="font-display text-[14px] text-ant-ink">
+                                {searchQuery ? 'Aucun paiement trouvé' : 'Aucun paiement pour le moment'}
+                            </p>
+                            <p className="font-serif italic text-[12px] text-ant-mid max-w-xs mx-auto">
+                                {searchQuery
+                                    ? 'Essayez un autre terme de recherche.'
+                                    : 'Vos paiements apparaîtront ici une fois versés par le business.'}
+                            </p>
+                        </div>
+                    </div>
+                </section>
             ) : (
-                <div className="rounded-xl border border-gray-100 bg-white overflow-hidden">
-                    <table className="w-full">
-                        <thead>
-                            <tr className="border-b border-gray-100">
-                                <th className="text-left px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-gray-400">Reference</th>
-                                <th className="text-left px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-gray-400 hidden sm:table-cell">Paid on</th>
-                                <th className="text-right px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-gray-400">Delivered</th>
-                                <th className="text-right px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-gray-400">Earned</th>
-                                <th className="px-3 py-2"></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filteredNotes.map((note) => {
-                                const dateStr = note.paid_at
-                                    ? format(new Date(note.paid_at), 'dd MMM yyyy')
-                                    : format(new Date(note.created_at), 'dd MMM yyyy');
-                                return (
-                                    <tr key={note.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                                        <td className="px-3 py-2">
-                                            <div className="flex items-center gap-1.5">
-                                                <span className="inline-flex items-center h-5 px-1.5 rounded bg-emerald-50 text-emerald-700 text-[9px] font-semibold">
-                                                    <CheckCircle2 className="w-2.5 h-2.5 mr-0.5" />
-                                                    Paid
+                <>
+                    {/* Mobile: card list */}
+                    <div className="md:hidden space-y-2">
+                        {filteredNotes.map((note) => {
+                            const dateStr = note.paid_at
+                                ? format(new Date(note.paid_at), 'dd MMM yyyy', { locale: fr })
+                                : format(new Date(note.created_at), 'dd MMM yyyy', { locale: fr });
+                            return (
+                                <button
+                                    key={note.id}
+                                    type="button"
+                                    onClick={() => setSelectedNote(note)}
+                                    className="w-full rounded-2xl border border-ant-line bg-ant-paper overflow-hidden text-left active:scale-[0.995] transition-transform"
+                                >
+                                    <div className="h-[3px] w-full bg-ant-green" />
+                                    <div className="p-4 space-y-3">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="min-w-0 flex-1 space-y-1">
+                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-semibold uppercase tracking-[0.14em] bg-ant-green/12 text-ant-green">
+                                                    <CheckCircle2 className="w-2.5 h-2.5" />
+                                                    Payé
                                                 </span>
+                                                <p className="font-mono text-[12px] font-semibold text-ant-ink truncate">
+                                                    {note.reference}
+                                                </p>
+                                                <p className="text-[11px] text-ant-mid">{dateStr}</p>
                                             </div>
-                                            <p className="text-[11px] font-mono font-semibold text-brand-navy mt-0.5 truncate">{note.reference}</p>
-                                        </td>
-                                        <td className="px-3 py-2 text-[11px] text-brand-navy/80 tabular-nums hidden sm:table-cell">{dateStr}</td>
-                                        <td className="text-right px-3 py-2 text-[11px] text-brand-navy/80 tabular-nums">{note.order_count}</td>
-                                        <td className="text-right px-3 py-2">
-                                            <p className="text-[12px] font-semibold tabular-nums text-emerald-600">+{fmtMAD(note.total_shipping_fees)}</p>
-                                            <p className="text-[9px] text-gray-400 tabular-nums">MAD</p>
-                                        </td>
-                                        <td className="px-3 py-2">
-                                            <div className="flex items-center justify-end gap-1">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-7 w-7 p-0 rounded text-gray-400 hover:text-brand-navy hover:bg-gray-100"
-                                                    onClick={() => setSelectedNote(note)}
-                                                    title="View"
-                                                >
-                                                    <Eye className="w-3.5 h-3.5" />
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-7 w-7 p-0 rounded text-gray-400 hover:text-brand-navy hover:bg-gray-100"
-                                                    disabled={downloadingId === note.id}
-                                                    onClick={() => handlePrint(note)}
-                                                    title="Download PDF"
-                                                >
-                                                    {downloadingId === note.id
-                                                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                                        : <Download className="w-3.5 h-3.5" />}
-                                                </Button>
+                                            <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); handlePrint(note); }}
+                                                disabled={downloadingId === note.id}
+                                                className="w-9 h-9 rounded-full border border-ant-line bg-ant-paper flex items-center justify-center text-ant-ink hover:bg-ant-ink hover:text-ant-light hover:border-ant-ink transition-colors disabled:opacity-50 shrink-0"
+                                                aria-label="Télécharger PDF"
+                                            >
+                                                {downloadingId === note.id
+                                                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                    : <Download className="w-3.5 h-3.5" />}
+                                            </button>
+                                        </div>
+
+                                        <div className="flex items-end justify-between pt-2 border-t border-ant-line">
+                                            <div>
+                                                <p className="text-[9px] uppercase tracking-[0.2em] text-ant-mid mb-0.5">Colis</p>
+                                                <p className="font-display text-[16px] tabular-nums text-ant-ink leading-none">
+                                                    {note.order_count}
+                                                </p>
                                             </div>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
+                                            <div className="text-right">
+                                                <p className="text-[9px] uppercase tracking-[0.2em] text-ant-mid mb-0.5">Gains</p>
+                                                <p className="font-display text-[18px] tabular-nums text-ant-green leading-none">
+                                                    +{fmtMAD(note.total_shipping_fees)}{' '}
+                                                    <span className="text-[11px] text-ant-mid font-normal">MAD</span>
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    {/* Desktop: table */}
+                    <section className="hidden md:block rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                        <div className="h-[3px] w-full bg-ant-green" />
+                        <table className="w-full">
+                            <thead>
+                                <tr className="border-b border-ant-line bg-ant-light/40">
+                                    <th className="text-left px-4 py-3 text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid">Référence</th>
+                                    <th className="text-left px-4 py-3 text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid">Payé le</th>
+                                    <th className="text-right px-4 py-3 text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid">Colis</th>
+                                    <th className="text-right px-4 py-3 text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid">Gains</th>
+                                    <th className="px-4 py-3 w-24"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredNotes.map((note) => {
+                                    const dateStr = note.paid_at
+                                        ? format(new Date(note.paid_at), 'dd MMM yyyy', { locale: fr })
+                                        : format(new Date(note.created_at), 'dd MMM yyyy', { locale: fr });
+                                    return (
+                                        <tr key={note.id} className="border-b border-ant-line last:border-b-0 hover:bg-ant-light/50 transition-colors">
+                                            <td className="px-4 py-3">
+                                                <div className="space-y-1">
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-[0.14em] bg-ant-green/12 text-ant-green">
+                                                        <CheckCircle2 className="w-2.5 h-2.5" />
+                                                        Payé
+                                                    </span>
+                                                    <p className="font-mono text-[12px] font-semibold text-ant-ink">{note.reference}</p>
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-3 text-[12px] text-ant-ink tabular-nums">{dateStr}</td>
+                                            <td className="text-right px-4 py-3 text-[12px] text-ant-ink tabular-nums">{note.order_count}</td>
+                                            <td className="text-right px-4 py-3">
+                                                <p className="font-display text-[14px] tabular-nums text-ant-green">+{fmtMAD(note.total_shipping_fees)}</p>
+                                                <p className="text-[10px] text-ant-mid tabular-nums">MAD</p>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <div className="flex items-center justify-end gap-1.5">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSelectedNote(note)}
+                                                        className="w-8 h-8 rounded-full border border-ant-line bg-ant-paper flex items-center justify-center text-ant-ink hover:bg-ant-ink hover:text-ant-light hover:border-ant-ink transition-colors"
+                                                        title="Voir"
+                                                    >
+                                                        <Eye className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        disabled={downloadingId === note.id}
+                                                        onClick={() => handlePrint(note)}
+                                                        className="w-8 h-8 rounded-full border border-ant-line bg-ant-paper flex items-center justify-center text-ant-ink hover:bg-ant-ink hover:text-ant-light hover:border-ant-ink transition-colors disabled:opacity-50"
+                                                        title="Télécharger PDF"
+                                                    >
+                                                        {downloadingId === note.id
+                                                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                            : <Download className="w-3.5 h-3.5" />}
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </section>
+                </>
             )}
 
             {/* Detail sheet */}
@@ -443,142 +524,201 @@ function PayoutDetailSheet({
         <Dialog open={!!note} onOpenChange={(v) => !v && onClose()}>
             <DialogContent
                 className={cn(
-                    'p-0 border-none bg-white overflow-hidden flex flex-col gap-0',
-                    'sm:max-w-[600px] sm:rounded-xl sm:max-h-[90vh]',
+                    'p-0 gap-0 border border-ant-line bg-ant-paper overflow-hidden flex flex-col',
+                    'shadow-[0_32px_80px_-24px_rgba(20,20,19,0.4)]',
+                    'sm:max-w-[620px] sm:rounded-2xl sm:max-h-[90vh]',
                     'max-sm:!left-0 max-sm:!right-0 max-sm:!top-auto max-sm:!bottom-0',
                     'max-sm:!translate-x-0 max-sm:!translate-y-0',
                     'max-sm:!w-full max-sm:!max-w-none',
                     'max-sm:!h-[94dvh] max-sm:!max-h-[94dvh]',
-                    'max-sm:!rounded-t-xl max-sm:!rounded-b-none'
+                    'max-sm:!rounded-t-2xl max-sm:!rounded-b-none',
+                    '[&>button.absolute]:hidden',
                 )}
             >
                 {note && (
                     <div className="flex flex-col h-full max-h-[inherit]">
                         {/* Mobile drag handle */}
-                        <div className="sm:hidden flex justify-center pt-3 pb-1 shrink-0">
-                            <div className="w-10 h-1 rounded-full bg-gray-200" />
+                        <div className="sm:hidden flex justify-center pt-2.5 pb-1 shrink-0">
+                            <div className="w-10 h-1 rounded-full bg-ant-line" />
                         </div>
 
+                        {/* Green stripe */}
+                        <div className="h-[3px] w-full bg-ant-green shrink-0" />
+
                         {/* Header */}
-                        <DialogHeader className="px-5 pt-4 pb-3 shrink-0 border-b border-gray-100">
+                        <DialogHeader className="px-5 pt-4 pb-4 shrink-0 border-b border-ant-line text-left space-y-1.5">
                             <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <span className="inline-flex items-center h-5 px-1.5 rounded bg-emerald-50 text-emerald-700 text-[9px] font-semibold">
-                                            <CheckCircle2 className="w-2.5 h-2.5 mr-0.5" />
-                                            Paid
+                                <div className="min-w-0 space-y-1.5 flex-1">
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-ant-green" />
+                                        <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                                            Paiement · Reçu
                                         </span>
-                                        <DialogDescription className="text-[10px] text-gray-400 m-0">
-                                            {note.paid_at
-                                                ? format(new Date(note.paid_at), 'dd MMM yyyy • HH:mm')
-                                                : '—'}
-                                        </DialogDescription>
                                     </div>
-                                    <DialogTitle className="font-mono text-[14px] font-semibold text-brand-navy truncate">
+                                    <DialogTitle className="font-mono text-[18px] leading-tight text-ant-ink truncate">
                                         {note.reference}
                                     </DialogTitle>
+                                    <DialogDescription className="font-serif italic text-[12px] text-ant-mid">
+                                        {note.paid_at
+                                            ? `Réglé le ${format(new Date(note.paid_at), 'dd MMMM yyyy · HH:mm', { locale: fr })}`
+                                            : 'Date inconnue'}
+                                    </DialogDescription>
                                 </div>
                                 <button
                                     type="button"
                                     onClick={onClose}
-                                    className="hidden sm:flex w-8 h-8 shrink-0 items-center justify-center rounded-md hover:bg-gray-100 text-gray-400 hover:text-brand-navy transition"
+                                    className="w-8 h-8 rounded-full border border-ant-line bg-ant-paper hover:bg-ant-light flex items-center justify-center text-ant-ink shrink-0 transition-colors"
+                                    aria-label="Fermer"
                                 >
-                                    <X className="w-4 h-4" />
+                                    <X className="w-3.5 h-3.5" />
                                 </button>
                             </div>
                         </DialogHeader>
 
                         {/* Body */}
                         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-                            {/* KPI tiles */}
-                            <div className="grid grid-cols-3 gap-2">
-                                {[
-                                    { label: 'Earned', value: `${fmtMAD(note.total_shipping_fees)} MAD`, accent: '#059669' },
-                                    { label: 'Delivered', value: String(note.order_count), accent: '#3b5e5e' },
-                                    { label: 'Gross', value: `${fmtMAD(note.total_amount)} MAD`, accent: '#3b5e5e' },
-                                ].map((s) => (
-                                    <div key={s.label} className="rounded-xl border border-gray-100 bg-white p-2.5 flex items-start gap-2">
-                                        <span className="w-[3px] self-stretch rounded-full shrink-0" style={{ background: s.accent }} />
-                                        <div className="min-w-0">
-                                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{s.label}</p>
-                                            <p className="text-[12px] font-semibold tabular-nums text-brand-navy mt-0.5 leading-none break-all">{s.value}</p>
-                                        </div>
-                                    </div>
-                                ))}
+                            {/* Earnings ink card */}
+                            <div className="rounded-2xl bg-ant-ink text-ant-light p-4 md:p-5">
+                                <div className="flex items-center justify-between gap-3 mb-3">
+                                    <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-light/55">
+                                        Vos gains
+                                    </span>
+                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-semibold uppercase tracking-[0.14em] bg-ant-green/25 text-ant-light">
+                                        <CheckCircle2 className="w-2.5 h-2.5" />
+                                        Payé
+                                    </span>
+                                </div>
+                                <p className="font-display text-[32px] tabular-nums leading-none text-ant-light">
+                                    {fmtMAD(note.total_shipping_fees)}
+                                    <span className="text-[13px] text-ant-light/60 ml-1 font-normal">MAD</span>
+                                </p>
+                                <p className="font-serif italic text-[11px] text-ant-light/60 mt-2">
+                                    sur {note.order_count} colis livré{note.order_count !== 1 ? 's' : ''}
+                                </p>
                             </div>
 
                             {/* Flow breakdown */}
-                            <div className="rounded-xl border border-gray-100 bg-white p-3.5 space-y-2.5">
-                                <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Flow Breakdown</p>
-                                <div className="flex items-center justify-between">
-                                    <span className="text-[11px] text-gray-500">Total collected</span>
-                                    <span className="text-[11px] font-semibold tabular-nums text-brand-navy">{fmtMAD(note.total_amount)} MAD</span>
+                            <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                                <div className="h-[3px] w-full bg-ant-orange" />
+                                <div className="px-4 py-3 border-b border-ant-line">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-display text-[10px] text-ant-orange">01</span>
+                                        <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                                            Flux financier
+                                        </span>
+                                    </div>
                                 </div>
-                                <div className="flex items-center justify-between">
-                                    <span className="text-[11px] text-emerald-700">Your delivery fees</span>
-                                    <span className="text-[11px] font-semibold tabular-nums text-emerald-600">+{fmtMAD(note.total_shipping_fees)} MAD</span>
+                                <div className="p-4 space-y-2.5">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[12px] text-ant-mid">Total encaissé</span>
+                                        <span className="font-display text-[13px] tabular-nums text-ant-ink">{fmtMAD(note.total_amount)} MAD</span>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[12px] text-ant-green">Vos frais de livraison</span>
+                                        <span className="font-display text-[13px] tabular-nums text-ant-green">+{fmtMAD(note.total_shipping_fees)} MAD</span>
+                                    </div>
+                                    <div className="h-px bg-ant-line" />
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[12px] text-ant-mid">Reversé au business</span>
+                                        <span className="font-display text-[13px] tabular-nums text-ant-mid">{fmtMAD(note.net_amount)} MAD</span>
+                                    </div>
                                 </div>
-                                <div className="h-px bg-gray-100" />
-                                <div className="flex items-center justify-between">
-                                    <span className="text-[11px] text-gray-400">Settled to business</span>
-                                    <span className="text-[11px] font-semibold tabular-nums text-gray-400">{fmtMAD(note.net_amount)} MAD</span>
-                                </div>
-                            </div>
+                            </section>
 
-                            {/* Parcels table */}
-                            <div className="rounded-xl border border-gray-100 bg-white overflow-hidden">
-                                <div className="px-3 py-2 border-b border-gray-100">
-                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Parcels ({note.line_items.length})</p>
+                            {/* Parcels */}
+                            <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                                <div className="h-[3px] w-full bg-ant-ink" />
+                                <div className="px-4 py-3 border-b border-ant-line flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-display text-[10px] text-ant-orange">02</span>
+                                        <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                                            Colis réglés
+                                        </span>
+                                    </div>
+                                    <span className="text-[11px] tabular-nums text-ant-mid">{note.line_items.length}</span>
                                 </div>
-                                <table className="w-full">
+
+                                {/* Mobile: stacked rows */}
+                                <div className="sm:hidden divide-y divide-ant-line">
+                                    {note.line_items.map((li, i) => (
+                                        <div key={li.id} className="px-4 py-3 flex items-center gap-3">
+                                            <span className="font-display text-[11px] tabular-nums text-ant-mid w-6 shrink-0">
+                                                {String(i + 1).padStart(2, '0')}
+                                            </span>
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-1">
+                                                    <Hash className="w-3 h-3 text-ant-mid shrink-0" />
+                                                    <span className="font-mono text-[12px] text-ant-ink truncate">
+                                                        {li.tracking_code || '—'}
+                                                    </span>
+                                                </div>
+                                                <p className="text-[10px] text-ant-mid tabular-nums mt-0.5">
+                                                    Commande {fmtMAD(li.amount)} MAD
+                                                </p>
+                                            </div>
+                                            <p className="font-display text-[13px] tabular-nums text-ant-green shrink-0">
+                                                +{fmtMAD(li.shipping_fee)}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Desktop: table */}
+                                <table className="hidden sm:table w-full">
                                     <thead>
-                                        <tr className="border-b border-gray-100">
-                                            <th className="text-left px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-gray-400">#</th>
-                                            <th className="text-left px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-gray-400">Tracking</th>
-                                            <th className="text-right px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-gray-400">Earned</th>
+                                        <tr className="border-b border-ant-line bg-ant-light/40">
+                                            <th className="text-left px-4 py-2 text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid w-12">#</th>
+                                            <th className="text-left px-4 py-2 text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid">Tracking</th>
+                                            <th className="text-right px-4 py-2 text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid">Commande</th>
+                                            <th className="text-right px-4 py-2 text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid">Gains</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {note.line_items.map((li, i) => (
-                                            <tr key={li.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                                                <td className="px-3 py-2 text-[11px] text-gray-400 tabular-nums">{String(i + 1).padStart(2, '0')}</td>
-                                                <td className="px-3 py-2">
+                                            <tr key={li.id} className="border-b border-ant-line last:border-b-0 hover:bg-ant-light/30 transition-colors">
+                                                <td className="px-4 py-2 text-[11px] text-ant-mid tabular-nums">{String(i + 1).padStart(2, '0')}</td>
+                                                <td className="px-4 py-2">
                                                     <div className="flex items-center gap-1">
-                                                        <Hash className="w-3 h-3 text-gray-400" />
-                                                        <span className="text-[11px] font-mono text-brand-navy">{li.tracking_code || '—'}</span>
+                                                        <Hash className="w-3 h-3 text-ant-mid" />
+                                                        <span className="font-mono text-[12px] text-ant-ink">{li.tracking_code || '—'}</span>
                                                     </div>
-                                                    <p className="text-[9px] text-gray-400 tabular-nums mt-0.5">{fmtMAD(li.amount)} MAD order</p>
                                                 </td>
-                                                <td className="text-right px-3 py-2">
-                                                    <p className="text-[11px] font-semibold tabular-nums text-emerald-600">+{fmtMAD(li.shipping_fee)}</p>
-                                                </td>
+                                                <td className="text-right px-4 py-2 text-[11px] text-ant-mid tabular-nums">{fmtMAD(li.amount)}</td>
+                                                <td className="text-right px-4 py-2 font-display text-[13px] tabular-nums text-ant-green">+{fmtMAD(li.shipping_fee)}</td>
                                             </tr>
                                         ))}
                                     </tbody>
                                 </table>
-                            </div>
+                            </section>
                         </div>
 
                         {/* Sticky footer */}
-                        <div className="shrink-0 border-t border-gray-100 bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] flex gap-2">
-                            <Button
-                                variant="outline"
+                        <div className="shrink-0 border-t border-ant-line bg-ant-paper px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex gap-2">
+                            <button
+                                type="button"
                                 onClick={onClose}
-                                className="flex-1 h-8 rounded-md text-[11px] font-semibold border-gray-200 text-brand-navy hover:bg-gray-50 sm:hidden"
+                                className="flex-1 h-11 rounded-full border border-ant-line bg-ant-paper text-ant-ink text-[12px] font-medium hover:bg-ant-light transition-colors"
                             >
-                                Close
-                            </Button>
-                            <Button
+                                Fermer
+                            </button>
+                            <button
+                                type="button"
                                 onClick={onPrint}
                                 disabled={isDownloading}
-                                className="flex-1 h-8 rounded-md text-[11px] font-semibold bg-brand-navy hover:bg-brand-navy/90 text-white disabled:opacity-60"
+                                className="flex-1 h-11 rounded-full bg-ant-ink text-ant-light text-[12px] font-medium flex items-center justify-center gap-2 hover:bg-ant-ink/95 disabled:opacity-60 active:scale-[0.98] transition-all shadow-[0_10px_24px_-10px_rgba(20,20,19,0.5)]"
                             >
                                 {isDownloading ? (
-                                    <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Génération…</>
+                                    <>
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                        Génération…
+                                    </>
                                 ) : (
-                                    <><Download className="w-3.5 h-3.5 mr-1.5" />Télécharger PDF</>
+                                    <>
+                                        <Download className="w-3.5 h-3.5" />
+                                        Télécharger PDF
+                                    </>
                                 )}
-                            </Button>
+                            </button>
                         </div>
                     </div>
                 )}
@@ -607,66 +747,77 @@ function PdfReadyModal({
         <Dialog open={!!ready} onOpenChange={(v) => !v && onClose()}>
             <DialogContent
                 className={cn(
-                    'p-0 border-none bg-white overflow-hidden flex flex-col gap-0',
-                    'sm:max-w-[440px] sm:rounded-xl',
+                    'p-0 gap-0 border border-ant-line bg-ant-paper overflow-hidden flex flex-col',
+                    'shadow-[0_32px_80px_-24px_rgba(20,20,19,0.4)]',
+                    'sm:max-w-[440px] sm:rounded-2xl',
                     'max-sm:!left-0 max-sm:!right-0 max-sm:!top-auto max-sm:!bottom-0',
                     'max-sm:!translate-x-0 max-sm:!translate-y-0',
                     'max-sm:!w-full max-sm:!max-w-none',
-                    'max-sm:!rounded-t-xl max-sm:!rounded-b-none'
+                    'max-sm:!rounded-t-2xl max-sm:!rounded-b-none',
+                    '[&>button.absolute]:hidden',
                 )}
             >
                 {ready && (
                     <div className="flex flex-col">
-                        <div className="sm:hidden flex justify-center pt-3 pb-1">
-                            <div className="w-10 h-1 rounded-full bg-gray-200" />
+                        <div className="sm:hidden flex justify-center pt-2.5 pb-1">
+                            <div className="w-10 h-1 rounded-full bg-ant-line" />
                         </div>
 
-                        <div className="px-5 pt-5 pb-5">
+                        <div className="h-[3px] w-full bg-ant-orange" />
+
+                        <div className="px-5 pt-5 pb-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
                             <div className="flex justify-center mb-4">
-                                <div className="w-12 h-12 rounded-xl bg-brand-navy/5 border border-gray-100 flex items-center justify-center">
-                                    <FileText className="w-5 h-5 text-brand-navy/60" />
+                                <div className="w-12 h-12 rounded-2xl bg-ant-light border border-ant-line flex items-center justify-center">
+                                    <FileText className="w-5 h-5 text-ant-ink" />
                                 </div>
                             </div>
 
-                            <DialogTitle className="text-center text-[14px] font-semibold text-brand-navy">
+                            <div className="flex items-center justify-center gap-2 mb-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-ant-orange" />
+                                <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                                    Document · Prêt
+                                </span>
+                            </div>
+                            <DialogTitle className="font-display text-center text-[18px] text-ant-ink tracking-[-0.01em]">
                                 PDF prêt
                             </DialogTitle>
-                            <DialogDescription className="text-center text-[11px] text-gray-400 mt-0.5">
+                            <DialogDescription className="font-mono text-center text-[11px] text-ant-mid mt-1">
                                 {ready.filename}
                             </DialogDescription>
 
-                            <div className="mt-4 p-3 rounded-lg bg-gray-50 border border-gray-100">
-                                <p className="text-[11px] text-gray-500 leading-relaxed text-center">
+                            <div className="mt-4 p-3 rounded-xl bg-ant-light border border-ant-line">
+                                <p className="font-serif italic text-[12px] text-ant-mid leading-relaxed text-center">
                                     {directSupported
                                         ? 'Touchez « Enregistrer » pour sauvegarder le PDF dans vos fichiers.'
                                         : 'Touchez « Enregistrer » pour ouvrir la feuille de partage et choisir « Enregistrer dans Fichiers ».'}
                                 </p>
                             </div>
 
-                            <Button
+                            <button
+                                type="button"
                                 onClick={onSave}
-                                className="w-full mt-4 h-8 rounded-md text-[11px] font-semibold bg-brand-navy hover:bg-brand-navy/90 text-white"
+                                className="w-full mt-4 h-11 rounded-full bg-ant-ink text-ant-light font-medium text-[12px] flex items-center justify-center gap-2 hover:bg-ant-ink/95 active:scale-[0.98] transition-all shadow-[0_10px_24px_-10px_rgba(20,20,19,0.5)]"
                             >
-                                <Save className="w-3.5 h-3.5 mr-1.5" />
+                                <Save className="w-3.5 h-3.5" />
                                 Enregistrer
-                            </Button>
+                            </button>
 
-                            <Button
-                                variant="ghost"
+                            <button
+                                type="button"
                                 onClick={onOpen}
-                                className="w-full mt-1.5 h-8 rounded-md text-[11px] font-semibold text-brand-navy/60 hover:bg-gray-50"
+                                className="w-full mt-2 h-11 rounded-full border border-ant-line bg-ant-paper text-ant-ink font-medium text-[12px] flex items-center justify-center gap-2 hover:bg-ant-light transition-colors"
                             >
-                                <Eye className="w-3.5 h-3.5 mr-1.5" />
+                                <Eye className="w-3.5 h-3.5" />
                                 Ouvrir dans le visualiseur
-                            </Button>
+                            </button>
 
-                            <Button
-                                variant="ghost"
+                            <button
+                                type="button"
                                 onClick={onClose}
-                                className="w-full mt-1 h-8 rounded-md text-[11px] text-gray-400 hover:bg-transparent hover:text-gray-500"
+                                className="w-full mt-2 h-9 rounded-full text-[11px] text-ant-mid hover:text-ant-ink transition-colors"
                             >
                                 Annuler
-                            </Button>
+                            </button>
                         </div>
                     </div>
                 )}

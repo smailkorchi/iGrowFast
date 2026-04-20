@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import {
@@ -10,28 +10,19 @@ import {
     Loader2,
     Eye,
     X,
-    Layers,
     RefreshCcw,
-    CircleDot,
     Truck,
     ClipboardCheck,
     LayoutGrid,
     List,
     EyeOff,
+    AlertTriangle,
 } from 'lucide-react';
-import {
-    Card,
-    CardContent
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { IconPicker } from '@/components/ui/IconPicker';
-import { DynamicIcon } from '@/lib/renderReactIcon';
 import {
     Dialog,
     DialogContent,
     DialogDescription,
-    DialogFooter,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
@@ -49,7 +40,7 @@ import {
     FormItem,
     FormLabel,
     FormMessage,
-    FormDescription
+    FormDescription,
 } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { useForm, useFieldArray } from 'react-hook-form';
@@ -67,27 +58,22 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // --- Schemas ---
 const statusSchema = z.object({
     code: z.string().min(2, "Code must be at least 2 characters"),
     label: z.string().min(2, "Label must be at least 2 characters"),
     ranking: z.coerce.number().default(0),
-    color: z.string().default("#6366f1"),
+    color: z.string().default("#D97706"),
     icon: z.string().optional().default(''),
     recheck: z.boolean().default(false),
     active: z.boolean().default(true),
-    // Order-specific display options
     show_in_order: z.boolean().default(true),
     show_in_quick_status: z.boolean().default(true),
     show_in_seller_confirmation: z.boolean().default(true),
-    // Package-specific display options
     show_in_courier: z.boolean().default(true),
     show_in_seller_suivi: z.boolean().default(true),
-    // Shared: performance breakdown
     perf_breakdown: z.boolean().default(false),
     perf_breakdown_phase: z.enum(['before_confirmation', 'after_confirmation']).nullable().default(null),
     delivery_service_statuses: z.array(z.object({
@@ -97,7 +83,6 @@ const statusSchema = z.object({
 
 type StatusFormValues = z.infer<typeof statusSchema>;
 
-// Common shape across order_statuses + package_statuses (verified via MCP).
 type StatusRow = {
     id: string;
     code: string;
@@ -110,15 +95,12 @@ type StatusRow = {
     category: string | null;
     created_at: string | null;
     updated_at: string | null;
-    // order_statuses only
     show_in_order?: boolean;
     show_in_quick_status?: boolean;
     show_in_seller_confirmation?: boolean;
-    // package_statuses only
     show_in_courier?: boolean;
     show_in_seller_suivi?: boolean;
     delivery_service_statuses?: string[] | null;
-    // shared
     perf_breakdown?: boolean;
     perf_breakdown_phase?: string | null;
 };
@@ -126,20 +108,18 @@ type StatusRow = {
 const errorMessage = (err: unknown): string =>
     err instanceof Error ? err.message : String(err);
 
-function OrderModalHiddenBadge({ className }: { className?: string }) {
+function HiddenInOrdersBadge({ className }: { className?: string }) {
     return (
-        <Badge
-            variant="outline"
+        <span
             className={cn(
-                'gap-1.5 rounded-lg border-violet-300/80 bg-gradient-to-br from-violet-50 to-violet-100/80 text-violet-900',
-                'font-bold tracking-wide uppercase shadow-sm ring-1 ring-violet-200/50',
-                'text-[9px] sm:text-[10px] px-2.5 py-1',
-                className
+                'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-[0.14em]',
+                'bg-ant-rose/10 text-ant-rose',
+                className,
             )}
         >
-            <EyeOff className="w-3 h-3 shrink-0 opacity-90" aria-hidden />
-            Not in order modals
-        </Badge>
+            <EyeOff className="w-2.5 h-2.5 shrink-0" />
+            Hidden in orders
+        </span>
     );
 }
 
@@ -158,7 +138,6 @@ const Status = () => {
 
     const table = activeTab === "orders" ? "order_statuses" : "package_statuses";
 
-    // --- Owner check (only owners can write to order_statuses / package_statuses) ---
     const { data: userRole } = useQuery({
         queryKey: ['currentUserRole'],
         queryFn: async () => {
@@ -175,7 +154,6 @@ const Status = () => {
     });
     const isOwner = userRole === 'owner';
 
-    // --- Queries ---
     const { data: statuses, isLoading } = useQuery({
         queryKey: ['statuses', activeTab],
         queryFn: async () => {
@@ -189,30 +167,27 @@ const Status = () => {
         },
     });
 
-    // --- Form Setup ---
     const form = useForm<StatusFormValues>({
         resolver: zodResolver(statusSchema),
         defaultValues: {
             code: '',
             label: '',
             ranking: 0,
-            color: '#6366f1',
+            color: '#D97706',
             recheck: false,
             active: true,
             show_in_order: true,
             delivery_service_statuses: [],
-        }
+        },
     });
 
     const { fields, append, remove } = useFieldArray({
         control: form.control,
-        name: "delivery_service_statuses"
+        name: "delivery_service_statuses",
     });
 
-    // --- Mutations ---
     const upsertMutation = useMutation({
         mutationFn: async (values: StatusFormValues) => {
-            // Transform the array of objects back to array of strings for DB
             const deliveryStatuses = activeTab === 'packages'
                 ? values.delivery_service_statuses.map(s => s.value)
                 : undefined;
@@ -265,20 +240,17 @@ const Status = () => {
             setEditingStatus(null);
             toast({
                 title: editingStatus ? "Status updated" : "Status created",
-                description: `Successfully ${editingStatus ? 'updated' : 'created'} ${form.getValues('label')}.`
+                description: `Successfully ${editingStatus ? 'updated' : 'created'} ${form.getValues('label')}.`,
             });
         },
         onError: (error) => {
             toast({ title: "Error", description: errorMessage(error), variant: "destructive" });
-        }
+        },
     });
 
     const deleteMutation = useMutation({
         mutationFn: async (id: string) => {
-            const { error } = await supabase
-                .from(table)
-                .delete()
-                .eq('id', id);
+            const { error } = await supabase.from(table).delete().eq('id', id);
             if (error) throw error;
         },
         onSuccess: () => {
@@ -288,7 +260,7 @@ const Status = () => {
         },
         onError: (error) => {
             toast({ title: "Error", description: errorMessage(error), variant: "destructive" });
-        }
+        },
     });
 
     const handleUpsert = (values: StatusFormValues) => {
@@ -298,7 +270,6 @@ const Status = () => {
     const openUpsert = (status: StatusRow | null = null) => {
         if (status) {
             setEditingStatus(status);
-            // Transform array of strings from DB to array of objects for form
             const deliveryStatuses = Array.isArray(status.delivery_service_statuses)
                 ? status.delivery_service_statuses.map((s: string) => ({ value: s }))
                 : [];
@@ -306,8 +277,8 @@ const Status = () => {
             form.reset({
                 code: status.code,
                 label: status.label,
-                ranking: status.ranking,
-                color: status.color || '#6366f1',
+                ranking: status.ranking ?? 0,
+                color: status.color || '#D97706',
                 icon: status.icon || '',
                 recheck: status.recheck ?? false,
                 active: status.active ?? true,
@@ -326,7 +297,7 @@ const Status = () => {
                 code: '',
                 label: '',
                 ranking: (statuses?.length || 0) + 1,
-                color: '#6366f1',
+                color: '#D97706',
                 icon: '',
                 recheck: false,
                 active: true,
@@ -343,10 +314,24 @@ const Status = () => {
         setIsUpsertOpen(true);
     };
 
-    const filteredStatuses = statuses?.filter(s =>
-        s.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        s.code.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredStatuses = useMemo(() => {
+        if (!statuses) return [];
+        if (!searchQuery.trim()) return statuses;
+        const q = searchQuery.toLowerCase();
+        return statuses.filter(s =>
+            s.label.toLowerCase().includes(q) ||
+            s.code.toLowerCase().includes(q),
+        );
+    }, [statuses, searchQuery]);
+
+    const stats = useMemo(() => {
+        if (!statuses) return { total: 0, active: 0, inactive: 0, recheck: 0 };
+        const active = statuses.filter((s) => s.active).length;
+        const recheck = statuses.filter((s) => s.recheck).length;
+        return { total: statuses.length, active, inactive: statuses.length - active, recheck };
+    }, [statuses]);
+
+    const inputClass = "w-full h-10 px-3.5 rounded-xl border border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid/60 focus:outline-none focus:border-ant-ink focus:ring-2 focus:ring-ant-orange/20 transition-all";
 
     const renderStatusSection = () => {
         if (isLoading) {
@@ -354,35 +339,43 @@ const Status = () => {
                 return (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                         {Array.from({ length: 4 }).map((_, i) => (
-                            <Skeleton key={i} className="h-36 w-full rounded-xl" />
+                            <Skeleton key={i} className="h-36 w-full rounded-2xl" />
                         ))}
                     </div>
                 );
             }
             return (
-                <div className="rounded-xl border border-gray-100 bg-white overflow-hidden divide-y divide-gray-50">
-                    {Array.from({ length: 6 }).map((_, i) => (
-                        <Skeleton key={i} className="h-14 w-full rounded-none" />
-                    ))}
-                </div>
+                <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                    <div className="h-[3px] w-full bg-ant-ink" />
+                    <div className="divide-y divide-ant-line">
+                        {Array.from({ length: 6 }).map((_, i) => (
+                            <Skeleton key={i} className="h-14 w-full rounded-none" />
+                        ))}
+                    </div>
+                </section>
             );
         }
 
-        if (!filteredStatuses?.length) {
+        if (!filteredStatuses.length) {
             return (
-                <div className="flex flex-col items-center justify-center py-10 rounded-xl border border-dashed border-gray-200 bg-white">
-                    <p className="text-[11px] font-medium text-gray-500">
-                        {searchQuery.trim()
-                            ? 'No statuses match your search.'
-                            : 'No statuses yet. Add one to get started.'}
-                    </p>
-                </div>
+                <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                    <div className="h-[3px] w-full bg-ant-orange" />
+                    <div className="p-10 flex flex-col items-center gap-3 text-center">
+                        <ClipboardCheck className="w-6 h-6 text-ant-mid" />
+                        <p className="font-display text-[14px] text-ant-ink">
+                            {searchQuery.trim() ? 'No statuses match your search' : 'No statuses yet'}
+                        </p>
+                        <p className="font-serif italic text-[12px] text-ant-mid max-w-sm">
+                            {searchQuery.trim() ? 'Try a different term.' : `Add the first ${activeTab === 'orders' ? 'order' : 'package'} status to define the workflow.`}
+                        </p>
+                    </div>
+                </section>
             );
         }
 
         if (viewMode === 'grid') {
             return (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
                     {filteredStatuses.map((status) => (
                         <StatusCard
                             key={status.id}
@@ -399,148 +392,218 @@ const Status = () => {
         }
 
         return (
-            <div className="rounded-xl border border-gray-100 bg-white overflow-hidden divide-y divide-gray-50">
-                {filteredStatuses.map((status) => (
-                    <StatusListRow
-                        key={status.id}
-                        status={status}
-                        activeTab={activeTab}
-                        isOwner={isOwner}
-                        onEdit={() => openUpsert(status)}
-                        onView={() => { setViewingStatus(status); setIsViewOpen(true); }}
-                        onDelete={() => setStatusToDelete(status)}
-                    />
-                ))}
-            </div>
+            <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                <div className="h-[3px] w-full bg-ant-ink" />
+                <div className="divide-y divide-ant-line">
+                    {filteredStatuses.map((status) => (
+                        <StatusListRow
+                            key={status.id}
+                            status={status}
+                            activeTab={activeTab}
+                            isOwner={isOwner}
+                            onEdit={() => openUpsert(status)}
+                            onView={() => { setViewingStatus(status); setIsViewOpen(true); }}
+                            onDelete={() => setStatusToDelete(status)}
+                        />
+                    ))}
+                </div>
+            </section>
         );
     };
 
     return (
-        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
-            {/* Header */}
-            <header className="space-y-2.5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Status Management</h1>
-                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Define workflow and lifecycle for orders and packages</p>
+        <div className="space-y-5 md:space-y-6">
+            {/* Editorial header */}
+            <header className="space-y-3">
+                <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-ant-orange" />
+                    <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                        Platform · Status workflow
+                    </span>
+                </div>
+                <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
+                    <div className="space-y-1.5">
+                        <h1 className="font-display text-[26px] sm:text-[32px] leading-[1.05] tracking-[-0.02em] text-ant-ink">
+                            Status management
+                        </h1>
+                        <p className="font-serif italic text-[13px] sm:text-[14px] leading-relaxed text-ant-mid">
+                            Define the lifecycle for orders and packages — visibility, ranking, and recheck rules.
+                        </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <div className="relative">
-                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
-                            <Input
-                                placeholder="Search by label or code..."
+                    <div className="flex flex-wrap items-center gap-2">
+                        <div className="relative flex-1 lg:flex-initial min-w-[200px]">
+                            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
+                            <input
+                                type="search"
+                                placeholder="Search label or code…"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="pl-7 h-8 rounded-md border-gray-200 bg-white text-[11px] w-52"
+                                className="w-full lg:w-56 h-10 pl-10 pr-10 rounded-full border border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid/70 focus:outline-none focus:border-ant-ink focus:ring-2 focus:ring-ant-orange/20 transition-all"
                             />
+                            {searchQuery && (
+                                <button
+                                    type="button"
+                                    onClick={() => setSearchQuery('')}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-ant-mid hover:text-ant-ink"
+                                >
+                                    <X className="w-3 h-3" />
+                                </button>
+                            )}
                         </div>
                         {isOwner && (
-                            <Button
+                            <button
+                                type="button"
                                 onClick={() => openUpsert()}
-                                className="h-8 rounded-md text-[11px] font-semibold bg-brand-navy hover:bg-brand-navy/90 text-white gap-1.5 px-3"
+                                className="inline-flex items-center gap-2 h-10 px-4 rounded-full bg-ant-ink text-ant-light text-[12px] font-medium hover:bg-ant-ink/95 transition-colors shadow-[0_10px_24px_-10px_rgba(20,20,19,0.5)]"
                             >
                                 <Plus className="w-3.5 h-3.5" />
-                                Add {activeTab === "orders" ? "Order" : "Package"} Status
-                            </Button>
+                                Add status
+                            </button>
                         )}
                     </div>
                 </div>
             </header>
 
-            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'orders' | 'packages')} className="space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                    <TabsList className="h-8">
-                        <TabsTrigger value="orders" className="text-[11px] h-6 px-3 gap-1.5">
-                            <ClipboardCheck className="w-3 h-3" />
-                            Order Statuses
-                        </TabsTrigger>
-                        <TabsTrigger value="packages" className="text-[11px] h-6 px-3 gap-1.5">
-                            <Truck className="w-3 h-3" />
-                            Package Statuses
-                        </TabsTrigger>
-                    </TabsList>
-                    <div className="flex items-center gap-0.5 bg-gray-100 p-0.5 rounded-md">
-                        <button
-                            type="button"
-                            onClick={() => setViewMode('grid')}
-                            className={cn(
-                                'h-7 w-7 p-0 rounded flex items-center justify-center transition-all',
-                                viewMode === 'grid'
-                                    ? 'bg-white text-brand-navy shadow-sm'
-                                    : 'text-gray-500 hover:text-gray-700'
-                            )}
-                            aria-label="Grid view"
-                        >
-                            <LayoutGrid className="w-3 h-3" />
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setViewMode('list')}
-                            className={cn(
-                                'h-7 w-7 p-0 rounded flex items-center justify-center transition-all',
-                                viewMode === 'list'
-                                    ? 'bg-white text-brand-navy shadow-sm'
-                                    : 'text-gray-500 hover:text-gray-700'
-                            )}
-                            aria-label="List view"
-                        >
-                            <List className="w-3 h-3" />
-                        </button>
-                    </div>
+            {/* KPI hairline strip */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ant-line rounded-2xl overflow-hidden border border-ant-line">
+                <KpiTile label="Total" value={stats.total} accent="bg-ant-ink" />
+                <KpiTile label="Active" value={stats.active} accent="bg-ant-green" />
+                <KpiTile label="Inactive" value={stats.inactive} accent="bg-ant-mid" />
+                <KpiTile label="Recheck" value={stats.recheck} accent="bg-ant-orange" />
+            </div>
+
+            {/* Tabs + view switch */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                <div className="inline-flex items-center gap-0.5 p-1 rounded-full border border-ant-line bg-ant-paper overflow-x-auto no-scrollbar">
+                    {([
+                        { key: 'orders' as const, label: 'Order statuses', icon: ClipboardCheck },
+                        { key: 'packages' as const, label: 'Package statuses', icon: Truck },
+                    ]).map((t) => {
+                        const isActive = activeTab === t.key;
+                        const Icon = t.icon;
+                        return (
+                            <button
+                                key={t.key}
+                                type="button"
+                                onClick={() => setActiveTab(t.key)}
+                                className={cn(
+                                    'shrink-0 h-9 px-3.5 rounded-full flex items-center gap-1.5 text-[12px] font-medium transition-all',
+                                    isActive ? 'bg-ant-ink text-ant-light shadow-[0_6px_18px_-6px_rgba(20,20,19,0.35)]' : 'text-ant-mid hover:text-ant-ink',
+                                )}
+                            >
+                                <Icon className="w-3.5 h-3.5" />
+                                {t.label}
+                            </button>
+                        );
+                    })}
                 </div>
+                <div className="sm:ml-auto inline-flex items-center gap-0.5 p-1 rounded-full border border-ant-line bg-ant-paper">
+                    <button
+                        type="button"
+                        onClick={() => setViewMode('list')}
+                        className={cn(
+                            'h-8 w-8 rounded-full flex items-center justify-center transition-all',
+                            viewMode === 'list' ? 'bg-ant-ink text-ant-light' : 'text-ant-mid hover:text-ant-ink',
+                        )}
+                        aria-label="List view"
+                    >
+                        <List className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setViewMode('grid')}
+                        className={cn(
+                            'h-8 w-8 rounded-full flex items-center justify-center transition-all',
+                            viewMode === 'grid' ? 'bg-ant-ink text-ant-light' : 'text-ant-mid hover:text-ant-ink',
+                        )}
+                        aria-label="Grid view"
+                    >
+                        <LayoutGrid className="w-3.5 h-3.5" />
+                    </button>
+                </div>
+            </div>
 
-                <TabsContent value="orders" className="space-y-2 mt-0">
-                    {renderStatusSection()}
-                </TabsContent>
-
-                <TabsContent value="packages" className="space-y-2 mt-0">
-                    {renderStatusSection()}
-                </TabsContent>
-            </Tabs>
+            {renderStatusSection()}
 
             {/* Upsert Modal */}
             <Dialog open={isUpsertOpen} onOpenChange={setIsUpsertOpen}>
-                <DialogContent className="max-w-2xl p-0 border border-gray-100 bg-white rounded-xl shadow-md overflow-hidden flex flex-col max-h-[90vh] gap-0">
+                <DialogContent className={cn(
+                    'max-w-2xl p-0 gap-0 border border-ant-line bg-ant-paper overflow-hidden flex flex-col max-h-[92vh]',
+                    'shadow-[0_32px_80px_-24px_rgba(20,20,19,0.4)]',
+                    'sm:rounded-2xl',
+                    'max-sm:!left-0 max-sm:!right-0 max-sm:!top-auto max-sm:!bottom-0',
+                    'max-sm:!translate-x-0 max-sm:!translate-y-0',
+                    'max-sm:!w-full max-sm:!max-w-none',
+                    'max-sm:!h-[94dvh] max-sm:!max-h-[94dvh]',
+                    'max-sm:!rounded-t-2xl max-sm:!rounded-b-none',
+                    '[&>button.absolute]:hidden',
+                )}>
                     <Form {...form}>
-                        <form onSubmit={form.handleSubmit(handleUpsert)} className="flex flex-col min-h-0 flex-1">
-                            <DialogHeader className="px-5 pt-5 pb-3 border-b border-gray-100 shrink-0">
-                                <div className="flex items-center gap-2.5">
-                                    <span
-                                        className="w-[3px] self-stretch rounded-full shrink-0"
-                                        style={{ background: form.watch('color') || '#6366f1' }}
-                                    />
-                                    <div className="min-w-0 flex-1">
-                                        <DialogTitle className="text-[14px] font-semibold text-brand-navy">
-                                            {editingStatus ? 'Edit Status' : 'New Status'}
+                        <form onSubmit={form.handleSubmit(handleUpsert)} className="flex flex-col min-h-0 flex-1 overflow-hidden">
+                            <div className="h-[3px] w-full bg-ant-orange shrink-0" />
+                            <DialogHeader className="px-5 pt-4 pb-4 shrink-0 border-b border-ant-line text-left space-y-1.5">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0 space-y-1.5 flex-1">
+                                        <div className="flex items-center gap-2">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-ant-orange" />
+                                            <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                                                Status · {editingStatus ? 'Edit' : 'New'}
+                                            </span>
+                                        </div>
+                                        <DialogTitle className="font-display text-[20px] leading-[1.1] tracking-[-0.01em] text-ant-ink flex items-center gap-2 flex-wrap">
+                                            {form.watch('label') || (editingStatus ? 'Edit status' : 'New status')}
+                                            <span
+                                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-[0.14em]"
+                                                style={{
+                                                    backgroundColor: `${form.watch('color') || '#D97706'}18`,
+                                                    color: form.watch('color') || '#D97706',
+                                                }}
+                                            >
+                                                <span
+                                                    className="w-1 h-1 rounded-full"
+                                                    style={{ backgroundColor: form.watch('color') || '#D97706' }}
+                                                />
+                                                {form.watch('label') || 'Preview'}
+                                            </span>
                                         </DialogTitle>
-                                        <DialogDescription className="text-[11px] text-gray-400 mt-0.5">
-                                            {form.watch('label') || 'Untitled'} <span className="font-mono uppercase opacity-60">({form.watch('code') || '...'})</span>
+                                        <DialogDescription className="font-serif italic text-[12px] text-ant-mid">
+                                            <span className="font-mono uppercase not-italic">{form.watch('code') || 'CODE'}</span> · rank #{form.watch('ranking') || 0}
                                         </DialogDescription>
                                     </div>
-                                    <span
-                                        className="text-[9px] font-semibold uppercase tracking-[0.14em] px-2 py-1 rounded shrink-0"
-                                        style={{ color: form.watch('color') || '#6366f1', backgroundColor: `${form.watch('color') || '#6366f1'}18` }}
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsUpsertOpen(false)}
+                                        className="w-8 h-8 rounded-full border border-ant-line bg-ant-paper hover:bg-ant-light flex items-center justify-center text-ant-ink shrink-0 transition-colors"
+                                        aria-label="Close"
                                     >
-                                        {form.watch('label') || 'Preview'}
-                                    </span>
+                                        <X className="w-3.5 h-3.5" />
+                                    </button>
                                 </div>
                             </DialogHeader>
 
-                            <div className="overflow-y-auto px-5 py-4 space-y-4 flex-1">
-                                {/* Identity */}
-                                <div className="space-y-3">
-                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Identity</p>
-                                    <div className="grid grid-cols-2 gap-3">
+                            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+                                {/* Chapter 01 — Identity */}
+                                <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                                    <div className="h-[3px] w-full bg-ant-ink" />
+                                    <div className="px-4 py-3 border-b border-ant-line">
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-display text-[10px] text-ant-orange">01</span>
+                                            <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                                                Identity
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="p-4 grid grid-cols-2 gap-3">
                                         <FormField
                                             control={form.control}
                                             name="label"
                                             render={({ field }) => (
                                                 <FormItem className="space-y-1.5">
-                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Label</FormLabel>
+                                                    <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Label</FormLabel>
                                                     <FormControl>
-                                                        <Input placeholder="Confirmed" {...field} className="h-9 rounded-md border-gray-200 text-[11px]" />
+                                                        <input placeholder="Confirmed" {...field} className={inputClass} />
                                                     </FormControl>
-                                                    <FormMessage />
+                                                    <FormMessage className="text-[10px] text-ant-rose" />
                                                 </FormItem>
                                             )}
                                         />
@@ -549,75 +612,93 @@ const Status = () => {
                                             name="code"
                                             render={({ field }) => (
                                                 <FormItem className="space-y-1.5">
-                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Code</FormLabel>
+                                                    <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Code</FormLabel>
                                                     <FormControl>
-                                                        <Input placeholder="CONFIRMED" {...field} className="h-9 rounded-md border-gray-200 text-[11px] font-mono uppercase" />
+                                                        <input placeholder="CONFIRMED" {...field} className={cn(inputClass, 'font-mono uppercase')} />
                                                     </FormControl>
-                                                    <FormMessage />
+                                                    <FormMessage className="text-[10px] text-ant-rose" />
                                                 </FormItem>
                                             )}
                                         />
                                     </div>
-                                </div>
+                                </section>
 
-                                {/* Appearance */}
-                                <div className="space-y-3">
-                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Appearance</p>
-                                    <div className="grid grid-cols-[1fr_auto] gap-3">
+                                {/* Chapter 02 — Appearance */}
+                                <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                                    <div className="h-[3px] w-full bg-ant-orange" />
+                                    <div className="px-4 py-3 border-b border-ant-line">
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-display text-[10px] text-ant-orange">02</span>
+                                            <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                                                Appearance
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="p-4 space-y-3">
+                                        <div className="grid grid-cols-[1fr_auto] gap-3">
+                                            <FormField
+                                                control={form.control}
+                                                name="icon"
+                                                render={({ field }) => (
+                                                    <FormItem className="space-y-1.5">
+                                                        <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Icon</FormLabel>
+                                                        <FormControl>
+                                                            <IconPicker value={field.value || ''} onChange={field.onChange} />
+                                                        </FormControl>
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <FormField
+                                                control={form.control}
+                                                name="ranking"
+                                                render={({ field }) => (
+                                                    <FormItem className="space-y-1.5 w-24">
+                                                        <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Rank</FormLabel>
+                                                        <FormControl>
+                                                            <input type="number" {...field} className={cn(inputClass, 'text-center')} />
+                                                        </FormControl>
+                                                    </FormItem>
+                                                )}
+                                            />
+                                        </div>
                                         <FormField
                                             control={form.control}
-                                            name="icon"
+                                            name="color"
                                             render={({ field }) => (
                                                 <FormItem className="space-y-1.5">
-                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Icon</FormLabel>
+                                                    <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Color</FormLabel>
                                                     <FormControl>
-                                                        <IconPicker value={field.value || ''} onChange={field.onChange} />
-                                                    </FormControl>
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <FormField
-                                            control={form.control}
-                                            name="ranking"
-                                            render={({ field }) => (
-                                                <FormItem className="space-y-1.5 w-20">
-                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Rank</FormLabel>
-                                                    <FormControl>
-                                                        <Input type="number" {...field} className="h-9 rounded-md border-gray-200 text-[11px] text-center" />
+                                                        <div className="flex gap-2 items-center">
+                                                            <input type="color" {...field} className="h-10 w-12 p-1 rounded-xl border border-ant-line bg-ant-paper cursor-pointer shrink-0" />
+                                                            <input {...field} className={cn(inputClass, 'font-mono')} />
+                                                        </div>
                                                     </FormControl>
                                                 </FormItem>
                                             )}
                                         />
                                     </div>
-                                    <FormField
-                                        control={form.control}
-                                        name="color"
-                                        render={({ field }) => (
-                                            <FormItem className="space-y-1.5">
-                                                <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Color</FormLabel>
-                                                <FormControl>
-                                                    <div className="flex gap-2 items-center">
-                                                        <Input type="color" {...field} className="h-9 w-9 p-1 rounded-md border-gray-200 cursor-pointer shrink-0" />
-                                                        <Input {...field} className="h-9 flex-1 rounded-md border-gray-200 text-[11px] font-mono" />
-                                                    </div>
-                                                </FormControl>
-                                            </FormItem>
-                                        )}
-                                    />
-                                </div>
+                                </section>
 
-                                {/* Behavior */}
-                                <div className="space-y-3">
-                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Behavior</p>
-                                    <div className="grid grid-cols-2 gap-3">
+                                {/* Chapter 03 — Behavior */}
+                                <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                                    <div className="h-[3px] w-full bg-ant-ink" />
+                                    <div className="px-4 py-3 border-b border-ant-line">
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-display text-[10px] text-ant-orange">03</span>
+                                            <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                                                Behavior
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="p-3 grid grid-cols-2 gap-2">
                                         <FormField
                                             control={form.control}
                                             name="active"
                                             render={({ field }) => (
-                                                <FormItem className="flex items-center justify-between p-2.5 rounded-md bg-gray-50 border border-gray-100">
-                                                    <FormLabel className="text-[11px] font-semibold text-brand-navy">Active</FormLabel>
+                                                <FormItem className="flex items-center justify-between p-3 rounded-xl bg-ant-light border border-ant-line">
+                                                    <FormLabel className="text-[12px] font-medium text-ant-ink">Active</FormLabel>
                                                     <FormControl>
-                                                        <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                                        <Switch checked={field.value} onCheckedChange={field.onChange} className="data-[state=checked]:bg-ant-green scale-90" />
                                                     </FormControl>
                                                 </FormItem>
                                             )}
@@ -626,257 +707,224 @@ const Status = () => {
                                             control={form.control}
                                             name="recheck"
                                             render={({ field }) => (
-                                                <FormItem className="flex items-center justify-between p-2.5 rounded-md bg-gray-50 border border-gray-100">
-                                                    <FormLabel className="text-[11px] font-semibold text-brand-navy">Recheck</FormLabel>
+                                                <FormItem className="flex items-center justify-between p-3 rounded-xl bg-ant-light border border-ant-line">
+                                                    <FormLabel className="text-[12px] font-medium text-ant-ink">Recheck</FormLabel>
                                                     <FormControl>
-                                                        <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                                        <Switch checked={field.value} onCheckedChange={field.onChange} className="data-[state=checked]:bg-ant-orange scale-90" />
                                                     </FormControl>
                                                 </FormItem>
                                             )}
                                         />
                                     </div>
-                                </div>
+                                </section>
 
-                                {/* Display Options */}
-                                <div className="space-y-3">
-                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Display Options</p>
-
-                                    {activeTab === 'orders' && (
-                                        <div className="space-y-2">
-                                            <FormField
-                                                control={form.control}
-                                                name="show_in_order"
-                                                render={({ field }) => (
-                                                    <FormItem className="flex items-center justify-between p-2.5 rounded-md bg-gray-50 border border-gray-100">
-                                                        <div className="min-w-0 space-y-0.5">
-                                                            <FormLabel className="text-[11px] font-semibold text-brand-navy">Show in Order Modals</FormLabel>
-                                                            <FormDescription className="text-[10px] text-gray-400 leading-snug">
-                                                                Visible in add/edit order status dropdown.
-                                                            </FormDescription>
-                                                        </div>
-                                                        <FormControl>
-                                                            <Switch checked={field.value} onCheckedChange={field.onChange} className="shrink-0" />
-                                                        </FormControl>
-                                                    </FormItem>
-                                                )}
-                                            />
-                                            <FormField
-                                                control={form.control}
-                                                name="show_in_quick_status"
-                                                render={({ field }) => (
-                                                    <FormItem className="flex items-center justify-between p-2.5 rounded-md bg-gray-50 border border-gray-100">
-                                                        <div className="min-w-0 space-y-0.5">
-                                                            <FormLabel className="text-[11px] font-semibold text-brand-navy">Show in Quick Status Change</FormLabel>
-                                                            <FormDescription className="text-[10px] text-gray-400 leading-snug">
-                                                                Visible in the quick status change grid on orders.
-                                                            </FormDescription>
-                                                        </div>
-                                                        <FormControl>
-                                                            <Switch checked={field.value} onCheckedChange={field.onChange} className="shrink-0" />
-                                                        </FormControl>
-                                                    </FormItem>
-                                                )}
-                                            />
+                                {/* Chapter 04 — Display options */}
+                                <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                                    <div className="h-[3px] w-full bg-ant-orange" />
+                                    <div className="px-4 py-3 border-b border-ant-line">
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-display text-[10px] text-ant-orange">04</span>
+                                            <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                                                Display options
+                                            </span>
                                         </div>
-                                    )}
+                                    </div>
+                                    <div className="p-3 space-y-2">
+                                        {activeTab === 'orders' && (
+                                            <>
+                                                <FormField
+                                                    control={form.control}
+                                                    name="show_in_order"
+                                                    render={({ field }) => (
+                                                        <ToggleRow field={field} label="Show in order modals" desc="Visible in add/edit order status dropdown." />
+                                                    )}
+                                                />
+                                                <FormField
+                                                    control={form.control}
+                                                    name="show_in_quick_status"
+                                                    render={({ field }) => (
+                                                        <ToggleRow field={field} label="Show in quick status change" desc="Visible in the quick status grid on orders." />
+                                                    )}
+                                                />
+                                            </>
+                                        )}
 
-                                    {activeTab === 'packages' && (
-                                        <div className="space-y-2">
+                                        {activeTab === 'packages' && (
                                             <FormField
                                                 control={form.control}
                                                 name="show_in_courier"
                                                 render={({ field }) => (
-                                                    <FormItem className="flex items-center justify-between p-2.5 rounded-md bg-gray-50 border border-gray-100">
-                                                        <div className="min-w-0 space-y-0.5">
-                                                            <FormLabel className="text-[11px] font-semibold text-brand-navy">Show in Courier Statuses</FormLabel>
-                                                            <FormDescription className="text-[10px] text-gray-400 leading-snug">
-                                                                Visible in courier views and parcel tracking.
-                                                            </FormDescription>
-                                                        </div>
-                                                        <FormControl>
-                                                            <Switch checked={field.value} onCheckedChange={field.onChange} className="shrink-0" />
-                                                        </FormControl>
-                                                    </FormItem>
+                                                    <ToggleRow field={field} label="Show in courier statuses" desc="Visible in courier views and parcel tracking." />
+                                                )}
+                                            />
+                                        )}
+
+                                        <div className="mt-3 pt-3 border-t border-ant-line space-y-2">
+                                            <p className="text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid px-1">
+                                                Seller tabs
+                                            </p>
+                                            <FormField
+                                                control={form.control}
+                                                name="show_in_seller_confirmation"
+                                                render={({ field }) => (
+                                                    <ToggleRow field={field} label="Show in seller confirmation tab" desc="When off, orders with this status are hidden from the confirmation tab." />
+                                                )}
+                                            />
+                                            <FormField
+                                                control={form.control}
+                                                name="show_in_seller_suivi"
+                                                render={({ field }) => (
+                                                    <ToggleRow field={field} label="Show in seller suivi tab" desc="When off, orders with this status are hidden from the suivi tab." />
                                                 )}
                                             />
                                         </div>
-                                    )}
-
-                                    <div className="space-y-2 pt-1">
-                                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-300">Seller Tabs</p>
-                                        <FormField
-                                            control={form.control}
-                                            name="show_in_seller_confirmation"
-                                            render={({ field }) => (
-                                                <FormItem className="flex items-center justify-between p-2.5 rounded-md bg-gray-50 border border-gray-100">
-                                                    <div className="min-w-0 space-y-0.5">
-                                                        <FormLabel className="text-[11px] font-semibold text-brand-navy">Show in Seller Confirmation Tab</FormLabel>
-                                                        <FormDescription className="text-[10px] text-gray-400 leading-snug">
-                                                            When off, orders with this status are hidden from the confirmation tab.
-                                                        </FormDescription>
-                                                    </div>
-                                                    <FormControl>
-                                                        <Switch checked={field.value} onCheckedChange={field.onChange} className="shrink-0" />
-                                                    </FormControl>
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <FormField
-                                            control={form.control}
-                                            name="show_in_seller_suivi"
-                                            render={({ field }) => (
-                                                <FormItem className="flex items-center justify-between p-2.5 rounded-md bg-gray-50 border border-gray-100">
-                                                    <div className="min-w-0 space-y-0.5">
-                                                        <FormLabel className="text-[11px] font-semibold text-brand-navy">Show in Seller Suivi Tab</FormLabel>
-                                                        <FormDescription className="text-[10px] text-gray-400 leading-snug">
-                                                            When off, orders with this status are hidden from the suivi tab.
-                                                        </FormDescription>
-                                                    </div>
-                                                    <FormControl>
-                                                        <Switch checked={field.value} onCheckedChange={field.onChange} className="shrink-0" />
-                                                    </FormControl>
-                                                </FormItem>
-                                            )}
-                                        />
                                     </div>
-                                </div>
+                                </section>
 
-                                {/* Performance Breakdown */}
-                                <div className="space-y-3">
-                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Seller Performance Breakdown</p>
-                                    <FormField
-                                        control={form.control}
-                                        name="perf_breakdown"
-                                        render={({ field }) => (
-                                            <FormItem className="flex items-center justify-between p-2.5 rounded-md bg-gray-50 border border-gray-100">
-                                                <div className="min-w-0 space-y-0.5">
-                                                    <FormLabel className="text-[11px] font-semibold text-brand-navy">Include in Performance Breakdown</FormLabel>
-                                                    <FormDescription className="text-[10px] text-gray-400 leading-snug">
-                                                        When active, this status appears in seller performance analytics.
-                                                    </FormDescription>
-                                                </div>
-                                                <FormControl>
-                                                    <Switch checked={field.value} onCheckedChange={(v) => {
-                                                        field.onChange(v);
-                                                        if (!v) form.setValue('perf_breakdown_phase', null);
-                                                    }} className="shrink-0" />
-                                                </FormControl>
-                                            </FormItem>
-                                        )}
-                                    />
-                                    {form.watch('perf_breakdown') && (
+                                {/* Chapter 05 — Performance */}
+                                <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                                    <div className="h-[3px] w-full bg-ant-green" />
+                                    <div className="px-4 py-3 border-b border-ant-line">
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-display text-[10px] text-ant-orange">05</span>
+                                            <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                                                Seller performance
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="p-3 space-y-2">
                                         <FormField
                                             control={form.control}
-                                            name="perf_breakdown_phase"
+                                            name="perf_breakdown"
                                             render={({ field }) => (
-                                                <FormItem className="space-y-2 p-2.5 rounded-md bg-gray-50 border border-gray-100">
-                                                    <FormLabel className="text-[11px] font-semibold text-brand-navy">Phase</FormLabel>
-                                                    <FormDescription className="text-[10px] text-gray-400 leading-snug">
-                                                        Before = pre-confirmation statuses. After = post-confirmation statuses.
-                                                    </FormDescription>
-                                                    <div className="grid grid-cols-2 gap-2 pt-1">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => field.onChange('before_confirmation')}
-                                                            className={cn(
-                                                                'h-8 rounded-md text-[11px] font-semibold uppercase tracking-wide transition-all border',
-                                                                field.value === 'before_confirmation'
-                                                                    ? 'bg-brand-navy text-white border-brand-navy'
-                                                                    : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
-                                                            )}
-                                                        >
-                                                            Before
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => field.onChange('after_confirmation')}
-                                                            className={cn(
-                                                                'h-8 rounded-md text-[11px] font-semibold uppercase tracking-wide transition-all border',
-                                                                field.value === 'after_confirmation'
-                                                                    ? 'bg-brand-navy text-white border-brand-navy'
-                                                                    : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
-                                                            )}
-                                                        >
-                                                            After
-                                                        </button>
-                                                    </div>
-                                                    <FormMessage />
-                                                </FormItem>
+                                                <ToggleRow
+                                                    field={{
+                                                        value: field.value,
+                                                        onChange: (v: boolean) => {
+                                                            field.onChange(v);
+                                                            if (!v) form.setValue('perf_breakdown_phase', null);
+                                                        },
+                                                    }}
+                                                    label="Include in performance breakdown"
+                                                    desc="When active, this status appears in seller performance analytics."
+                                                />
                                             )}
                                         />
-                                    )}
-                                </div>
+                                        {form.watch('perf_breakdown') && (
+                                            <FormField
+                                                control={form.control}
+                                                name="perf_breakdown_phase"
+                                                render={({ field }) => (
+                                                    <FormItem className="space-y-2 p-3 rounded-xl bg-ant-light border border-ant-line">
+                                                        <FormLabel className="text-[11px] font-medium text-ant-ink">Phase</FormLabel>
+                                                        <FormDescription className="font-serif italic text-[11px] text-ant-mid">
+                                                            Before = pre-confirmation statuses. After = post-confirmation statuses.
+                                                        </FormDescription>
+                                                        <div className="grid grid-cols-2 gap-2 pt-1">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => field.onChange('before_confirmation')}
+                                                                className={cn(
+                                                                    'h-9 rounded-full text-[11px] font-medium transition-all border',
+                                                                    field.value === 'before_confirmation'
+                                                                        ? 'bg-ant-ink text-ant-light border-ant-ink'
+                                                                        : 'bg-ant-paper text-ant-mid border-ant-line hover:text-ant-ink hover:border-ant-ink/30',
+                                                                )}
+                                                            >
+                                                                Before
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => field.onChange('after_confirmation')}
+                                                                className={cn(
+                                                                    'h-9 rounded-full text-[11px] font-medium transition-all border',
+                                                                    field.value === 'after_confirmation'
+                                                                        ? 'bg-ant-ink text-ant-light border-ant-ink'
+                                                                        : 'bg-ant-paper text-ant-mid border-ant-line hover:text-ant-ink hover:border-ant-ink/30',
+                                                                )}
+                                                            >
+                                                                After
+                                                            </button>
+                                                        </div>
+                                                        <FormMessage className="text-[10px] text-ant-rose" />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                        )}
+                                    </div>
+                                </section>
 
+                                {/* Chapter 06 — Attached service statuses (packages only) */}
                                 {activeTab === 'packages' && (
-                                    <div className="space-y-3 pt-3 border-t border-gray-100">
-                                        <div className="flex items-center justify-between">
-                                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Attached Service Statuses</p>
-                                            <Button
+                                    <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                                        <div className="h-[3px] w-full bg-ant-ink" />
+                                        <div className="px-4 py-3 border-b border-ant-line flex items-center justify-between gap-2">
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-display text-[10px] text-ant-orange">06</span>
+                                                <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                                                    Attached service statuses
+                                                </span>
+                                            </div>
+                                            <button
                                                 type="button"
-                                                variant="ghost"
-                                                size="sm"
                                                 onClick={() => append({ value: '' })}
-                                                className="h-7 px-2.5 text-[10px] font-semibold text-brand-navy hover:bg-gray-100 gap-1 rounded-md"
+                                                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full border border-ant-line bg-ant-paper text-ant-ink text-[11px] font-medium hover:bg-ant-ink hover:text-ant-light hover:border-ant-ink transition-colors"
                                             >
                                                 <Plus className="w-3 h-3" /> Add
-                                            </Button>
+                                            </button>
                                         </div>
-
-                                        {fields.length === 0 && (
-                                            <div className="py-6 border border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center text-center">
-                                                <Truck className="w-5 h-5 mb-1.5 text-gray-300" />
-                                                <p className="text-[10px] text-gray-400">No statuses attached</p>
-                                            </div>
-                                        )}
-
-                                        <div className="space-y-2">
-                                            {fields.map((field, index) => (
-                                                <div key={field.id} className="flex gap-2 items-center">
-                                                    <FormField
-                                                        control={form.control}
-                                                        name={`delivery_service_statuses.${index}.value`}
-                                                        render={({ field }) => (
-                                                            <FormItem className="flex-1">
-                                                                <FormControl>
-                                                                    <Input placeholder="e.g. READY_TO_SHIP" {...field} className="h-8 rounded-md border-gray-200 text-[11px] font-mono uppercase" />
-                                                                </FormControl>
-                                                            </FormItem>
-                                                        )}
-                                                    />
-                                                    <Button
-                                                        type="button"
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() => remove(index)}
-                                                        className="h-8 w-8 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md shrink-0"
-                                                    >
-                                                        <X className="w-3.5 h-3.5" />
-                                                    </Button>
+                                        <div className="p-3 space-y-1.5">
+                                            {fields.length === 0 ? (
+                                                <div className="py-6 rounded-xl border border-dashed border-ant-line bg-ant-light flex flex-col items-center justify-center text-center gap-1.5">
+                                                    <Truck className="w-5 h-5 text-ant-mid" />
+                                                    <p className="font-serif italic text-[11px] text-ant-mid">No statuses attached</p>
                                                 </div>
-                                            ))}
+                                            ) : (
+                                                fields.map((field, index) => (
+                                                    <div key={field.id} className="flex gap-2 items-center">
+                                                        <FormField
+                                                            control={form.control}
+                                                            name={`delivery_service_statuses.${index}.value`}
+                                                            render={({ field }) => (
+                                                                <FormItem className="flex-1">
+                                                                    <FormControl>
+                                                                        <input placeholder="e.g. READY_TO_SHIP" {...field} className={cn(inputClass, 'h-9 font-mono uppercase')} />
+                                                                    </FormControl>
+                                                                </FormItem>
+                                                            )}
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => remove(index)}
+                                                            className="w-9 h-9 rounded-full border border-ant-line bg-ant-paper flex items-center justify-center text-ant-mid hover:bg-ant-rose/10 hover:text-ant-rose hover:border-ant-rose/30 transition-colors shrink-0"
+                                                        >
+                                                            <X className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
+                                                ))
+                                            )}
                                         </div>
-                                    </div>
+                                    </section>
                                 )}
                             </div>
 
-                            <DialogFooter className="px-5 py-3 border-t border-gray-100 shrink-0 gap-2">
-                                <Button
+                            <div className="shrink-0 px-5 py-3 flex flex-row gap-2 bg-ant-paper border-t border-ant-line pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                                <button
                                     type="button"
-                                    variant="ghost"
                                     onClick={() => setIsUpsertOpen(false)}
-                                    className="h-8 px-3 text-[11px] font-semibold text-gray-500"
+                                    className="flex-1 sm:flex-initial h-11 px-5 rounded-full border border-ant-line bg-ant-paper text-ant-ink text-[12px] font-medium hover:bg-ant-light transition-colors"
                                 >
                                     Cancel
-                                </Button>
-                                <Button
+                                </button>
+                                <button
                                     type="submit"
                                     disabled={upsertMutation.isPending}
-                                    className="h-8 px-4 text-[11px] font-semibold bg-brand-navy hover:bg-brand-navy/90 text-white rounded-md gap-1.5"
+                                    className="flex-1 h-11 px-5 rounded-full bg-ant-ink text-ant-light text-[12px] font-medium flex items-center justify-center gap-2 hover:bg-ant-ink/95 disabled:opacity-60 transition-all shadow-[0_10px_24px_-10px_rgba(20,20,19,0.5)]"
                                 >
-                                    {upsertMutation.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
-                                    {editingStatus ? 'Update Status' : 'Create Status'}
-                                </Button>
-                            </DialogFooter>
+                                    {upsertMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                                    {editingStatus ? 'Save changes' : 'Create status'}
+                                </button>
+                            </div>
                         </form>
                     </Form>
                 </DialogContent>
@@ -884,72 +932,96 @@ const Status = () => {
 
             {/* View Modal */}
             <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
-                <DialogContent className="max-w-md p-0 border border-gray-100 bg-white rounded-xl shadow-md overflow-hidden gap-0">
+                <DialogContent className={cn(
+                    'max-w-md p-0 gap-0 border border-ant-line bg-ant-paper overflow-hidden',
+                    'shadow-[0_32px_80px_-24px_rgba(20,20,19,0.4)]',
+                    'sm:rounded-2xl',
+                    'max-sm:!left-0 max-sm:!right-0 max-sm:!top-auto max-sm:!bottom-0',
+                    'max-sm:!translate-x-0 max-sm:!translate-y-0',
+                    'max-sm:!w-full max-sm:!max-w-none',
+                    'max-sm:!rounded-t-2xl max-sm:!rounded-b-none',
+                    '[&>button.absolute]:hidden',
+                )}>
                     {viewingStatus && (
-                        <div className="flex flex-col">
-                            <DialogHeader className="px-5 pt-5 pb-3 border-b border-gray-100">
-                                <div className="flex items-center gap-2.5">
-                                    <span className="w-[3px] self-stretch rounded-full shrink-0" style={{ background: viewingStatus.color || '#6366f1' }} />
-                                    <div className="min-w-0 flex-1">
-                                        <DialogTitle className="text-[14px] font-semibold text-brand-navy">{viewingStatus.label}</DialogTitle>
-                                        <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 mt-0.5">{viewingStatus.code}</p>
+                        <>
+                            <div className="h-[3px] w-full" style={{ backgroundColor: viewingStatus.color || '#D97706' }} />
+                            <DialogHeader className="px-5 pt-4 pb-4 border-b border-ant-line text-left space-y-1.5">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0 space-y-1.5 flex-1">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: viewingStatus.color || '#D97706' }} />
+                                            <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                                                Status · Summary
+                                            </span>
+                                            {!viewingStatus.active && (
+                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-[0.14em] bg-ant-mid/10 text-ant-mid">
+                                                    Inactive
+                                                </span>
+                                            )}
+                                        </div>
+                                        <DialogTitle className="font-display text-[18px] leading-tight text-ant-ink">
+                                            {viewingStatus.label}
+                                        </DialogTitle>
+                                        <DialogDescription className="font-mono text-[11px] uppercase tracking-[0.14em] text-ant-mid">
+                                            {viewingStatus.code}
+                                        </DialogDescription>
                                     </div>
-                                    {!viewingStatus.active && (
-                                        <Badge variant="secondary" className="text-[9px] font-semibold uppercase bg-red-50 text-red-500 border-red-100">Inactive</Badge>
-                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsViewOpen(false)}
+                                        className="w-8 h-8 rounded-full border border-ant-line bg-ant-paper hover:bg-ant-light flex items-center justify-center text-ant-ink shrink-0 transition-colors"
+                                        aria-label="Close"
+                                    >
+                                        <X className="w-3.5 h-3.5" />
+                                    </button>
                                 </div>
                             </DialogHeader>
 
                             <div className="px-5 py-4 space-y-4">
                                 <div className="grid grid-cols-2 gap-3">
-                                    <div className="rounded-md bg-gray-50 border border-gray-100 p-2.5 space-y-0.5">
-                                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Ranking</p>
-                                        <p className="text-[12px] font-semibold text-brand-navy tabular-nums">#{viewingStatus.ranking}</p>
+                                    <div className="rounded-xl bg-ant-light border border-ant-line p-3 space-y-1">
+                                        <p className="text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid">Ranking</p>
+                                        <p className="font-display text-[18px] tabular-nums text-ant-ink">#{viewingStatus.ranking}</p>
                                     </div>
-                                    <div className="rounded-md bg-gray-50 border border-gray-100 p-2.5 space-y-0.5">
-                                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Recheck</p>
-                                        <p className="text-[12px] font-semibold text-brand-navy">{viewingStatus.recheck ? 'Yes' : 'No'}</p>
+                                    <div className="rounded-xl bg-ant-light border border-ant-line p-3 space-y-1">
+                                        <p className="text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid">Recheck</p>
+                                        <p className={cn('font-display text-[14px]', viewingStatus.recheck ? 'text-ant-orange' : 'text-ant-mid')}>
+                                            {viewingStatus.recheck ? 'Yes' : 'No'}
+                                        </p>
                                     </div>
                                 </div>
 
                                 <div className="space-y-2">
-                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Display Options</p>
+                                    <p className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">Display options</p>
                                     <div className="flex flex-wrap gap-1.5">
                                         {activeTab === 'orders' && (
                                             <>
-                                                <Badge variant="outline" className={cn('text-[10px] font-semibold px-2 py-0.5 rounded', viewingStatus.show_in_order !== false ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-500 border-red-200')}>
-                                                    Order Modals: {viewingStatus.show_in_order !== false ? 'ON' : 'OFF'}
-                                                </Badge>
-                                                <Badge variant="outline" className={cn('text-[10px] font-semibold px-2 py-0.5 rounded', viewingStatus.show_in_quick_status !== false ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-500 border-red-200')}>
-                                                    Quick Status: {viewingStatus.show_in_quick_status !== false ? 'ON' : 'OFF'}
-                                                </Badge>
+                                                <VisibilityPill on={viewingStatus.show_in_order !== false} label="Order modals" />
+                                                <VisibilityPill on={viewingStatus.show_in_quick_status !== false} label="Quick status" />
                                             </>
                                         )}
                                         {activeTab === 'packages' && (
-                                            <Badge variant="outline" className={cn('text-[10px] font-semibold px-2 py-0.5 rounded', viewingStatus.show_in_courier !== false ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-500 border-red-200')}>
-                                                Courier: {viewingStatus.show_in_courier !== false ? 'ON' : 'OFF'}
-                                            </Badge>
+                                            <VisibilityPill on={viewingStatus.show_in_courier !== false} label="Courier" />
                                         )}
-                                        <Badge variant="outline" className={cn('text-[10px] font-semibold px-2 py-0.5 rounded', viewingStatus.show_in_seller_confirmation !== false ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-500 border-red-200')}>
-                                            Confirmation: {viewingStatus.show_in_seller_confirmation !== false ? 'ON' : 'OFF'}
-                                        </Badge>
-                                        <Badge variant="outline" className={cn('text-[10px] font-semibold px-2 py-0.5 rounded', viewingStatus.show_in_seller_suivi !== false ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-500 border-red-200')}>
-                                            Suivi: {viewingStatus.show_in_seller_suivi !== false ? 'ON' : 'OFF'}
-                                        </Badge>
-                                        <Badge variant="outline" className={cn('text-[10px] font-semibold px-2 py-0.5 rounded', viewingStatus.perf_breakdown ? 'bg-gray-100 text-gray-600 border-gray-200' : 'bg-gray-50 text-gray-400 border-gray-100')}>
-                                            Perf: {viewingStatus.perf_breakdown ? (viewingStatus.perf_breakdown_phase === 'before_confirmation' ? 'Before' : 'After') : 'OFF'}
-                                        </Badge>
+                                        <VisibilityPill on={viewingStatus.show_in_seller_confirmation !== false} label="Confirmation" />
+                                        <VisibilityPill on={viewingStatus.show_in_seller_suivi !== false} label="Suivi" />
+                                        <span className={cn(
+                                            'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-[0.14em]',
+                                            viewingStatus.perf_breakdown ? 'bg-ant-orange/12 text-ant-orange' : 'bg-ant-mid/10 text-ant-mid',
+                                        )}>
+                                            Perf: {viewingStatus.perf_breakdown ? (viewingStatus.perf_breakdown_phase === 'before_confirmation' ? 'Before' : 'After') : 'Off'}
+                                        </span>
                                     </div>
                                 </div>
 
-                                {activeTab === 'packages' && viewingStatus.delivery_service_statuses?.length > 0 && (
-                                    <div className="space-y-2 pt-3 border-t border-gray-100">
-                                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Attached Service Statuses</p>
+                                {activeTab === 'packages' && Array.isArray(viewingStatus.delivery_service_statuses) && viewingStatus.delivery_service_statuses.length > 0 && (
+                                    <div className="space-y-2 pt-3 border-t border-ant-line">
+                                        <p className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">Attached service statuses</p>
                                         <div className="flex flex-wrap gap-1.5">
                                             {viewingStatus.delivery_service_statuses.map((status: string, idx: number) => (
-                                                <Badge key={idx} variant="outline" className="text-[10px] font-semibold border-gray-200 uppercase bg-gray-50 px-2 py-0.5 rounded font-mono">
+                                                <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono uppercase tracking-[0.1em] bg-ant-light border border-ant-line text-ant-ink">
                                                     {status}
-                                                </Badge>
+                                                </span>
                                             ))}
                                         </div>
                                     </div>
@@ -957,44 +1029,67 @@ const Status = () => {
                             </div>
 
                             {isOwner && (
-                                <div className="px-5 py-3 border-t border-gray-100 flex justify-end gap-2">
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
+                                <div className="px-5 py-3 border-t border-ant-line flex items-center justify-end gap-2">
+                                    <button
+                                        type="button"
                                         onClick={() => { setIsViewOpen(false); setStatusToDelete(viewingStatus); }}
-                                        className="h-8 w-8 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50"
+                                        className="w-10 h-10 rounded-full border border-ant-line bg-ant-paper flex items-center justify-center text-ant-mid hover:bg-ant-rose/10 hover:text-ant-rose hover:border-ant-rose/30 transition-colors"
                                     >
                                         <Trash2 className="w-3.5 h-3.5" />
-                                    </Button>
-                                    <Button
+                                    </button>
+                                    <button
+                                        type="button"
                                         onClick={() => { setIsViewOpen(false); openUpsert(viewingStatus); }}
-                                        className="h-8 px-3 text-[11px] font-semibold bg-brand-navy hover:bg-brand-navy/90 text-white rounded-md"
+                                        className="inline-flex items-center gap-2 h-10 px-4 rounded-full bg-ant-ink text-ant-light text-[12px] font-medium hover:bg-ant-ink/95 transition-colors shadow-[0_10px_24px_-10px_rgba(20,20,19,0.5)]"
                                     >
-                                        Edit Configuration
-                                    </Button>
+                                        <Edit2 className="w-3.5 h-3.5" />
+                                        Edit configuration
+                                    </button>
                                 </div>
                             )}
-                        </div>
+                        </>
                     )}
                 </DialogContent>
             </Dialog>
 
             {/* Delete Confirmation */}
             <AlertDialog open={!!statusToDelete} onOpenChange={() => setStatusToDelete(null)}>
-                <AlertDialogContent className="rounded-xl border border-gray-100 p-5 max-w-sm">
-                    <AlertDialogHeader>
-                        <AlertDialogTitle className="text-[14px] font-semibold text-brand-navy">Delete Status?</AlertDialogTitle>
-                        <AlertDialogDescription className="text-[12px] text-gray-500">
-                            Permanently delete <span className="font-semibold text-brand-navy">"{statusToDelete?.label}"</span>. This will affect orders currently using this status.
-                        </AlertDialogDescription>
+                <AlertDialogContent className={cn(
+                    'max-w-md p-0 gap-0 border border-ant-line bg-ant-paper overflow-hidden',
+                    'shadow-[0_32px_80px_-24px_rgba(20,20,19,0.4)]',
+                    'sm:rounded-2xl',
+                )}>
+                    <div className="h-[3px] w-full bg-ant-rose" />
+                    <AlertDialogHeader className="px-5 pt-4 pb-4 border-b border-ant-line text-left space-y-2">
+                        <div className="flex items-start gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-ant-rose/10 border border-ant-rose/25 flex items-center justify-center text-ant-rose shrink-0">
+                                <AlertTriangle className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0 space-y-1">
+                                <div className="flex items-center gap-2">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-ant-rose" />
+                                    <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-rose">
+                                        Status · Delete
+                                    </span>
+                                </div>
+                                <AlertDialogTitle className="font-display text-[18px] leading-tight text-ant-ink">
+                                    Delete status?
+                                </AlertDialogTitle>
+                                <AlertDialogDescription className="font-serif italic text-[12px] text-ant-mid">
+                                    Permanently delete <span className="font-display not-italic text-ant-ink">"{statusToDelete?.label}"</span>. Orders currently using it will lose this label.
+                                </AlertDialogDescription>
+                            </div>
+                        </div>
                     </AlertDialogHeader>
-                    <AlertDialogFooter className="mt-3 gap-2">
-                        <AlertDialogCancel className="h-8 px-3 rounded-md text-[11px] font-semibold border-gray-200 text-gray-500">Cancel</AlertDialogCancel>
+                    <AlertDialogFooter className="px-5 py-3 flex flex-row gap-2 bg-ant-paper border-t border-ant-line">
+                        <AlertDialogCancel className="flex-1 h-11 px-5 rounded-full border border-ant-line bg-ant-paper text-ant-ink text-[12px] font-medium hover:bg-ant-light transition-colors mt-0">
+                            Cancel
+                        </AlertDialogCancel>
                         <AlertDialogAction
                             onClick={() => statusToDelete && deleteMutation.mutate(statusToDelete.id)}
-                            className="h-8 px-3 rounded-md text-[11px] font-semibold bg-red-600 hover:bg-red-700 text-white gap-1.5"
+                            className="flex-1 h-11 px-5 rounded-full bg-ant-rose text-white text-[12px] font-medium flex items-center justify-center gap-2 hover:bg-ant-rose/95 transition-all shadow-[0_10px_24px_-10px_rgba(201,57,66,0.5)]"
                         >
-                            {deleteMutation.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
+                            {deleteMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                             Delete
                         </AlertDialogAction>
                     </AlertDialogFooter>
@@ -1004,7 +1099,55 @@ const Status = () => {
     );
 };
 
-// --- Sub-components ---
+// ── Sub-components ──────────────────────────────────────────────────────
+
+const KpiTile = ({ label, value, accent }: { label: string; value: number; accent: string }) => (
+    <div className="bg-ant-paper p-4 md:p-5 flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+            <span className={cn('w-1 h-4 rounded-full', accent)} />
+            <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-ant-mid truncate">{label}</span>
+        </div>
+        <p className="font-display text-[22px] md:text-[26px] leading-none tabular-nums text-ant-ink">
+            {value.toLocaleString('fr-MA')}
+        </p>
+    </div>
+);
+
+const ToggleRow = ({
+    field,
+    label,
+    desc,
+}: {
+    field: { value: boolean; onChange: (v: boolean) => void };
+    label: string;
+    desc: string;
+}) => (
+    <FormItem className="flex items-center justify-between gap-3 p-3 rounded-xl bg-ant-light border border-ant-line">
+        <div className="min-w-0 space-y-0.5 flex-1">
+            <FormLabel className="text-[12px] font-medium text-ant-ink">{label}</FormLabel>
+            <FormDescription className="font-serif italic text-[11px] text-ant-mid leading-snug">
+                {desc}
+            </FormDescription>
+        </div>
+        <FormControl>
+            <Switch
+                checked={field.value}
+                onCheckedChange={field.onChange}
+                className="data-[state=checked]:bg-ant-green scale-90 shrink-0"
+            />
+        </FormControl>
+    </FormItem>
+);
+
+const VisibilityPill = ({ on, label }: { on: boolean; label: string }) => (
+    <span className={cn(
+        'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-[0.14em]',
+        on ? 'bg-ant-green/12 text-ant-green' : 'bg-ant-rose/10 text-ant-rose',
+    )}>
+        <span className={cn('w-1 h-1 rounded-full', on ? 'bg-ant-green' : 'bg-ant-rose')} />
+        {label}: {on ? 'On' : 'Off'}
+    </span>
+);
 
 type StatusItemProps = {
     status: StatusRow;
@@ -1015,143 +1158,144 @@ type StatusItemProps = {
     onDelete: () => void;
 };
 
-const StatusListRow = ({ status, activeTab, isOwner, onEdit, onView, onDelete }: StatusItemProps) => {
-    return (
-        <div
-            className={cn(
-                'flex items-center gap-3 px-3 py-2 bg-white hover:bg-gray-50/50 transition-colors',
-                !status.active && 'opacity-60'
-            )}
-        >
-            <span
-                className="w-[3px] self-stretch rounded-full shrink-0"
-                style={{ backgroundColor: status.color || '#6366f1' }}
-            />
-            <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[11px] font-semibold text-brand-navy truncate">{status.label}</span>
-                    {!status.active && (
-                        <Badge variant="secondary" className="text-[9px] font-semibold uppercase shrink-0">
-                            Inactive
-                        </Badge>
-                    )}
-                    {activeTab === 'orders' && status.show_in_order === false && (
-                        <OrderModalHiddenBadge className="shrink-0" />
-                    )}
-                </div>
-                <p className="text-[9px] uppercase tracking-[0.14em] text-gray-400 truncate">{status.code}</p>
-            </div>
-            <div className="hidden sm:flex items-center gap-2 shrink-0">
-                <span className="text-[10px] text-gray-400 tabular-nums">#{status.ranking}</span>
-                {status.recheck && (
-                    <Badge variant="outline" className="h-5 gap-1 bg-amber-50 text-amber-600 border-amber-100 font-semibold px-1.5 rounded text-[9px]">
-                        <RefreshCcw className="w-2.5 h-2.5" /> Recheck
-                    </Badge>
+const StatusListRow = ({ status, activeTab, isOwner, onEdit, onView, onDelete }: StatusItemProps) => (
+    <div
+        className={cn(
+            'flex items-center gap-3 px-4 py-3 bg-ant-paper hover:bg-ant-light/40 transition-colors',
+            !status.active && 'opacity-60',
+        )}
+    >
+        <span
+            className="w-1 h-8 rounded-full shrink-0"
+            style={{ backgroundColor: status.color || '#D97706' }}
+        />
+        <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="font-display text-[13px] text-ant-ink truncate">{status.label}</span>
+                {!status.active && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-[0.14em] bg-ant-mid/10 text-ant-mid">
+                        Inactive
+                    </span>
                 )}
-                {activeTab === 'packages' && status.delivery_service_statuses?.length > 0 && (
-                    <Badge variant="outline" className="text-[9px] font-semibold border-gray-200 bg-gray-50">
-                        {status.delivery_service_statuses.length} codes
-                    </Badge>
+                {activeTab === 'orders' && status.show_in_order === false && (
+                    <HiddenInOrdersBadge className="shrink-0" />
                 )}
             </div>
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 p-0 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 shrink-0">
-                        <MoreVertical className="w-3.5 h-3.5" />
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="rounded-lg border border-gray-200 shadow-md p-1 min-w-[130px]">
-                    <DropdownMenuItem onClick={onView} className="rounded px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer gap-2">
-                        <Eye className="w-3 h-3" /> Summary
-                    </DropdownMenuItem>
-                    {isOwner && (
-                        <>
-                            <DropdownMenuItem onClick={onEdit} className="rounded px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer gap-2">
-                                <Edit2 className="w-3 h-3" /> Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={onDelete} className="rounded px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer gap-2 text-red-600 focus:text-red-600 focus:bg-red-50">
-                                <Trash2 className="w-3 h-3" /> Delete
-                            </DropdownMenuItem>
-                        </>
-                    )}
-                </DropdownMenuContent>
-            </DropdownMenu>
+            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-ant-mid truncate mt-0.5">{status.code}</p>
         </div>
-    );
-};
+        <div className="hidden sm:flex items-center gap-1.5 shrink-0">
+            <span className="font-display text-[10px] text-ant-mid tabular-nums">#{status.ranking}</span>
+            {status.recheck && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-[0.14em] bg-ant-orange/12 text-ant-orange">
+                    <RefreshCcw className="w-2.5 h-2.5" /> Recheck
+                </span>
+            )}
+            {activeTab === 'packages' && Array.isArray(status.delivery_service_statuses) && status.delivery_service_statuses.length > 0 && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-[0.14em] bg-ant-light border border-ant-line text-ant-mid">
+                    {status.delivery_service_statuses.length} codes
+                </span>
+            )}
+        </div>
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <button
+                    type="button"
+                    className="w-8 h-8 rounded-full border border-ant-line bg-ant-paper flex items-center justify-center text-ant-ink hover:bg-ant-light transition-colors shrink-0"
+                >
+                    <MoreVertical className="w-3.5 h-3.5" />
+                </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="rounded-xl border-ant-line bg-ant-paper p-1 min-w-[140px] shadow-[0_12px_30px_-12px_rgba(20,20,19,0.25)]">
+                <DropdownMenuItem onClick={onView} className="rounded-lg px-2.5 py-2 text-[12px] cursor-pointer gap-2 focus:bg-ant-light">
+                    <Eye className="w-3.5 h-3.5" /> Summary
+                </DropdownMenuItem>
+                {isOwner && (
+                    <>
+                        <DropdownMenuItem onClick={onEdit} className="rounded-lg px-2.5 py-2 text-[12px] cursor-pointer gap-2 focus:bg-ant-light">
+                            <Edit2 className="w-3.5 h-3.5" /> Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator className="bg-ant-line" />
+                        <DropdownMenuItem onClick={onDelete} className="rounded-lg px-2.5 py-2 text-[12px] cursor-pointer gap-2 text-ant-rose focus:text-ant-rose focus:bg-ant-rose/10">
+                            <Trash2 className="w-3.5 h-3.5" /> Delete
+                        </DropdownMenuItem>
+                    </>
+                )}
+            </DropdownMenuContent>
+        </DropdownMenu>
+    </div>
+);
 
 const StatusCard = ({ status, activeTab, isOwner, onEdit, onView, onDelete }: StatusItemProps) => {
+    const color = status.color || '#D97706';
     return (
         <div
             className={cn(
-                "rounded-xl border border-gray-100 bg-white p-3.5 space-y-3 relative overflow-hidden",
-                !status.active && "opacity-60"
+                'group rounded-2xl border border-ant-line bg-ant-paper overflow-hidden hover:border-ant-ink/25 transition-colors',
+                !status.active && 'opacity-60',
             )}
         >
-            <div
-                className="absolute top-0 left-0 w-full h-[3px]"
-                style={{ backgroundColor: status.color || '#6366f1' }}
-            />
-
-            <div className="flex items-start justify-between pt-0.5">
-                <div className="flex items-start gap-2 min-w-0">
-                    <span
-                        className="w-[3px] self-stretch rounded-full shrink-0"
-                        style={{ backgroundColor: status.color || '#6366f1' }}
-                    />
-                    <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                            <h3 className="text-[12px] font-semibold text-brand-navy truncate">{status.label}</h3>
+            <div className="h-[3px] w-full" style={{ backgroundColor: color }} />
+            <div className="p-4 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                            <span
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-[0.14em]"
+                                style={{ backgroundColor: `${color}18`, color }}
+                            >
+                                <span className="w-1 h-1 rounded-full" style={{ backgroundColor: color }} />
+                                {status.active ? 'Active' : 'Inactive'}
+                            </span>
                             {activeTab === 'orders' && status.show_in_order === false && (
-                                <OrderModalHiddenBadge />
+                                <HiddenInOrdersBadge />
                             )}
                         </div>
-                        <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400 mt-0.5">{status.code}</p>
+                        <h3 className="font-display text-[14px] text-ant-ink leading-tight truncate">{status.label}</h3>
+                        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-ant-mid truncate">{status.code}</p>
                     </div>
+
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <button
+                                type="button"
+                                className="w-8 h-8 rounded-full border border-ant-line bg-ant-paper flex items-center justify-center text-ant-ink hover:bg-ant-light transition-colors shrink-0"
+                            >
+                                <MoreVertical className="w-3.5 h-3.5" />
+                            </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="rounded-xl border-ant-line bg-ant-paper p-1 min-w-[140px] shadow-[0_12px_30px_-12px_rgba(20,20,19,0.25)]">
+                            <DropdownMenuItem onClick={onView} className="rounded-lg px-2.5 py-2 text-[12px] cursor-pointer gap-2 focus:bg-ant-light">
+                                <Eye className="w-3.5 h-3.5" /> Summary
+                            </DropdownMenuItem>
+                            {isOwner && (
+                                <>
+                                    <DropdownMenuItem onClick={onEdit} className="rounded-lg px-2.5 py-2 text-[12px] cursor-pointer gap-2 focus:bg-ant-light">
+                                        <Edit2 className="w-3.5 h-3.5" /> Edit
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator className="bg-ant-line" />
+                                    <DropdownMenuItem onClick={onDelete} className="rounded-lg px-2.5 py-2 text-[12px] cursor-pointer gap-2 text-ant-rose focus:text-ant-rose focus:bg-ant-rose/10">
+                                        <Trash2 className="w-3.5 h-3.5" /> Delete
+                                    </DropdownMenuItem>
+                                </>
+                            )}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
 
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 p-0 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 shrink-0">
-                            <MoreVertical className="w-3.5 h-3.5" />
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="rounded-lg border border-gray-200 shadow-md p-1 min-w-[130px]">
-                        <DropdownMenuItem onClick={onView} className="rounded px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer gap-2">
-                            <Eye className="w-3 h-3" /> Summary
-                        </DropdownMenuItem>
-                        {isOwner && (
-                            <>
-                                <DropdownMenuItem onClick={onEdit} className="rounded px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer gap-2">
-                                    <Edit2 className="w-3 h-3" /> Edit
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={onDelete} className="rounded px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer gap-2 text-red-600 focus:text-red-600 focus:bg-red-50">
-                                    <Trash2 className="w-3 h-3" /> Delete
-                                </DropdownMenuItem>
-                            </>
+                <div className="flex items-center justify-between pt-3 border-t border-ant-line">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-display text-[11px] text-ant-mid tabular-nums">Rank #{status.ranking}</span>
+                        {status.recheck && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-[0.14em] bg-ant-orange/12 text-ant-orange">
+                                <RefreshCcw className="w-2.5 h-2.5" /> Recheck
+                            </span>
                         )}
-                    </DropdownMenuContent>
-                </DropdownMenu>
-            </div>
-
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <span className="text-[9px] text-gray-400 uppercase tracking-[0.14em] tabular-nums">#{status.ranking}</span>
-                    {status.recheck && (
-                        <Badge variant="outline" className="h-5 gap-1 bg-amber-50 text-amber-600 border-amber-100 font-semibold px-1.5 rounded text-[9px]">
-                            <RefreshCcw className="w-2.5 h-2.5" /> Recheck
-                        </Badge>
-                    )}
-                </div>
-                <div className="flex items-center gap-1">
-                    {activeTab === 'packages' && status.delivery_service_statuses?.length > 0 && (
-                        <Badge variant="outline" className="h-5 px-1.5 text-[9px] font-semibold border-gray-200 bg-gray-50">
+                    </div>
+                    {activeTab === 'packages' && Array.isArray(status.delivery_service_statuses) && status.delivery_service_statuses.length > 0 && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-[0.14em] bg-ant-light border border-ant-line text-ant-mid">
                             {status.delivery_service_statuses.length} codes
-                        </Badge>
+                        </span>
                     )}
-                    <CircleDot className="w-3 h-3" style={{ color: status.color }} />
                 </div>
             </div>
         </div>

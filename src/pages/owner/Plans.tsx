@@ -7,14 +7,11 @@ import * as z from 'zod';
 import {
     Plus, Search, MoreVertical, Edit2, Trash2, Loader2, CreditCard,
     Clock, Calendar, Infinity as InfinityIcon, AlertTriangle, X, GripVertical, Tag,
+    Check,
 } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import {
-    Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+    Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
 import {
     DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -43,7 +40,6 @@ const planSchema = z.object({
 
 type PlanFormValues = z.infer<typeof planSchema>;
 
-// plans row shape verified via MCP. features is jsonb stored as a string[] of bullets.
 type PlanRow = {
     id: string;
     name: string;
@@ -64,10 +60,10 @@ type PlanRow = {
 const errorMessage = (err: unknown): string =>
     err instanceof Error ? err.message : String(err);
 
-const TYPE_ACCENT: Record<string, string> = {
-    monthly: '#3b82f6',
-    yearly: '#d97706',
-    lifetime: '#059669',
+const TYPE_CFG: Record<string, { label: string; stripe: string; text: string; tint: string }> = {
+    monthly: { label: 'Monthly', stripe: 'bg-ant-ink', text: 'text-ant-ink', tint: 'bg-ant-ink/8' },
+    yearly: { label: 'Yearly', stripe: 'bg-ant-orange', text: 'text-ant-orange', tint: 'bg-ant-orange/12' },
+    lifetime: { label: 'Lifetime', stripe: 'bg-ant-green', text: 'text-ant-green', tint: 'bg-ant-green/12' },
 };
 
 const Plans = () => {
@@ -101,6 +97,19 @@ const Plans = () => {
         );
     }, [plans, searchQuery]);
 
+    const stats = useMemo(() => {
+        if (!plans) return { total: 0, active: 0, monthly: 0, yearly: 0, lifetime: 0, promos: 0 };
+        let active = 0, monthly = 0, yearly = 0, lifetime = 0, promos = 0;
+        for (const p of plans) {
+            if (p.active) active++;
+            if (p.license_type === 'monthly') monthly++;
+            else if (p.license_type === 'yearly') yearly++;
+            else if (p.license_type === 'lifetime') lifetime++;
+            if (p.promotion_active) promos++;
+        }
+        return { total: plans.length, active, monthly, yearly, lifetime, promos };
+    }, [plans]);
+
     const upsertMutation = useMutation({
         mutationFn: async (payload: PlanFormValues & { id?: string }) => {
             const { id, features, ...values } = payload;
@@ -112,8 +121,6 @@ const Plans = () => {
             };
 
             if (id) {
-                // Cast through unknown — generated Update type lists license_type as required
-                // even though our zod-validated PlanFormValues already provides it.
                 const { error } = await supabase.from('plans').update(dataToSubmit as unknown as never).eq('id', id);
                 if (error) throw error;
             } else {
@@ -152,46 +159,84 @@ const Plans = () => {
     const openDelete = (plan: PlanRow) => { setSelected(plan); setIsDeleteOpen(true); };
 
     return (
-        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
-            {/* Header */}
-            <header className="space-y-2.5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Plans</h1>
-                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Manage pricing, promotions and plan details</p>
+        <div className="space-y-5 md:space-y-6">
+            {/* Editorial header */}
+            <header className="space-y-3">
+                <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-ant-orange" />
+                    <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                        Platform · Plans
+                    </span>
+                </div>
+                <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
+                    <div className="space-y-1.5">
+                        <h1 className="font-display text-[26px] sm:text-[32px] leading-[1.05] tracking-[-0.02em] text-ant-ink">
+                            Pricing plans
+                        </h1>
+                        <p className="font-serif italic text-[13px] sm:text-[14px] leading-relaxed text-ant-mid">
+                            Manage subscription tiers, promotions and features.
+                        </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <div className="relative">
-                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
-                            <Input
-                                placeholder="Search plans..."
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <div className="relative flex-1 lg:flex-initial min-w-[200px]">
+                            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
+                            <input
+                                type="search"
+                                placeholder="Search plans…"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="pl-7 h-8 rounded-md border-gray-200 bg-white text-[11px] w-44"
+                                className="w-full lg:w-56 h-10 pl-10 pr-10 rounded-full border border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid/70 focus:outline-none focus:border-ant-ink focus:ring-2 focus:ring-ant-orange/20 transition-all"
                             />
+                            {searchQuery && (
+                                <button
+                                    type="button"
+                                    onClick={() => setSearchQuery('')}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-ant-mid hover:text-ant-ink"
+                                    aria-label="Clear"
+                                >
+                                    <X className="w-3 h-3" />
+                                </button>
+                            )}
                         </div>
-                        <Button
+                        <button
+                            type="button"
                             onClick={() => { setSelected(null); setIsModalOpen(true); }}
-                            className="h-8 rounded-md text-[11px] font-semibold bg-brand-navy hover:bg-brand-navy/90 text-white gap-1.5 px-3"
+                            className="inline-flex items-center gap-2 h-10 px-4 rounded-full bg-ant-ink text-ant-light text-[12px] font-medium hover:bg-ant-ink/95 transition-colors shadow-[0_10px_24px_-10px_rgba(20,20,19,0.5)]"
                         >
-                            <Plus className="w-3.5 h-3.5" /> New Plan
-                        </Button>
+                            <Plus className="w-3.5 h-3.5" />
+                            New plan
+                        </button>
                     </div>
                 </div>
             </header>
 
+            {/* KPI hairline strip */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-px bg-ant-line rounded-2xl overflow-hidden border border-ant-line">
+                <KpiTile label="Total" value={stats.total} accent="bg-ant-ink" />
+                <KpiTile label="Active" value={stats.active} accent="bg-ant-green" />
+                <KpiTile label="Monthly" value={stats.monthly} accent="bg-ant-ink" />
+                <KpiTile label="Yearly" value={stats.yearly} accent="bg-ant-orange" />
+                <KpiTile label="Lifetime" value={stats.lifetime} accent="bg-ant-green" />
+            </div>
+
             {/* Content */}
             {isLoading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {[1, 2, 3].map(i => <Skeleton key={i} className="h-40 rounded-xl" />)}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+                    {[1, 2, 3].map(i => <Skeleton key={i} className="h-48 rounded-2xl" />)}
                 </div>
             ) : filtered.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-10 rounded-xl border border-dashed border-gray-200 bg-white">
-                    <CreditCard className="w-6 h-6 text-gray-300 mb-2" />
-                    <p className="text-[11px] font-medium text-gray-500">No plans yet</p>
-                </div>
+                <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                    <div className="h-[3px] w-full bg-ant-orange" />
+                    <div className="p-10 flex flex-col items-center gap-3 text-center">
+                        <CreditCard className="w-6 h-6 text-ant-mid" />
+                        <p className="font-display text-[14px] text-ant-ink">No plans yet</p>
+                        <p className="font-serif italic text-[12px] text-ant-mid max-w-sm">
+                            Create your first pricing plan to assign to businesses.
+                        </p>
+                    </div>
+                </section>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
                     {filtered.map(plan => (
                         <PlanCard key={plan.id} plan={plan} onEdit={() => openEdit(plan)} onDelete={() => openDelete(plan)} />
                     ))}
@@ -209,114 +254,182 @@ const Plans = () => {
 
             {/* Delete Dialog */}
             <Dialog open={isDeleteOpen} onOpenChange={(v) => !v && setIsDeleteOpen(false)}>
-                <DialogContent className="max-w-sm border border-slate-200/60 bg-white rounded-xl shadow-xl gap-0 p-0">
-                    <div className="px-6 pt-6 pb-4 border-b border-slate-100">
-                        <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 bg-red-50 rounded-lg flex items-center justify-center text-red-500">
-                                <AlertTriangle className="w-4 h-4" />
+                <DialogContent className={cn(
+                    'max-w-md p-0 gap-0 border border-ant-line bg-ant-paper overflow-hidden',
+                    'shadow-[0_32px_80px_-24px_rgba(20,20,19,0.4)]',
+                    'sm:rounded-2xl',
+                    'max-sm:!left-0 max-sm:!right-0 max-sm:!top-auto max-sm:!bottom-0',
+                    'max-sm:!translate-x-0 max-sm:!translate-y-0',
+                    'max-sm:!w-full max-sm:!max-w-none',
+                    'max-sm:!rounded-t-2xl max-sm:!rounded-b-none',
+                    '[&>button.absolute]:hidden',
+                )}>
+                    <div className="h-[3px] w-full bg-ant-rose" />
+                    <DialogHeader className="px-5 pt-4 pb-4 border-b border-ant-line text-left space-y-2">
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-start gap-3 min-w-0 flex-1">
+                                <div className="w-10 h-10 rounded-xl bg-ant-rose/10 border border-ant-rose/25 flex items-center justify-center text-ant-rose shrink-0">
+                                    <AlertTriangle className="w-4 h-4" />
+                                </div>
+                                <div className="min-w-0 space-y-1">
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-ant-rose" />
+                                        <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-rose">
+                                            Plan · Delete
+                                        </span>
+                                    </div>
+                                    <DialogTitle className="font-display text-[18px] leading-tight text-ant-ink">
+                                        Delete plan
+                                    </DialogTitle>
+                                    <DialogDescription className="font-serif italic text-[12px] text-ant-mid">
+                                        Businesses using this plan will be unlinked.
+                                    </DialogDescription>
+                                </div>
                             </div>
-                            <DialogTitle className="text-[14px] font-semibold text-slate-900">Delete Plan</DialogTitle>
+                            <button
+                                type="button"
+                                onClick={() => setIsDeleteOpen(false)}
+                                className="w-8 h-8 rounded-full border border-ant-line bg-ant-paper hover:bg-ant-light flex items-center justify-center text-ant-ink shrink-0 transition-colors"
+                                aria-label="Close"
+                            >
+                                <X className="w-3.5 h-3.5" />
+                            </button>
                         </div>
-                    </div>
-                    <div className="px-6 py-5">
-                        <p className="text-[12px] text-slate-600">
-                            Permanently delete <span className="font-semibold text-slate-900">"{selected?.name}"</span>? Businesses using this plan will be unlinked.
+                    </DialogHeader>
+                    <div className="px-5 py-4">
+                        <p className="text-[13px] text-ant-ink">
+                            Permanently delete{' '}
+                            <span className="font-display">"{selected?.name}"</span>?
                         </p>
                     </div>
-                    <DialogFooter className="px-6 py-4 border-t border-slate-100 gap-2 sm:gap-2">
-                        <Button variant="ghost" onClick={() => setIsDeleteOpen(false)} className="h-8 text-[11px] font-semibold text-slate-500">Cancel</Button>
-                        <Button
+                    <div className="px-5 py-3 flex flex-row gap-2 bg-ant-paper border-t border-ant-line">
+                        <button
+                            type="button"
+                            onClick={() => setIsDeleteOpen(false)}
+                            className="flex-1 h-11 px-5 rounded-full border border-ant-line bg-ant-paper text-ant-ink text-[12px] font-medium hover:bg-ant-light transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
                             onClick={() => selected && deleteMutation.mutate(selected.id)}
                             disabled={deleteMutation.isPending}
-                            className="h-8 bg-red-600 hover:bg-red-700 text-white text-[11px] font-semibold rounded-md gap-2"
+                            className="flex-1 h-11 px-5 rounded-full bg-ant-rose text-white text-[12px] font-medium flex items-center justify-center gap-2 hover:bg-ant-rose/95 disabled:opacity-60 transition-all shadow-[0_10px_24px_-10px_rgba(201,57,66,0.5)]"
                         >
-                            {deleteMutation.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
+                            {deleteMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                             Delete
-                        </Button>
-                    </DialogFooter>
+                        </button>
+                    </div>
                 </DialogContent>
             </Dialog>
         </div>
     );
 };
 
+// --- KPI tile ---
+
+const KpiTile = ({ label, value, accent }: { label: string; value: number; accent: string }) => (
+    <div className="bg-ant-paper p-4 md:p-5 flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+            <span className={cn('w-1 h-4 rounded-full', accent)} />
+            <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-ant-mid truncate">{label}</span>
+        </div>
+        <p className="font-display text-[22px] md:text-[24px] leading-none tabular-nums text-ant-ink">
+            {value.toLocaleString('fr-MA')}
+        </p>
+    </div>
+);
+
 // --- Plan Card ---
 
 const PlanCard = ({ plan, onEdit, onDelete }: { plan: PlanRow; onEdit: () => void; onDelete: () => void }) => {
-    const accent = TYPE_ACCENT[plan.license_type] || TYPE_ACCENT.monthly;
+    const cfg = TYPE_CFG[plan.license_type] || TYPE_CFG.monthly;
     const features: string[] = Array.isArray(plan.features) ? plan.features : [];
     const hasPromo = plan.promotion_active && plan.promotion_label;
     const hasDiscount = plan.old_price && plan.old_price > plan.price;
 
     return (
-        <div className="rounded-xl border border-gray-100 bg-white p-3.5 space-y-3 relative overflow-hidden">
+        <div className="group rounded-2xl border border-ant-line bg-ant-paper overflow-hidden hover:border-ant-ink/25 transition-colors relative">
             {hasPromo && (
-                <div className="absolute top-3 right-3 z-10">
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-rose-500 text-white uppercase tracking-wide">
+                <div className="absolute top-4 right-4 z-10">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-ant-rose text-white text-[9px] font-semibold uppercase tracking-[0.14em] shadow-[0_6px_16px_-6px_rgba(201,57,66,0.55)]">
                         <Tag className="w-2.5 h-2.5" /> {plan.promotion_label}
                     </span>
                 </div>
             )}
 
-            <div className="flex items-start justify-between">
-                <div className="flex items-start gap-2.5">
-                    <span className="w-[3px] self-stretch rounded-full shrink-0 mt-0.5" style={{ background: accent }} />
-                    <div className="min-w-0">
-                        <p className="text-[12px] font-semibold text-brand-navy leading-tight">{plan.name}</p>
-                        <span className="text-[9px] text-gray-400 uppercase tracking-[0.14em] capitalize">{plan.license_type}</span>
+            <div className={cn('h-[3px] w-full', cfg.stripe)} />
+
+            <div className="p-4 md:p-5 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 space-y-1">
+                        <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-[0.14em]', cfg.tint, cfg.text)}>
+                            {cfg.label}
+                        </span>
+                        <p className="font-display text-[16px] text-ant-ink leading-tight">{plan.name}</p>
                     </div>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <button
+                                type="button"
+                                className="w-8 h-8 rounded-full border border-ant-line bg-ant-paper flex items-center justify-center text-ant-ink hover:bg-ant-light transition-colors shrink-0"
+                            >
+                                <MoreVertical className="w-3.5 h-3.5" />
+                            </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="rounded-xl border-ant-line bg-ant-paper p-1 min-w-[140px] shadow-[0_12px_30px_-12px_rgba(20,20,19,0.25)]">
+                            <DropdownMenuItem onClick={onEdit} className="rounded-lg px-2.5 py-2 text-[12px] cursor-pointer gap-2 focus:bg-ant-light">
+                                <Edit2 className="w-3.5 h-3.5" /> Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator className="bg-ant-line" />
+                            <DropdownMenuItem onClick={onDelete} className="rounded-lg px-2.5 py-2 text-[12px] cursor-pointer gap-2 text-ant-rose focus:text-ant-rose focus:bg-ant-rose/10">
+                                <Trash2 className="w-3.5 h-3.5" /> Delete
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 p-0 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 shrink-0">
-                            <MoreVertical className="h-3.5 w-3.5" />
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="rounded-lg border border-gray-200 shadow-md p-1 min-w-[130px]">
-                        <DropdownMenuItem onClick={onEdit} className="rounded px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer gap-2">
-                            <Edit2 className="w-3 h-3" /> Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={onDelete} className="rounded px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer gap-2 text-red-600 focus:text-red-600 focus:bg-red-50">
-                            <Trash2 className="w-3 h-3" /> Delete
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-            </div>
 
-            {/* Price */}
-            <div className="flex items-baseline gap-1.5">
-                <span className="text-[18px] font-semibold tabular-nums text-brand-navy">{plan.price.toLocaleString()}</span>
-                <span className="text-[11px] text-gray-400">{plan.currency}</span>
-                {hasDiscount && (
-                    <span className="text-[11px] text-gray-400 line-through">{plan.old_price.toLocaleString()}</span>
-                )}
-            </div>
-
-            {plan.description && (
-                <p className="text-[10px] text-gray-500 leading-relaxed">{plan.description}</p>
-            )}
-
-            {features.length > 0 && (
-                <ul className="space-y-1">
-                    {features.slice(0, 4).map((f, i) => (
-                        <li key={i} className="flex items-center gap-2 text-[10px] text-gray-600">
-                            <div className="w-1 h-1 rounded-full bg-gray-300 shrink-0" />
-                            {f}
-                        </li>
-                    ))}
-                    {features.length > 4 && (
-                        <li className="text-[10px] text-gray-400">+{features.length - 4} more</li>
+                {/* Price */}
+                <div>
+                    <div className="flex items-baseline gap-1.5 flex-wrap">
+                        <span className="font-display text-[28px] leading-none tabular-nums text-ant-ink">
+                            {plan.price.toLocaleString()}
+                        </span>
+                        <span className="text-[11px] text-ant-mid uppercase">{plan.currency}</span>
+                        {hasDiscount && (
+                            <span className="text-[12px] text-ant-mid line-through tabular-nums">
+                                {plan.old_price!.toLocaleString()}
+                            </span>
+                        )}
+                    </div>
+                    {plan.description && (
+                        <p className="font-serif italic text-[12px] text-ant-mid mt-2 leading-relaxed">
+                            {plan.description}
+                        </p>
                     )}
-                </ul>
-            )}
-
-            <div className="pt-2.5 border-t border-gray-50 flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                    <div className={cn('w-1.5 h-1.5 rounded-full', plan.active ? 'bg-emerald-500' : 'bg-gray-300')} />
-                    <span className="text-[9px] text-gray-500">{plan.active ? 'Active' : 'Inactive'}</span>
                 </div>
-                <span className="text-[9px] text-gray-400 tabular-nums">Order: {plan.sort_order}</span>
+
+                {features.length > 0 && (
+                    <ul className="space-y-1.5 pt-3 border-t border-ant-line">
+                        {features.slice(0, 4).map((f, i) => (
+                            <li key={i} className="flex items-start gap-2 text-[12px] text-ant-ink">
+                                <span className="mt-[5px] w-1.5 h-1.5 rounded-full bg-ant-orange shrink-0" />
+                                <span className="leading-snug">{f}</span>
+                            </li>
+                        ))}
+                        {features.length > 4 && (
+                            <li className="font-serif italic text-[11px] text-ant-mid">+{features.length - 4} more features</li>
+                        )}
+                    </ul>
+                )}
+
+                <div className="pt-3 border-t border-ant-line flex items-center justify-between text-[10px]">
+                    <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-semibold uppercase tracking-[0.14em]', plan.active ? 'bg-ant-green/12 text-ant-green' : 'bg-ant-mid/10 text-ant-mid')}>
+                        <span className={cn('w-1 h-1 rounded-full', plan.active ? 'bg-ant-green' : 'bg-ant-mid')} />
+                        {plan.active ? 'Active' : 'Inactive'}
+                    </span>
+                    <span className="text-ant-mid tabular-nums">Order · {plan.sort_order}</span>
+                </div>
             </div>
         </div>
     );
@@ -381,34 +494,68 @@ const PlanModal = ({ isOpen, onClose, onSubmit, initialData, loading }: {
         { value: 'lifetime' as const, label: 'Lifetime', icon: InfinityIcon },
     ];
 
+    const inputClass = "w-full h-10 px-3.5 rounded-xl border border-ant-line bg-ant-paper text-[13px] text-ant-ink placeholder:text-ant-mid/60 focus:outline-none focus:border-ant-ink focus:ring-2 focus:ring-ant-orange/20 transition-all";
+
     return (
         <Dialog open={isOpen} onOpenChange={(v) => !v && onClose()}>
-            <DialogContent className="max-w-lg p-0 border border-slate-200/60 bg-white rounded-xl shadow-xl overflow-hidden max-h-[90vh] overflow-y-auto gap-0">
-                <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-100">
-                    <DialogTitle className="text-[14px] font-semibold text-brand-navy">
-                        {isEditing ? 'Edit Plan' : 'New Plan'}
-                    </DialogTitle>
-                </DialogHeader>
-
+            <DialogContent className={cn(
+                'max-w-lg p-0 gap-0 border border-ant-line bg-ant-paper overflow-hidden flex flex-col max-h-[92vh]',
+                'shadow-[0_32px_80px_-24px_rgba(20,20,19,0.4)]',
+                'sm:rounded-2xl',
+                'max-sm:!left-0 max-sm:!right-0 max-sm:!top-auto max-sm:!bottom-0',
+                'max-sm:!translate-x-0 max-sm:!translate-y-0',
+                'max-sm:!w-full max-sm:!max-w-none',
+                'max-sm:!h-[94dvh] max-sm:!max-h-[94dvh]',
+                'max-sm:!rounded-t-2xl max-sm:!rounded-b-none',
+                '[&>button.absolute]:hidden',
+            )}>
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col">
-                        <div className="px-6 py-5 space-y-5">
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full overflow-hidden">
+                        <div className="h-[3px] w-full bg-ant-orange shrink-0" />
+                        <DialogHeader className="px-5 pt-4 pb-4 shrink-0 border-b border-ant-line text-left space-y-1.5">
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0 space-y-1.5 flex-1">
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-ant-orange" />
+                                        <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                                            Plan · {isEditing ? 'Edit' : 'New'}
+                                        </span>
+                                    </div>
+                                    <DialogTitle className="font-display text-[20px] leading-[1.1] tracking-[-0.01em] text-ant-ink">
+                                        {isEditing ? 'Edit plan' : 'New plan'}
+                                    </DialogTitle>
+                                    <DialogDescription className="font-serif italic text-[12px] text-ant-mid">
+                                        Configure pricing, billing cycle and marketing features.
+                                    </DialogDescription>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={onClose}
+                                    className="w-8 h-8 rounded-full border border-ant-line bg-ant-paper hover:bg-ant-light flex items-center justify-center text-ant-ink shrink-0 transition-colors"
+                                    aria-label="Close"
+                                >
+                                    <X className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
+                        </DialogHeader>
+
+                        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
 
                             {/* Name */}
                             <FormField control={form.control} name="name" render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Plan Name</FormLabel>
+                                <FormItem className="space-y-1.5">
+                                    <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Plan name</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="e.g. Pro Monthly" {...field} className="h-9 rounded-md border-slate-200 text-[11px]" />
+                                        <input placeholder="e.g. Pro Monthly" {...field} className={inputClass} />
                                     </FormControl>
-                                    <FormMessage />
+                                    <FormMessage className="text-[10px] text-ant-rose" />
                                 </FormItem>
                             )} />
 
                             {/* License Type */}
                             <FormField control={form.control} name="license_type" render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Billing Cycle</FormLabel>
+                                <FormItem className="space-y-1.5">
+                                    <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Billing cycle</FormLabel>
                                     <div className="grid grid-cols-3 gap-2">
                                         {LICENSE_TYPES.map(opt => {
                                             const sel = field.value === opt.value;
@@ -418,44 +565,46 @@ const PlanModal = ({ isOpen, onClose, onSubmit, initialData, loading }: {
                                                     type="button"
                                                     onClick={() => field.onChange(opt.value)}
                                                     className={cn(
-                                                        'flex items-center justify-center gap-1.5 h-8 rounded-md border text-[11px] font-semibold transition-all',
-                                                        sel ? 'border-brand-navy bg-brand-navy/[0.03] text-brand-navy' : 'border-slate-200 text-slate-500 hover:border-slate-300'
+                                                        'flex items-center justify-center gap-1.5 h-10 rounded-xl border text-[12px] font-medium transition-all',
+                                                        sel
+                                                            ? 'border-ant-ink bg-ant-ink/[0.04] text-ant-ink shadow-[0_4px_12px_-4px_rgba(20,20,19,0.15)]'
+                                                            : 'border-ant-line bg-ant-paper text-ant-mid hover:border-ant-ink/30 hover:text-ant-ink',
                                                     )}
                                                 >
-                                                    <opt.icon className="w-3.5 h-3.5" />
+                                                    <opt.icon className={cn('w-3.5 h-3.5', sel && 'text-ant-orange')} />
                                                     {opt.label}
                                                 </button>
                                             );
                                         })}
                                     </div>
-                                    <FormMessage />
+                                    <FormMessage className="text-[10px] text-ant-rose" />
                                 </FormItem>
                             )} />
 
                             {/* Price Row */}
                             <div className="grid grid-cols-3 gap-3">
                                 <FormField control={form.control} name="price" render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Price</FormLabel>
+                                    <FormItem className="space-y-1.5">
+                                        <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Price</FormLabel>
                                         <FormControl>
-                                            <Input type="number" step="0.01" {...field} className="h-9 rounded-md border-slate-200 text-[11px]" />
+                                            <input type="number" step="0.01" {...field} className={inputClass} />
                                         </FormControl>
-                                        <FormMessage />
+                                        <FormMessage className="text-[10px] text-ant-rose" />
                                     </FormItem>
                                 )} />
                                 <FormField control={form.control} name="old_price" render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Old Price</FormLabel>
+                                    <FormItem className="space-y-1.5">
+                                        <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Old price</FormLabel>
                                         <FormControl>
-                                            <Input type="number" step="0.01" placeholder="Optional" {...field} value={field.value ?? ''} className="h-9 rounded-md border-slate-200 text-[11px]" />
+                                            <input type="number" step="0.01" placeholder="Optional" {...field} value={field.value ?? ''} className={inputClass} />
                                         </FormControl>
                                     </FormItem>
                                 )} />
                                 <FormField control={form.control} name="currency" render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Currency</FormLabel>
+                                    <FormItem className="space-y-1.5">
+                                        <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Currency</FormLabel>
                                         <FormControl>
-                                            <Input {...field} className="h-9 rounded-md border-slate-200 text-[11px]" />
+                                            <input {...field} className={inputClass} />
                                         </FormControl>
                                     </FormItem>
                                 )} />
@@ -463,92 +612,145 @@ const PlanModal = ({ isOpen, onClose, onSubmit, initialData, loading }: {
 
                             {/* Description */}
                             <FormField control={form.control} name="description" render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Description</FormLabel>
+                                <FormItem className="space-y-1.5">
+                                    <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Description</FormLabel>
                                     <FormControl>
-                                        <Textarea placeholder="Short description..." {...field} value={field.value ?? ''} className="rounded-md border-slate-200 text-[11px] min-h-[64px] resize-none" />
+                                        <textarea
+                                            placeholder="Short marketing description…"
+                                            {...field}
+                                            value={field.value ?? ''}
+                                            className="w-full min-h-[72px] px-3.5 py-2.5 rounded-xl border border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid/60 focus:outline-none focus:border-ant-ink focus:ring-2 focus:ring-ant-orange/20 resize-none transition-all"
+                                        />
                                     </FormControl>
                                 </FormItem>
                             )} />
 
                             {/* Features */}
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                    <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Features</label>
+                            <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                                <div className="h-[3px] w-full bg-ant-orange" />
+                                <div className="px-4 py-3 border-b border-ant-line flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-display text-[10px] text-ant-orange">01</span>
+                                        <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                                            Features
+                                        </span>
+                                    </div>
                                     <button
                                         type="button"
                                         onClick={() => append({ value: '' })}
-                                        className="text-[11px] text-blue-600 hover:text-blue-700 font-semibold"
+                                        className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full border border-ant-line bg-ant-paper text-ant-ink text-[11px] font-medium hover:bg-ant-ink hover:text-ant-light hover:border-ant-ink transition-colors"
                                     >
-                                        + Add
+                                        <Plus className="w-3 h-3" /> Add
                                     </button>
                                 </div>
-                                {fields.length === 0 && (
-                                    <p className="text-[11px] text-slate-400 py-1">No features added.</p>
-                                )}
-                                <div className="space-y-1.5">
-                                    {fields.map((f, idx) => (
-                                        <div key={f.id} className="flex items-center gap-2">
-                                            <GripVertical className="w-3 h-3 text-slate-300 shrink-0" />
-                                            <Input
-                                                placeholder="Feature description..."
-                                                {...form.register(`features.${idx}.value`)}
-                                                className="h-8 rounded-md border-slate-200 text-[11px] flex-1"
-                                            />
-                                            <button type="button" onClick={() => remove(idx)} className="text-slate-400 hover:text-red-500 shrink-0">
-                                                <X className="w-3 h-3" />
-                                            </button>
-                                        </div>
-                                    ))}
+                                <div className="p-3 space-y-1.5">
+                                    {fields.length === 0 ? (
+                                        <p className="font-serif italic text-[11px] text-ant-mid text-center py-2">
+                                            No features yet. Add bullet points to promote what's included.
+                                        </p>
+                                    ) : (
+                                        fields.map((f, idx) => (
+                                            <div key={f.id} className="flex items-center gap-2">
+                                                <GripVertical className="w-3.5 h-3.5 text-ant-mid shrink-0" />
+                                                <input
+                                                    placeholder="Feature description…"
+                                                    {...form.register(`features.${idx}.value`)}
+                                                    className="flex-1 h-9 px-3 rounded-lg border border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid/60 focus:outline-none focus:border-ant-ink focus:ring-2 focus:ring-ant-orange/20 transition-all"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => remove(idx)}
+                                                    className="w-7 h-7 rounded-full border border-ant-line bg-ant-paper flex items-center justify-center text-ant-mid hover:bg-ant-rose/10 hover:text-ant-rose hover:border-ant-rose/30 transition-colors shrink-0"
+                                                >
+                                                    <X className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                        ))
+                                    )}
                                 </div>
-                            </div>
+                            </section>
 
                             {/* Promotion */}
-                            <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-3.5 space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Promotion</label>
+                            <section className="rounded-2xl border border-ant-rose/25 bg-ant-rose/[0.04] overflow-hidden">
+                                <div className="h-[3px] w-full bg-ant-rose" />
+                                <div className="px-4 py-3 border-b border-ant-rose/20 flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-display text-[10px] text-ant-rose">02</span>
+                                        <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-rose">
+                                            Promotion
+                                        </span>
+                                    </div>
                                     <FormField control={form.control} name="promotion_active" render={({ field }) => (
-                                        <Switch checked={field.value} onCheckedChange={field.onChange} className="data-[state=checked]:bg-rose-500 scale-90" />
+                                        <Switch
+                                            checked={field.value}
+                                            onCheckedChange={field.onChange}
+                                            className="data-[state=checked]:bg-ant-rose scale-90"
+                                        />
                                     )} />
                                 </div>
-                                <FormField control={form.control} name="promotion_label" render={({ field }) => (
-                                    <FormControl>
-                                        <Input placeholder='e.g. "30% OFF"' {...field} value={field.value ?? ''} className="h-8 rounded-md border-slate-200 text-[11px] bg-white" />
-                                    </FormControl>
-                                )} />
-                            </div>
+                                <div className="p-3">
+                                    <FormField control={form.control} name="promotion_label" render={({ field }) => (
+                                        <FormControl>
+                                            <input
+                                                placeholder='e.g. "30% OFF"'
+                                                {...field}
+                                                value={field.value ?? ''}
+                                                className="w-full h-9 px-3 rounded-lg border border-ant-rose/25 bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid/60 focus:outline-none focus:border-ant-rose focus:ring-2 focus:ring-ant-rose/20 transition-all"
+                                            />
+                                        </FormControl>
+                                    )} />
+                                </div>
+                            </section>
 
                             {/* Active + Sort */}
                             <div className="grid grid-cols-2 gap-3">
                                 <FormField control={form.control} name="active" render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Status</FormLabel>
-                                        <div className="flex items-center gap-2.5 h-9 px-3 bg-slate-50 rounded-md border border-slate-200">
-                                            <Switch checked={field.value} onCheckedChange={field.onChange} className="data-[state=checked]:bg-emerald-500 scale-90" />
-                                            <span className="text-[11px] font-semibold text-slate-600">{field.value ? 'Active' : 'Inactive'}</span>
+                                    <FormItem className="space-y-1.5">
+                                        <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Status</FormLabel>
+                                        <div className="flex items-center gap-2.5 h-10 px-3.5 bg-ant-light rounded-xl border border-ant-line">
+                                            <Switch
+                                                checked={field.value}
+                                                onCheckedChange={field.onChange}
+                                                className="data-[state=checked]:bg-ant-green scale-90"
+                                            />
+                                            <span className="text-[11px] font-medium text-ant-ink">
+                                                {field.value ? 'Active' : 'Inactive'}
+                                            </span>
                                         </div>
                                     </FormItem>
                                 )} />
                                 <FormField control={form.control} name="sort_order" render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Sort Order</FormLabel>
+                                    <FormItem className="space-y-1.5">
+                                        <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Sort order</FormLabel>
                                         <FormControl>
-                                            <Input type="number" {...field} className="h-9 rounded-md border-slate-200 text-[11px]" />
+                                            <input type="number" {...field} className={inputClass} />
                                         </FormControl>
                                     </FormItem>
                                 )} />
                             </div>
                         </div>
 
-                        <DialogFooter className="px-6 py-4 border-t border-slate-100 gap-2 sm:gap-2">
-                            <Button type="button" variant="ghost" onClick={onClose} className="h-8 px-3 text-[11px] font-semibold text-slate-500">
+                        <div className="shrink-0 px-5 py-3 flex flex-row gap-2 bg-ant-paper border-t border-ant-line pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                className="flex-1 sm:flex-initial h-11 px-5 rounded-full border border-ant-line bg-ant-paper text-ant-ink text-[12px] font-medium hover:bg-ant-light transition-colors"
+                            >
                                 Cancel
-                            </Button>
-                            <Button type="submit" disabled={loading} className="h-8 px-4 text-[11px] font-semibold bg-brand-navy hover:bg-brand-navy/90 text-white rounded-md">
-                                {loading && <Loader2 className="w-3 h-3 mr-2 animate-spin" />}
-                                {isEditing ? 'Save Changes' : 'Create Plan'}
-                            </Button>
-                        </DialogFooter>
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="flex-1 h-11 px-5 rounded-full bg-ant-ink text-ant-light text-[12px] font-medium flex items-center justify-center gap-2 hover:bg-ant-ink/95 disabled:opacity-60 transition-all shadow-[0_10px_24px_-10px_rgba(20,20,19,0.5)]"
+                            >
+                                {loading ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                    <Check className="w-3.5 h-3.5" />
+                                )}
+                                {isEditing ? 'Save changes' : 'Create plan'}
+                            </button>
+                        </div>
                     </form>
                 </Form>
             </DialogContent>

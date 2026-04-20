@@ -12,15 +12,12 @@ import {
     CartesianGrid,
 } from 'recharts';
 import {
-    CheckCircle2,
     Package,
     ScanLine,
-    Wallet,
-    ArrowRight,
-    Hash,
     ChevronRight,
     Receipt,
     Clock,
+    Hash,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
@@ -28,9 +25,7 @@ import QrScanModal from '@/components/scanner/QrScanModal';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
-import { Button } from '@/components/ui/button';
 
-// ─── Types ───────────────────────────────────────────────────────────────────
 type PkgStatus = {
     id: string;
     label: string | null;
@@ -63,7 +58,6 @@ type PayoutRow = {
     created_at: string | null;
 };
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 const fmtMAD = (n: number) =>
     new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n || 0);
 
@@ -79,13 +73,11 @@ const greetingForHour = (h: number) => {
 const isSameDay = (a: Date, b: Date) =>
     a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
-// ─── Component ───────────────────────────────────────────────────────────────
 const CourierDashboard = () => {
     const navigate = useNavigate();
     const { toast } = useToast();
     const [isScannerOpen, setIsScannerOpen] = useState(false);
 
-    // ── Me ─────────────────────────────────────────────────────────────
     const { data: me } = useQuery({
         queryKey: ['courier-me-dashboard'],
         queryFn: async () => {
@@ -104,7 +96,6 @@ const CourierDashboard = () => {
     const courierId = me?.id;
     const businessId = me?.['DigiCom Business'];
 
-    // ── Parcels (finalized notes only, same scope as Orders page) ─────
     const { data: parcels = [], isLoading: isLoadingParcels } = useQuery<CourierParcel[]>({
         queryKey: ['courier-dashboard-parcels', courierId, businessId],
         queryFn: async () => {
@@ -147,7 +138,6 @@ const CourierDashboard = () => {
         enabled: !!courierId && !!businessId,
     });
 
-    // ── Paid payouts (earnings history) ───────────────────────────────
     const { data: payouts = [] } = useQuery<PayoutRow[]>({
         queryKey: ['courier-dashboard-payouts', courierId, businessId],
         queryFn: async () => {
@@ -165,7 +155,6 @@ const CourierDashboard = () => {
         enabled: !!courierId && !!businessId,
     });
 
-    // ── Aggregates ─────────────────────────────────────────────────────
     const stats = useMemo(() => {
         const today = new Date();
         let deliveredToday = 0;
@@ -204,7 +193,6 @@ const CourierDashboard = () => {
         };
     }, [parcels, payouts]);
 
-    // ── Monthly earnings series (last 6 months) ────────────────────────
     const monthlySeries = useMemo(() => {
         const now = new Date();
         const months: { key: string; label: string; amount: number }[] = [];
@@ -225,18 +213,17 @@ const CourierDashboard = () => {
         return months;
     }, [payouts]);
 
-    // ── Status proportion list ─────────────────────────────────────────
     const statusProportions = useMemo(() => {
         const map: Record<string, { name: string; value: number; color: string }> = {
-            delivered: { name: 'Livré', value: 0, color: '#059669' },
-            new: { name: 'Nouveau', value: 0, color: '#3b5e5e' },
-            postponed: { name: 'Reporté', value: 0, color: '#b45309' },
-            in_transit: { name: 'En transit', value: 0, color: '#3b5e5e' },
-            out_for_delivery: { name: 'En livraison', value: 0, color: '#059669' },
-            returned: { name: 'Retourné', value: 0, color: '#ef4444' },
-            cancelled: { name: 'Annulé', value: 0, color: '#9ca3af' },
-            refused: { name: 'Refusé', value: 0, color: '#ef4444' },
-            other: { name: 'Autre', value: 0, color: '#9ca3af' },
+            delivered: { name: 'Livré', value: 0, color: '#2D7A3E' },
+            new: { name: 'Nouveau', value: 0, color: '#141413' },
+            postponed: { name: 'Reporté', value: 0, color: '#D97706' },
+            in_transit: { name: 'En transit', value: 0, color: '#141413' },
+            out_for_delivery: { name: 'En livraison', value: 0, color: '#2D7A3E' },
+            returned: { name: 'Retourné', value: 0, color: '#c93942' },
+            cancelled: { name: 'Annulé', value: 0, color: '#b0aea5' },
+            refused: { name: 'Refusé', value: 0, color: '#c93942' },
+            other: { name: 'Autre', value: 0, color: '#b0aea5' },
         };
         for (const [cat, n] of stats.byCategory.entries()) {
             if (map[cat]) map[cat].value += n;
@@ -245,7 +232,6 @@ const CourierDashboard = () => {
         return Object.values(map).filter((s) => s.value > 0).sort((a, b) => b.value - a.value);
     }, [stats.byCategory]);
 
-    // ── Recent activity (last 5 by updated_at) ─────────────────────────
     const recent = useMemo(() => {
         return [...parcels]
             .sort((a, b) => {
@@ -256,7 +242,6 @@ const CourierDashboard = () => {
             .slice(0, 5);
     }, [parcels]);
 
-    // ── Scan handler ──────────────────────────────────────────────────
     const handleScannedCode = (code: string) => {
         setIsScannerOpen(false);
         const normalized = code.trim().toUpperCase();
@@ -278,151 +263,201 @@ const CourierDashboard = () => {
         navigate(`/courier/orders?tracking=${encodeURIComponent(normalized)}`);
     };
 
-    // ── Greeting ──────────────────────────────────────────────────────
     const now = new Date();
     const greeting = greetingForHour(now.getHours());
-    const firstName = (me?.name || '').trim().split(/\s+/)[0] || 'Courier';
+    const firstName = (me?.name || '').trim().split(/\s+/)[0] || 'Livreur';
     const todayLabel = format(now, 'EEEE d MMMM', { locale: fr });
 
+    const kpiTiles = [
+        { label: "Livrés aujourd'hui", value: isLoadingParcels ? '—' : String(stats.deliveredToday), accent: 'bg-ant-green' },
+        { label: 'Colis actifs', value: isLoadingParcels ? '—' : String(stats.activeCount), accent: 'bg-ant-ink' },
+        { label: 'En attente (MAD)', value: isLoadingParcels ? '—' : fmtMAD(stats.pendingEarnings), accent: 'bg-ant-orange' },
+        { label: 'Total livrés', value: isLoadingParcels ? '—' : String(stats.deliveredTotal), accent: 'bg-ant-ink' },
+    ];
+
     return (
-        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
-            {/* Header */}
-            <header className="space-y-2.5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">
+        <div className="space-y-5 md:space-y-6">
+            {/* Editorial header */}
+            <header className="space-y-3">
+                <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-ant-orange" />
+                    <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                        Tableau de bord · Livreur
+                    </span>
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+                    <div className="space-y-1.5">
+                        <h1 className="font-display text-[26px] sm:text-[32px] leading-[1.05] tracking-[-0.02em] text-ant-ink">
                             {greeting}, {firstName}
                         </h1>
-                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">
-                            {todayLabel}
+                        <p className="font-serif italic text-[13px] sm:text-[14px] leading-relaxed text-ant-mid">
+                            {todayLabel} — votre tournée commence ici.
                         </p>
                     </div>
-                    <Button
+                    <button
                         onClick={() => setIsScannerOpen(true)}
-                        className="h-8 rounded-md text-[11px] font-semibold bg-brand-navy hover:bg-brand-navy/90 text-white gap-1.5 shrink-0"
+                        className="inline-flex items-center justify-center gap-2 h-11 px-5 rounded-full bg-ant-ink text-ant-light font-medium text-[13px] shadow-[0_12px_30px_-12px_rgba(20,20,19,0.45)] hover:bg-ant-ink/95 active:scale-[0.98] transition-all shrink-0 self-stretch sm:self-auto"
                     >
-                        <ScanLine className="w-3.5 h-3.5" />
+                        <ScanLine className="w-4 h-4" />
                         Scanner un colis
-                    </Button>
+                    </button>
                 </div>
             </header>
 
-            {/* KPI strip */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {[
-                    { label: "Livrés aujourd'hui", value: isLoadingParcels ? '—' : String(stats.deliveredToday), accent: '#059669' },
-                    { label: 'Colis actifs', value: isLoadingParcels ? '—' : String(stats.activeCount), accent: '#3b5e5e' },
-                    { label: 'En attente (MAD)', value: isLoadingParcels ? '—' : fmtMAD(stats.pendingEarnings), accent: '#d97706' },
-                    { label: 'Total livrés', value: isLoadingParcels ? '—' : String(stats.deliveredTotal), accent: '#3b5e5e' },
-                ].map((s) => (
-                    <div key={s.label} className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
-                        <span className="w-[3px] self-stretch rounded-full shrink-0" style={{ background: s.accent }} />
-                        <div className="flex-1 min-w-0">
-                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400 truncate">{s.label}</p>
-                            <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1 leading-none">{s.value}</p>
+            {/* KPI hairline strip */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ant-line rounded-2xl overflow-hidden border border-ant-line">
+                {kpiTiles.map((k) => (
+                    <div key={k.label} className="bg-ant-paper p-4 md:p-5 flex flex-col gap-2">
+                        <div className="flex items-center gap-2">
+                            <span className={cn('w-1 h-4 rounded-full', k.accent)} />
+                            <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-ant-mid truncate">
+                                {k.label}
+                            </span>
                         </div>
+                        <p className="font-display text-[22px] md:text-[26px] leading-none tabular-nums text-ant-ink">
+                            {k.value}
+                        </p>
                     </div>
                 ))}
             </div>
 
             {/* Monthly earnings chart */}
-            <div className="rounded-xl border border-gray-100 bg-white p-3.5">
-                <div className="flex items-center justify-between mb-3">
-                    <div>
-                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Gains mensuels</p>
-                        <p className="text-[11px] text-brand-navy/60 font-medium mt-0.5">
-                            {fmtMAD2(stats.lifetimePaid)} MAD total · {payouts.length} payout{payouts.length !== 1 ? 's' : ''}
+            <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                <div className="h-[3px] w-full bg-ant-green" />
+                <div className="px-4 md:px-6 py-4 md:py-5 border-b border-ant-line flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                            <span className="font-display text-[11px] text-ant-orange">01</span>
+                            <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                                Gains mensuels
+                            </span>
+                        </div>
+                        <p className="font-serif italic text-[12px] text-ant-mid mt-1 truncate">
+                            {fmtMAD2(stats.lifetimePaid)} MAD · {payouts.length} paiement{payouts.length !== 1 ? 's' : ''}
                         </p>
                     </div>
                 </div>
-                {monthlySeries.every((m) => m.amount === 0) ? (
-                    <div className="flex items-center justify-center py-8 border border-dashed border-gray-200 rounded-lg">
-                        <p className="text-[11px] text-gray-400">Aucun gain enregistré pour le moment.</p>
-                    </div>
-                ) : (
-                    <ResponsiveContainer width="100%" height={160}>
-                        <AreaChart data={monthlySeries} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                            <defs>
-                                <linearGradient id="courierEarnGrad" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#059669" stopOpacity={0.25} />
-                                    <stop offset="95%" stopColor="#059669" stopOpacity={0} />
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-                            <XAxis
-                                dataKey="label"
-                                axisLine={false}
-                                tickLine={false}
-                                tick={{ fontSize: 10, fill: '#9ca3af' }}
-                                dy={6}
-                            />
-                            <YAxis hide />
-                            <Tooltip
-                                contentStyle={{
-                                    borderRadius: 8,
-                                    border: '1px solid #f3f4f6',
-                                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                                    fontSize: 11,
-                                }}
-                                formatter={(value: number) => [`${fmtMAD2(value)} MAD`, 'Gains']}
-                            />
-                            <Area
-                                type="monotone"
-                                dataKey="amount"
-                                stroke="#059669"
-                                strokeWidth={1.5}
-                                fill="url(#courierEarnGrad)"
-                                fillOpacity={1}
-                                animationDuration={900}
-                            />
-                        </AreaChart>
-                    </ResponsiveContainer>
-                )}
-            </div>
+                <div className="p-3 md:p-5">
+                    {monthlySeries.every((m) => m.amount === 0) ? (
+                        <div className="flex items-center justify-center py-10 rounded-xl border border-dashed border-ant-line">
+                            <p className="font-serif italic text-[12px] text-ant-mid">Aucun gain enregistré pour le moment.</p>
+                        </div>
+                    ) : (
+                        <ResponsiveContainer width="100%" height={180}>
+                            <AreaChart data={monthlySeries} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                                <defs>
+                                    <linearGradient id="courierEarnGrad" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#2D7A3E" stopOpacity={0.28} />
+                                        <stop offset="95%" stopColor="#2D7A3E" stopOpacity={0} />
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e8e6dc" vertical={false} />
+                                <XAxis
+                                    dataKey="label"
+                                    axisLine={false}
+                                    tickLine={false}
+                                    tick={{ fontSize: 10, fill: '#6b6a63' }}
+                                    dy={6}
+                                />
+                                <YAxis hide />
+                                <Tooltip
+                                    contentStyle={{
+                                        borderRadius: 10,
+                                        border: '1px solid #e8e6dc',
+                                        background: '#ffffff',
+                                        boxShadow: '0 8px 24px rgba(20,20,19,0.08)',
+                                        fontSize: 11,
+                                    }}
+                                    formatter={(value: number) => [`${fmtMAD2(value)} MAD`, 'Gains']}
+                                />
+                                <Area
+                                    type="monotone"
+                                    dataKey="amount"
+                                    stroke="#2D7A3E"
+                                    strokeWidth={1.75}
+                                    fill="url(#courierEarnGrad)"
+                                    fillOpacity={1}
+                                    animationDuration={900}
+                                />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    )}
+                </div>
+            </section>
 
-            {/* Status proportions */}
-            <div className="rounded-xl border border-gray-100 bg-white p-3.5">
-                <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400 mb-3">
-                    Répartition · {parcels.length} colis
-                </p>
-                {statusProportions.length === 0 ? (
-                    <p className="text-[11px] text-gray-400">Aucun colis pour le moment.</p>
-                ) : (
-                    <div className="space-y-2">
-                        {statusProportions.map((s) => {
-                            const pct = parcels.length > 0 ? Math.round((s.value / parcels.length) * 100) : 0;
-                            return (
-                                <div key={s.name} className="flex items-center gap-2.5">
-                                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
-                                    <span className="text-[11px] font-semibold text-brand-navy/80 truncate flex-1">{s.name}</span>
-                                    <span className="text-[11px] font-semibold tabular-nums text-brand-navy">{s.value}</span>
-                                    <span className="text-[9px] text-gray-400 w-8 text-right tabular-nums">{pct}%</span>
-                                </div>
-                            );
-                        })}
+            {/* Status distribution */}
+            <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                <div className="h-[3px] w-full bg-ant-orange" />
+                <div className="px-4 md:px-6 py-4 md:py-5 border-b border-ant-line">
+                    <div className="flex items-center gap-2">
+                        <span className="font-display text-[11px] text-ant-orange">02</span>
+                        <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                            Répartition
+                        </span>
                     </div>
-                )}
-            </div>
+                    <p className="font-serif italic text-[12px] text-ant-mid mt-1">
+                        {parcels.length} colis attribué{parcels.length !== 1 ? 's' : ''} · statut actuel
+                    </p>
+                </div>
+                <div className="p-4 md:p-6">
+                    {statusProportions.length === 0 ? (
+                        <p className="font-serif italic text-[12px] text-ant-mid">Aucun colis pour le moment.</p>
+                    ) : (
+                        <div className="space-y-3">
+                            {statusProportions.map((s) => {
+                                const pct = parcels.length > 0 ? Math.round((s.value / parcels.length) * 100) : 0;
+                                return (
+                                    <div key={s.name} className="space-y-1.5">
+                                        <div className="flex items-center gap-2 text-[12px]">
+                                            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                                            <span className="font-medium text-ant-ink flex-1 truncate">{s.name}</span>
+                                            <span className="tabular-nums text-ant-ink">{s.value}</span>
+                                            <span className="tabular-nums text-ant-mid w-9 text-right">{pct}%</span>
+                                        </div>
+                                        <div className="h-1 rounded-full bg-ant-line overflow-hidden">
+                                            <div
+                                                className="h-full rounded-full transition-all duration-500"
+                                                style={{ width: `${pct}%`, backgroundColor: s.color }}
+                                            />
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            </section>
 
             {/* Recent activity */}
-            <div className="rounded-xl border border-gray-100 bg-white overflow-hidden">
-                <div className="px-3.5 py-3 border-b border-gray-100 flex items-center justify-between">
-                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Activité récente</p>
+            <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                <div className="h-[3px] w-full bg-ant-ink" />
+                <div className="px-4 md:px-6 py-4 md:py-5 border-b border-ant-line flex items-center justify-between gap-3">
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <span className="font-display text-[11px] text-ant-orange">03</span>
+                            <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                                Activité récente
+                            </span>
+                        </div>
+                        <p className="font-serif italic text-[12px] text-ant-mid mt-1">
+                            Derniers mouvements sur vos colis
+                        </p>
+                    </div>
                     <button
                         type="button"
                         onClick={() => navigate('/courier/orders')}
-                        className="flex items-center gap-1 text-[10px] font-semibold text-brand-navy/50 hover:text-brand-navy transition"
+                        className="inline-flex items-center gap-1 h-8 px-3 rounded-full border border-ant-line bg-ant-paper text-ant-ink text-[11px] font-medium hover:bg-ant-ink hover:text-ant-light hover:border-ant-ink transition-colors shrink-0"
                     >
-                        Voir tout <ChevronRight className="w-3 h-3" />
+                        Tout voir <ChevronRight className="w-3 h-3" />
                     </button>
                 </div>
                 {recent.length === 0 ? (
-                    <div className="px-3.5 py-6 flex flex-col items-center gap-2 text-center">
-                        <Clock className="w-5 h-5 text-gray-300" />
-                        <p className="text-[11px] text-gray-400">Aucune activité</p>
+                    <div className="px-4 md:px-6 py-10 flex flex-col items-center gap-2.5 text-center">
+                        <Clock className="w-5 h-5 text-ant-mid" />
+                        <p className="font-serif italic text-[12px] text-ant-mid">Aucune activité</p>
                     </div>
                 ) : (
-                    <div className="divide-y divide-gray-50">
+                    <div className="divide-y divide-ant-line">
                         {recent.map((p) => (
                             <button
                                 key={p.id}
@@ -430,63 +465,66 @@ const CourierDashboard = () => {
                                 onClick={() =>
                                     navigate(`/courier/orders?tracking=${encodeURIComponent(p.tracking_code || '')}`)
                                 }
-                                className="w-full px-3.5 py-2 flex items-center gap-3 text-left hover:bg-gray-50 transition-colors"
+                                className="w-full px-4 md:px-6 py-3 flex items-center gap-3 text-left hover:bg-ant-light/60 active:bg-ant-light transition-colors"
                             >
                                 <span
                                     className="w-2 h-2 shrink-0 rounded-full"
-                                    style={{ backgroundColor: p.status_color || '#9ca3af' }}
+                                    style={{ backgroundColor: p.status_color || '#b0aea5' }}
                                 />
                                 <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-1">
-                                        <Hash className="w-3 h-3 text-gray-400 shrink-0" />
-                                        <p className="text-[11px] font-mono font-semibold text-brand-navy truncate">
+                                    <div className="flex items-center gap-1.5">
+                                        <Hash className="w-3 h-3 text-ant-mid shrink-0" />
+                                        <p className="font-mono text-[12px] font-semibold text-ant-ink truncate">
                                             {p.tracking_code || '—'}
                                         </p>
                                     </div>
-                                    <p className="text-[9px] text-gray-400 truncate mt-0.5">
+                                    <p className="text-[11px] text-ant-mid truncate mt-0.5">
                                         {p.order_name || '—'} · {p.order_city || '—'}
                                     </p>
                                 </div>
                                 <span
-                                    className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0"
+                                    className="text-[9px] font-semibold uppercase tracking-[0.15em] px-2 py-1 rounded-full shrink-0 inline-flex items-center gap-1"
                                     style={{
-                                        backgroundColor: `${p.status_color || '#9ca3af'}15`,
-                                        color: p.status_color || '#9ca3af',
+                                        backgroundColor: `${p.status_color || '#b0aea5'}14`,
+                                        color: p.status_color || '#6b6a63',
                                     }}
                                 >
+                                    <span className="w-1 h-1 rounded-full" style={{ backgroundColor: p.status_color || '#b0aea5' }} />
                                     {p.status_label || '—'}
                                 </span>
                             </button>
                         ))}
                     </div>
                 )}
-            </div>
+            </section>
 
             {/* Quick links */}
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-3">
                 {[
-                    { icon: Package, label: 'Mes commandes', sub: `${parcels.length} colis`, path: '/courier/orders' },
-                    { icon: Receipt, label: 'Paiements', sub: `${payouts.length} payout${payouts.length !== 1 ? 's' : ''}`, path: '/courier/payments' },
-                ].map(({ icon: Icon, label, sub, path }) => (
+                    { icon: Package, label: 'Mes commandes', sub: `${parcels.length} colis`, path: '/courier/orders', accent: 'bg-ant-ink' },
+                    { icon: Receipt, label: 'Mes paiements', sub: `${payouts.length} paiement${payouts.length !== 1 ? 's' : ''}`, path: '/courier/payments', accent: 'bg-ant-green' },
+                ].map(({ icon: Icon, label, sub, path, accent }) => (
                     <button
                         key={path}
                         type="button"
                         onClick={() => navigate(path)}
-                        className="group flex items-center gap-3 p-3.5 rounded-xl bg-white border border-gray-100 hover:border-gray-200 hover:bg-gray-50 transition-all text-left"
+                        className="group relative rounded-2xl border border-ant-line bg-ant-paper overflow-hidden text-left hover:border-ant-ink/30 transition-colors active:scale-[0.98]"
                     >
-                        <div className="w-8 h-8 rounded-md bg-gray-100 flex items-center justify-center shrink-0 group-hover:bg-brand-navy/10 transition-colors">
-                            <Icon className="w-4 h-4 text-brand-navy/70" />
+                        <div className={cn('h-[3px] w-full', accent)} />
+                        <div className="p-4 md:p-5 flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-ant-light flex items-center justify-center shrink-0">
+                                <Icon className="w-4 h-4 text-ant-ink" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="font-display text-[13px] text-ant-ink truncate">{label}</p>
+                                <p className="font-serif italic text-[11px] text-ant-mid truncate mt-0.5">{sub}</p>
+                            </div>
+                            <ChevronRight className="w-4 h-4 text-ant-mid group-hover:text-ant-ink transition-colors shrink-0" />
                         </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-[11px] font-semibold text-brand-navy truncate">{label}</p>
-                            <p className="text-[9px] text-gray-400 truncate mt-0.5">{sub}</p>
-                        </div>
-                        <ChevronRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-brand-navy/40 transition-colors shrink-0" />
                     </button>
                 ))}
             </div>
 
-            {/* QR Scanner */}
             <QrScanModal
                 open={isScannerOpen}
                 onClose={() => setIsScannerOpen(false)}

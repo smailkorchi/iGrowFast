@@ -7,12 +7,12 @@ interface OwnerLayoutProps {
 
 const OwnerLayout: React.FC<OwnerLayoutProps> = ({ children }) => {
     return (
-        <div className="min-h-screen bg-brand-white flex overflow-x-hidden">
+        <div className="min-h-screen bg-ant-light flex overflow-x-hidden">
             <OwnerSidebar />
 
             <main className="flex-1 min-w-0 transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)]">
-                <div className="p-4 md:p-8">
-                    <div className="max-w-[1700px] mx-auto w-full">
+                <div className="px-4 py-4 md:px-6 md:py-6">
+                    <div className="max-w-[1440px] mx-auto w-full">
                         {children}
                     </div>
                 </div>

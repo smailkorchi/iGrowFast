@@ -6,7 +6,6 @@ import {
 } from '@zxing/browser';
 import { Camera, CameraOff, X, Flashlight, Loader2, ScanLine } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 // ─── QR payload validation ───────────────────────────────────────────────────
@@ -216,25 +215,25 @@ export default function QrScanModal({ open, onClose, onDecoded }: QrScanModalPro
         <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
             <DialogContent
                 className={cn(
-                    'p-0 border-none bg-black overflow-hidden flex flex-col gap-0',
-                    'sm:max-w-[520px] sm:rounded-[32px] sm:max-h-[90vh]',
+                    'p-0 gap-0 border-none bg-ant-ink overflow-hidden flex flex-col',
+                    'shadow-[0_32px_80px_-24px_rgba(20,20,19,0.65)]',
+                    'sm:max-w-[520px] sm:rounded-3xl sm:max-h-[90vh]',
                     'max-sm:!left-0 max-sm:!right-0 max-sm:!top-0 max-sm:!bottom-0',
                     'max-sm:!translate-x-0 max-sm:!translate-y-0',
                     'max-sm:!w-full max-sm:!max-w-none',
                     'max-sm:!h-[100dvh] max-sm:!max-h-[100dvh]',
-                    'max-sm:!rounded-none'
+                    'max-sm:!rounded-none',
+                    '[&>button.absolute]:hidden',
                 )}
-                // hide the built-in close X (we provide our own)
                 onOpenAutoFocus={(e) => e.preventDefault()}
             >
-                {/* Hidden for accessibility — the visual title is rendered below. */}
-                <DialogTitle className="sr-only">Scan QR code</DialogTitle>
+                <DialogTitle className="sr-only">Scanner un QR</DialogTitle>
                 <DialogDescription className="sr-only">
                     Pointez la caméra sur le QR code du colis.
                 </DialogDescription>
 
                 {/* Video stage */}
-                <div className="relative flex-1 bg-black">
+                <div className="relative flex-1 bg-ant-ink">
                     <video
                         ref={setVideoRef}
                         className="absolute inset-0 w-full h-full object-cover"
@@ -245,119 +244,124 @@ export default function QrScanModal({ open, onClose, onDecoded }: QrScanModalPro
 
                     {/* Viewfinder overlay */}
                     <div className="absolute inset-0 pointer-events-none">
-                        {/* Darkened mask with square cutout */}
+                        {/* Viewfinder frame */}
                         <div className="absolute inset-0 flex items-center justify-center">
                             <div className="relative w-[68vmin] max-w-[320px] aspect-square">
-                                {/* Corners */}
-                                <div className="absolute -top-1 -left-1 w-10 h-10 border-t-[3px] border-l-[3px] border-emerald-400 rounded-tl-[20px]" />
-                                <div className="absolute -top-1 -right-1 w-10 h-10 border-t-[3px] border-r-[3px] border-emerald-400 rounded-tr-[20px]" />
-                                <div className="absolute -bottom-1 -left-1 w-10 h-10 border-b-[3px] border-l-[3px] border-emerald-400 rounded-bl-[20px]" />
-                                <div className="absolute -bottom-1 -right-1 w-10 h-10 border-b-[3px] border-r-[3px] border-emerald-400 rounded-br-[20px]" />
-                                {/* Animated line */}
+                                {/* Orange corners */}
+                                <div className="absolute -top-1 -left-1 w-10 h-10 border-t-[3px] border-l-[3px] border-ant-orange rounded-tl-[20px]" />
+                                <div className="absolute -top-1 -right-1 w-10 h-10 border-t-[3px] border-r-[3px] border-ant-orange rounded-tr-[20px]" />
+                                <div className="absolute -bottom-1 -left-1 w-10 h-10 border-b-[3px] border-l-[3px] border-ant-orange rounded-bl-[20px]" />
+                                <div className="absolute -bottom-1 -right-1 w-10 h-10 border-b-[3px] border-r-[3px] border-ant-orange rounded-br-[20px]" />
+                                {/* Animated scan line */}
                                 {status === 'scanning' && (
-                                    <div className="absolute inset-x-4 top-0 h-[2px] bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_12px_rgba(52,211,153,0.8)] animate-[scanline_2.2s_ease-in-out_infinite]" />
+                                    <div className="absolute inset-x-4 top-0 h-[2px] bg-gradient-to-r from-transparent via-ant-orange to-transparent shadow-[0_0_14px_rgba(217,118,6,0.7)] animate-[scanline_2.2s_ease-in-out_infinite]" />
                                 )}
                             </div>
                         </div>
 
-                        {/* Top gradient + title */}
-                        <div className="absolute top-0 left-0 right-0 pt-[max(1rem,env(safe-area-inset-top))] pb-8 bg-gradient-to-b from-black/80 to-transparent">
+                        {/* Top gradient + editorial header */}
+                        <div className="absolute top-0 left-0 right-0 pt-[max(1rem,env(safe-area-inset-top))] pb-10 bg-gradient-to-b from-ant-ink/90 via-ant-ink/50 to-transparent">
                             <div className="px-5 flex items-center justify-between">
-                                <div>
-                                    <p className="text-[10px] font-black uppercase tracking-[0.25em] text-emerald-300/75">
-                                        QR Scanner
-                                    </p>
-                                    <p className="text-sm font-bold text-white mt-0.5">
+                                <div className="space-y-1.5">
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-ant-orange" />
+                                        <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-light/65">
+                                            Scanner · QR
+                                        </span>
+                                    </div>
+                                    <p className="font-display text-[16px] text-ant-light tracking-[-0.01em]">
                                         Alignez le QR du colis
+                                    </p>
+                                    <p className="font-serif italic text-[11px] text-ant-light/55">
+                                        Tenez la caméra stable à ~15 cm.
                                     </p>
                                 </div>
                                 <button
                                     type="button"
                                     onClick={onClose}
-                                    className="pointer-events-auto w-10 h-10 rounded-full bg-white/10 backdrop-blur-md border border-white/15 flex items-center justify-center text-white hover:bg-white/20 transition"
+                                    className="pointer-events-auto w-10 h-10 rounded-full bg-white/10 backdrop-blur-md border border-white/15 flex items-center justify-center text-ant-light hover:bg-white/15 transition shrink-0"
                                     aria-label="Fermer"
                                 >
-                                    <X className="w-5 h-5" />
+                                    <X className="w-4 h-4" />
                                 </button>
                             </div>
                         </div>
 
                         {/* Bottom gradient + status + actions */}
-                        <div className="absolute bottom-0 left-0 right-0 pt-10 pb-[max(1.25rem,env(safe-area-inset-bottom))] bg-gradient-to-t from-black/85 to-transparent">
+                        <div className="absolute bottom-0 left-0 right-0 pt-12 pb-[max(1.25rem,env(safe-area-inset-bottom))] bg-gradient-to-t from-ant-ink/95 via-ant-ink/55 to-transparent">
                             <div className="px-5 space-y-3 pointer-events-auto">
                                 {/* Status pill */}
                                 <div className="flex items-center justify-center">
                                     {status === 'starting' && (
-                                        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15">
-                                            <Loader2 className="w-3 h-3 text-white/80 animate-spin" />
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-white/80">
+                                        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15">
+                                            <Loader2 className="w-3 h-3 text-ant-light/80 animate-spin" />
+                                            <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-light/80">
                                                 Démarrage…
                                             </span>
                                         </div>
                                     )}
                                     {status === 'scanning' && (
-                                        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/15 backdrop-blur-md border border-emerald-400/30">
-                                            <ScanLine className="w-3 h-3 text-emerald-300" />
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-200">
+                                        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-ant-orange/18 backdrop-blur-md border border-ant-orange/40">
+                                            <ScanLine className="w-3 h-3 text-ant-orange" />
+                                            <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-light">
                                                 Scan en cours
                                             </span>
                                         </div>
                                     )}
                                     {status === 'error' && (
-                                        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500/15 backdrop-blur-md border border-red-400/30">
-                                            <CameraOff className="w-3 h-3 text-red-300" />
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-red-200">
+                                        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-ant-rose/20 backdrop-blur-md border border-ant-rose/40">
+                                            <CameraOff className="w-3 h-3 text-ant-rose" />
+                                            <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-light">
                                                 Erreur
                                             </span>
                                         </div>
                                     )}
                                 </div>
 
-                                {/* Rejected hint (wrong QR content, not ours) */}
+                                {/* Rejected hint */}
                                 {lastRejected && status === 'scanning' && (
-                                    <p className="text-center text-[10px] font-semibold text-amber-300/90">
-                                        QR non reconnu : « {lastRejected} ». Visez un colis DigiCom.
+                                    <p className="font-serif italic text-center text-[11px] text-ant-orange/85">
+                                        QR non reconnu : « {lastRejected} » — visez un colis DigiCom.
                                     </p>
                                 )}
 
                                 {/* Error message */}
                                 {status === 'error' && (
-                                    <p className="text-center text-xs font-semibold text-red-200 max-w-xs mx-auto">
+                                    <p className="font-serif italic text-center text-[12px] text-ant-light/80 max-w-xs mx-auto">
                                         {errorMsg}
                                     </p>
                                 )}
 
                                 {/* Action row */}
-                                <div className="flex items-center justify-center gap-3 pt-1">
+                                <div className="flex items-center justify-center gap-2 pt-1">
                                     {torchSupported && status === 'scanning' && (
-                                        <Button
+                                        <button
                                             type="button"
                                             onClick={toggleTorch}
-                                            variant="ghost"
                                             className={cn(
-                                                'h-12 w-12 rounded-full backdrop-blur-md border',
+                                                'h-11 w-11 rounded-full backdrop-blur-md border flex items-center justify-center transition-colors',
                                                 torchOn
-                                                    ? 'bg-amber-400/25 border-amber-300/40 text-amber-200 hover:bg-amber-400/30'
-                                                    : 'bg-white/10 border-white/15 text-white/85 hover:bg-white/20'
+                                                    ? 'bg-ant-orange/25 border-ant-orange/40 text-ant-orange hover:bg-ant-orange/30'
+                                                    : 'bg-white/10 border-white/15 text-ant-light/85 hover:bg-white/20',
                                             )}
                                             aria-label={torchOn ? 'Éteindre le flash' : 'Allumer le flash'}
                                         >
-                                            <Flashlight className="w-5 h-5" />
-                                        </Button>
+                                            <Flashlight className="w-4 h-4" />
+                                        </button>
                                     )}
-                                    <Button
+                                    <button
                                         type="button"
                                         onClick={onClose}
-                                        className="h-12 px-6 rounded-full font-bold text-xs uppercase tracking-widest bg-white/10 backdrop-blur-md border border-white/15 text-white hover:bg-white/20"
+                                        className="h-11 px-6 rounded-full font-medium text-[12px] bg-white/10 backdrop-blur-md border border-white/15 text-ant-light hover:bg-white/15 transition-colors"
                                     >
                                         Annuler
-                                    </Button>
+                                    </button>
                                 </div>
 
                                 {/* Hint */}
-                                <p className="text-center text-[10px] font-medium text-white/40 pt-1">
-                                    <Camera className="inline w-3 h-3 mr-1 -mt-0.5" />
-                                    Tenez le téléphone à ~15 cm du QR · bonne lumière
+                                <p className="flex items-center justify-center gap-1.5 text-[10px] text-ant-light/40 pt-1">
+                                    <Camera className="w-3 h-3" />
+                                    Bonne lumière · QR bien plat
                                 </p>
                             </div>
                         </div>

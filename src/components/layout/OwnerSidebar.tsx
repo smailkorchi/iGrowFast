@@ -42,6 +42,8 @@ const navigation: NavItem[] = [
     { icon: SiMeta, label: 'Meta Ads', path: '/owner/meta-ads' },
 ];
 
+const isParentPath = (path: string) => path === '/owner/dashboard';
+
 const OwnerSidebar = () => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -81,27 +83,38 @@ const OwnerSidebar = () => {
         navigate('/auth');
     };
 
+    const isActivePath = (path: string, isEnd: boolean) => {
+        if (isEnd) return location.pathname === path;
+        return location.pathname === path || location.pathname.startsWith(path + '/');
+    };
+
     return (
-        <aside className={cn(
-            "relative flex-none transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] group/sidebar",
-            isPinned ? "w-[276px]" : "w-[92px] hover:w-[276px]"
-        )}>
-            <div className={cn(
-                "fixed left-0 top-0 bottom-0 flex items-center z-50 transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] pointer-events-none",
-                isPinned ? "w-[276px]" : "w-[92px] group-hover/sidebar:w-[276px]"
-            )}>
+        <aside
+            className={cn(
+                'ant-surface relative flex-none transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] group/sidebar',
+                isPinned ? 'w-[232px]' : 'w-[72px] hover:w-[232px]',
+            )}
+        >
+            <div
+                className={cn(
+                    'fixed left-0 top-0 bottom-0 flex items-center z-50 transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] pointer-events-none',
+                    isPinned ? 'w-[232px]' : 'w-[72px] group-hover/sidebar:w-[232px]',
+                )}
+            >
                 <div
                     className={cn(
-                        "flex flex-col ml-4 h-[calc(100vh-2rem)] bg-brand-navy rounded-[32px] text-brand-white transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] overflow-hidden shadow-[0_32px_80px_-16px_rgba(0,0,0,0.5)] border border-white/5 pointer-events-auto",
-                        isPinned ? "w-[260px] group/sidebar-inner" : "w-[76px] group-hover/sidebar:w-[260px] group/sidebar-inner"
+                        'flex flex-col ml-3 h-[calc(100vh-1.5rem)] bg-ant-ink rounded-[20px] text-ant-light transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] overflow-hidden border border-white/[0.06] pointer-events-auto shadow-[0_24px_60px_-24px_rgba(20,20,19,0.55)]',
+                        isPinned
+                            ? 'w-[216px] group/sidebar-inner'
+                            : 'w-[60px] group-hover/sidebar:w-[216px] group/sidebar-inner',
                     )}
                     data-pinned={isPinned}
                 >
-                    {/* Top Logo Section */}
-                    <div className="flex items-center h-20 shrink-0 px-3">
-                        <div className="flex items-center w-full h-12 rounded-2xl relative">
-                            <div className="w-[52px] h-12 flex items-center justify-center shrink-0">
-                                <div className="w-9 h-9 rounded-xl bg-brand-white flex items-center justify-center shadow-xl group-hover/sidebar-inner:rotate-[360deg] group-data-[pinned=true]/sidebar-inner:rotate-[360deg] transition-all duration-1000 overflow-hidden p-1.5">
+                    {/* Brand */}
+                    <div className="flex items-center h-14 shrink-0 px-2">
+                        <div className="flex items-center w-full h-10 rounded-xl relative">
+                            <div className="w-[44px] h-10 flex items-center justify-center shrink-0">
+                                <div className="w-8 h-8 rounded-[10px] bg-ant-light flex items-center justify-center overflow-hidden p-1 transition-transform duration-700 group-hover/sidebar-inner:rotate-[360deg] group-data-[pinned=true]/sidebar-inner:rotate-[360deg]">
                                     <img
                                         src="/Logo/DigiCom Icon Transparent.png"
                                         alt="DigiCom"
@@ -109,86 +122,131 @@ const OwnerSidebar = () => {
                                     />
                                 </div>
                             </div>
-                            <span className="ml-3 font-black text-xl tracking-tighter opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100 transition-all duration-500 delay-100 whitespace-nowrap overflow-hidden text-brand-white">
-                                DigiCom<span className="text-white/20">.</span>
+                            <span className="ml-2 font-display font-semibold text-[15px] tracking-tight text-ant-light opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100 transition-all duration-500 delay-100 whitespace-nowrap overflow-hidden">
+                                DigiCom
+                                <span className="text-ant-orange">.</span>
                             </span>
                         </div>
                     </div>
 
-                    {/* Navigation */}
-                    <div className="flex-1 px-3 space-y-1 overflow-y-auto no-scrollbar pb-6 scroll-smooth">
-                        <div className="space-y-0.5">
-                            {navigation.map((item) => (
-                                <NavLink
-                                    key={item.path}
-                                    to={item.path}
-                                    className={({ isActive }) => cn(
-                                        "flex items-center h-11 rounded-2xl transition-all duration-300 group/item relative overflow-hidden",
-                                        "hover:bg-white/[0.04]",
-                                        isActive ? "bg-white/[0.08] text-brand-white shadow-sm" : "text-brand-white/40 hover:text-brand-white"
-                                    )}
-                                >
-                                    <div className="w-[52px] h-11 flex items-center justify-center shrink-0 relative z-10 transition-transform duration-300 group-hover/item:scale-110">
-                                        <item.icon className="w-5 h-5" />
-                                    </div>
-                                    <span className="font-bold text-[13px] opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100 transition-all duration-500 delay-75 whitespace-nowrap relative z-10">
-                                        {item.label}
-                                    </span>
-                                </NavLink>
-                            ))}
+                    {/* Kicker — "Owner" scope label */}
+                    <div className="mx-3 pb-2 border-b border-white/[0.06]">
+                        <div className="flex items-center gap-1.5 h-5 opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100 transition-all duration-500 delay-150">
+                            <span className="w-1 h-1 rounded-full bg-ant-orange" />
+                            <span className="font-display text-[9px] uppercase tracking-[0.22em] text-ant-light/55">
+                                Platform · Owner
+                            </span>
                         </div>
                     </div>
 
-                    {/* Profile Section */}
-                    <div className="px-3 pt-4 pb-2 border-t border-white/[0.03]">
+                    {/* Nav */}
+                    <div className="flex-1 px-2 pt-2 space-y-0.5 overflow-y-auto overflow-x-hidden no-scrollbar pb-3 scroll-smooth">
+                        {navigation.map((item) => (
+                            <NavLink
+                                key={item.path}
+                                to={item.path}
+                                end={isParentPath(item.path)}
+                                className={({ isActive }) => cn(
+                                    'flex items-center h-9 rounded-lg transition-all duration-300 group/item relative',
+                                    isActive
+                                        ? 'bg-white/[0.06] text-ant-light'
+                                        : 'text-ant-light/55 hover:text-ant-light hover:bg-white/[0.035]',
+                                )}
+                            >
+                                {({ isActive }) => (
+                                    <>
+                                        {isActive && (
+                                            <span
+                                                aria-hidden
+                                                className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-ant-orange"
+                                            />
+                                        )}
+                                        <div className="w-[44px] h-9 flex items-center justify-center shrink-0">
+                                            <item.icon
+                                                className={cn(
+                                                    'w-[15px] h-[15px]',
+                                                    isActive
+                                                        ? 'text-ant-orange'
+                                                        : 'text-ant-light/50 group-hover/item:text-ant-light',
+                                                )}
+                                            />
+                                        </div>
+                                        <span className="font-medium text-[12px] tracking-tight opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100 transition-all duration-500 delay-75 whitespace-nowrap">
+                                            {item.label}
+                                        </span>
+                                    </>
+                                )}
+                            </NavLink>
+                        ))}
+                    </div>
+
+                    {/* Profile → Select business */}
+                    <div className="px-2 pt-2 pb-1.5 border-t border-white/[0.06]">
                         <NavLink
                             to="/owner/select-business"
                             className={({ isActive }) => cn(
-                                "flex items-center h-14 rounded-2xl transition-all duration-500 group/profile relative overflow-hidden",
-                                "hover:bg-white/[0.05]",
-                                "group-hover/sidebar-inner:bg-white/[0.02] group-data-[pinned=true]/sidebar-inner:bg-white/[0.02] group-hover/sidebar-inner:border group-data-[pinned=true]/sidebar-inner:border group-hover/sidebar-inner:border-white/[0.03] group-data-[pinned=true]/sidebar-inner:border-white/[0.03]",
-                                isActive && "group-hover/sidebar-inner:bg-white/[0.08] group-data-[pinned=true]/sidebar-inner:bg-white/[0.08] group-hover/sidebar-inner:border-white/5 group-data-[pinned=true]/sidebar-inner:border-white/5"
+                                'flex items-center h-11 rounded-lg transition-all duration-300 group/profile relative',
+                                isActive ? 'bg-white/[0.06]' : 'hover:bg-white/[0.04]',
                             )}
                         >
-                            <div className="w-[52px] h-14 flex items-center justify-center shrink-0">
-                                <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-white/10 bg-brand-navy-light flex items-center justify-center shadow-lg group-hover/profile:scale-105 transition-transform duration-500">
-                                    {isProfileLoading ? (
-                                        <Loader2 className="w-4 h-4 animate-spin text-brand-white" />
-                                    ) : profile?.avatar_url ? (
-                                        <img src={profile.avatar_url} className="w-full h-full object-cover" alt="" />
-                                    ) : (
-                                        <UserIcon className="w-4 h-4 text-brand-white" />
+                            {({ isActive }) => (
+                                <>
+                                    {isActive && (
+                                        <span
+                                            aria-hidden
+                                            className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-ant-orange"
+                                        />
                                     )}
-                                </div>
-                            </div>
-
-                            <div className="ml-2 opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100 transition-all duration-500 delay-150 whitespace-nowrap overflow-hidden">
-                                <div className="flex flex-col">
-                                    <span className="text-[10px] font-bold text-brand-white tracking-tight truncate max-w-[120px]">
-                                        {profile?.name || 'User'}
-                                    </span>
-                                    <div className="flex items-center gap-1 mt-0.5">
-                                        <div className="w-1 h-1 rounded-full bg-emerald-500" />
-                                        <span className="text-[8px] text-white/30 font-black uppercase tracking-[0.2em]">
-                                            {profile?.role || 'Owner'}
+                                    <div className="w-[44px] h-11 flex items-center justify-center shrink-0">
+                                        <div
+                                            className={cn(
+                                                'w-8 h-8 rounded-full overflow-hidden bg-ant-ink-soft flex items-center justify-center transition-all duration-500 group-hover/profile:scale-105',
+                                                isActive ? 'ring-2 ring-ant-orange' : 'ring-1 ring-white/10',
+                                            )}
+                                        >
+                                            {isProfileLoading ? (
+                                                <Loader2 className="w-3.5 h-3.5 animate-spin text-ant-light" />
+                                            ) : profile?.avatar_url ? (
+                                                <img src={profile.avatar_url} className="w-full h-full object-cover" alt="" />
+                                            ) : (
+                                                <UserIcon
+                                                    className={cn('w-3.5 h-3.5', isActive ? 'text-ant-orange' : 'text-ant-light/70')}
+                                                />
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="ml-1.5 opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100 transition-all duration-500 delay-150 whitespace-nowrap overflow-hidden">
+                                        <span className="block text-[11.5px] font-medium text-ant-light tracking-tight truncate max-w-[140px]">
+                                            {profile?.name || 'Owner'}
+                                        </span>
+                                        <span className="flex items-center gap-1 mt-0.5">
+                                            <span className="w-1 h-1 rounded-full bg-ant-green" />
+                                            <span
+                                                className={cn(
+                                                    'text-[9px] font-medium uppercase tracking-[0.18em]',
+                                                    isActive ? 'text-ant-orange' : 'text-ant-mid',
+                                                )}
+                                            >
+                                                {profile?.role || 'Owner'}
+                                            </span>
                                         </span>
                                     </div>
-                                </div>
-                            </div>
+                                </>
+                            )}
                         </NavLink>
                     </div>
 
-                    {/* Sign Out & Pin Toggle */}
-                    <div className="px-3 pb-4 flex items-center gap-2">
+                    {/* Actions */}
+                    <div className="px-2 pb-3 flex items-center gap-1.5">
                         <button
                             onClick={handleLogout}
-                            className="flex-1 flex items-center h-11 rounded-2xl text-white/10 hover:text-red-400 hover:bg-red-400/5 transition-all duration-300 overflow-hidden"
+                            className="flex-1 flex items-center h-9 rounded-lg text-ant-light/40 hover:text-ant-rose hover:bg-white/[0.04] transition-all duration-300"
                             title="Logout"
                         >
-                            <div className="w-[52px] h-11 flex items-center justify-center shrink-0">
-                                <LogOut className="w-4 h-4" />
+                            <div className="w-[44px] h-9 flex items-center justify-center shrink-0">
+                                <LogOut className="w-[14px] h-[14px]" />
                             </div>
-                            <span className="font-bold text-[13px] opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100 transition-all duration-500 delay-75 whitespace-nowrap">
+                            <span className="font-medium text-[12px] tracking-tight opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100 transition-all duration-500 delay-75 whitespace-nowrap">
                                 Logout
                             </span>
                         </button>
@@ -196,14 +254,19 @@ const OwnerSidebar = () => {
                         <button
                             onClick={togglePin}
                             className={cn(
-                                "w-11 h-11 shrink-0 flex items-center justify-center rounded-2xl transition-all duration-300",
+                                'w-9 h-9 shrink-0 flex items-center justify-center rounded-lg transition-all duration-300',
                                 isPinned
-                                    ? "text-brand-white bg-white/10"
-                                    : "text-white/30 hover:text-brand-white hover:bg-white/5 opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100"
+                                    ? 'text-ant-light bg-white/[0.08]'
+                                    : 'text-ant-light/35 hover:text-ant-light hover:bg-white/[0.05] opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100',
                             )}
-                            title={isPinned ? "Unpin Sidebar" : "Pin Sidebar"}
+                            title={isPinned ? 'Unpin Sidebar' : 'Pin Sidebar'}
                         >
-                            <PanelLeftClose className={cn("w-5 h-5 transition-transform duration-300", !isPinned && "rotate-180")} />
+                            <PanelLeftClose
+                                className={cn(
+                                    'w-4 h-4 transition-transform duration-300',
+                                    !isPinned && 'rotate-180',
+                                )}
+                            />
                         </button>
                     </div>
                 </div>

@@ -6,27 +6,15 @@ import {
     parseISO,
 } from 'date-fns';
 import {
-    TrendingUp,
-    TrendingDown,
-    Wallet,
-    DollarSign,
-    PackageCheck,
-    Target,
     ArrowRight,
-    Plus,
     BarChart3,
-    ListChecks,
     AlertTriangle,
     Megaphone,
     CheckCircle2,
-    Clock,
     ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
     AreaChart,
     Area,
@@ -41,7 +29,7 @@ import { useCurrentUserId } from '@/hooks/useCurrentUserId';
 import { useMediaBuyerStats } from '@/hooks/useMediaBuyerStats';
 import { useMediaBuyerEarnings } from '@/hooks/useMediaBuyerEarnings';
 import { todayBusinessYmd, shiftYmd } from '@/lib/dateBuckets';
-import { fmtCur, fmtCurFull, fmtNum } from '@/lib/formatNumbers';
+import { fmtCur, fmtNum } from '@/lib/formatNumbers';
 import { getPlatformColor, getPlatformIcon } from '@/lib/campaignConstants';
 
 type Profile = {
@@ -53,23 +41,11 @@ type Profile = {
     salary_amount: number | null;
 };
 
-// ─────── Delta helper ────────
-type Delta = { value: number; pct: number | null; direction: 'up' | 'down' | 'flat' };
-const computeDelta = (current: number, previous: number): Delta => {
-    const value = current - previous;
-    if (previous === 0 && current === 0) return { value: 0, pct: null, direction: 'flat' };
-    if (previous === 0) return { value, pct: null, direction: value >= 0 ? 'up' : 'down' };
-    const pct = (value / Math.abs(previous)) * 100;
-    return { value, pct, direction: value > 0 ? 'up' : value < 0 ? 'down' : 'flat' };
-};
-
-// ─────── Page ────────
 const Dashboard: React.FC = () => {
     const navigate = useNavigate();
     const currentUserId = useCurrentUserId();
     const activeBusinessId = localStorage.getItem('activeBusinessId');
 
-    const now = new Date();
     const todayKey = todayBusinessYmd();
     const currentMonth = todayKey.slice(0, 7);
 
@@ -83,20 +59,20 @@ const Dashboard: React.FC = () => {
         const lastDay = (yy: number, mm: number) => new Date(yy, mm, 0).getDate();
         switch (preset) {
             case '7d':
-                return { from: shiftYmd(todayKey, -6), to: todayKey, label: 'Last 7 days' };
+                return { from: shiftYmd(todayKey, -6), to: todayKey, label: '7 derniers jours' };
             case '30d':
-                return { from: shiftYmd(todayKey, -29), to: todayKey, label: 'Last 30 days' };
+                return { from: shiftYmd(todayKey, -29), to: todayKey, label: '30 derniers jours' };
             case 'mtd':
-                return { from: `${currentMonth}-01`, to: todayKey, label: 'This month' };
+                return { from: `${currentMonth}-01`, to: todayKey, label: 'Ce mois-ci' };
             case 'lastmonth': {
                 const ly = m === 1 ? y - 1 : y;
                 const lm = m === 1 ? 12 : m - 1;
                 const key = `${ly}-${pad2(lm)}`;
-                return { from: `${key}-01`, to: `${key}-${pad2(lastDay(ly, lm))}`, label: 'Last month' };
+                return { from: `${key}-01`, to: `${key}-${pad2(lastDay(ly, lm))}`, label: 'Mois dernier' };
             }
             case 'all':
             default:
-                return { from: '2020-01-01', to: todayKey, label: 'All time' };
+                return { from: '2020-01-01', to: todayKey, label: 'Depuis le début' };
         }
     }, [preset, todayKey, currentMonth]);
 
@@ -142,8 +118,8 @@ const Dashboard: React.FC = () => {
             .filter((d) => d.date >= sparklineStart)
             .map((d) => ({
                 date: format(parseISO(d.date), 'dd MMM'),
-                Spend: Number(d.spend.toFixed(2)),
-                Revenue: Number(d.revenue.toFixed(2)),
+                Dépense: Number(d.spend.toFixed(2)),
+                Revenu: Number(d.revenue.toFixed(2)),
             }));
     }, [daily, sparklineStart]);
 
@@ -154,39 +130,52 @@ const Dashboard: React.FC = () => {
     );
     const topCampaigns = useMemo(() => perCampaign.filter((c) => c.spend > 0).slice(0, 5), [perCampaign]);
 
-    const firstName = (profile?.name || 'there').split(' ')[0];
+    const firstName = (profile?.name || 'vous').split(' ')[0];
+    const greeting = (() => {
+        const h = new Date().getHours();
+        if (h < 12) return 'Bonjour';
+        if (h < 18) return 'Bon après-midi';
+        return 'Bonsoir';
+    })();
+
+    const presetOptions: Array<{ k: Preset; label: string }> = [
+        { k: 'all', label: 'Tout' },
+        { k: 'mtd', label: 'Ce mois' },
+        { k: 'lastmonth', label: 'Mois dernier' },
+        { k: '30d', label: '30j' },
+        { k: '7d', label: '7j' },
+    ];
 
     return (
-        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
-            {/* Header */}
-            <header className="space-y-2.5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">
-                            Dashboard
+        <div className="space-y-5 md:space-y-6">
+            {/* Editorial header */}
+            <header className="space-y-3">
+                <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-ant-orange" />
+                    <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                        Media Buyer · Tableau de bord
+                    </span>
+                </div>
+                <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
+                    <div className="space-y-1.5">
+                        <h1 className="font-display text-[26px] sm:text-[32px] leading-[1.05] tracking-[-0.02em] text-ant-ink">
+                            {greeting}, {firstName}
                         </h1>
-                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">
-                            {firstName} · {activeCampaigns.length} active campaign{activeCampaigns.length !== 1 ? 's' : ''}
+                        <p className="font-serif italic text-[13px] sm:text-[14px] leading-relaxed text-ant-mid">
+                            {activeCampaigns.length} campagne{activeCampaigns.length !== 1 ? 's' : ''} active{activeCampaigns.length !== 1 ? 's' : ''} · performance en temps réel.
                         </p>
                     </div>
-                    {/* Preset filter */}
-                    <div className="flex flex-wrap items-center gap-1">
-                        {([
-                            { k: 'all', label: 'All time' },
-                            { k: 'mtd', label: 'Month' },
-                            { k: 'lastmonth', label: 'Last mo.' },
-                            { k: '30d', label: '30d' },
-                            { k: '7d', label: '7d' },
-                        ] as const).map(({ k, label }) => (
+                    <div className="inline-flex items-center gap-0.5 p-1 rounded-full border border-ant-line bg-ant-paper overflow-x-auto no-scrollbar">
+                        {presetOptions.map(({ k, label }) => (
                             <button
                                 key={k}
                                 type="button"
                                 onClick={() => setPreset(k)}
                                 className={cn(
-                                    'h-7 px-2.5 rounded-md text-[10px] font-semibold uppercase tracking-wider transition-all',
+                                    'shrink-0 h-8 px-3 rounded-full text-[11px] font-medium transition-all',
                                     preset === k
-                                        ? 'bg-brand-navy text-white'
-                                        : 'text-gray-400 hover:text-brand-navy border border-gray-100'
+                                        ? 'bg-ant-ink text-ant-light shadow-[0_6px_18px_-6px_rgba(20,20,19,0.35)]'
+                                        : 'text-ant-mid hover:text-ant-ink',
                                 )}
                             >
                                 {label}
@@ -196,216 +185,271 @@ const Dashboard: React.FC = () => {
                 </div>
             </header>
 
-            {/* KPI strip */}
+            {/* KPI hairline strip */}
             {loadingStats ? (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ant-line rounded-2xl overflow-hidden border border-ant-line">
                     {Array.from({ length: 4 }).map((_, i) => (
-                        <Skeleton key={i} className="h-20 rounded-xl" />
+                        <div key={i} className="bg-ant-paper p-4">
+                            <Skeleton className="h-3 w-16 mb-2" />
+                            <Skeleton className="h-6 w-20" />
+                        </div>
                     ))}
                 </div>
             ) : (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-                    <KpiTile label="Spend" value={fmtCur(totals.spend, currency)} accent="#ef4444" />
-                    <KpiTile label="Revenue" value={fmtCur(totals.revenue, currency)} accent="#059669" />
-                    <KpiTile label="Delivered" value={fmtNum(totals.delivered)} accent="#059669" />
-                    <KpiTile label="Confirmed" value={fmtNum(totals.confirmed)} accent="#3b5e5e" />
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ant-line rounded-2xl overflow-hidden border border-ant-line">
+                    <KpiTile label="Dépenses" value={fmtCur(totals.spend, currency)} accent="bg-ant-rose" />
+                    <KpiTile label="Revenus" value={fmtCur(totals.revenue, currency)} accent="bg-ant-green" />
+                    <KpiTile label="Livrées" value={fmtNum(totals.delivered)} accent="bg-ant-green" />
+                    <KpiTile label="Confirmées" value={fmtNum(totals.confirmed)} accent="bg-ant-ink" />
                 </div>
             )}
 
             {/* Main grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-                {/* Left: sparkline + top campaigns */}
-                <div className="lg:col-span-2 space-y-3">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-5">
+                {/* Left column */}
+                <div className="lg:col-span-2 space-y-4 md:space-y-5">
                     {/* Sparkline */}
-                    <div className="rounded-xl border border-gray-100 bg-white p-3.5">
-                        <div className="flex items-center justify-between mb-3">
-                            <div>
-                                <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Last 14 days</p>
-                                <p className="text-[11px] text-brand-navy/60 font-medium mt-0.5">Daily spend vs revenue</p>
+                    <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                        <div className="h-[3px] w-full bg-ant-ink" />
+                        <div className="px-4 md:px-6 py-4 md:py-5 border-b border-ant-line flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                    <span className="font-display text-[11px] text-ant-orange">01</span>
+                                    <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                                        14 derniers jours
+                                    </span>
+                                </div>
+                                <p className="font-serif italic text-[12px] text-ant-mid mt-1">
+                                    Dépenses vs revenus quotidiens
+                                </p>
                             </div>
-                            <Button
-                                variant="ghost"
-                                size="sm"
+                            <button
+                                type="button"
                                 onClick={() => navigate('/mediabuyer/statistics')}
-                                className="h-7 rounded-md text-[10px] font-semibold text-brand-navy/50 hover:text-brand-navy gap-1 px-2"
+                                className="inline-flex items-center gap-1 h-8 px-3 rounded-full border border-ant-line bg-ant-paper text-ant-ink text-[11px] font-medium hover:bg-ant-ink hover:text-ant-light hover:border-ant-ink transition-colors shrink-0"
                             >
-                                Full stats <ArrowRight className="w-3 h-3" />
-                            </Button>
+                                Toutes les stats <ArrowRight className="w-3 h-3" />
+                            </button>
                         </div>
-                        {sparklineData.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center py-8 gap-2 text-center border border-dashed border-gray-200 rounded-lg">
-                                <BarChart3 className="w-6 h-6 text-gray-400" />
-                                <p className="text-[11px] text-gray-400">No data yet. Add daily entries to see trends.</p>
-                            </div>
-                        ) : (
-                            <ResponsiveContainer width="100%" height={160}>
-                                <AreaChart data={sparklineData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                                    <defs>
-                                        <linearGradient id="mbDashSpendGrad" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#ef4444" stopOpacity={0.25} />
-                                            <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
-                                        </linearGradient>
-                                        <linearGradient id="mbDashRevGrad" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#059669" stopOpacity={0.25} />
-                                            <stop offset="95%" stopColor="#059669" stopOpacity={0} />
-                                        </linearGradient>
-                                    </defs>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-                                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                                    <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} width={40} />
-                                    <Tooltip
-                                        contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.08)', fontSize: 11 }}
-                                    />
-                                    <Area type="monotone" dataKey="Spend" stroke="#ef4444" strokeWidth={1.5} fill="url(#mbDashSpendGrad)" />
-                                    <Area type="monotone" dataKey="Revenue" stroke="#059669" strokeWidth={1.5} fill="url(#mbDashRevGrad)" />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                        )}
-                    </div>
+                        <div className="p-3 md:p-5">
+                            {sparklineData.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center py-10 gap-2 text-center border border-dashed border-ant-line rounded-xl">
+                                    <BarChart3 className="w-6 h-6 text-ant-mid" />
+                                    <p className="font-serif italic text-[12px] text-ant-mid">
+                                        Aucune donnée pour l'instant. Ajoutez des entrées quotidiennes pour voir les tendances.
+                                    </p>
+                                </div>
+                            ) : (
+                                <ResponsiveContainer width="100%" height={200}>
+                                    <AreaChart data={sparklineData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                                        <defs>
+                                            <linearGradient id="mbDashSpendGrad" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#c93942" stopOpacity={0.22} />
+                                                <stop offset="95%" stopColor="#c93942" stopOpacity={0} />
+                                            </linearGradient>
+                                            <linearGradient id="mbDashRevGrad" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#2D7A3E" stopOpacity={0.28} />
+                                                <stop offset="95%" stopColor="#2D7A3E" stopOpacity={0} />
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#e8e6dc" vertical={false} />
+                                        <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#6b6a63' }} axisLine={false} tickLine={false} />
+                                        <YAxis tick={{ fontSize: 10, fill: '#6b6a63' }} axisLine={false} tickLine={false} width={40} />
+                                        <Tooltip
+                                            contentStyle={{
+                                                borderRadius: 10,
+                                                border: '1px solid #e8e6dc',
+                                                background: '#ffffff',
+                                                boxShadow: '0 8px 24px rgba(20,20,19,0.08)',
+                                                fontSize: 11,
+                                            }}
+                                        />
+                                        <Area type="monotone" dataKey="Dépense" stroke="#c93942" strokeWidth={1.75} fill="url(#mbDashSpendGrad)" />
+                                        <Area type="monotone" dataKey="Revenu" stroke="#2D7A3E" strokeWidth={1.75} fill="url(#mbDashRevGrad)" />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            )}
+                        </div>
+                    </section>
 
                     {/* Top campaigns */}
-                    <div className="rounded-xl border border-gray-100 bg-white p-3.5">
-                        <div className="flex items-center justify-between mb-3">
-                            <div>
-                                <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Top campaigns</p>
-                                <p className="text-[11px] text-brand-navy/60 font-medium mt-0.5">Sorted by revenue · {filterRange.label.toLowerCase()}</p>
+                    <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                        <div className="h-[3px] w-full bg-ant-orange" />
+                        <div className="px-4 md:px-6 py-4 md:py-5 border-b border-ant-line flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                    <span className="font-display text-[11px] text-ant-orange">02</span>
+                                    <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                                        Top campagnes
+                                    </span>
+                                </div>
+                                <p className="font-serif italic text-[12px] text-ant-mid mt-1 truncate">
+                                    Triées par revenu · {filterRange.label.toLowerCase()}
+                                </p>
                             </div>
-                            <Button
-                                variant="ghost"
-                                size="sm"
+                            <button
+                                type="button"
                                 onClick={() => navigate('/mediabuyer/campaigns')}
-                                className="h-7 rounded-md text-[10px] font-semibold text-brand-navy/50 hover:text-brand-navy gap-1 px-2"
+                                className="inline-flex items-center gap-1 h-8 px-3 rounded-full border border-ant-line bg-ant-paper text-ant-ink text-[11px] font-medium hover:bg-ant-ink hover:text-ant-light hover:border-ant-ink transition-colors shrink-0"
                             >
-                                All <ArrowRight className="w-3 h-3" />
-                            </Button>
+                                Toutes <ArrowRight className="w-3 h-3" />
+                            </button>
                         </div>
                         {topCampaigns.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center py-8 gap-2 border border-dashed border-gray-200 rounded-lg">
-                                <Megaphone className="w-6 h-6 text-gray-400" />
-                                <p className="text-[11px] text-gray-400">No campaign data yet.</p>
+                            <div className="p-8 flex flex-col items-center justify-center gap-2 text-center">
+                                <Megaphone className="w-6 h-6 text-ant-mid" />
+                                <p className="font-serif italic text-[12px] text-ant-mid">Aucune donnée de campagne.</p>
                             </div>
                         ) : (
-                            <div className="space-y-1">
+                            <div className="divide-y divide-ant-line">
                                 {topCampaigns.map((c, i) => (
                                     <button
                                         key={c.id}
                                         onClick={() => navigate(`/mediabuyer/campaigns/${c.id}`)}
-                                        className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-gray-50 transition-colors group/row text-left"
+                                        className="w-full flex items-center gap-3 px-4 md:px-6 py-3 hover:bg-ant-light/50 transition-colors text-left"
                                     >
-                                        <span className="w-5 h-5 rounded flex items-center justify-center bg-gray-100 shrink-0">
-                                            <span className="text-[9px] font-semibold text-gray-500">{i + 1}</span>
+                                        <span className="font-display text-[11px] tabular-nums text-ant-mid w-6 shrink-0">
+                                            {String(i + 1).padStart(2, '0')}
                                         </span>
                                         <div
-                                            className="w-5 h-5 rounded flex items-center justify-center text-white shrink-0"
+                                            className="w-7 h-7 rounded-lg flex items-center justify-center text-white shrink-0"
                                             style={{ backgroundColor: getPlatformColor(c.platform) }}
                                         >
-                                            {getPlatformIcon(c.platform, 'w-3 h-3')}
+                                            {getPlatformIcon(c.platform, 'w-3.5 h-3.5')}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-[11px] font-semibold text-brand-navy truncate">{c.name}</p>
-                                            <p className="text-[9px] text-gray-400">
-                                                {fmtNum(c.delivered)} del · ROAS {c.roas == null ? '—' : c.roas.toFixed(2) + 'x'}
+                                            <p className="font-display text-[13px] text-ant-ink truncate leading-tight">{c.name}</p>
+                                            <p className="text-[11px] text-ant-mid truncate mt-0.5">
+                                                {fmtNum(c.delivered)} livrées · ROAS {c.roas == null ? '—' : c.roas.toFixed(2) + 'x'}
                                             </p>
                                         </div>
                                         <div className="text-right shrink-0">
-                                            <p className="text-[11px] font-semibold tabular-nums text-brand-navy">{fmtCur(c.revenue, currency)}</p>
-                                            <p className="text-[9px] text-gray-400 tabular-nums">{fmtCur(c.spend, currency)} spend</p>
+                                            <p className="font-display text-[14px] tabular-nums text-ant-ink leading-none">
+                                                {fmtCur(c.revenue, currency)}
+                                            </p>
+                                            <p className="text-[10px] tabular-nums text-ant-mid mt-1">{fmtCur(c.spend, currency)} dépensés</p>
                                         </div>
-                                        <ChevronRight className="w-3 h-3 text-gray-300 group-hover/row:text-brand-navy/40 shrink-0" />
+                                        <ChevronRight className="w-3.5 h-3.5 text-ant-mid shrink-0" />
                                     </button>
                                 ))}
                             </div>
                         )}
-                    </div>
+                    </section>
                 </div>
 
-                {/* Right: attention + quick actions + month */}
-                <div className="lg:col-span-1 space-y-3">
+                {/* Right column */}
+                <div className="lg:col-span-1 space-y-4 md:space-y-5">
                     {/* Needs attention */}
-                    <div className={cn(
-                        'rounded-xl border p-3.5',
-                        needsAttention.length > 0 ? 'border-amber-200 bg-amber-50/40' : 'border-gray-100 bg-white'
+                    <section className={cn(
+                        'rounded-2xl border overflow-hidden',
+                        needsAttention.length > 0
+                            ? 'border-ant-orange/30 bg-ant-orange/5'
+                            : 'border-ant-line bg-ant-paper',
                     )}>
-                        <div className="flex items-center gap-2 mb-2">
+                        <div className={cn('h-[3px] w-full', needsAttention.length > 0 ? 'bg-ant-orange' : 'bg-ant-green')} />
+                        <div className="px-4 md:px-5 py-3.5 border-b border-ant-line">
                             {needsAttention.length > 0 ? (
                                 <>
-                                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                                    <div>
-                                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-amber-700">Needs data</p>
-                                        <p className="text-[9px] text-amber-600/70 mt-0.5">No entry for today</p>
+                                    <div className="flex items-center gap-2">
+                                        <AlertTriangle className="w-3.5 h-3.5 text-ant-orange shrink-0" />
+                                        <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-orange">
+                                            À compléter
+                                        </span>
                                     </div>
+                                    <p className="font-serif italic text-[12px] text-ant-mid mt-1">
+                                        Aucune entrée pour aujourd'hui
+                                    </p>
                                 </>
                             ) : (
                                 <>
-                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                    <div>
-                                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-emerald-700">All caught up</p>
-                                        <p className="text-[9px] text-emerald-600/70 mt-0.5">Today's entries logged</p>
+                                    <div className="flex items-center gap-2">
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-ant-green shrink-0" />
+                                        <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-green">
+                                            Tout à jour
+                                        </span>
                                     </div>
+                                    <p className="font-serif italic text-[12px] text-ant-mid mt-1">
+                                        Entrées du jour enregistrées
+                                    </p>
                                 </>
                             )}
                         </div>
-                        {needsAttention.length > 0 ? (
-                            <div className="space-y-1 mt-2">
-                                {needsAttention.slice(0, 5).map((c) => (
-                                    <button
-                                        key={c.id}
-                                        onClick={() => navigate(`/mediabuyer/campaigns/${c.id}/manage`)}
-                                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg bg-white border border-amber-100 hover:border-amber-300 transition-all group/att text-left"
-                                    >
-                                        <div
-                                            className="w-5 h-5 rounded flex items-center justify-center text-white shrink-0"
-                                            style={{ backgroundColor: getPlatformColor(c.platform) }}
+                        <div className="p-3">
+                            {needsAttention.length > 0 ? (
+                                <div className="space-y-1.5">
+                                    {needsAttention.slice(0, 5).map((c) => (
+                                        <button
+                                            key={c.id}
+                                            onClick={() => navigate(`/mediabuyer/campaigns/${c.id}/manage`)}
+                                            className="w-full flex items-center gap-2.5 p-2.5 rounded-xl bg-ant-paper border border-ant-orange/25 hover:border-ant-orange/45 transition-colors text-left"
                                         >
-                                            {getPlatformIcon(c.platform, 'w-3 h-3')}
-                                        </div>
-                                        <p className="flex-1 text-[11px] font-semibold text-brand-navy truncate">{c.name}</p>
-                                        <ChevronRight className="w-3 h-3 text-amber-400 shrink-0" />
-                                    </button>
-                                ))}
-                                {needsAttention.length > 5 && (
-                                    <p className="text-[9px] text-amber-600/70 text-center pt-1">
-                                        +{needsAttention.length - 5} more
-                                    </p>
-                                )}
-                            </div>
-                        ) : (
-                            <p className="text-[11px] text-emerald-700/70 mt-1">
-                                Every active campaign has today's spend and leads logged.
-                            </p>
-                        )}
-                    </div>
+                                            <div
+                                                className="w-6 h-6 rounded-lg flex items-center justify-center text-white shrink-0"
+                                                style={{ backgroundColor: getPlatformColor(c.platform) }}
+                                            >
+                                                {getPlatformIcon(c.platform, 'w-3 h-3')}
+                                            </div>
+                                            <p className="flex-1 text-[12px] font-medium text-ant-ink truncate">{c.name}</p>
+                                            <ChevronRight className="w-3.5 h-3.5 text-ant-orange shrink-0" />
+                                        </button>
+                                    ))}
+                                    {needsAttention.length > 5 && (
+                                        <p className="font-serif italic text-[11px] text-ant-mid text-center pt-1">
+                                            +{needsAttention.length - 5} autre{needsAttention.length - 5 > 1 ? 's' : ''}
+                                        </p>
+                                    )}
+                                </div>
+                            ) : (
+                                <p className="font-serif italic text-[12px] text-ant-mid text-center py-2">
+                                    Toutes les campagnes actives ont leurs dépenses et leads du jour.
+                                </p>
+                            )}
+                        </div>
+                    </section>
 
                     {/* Quick actions */}
-                    <div className="rounded-xl border border-gray-100 bg-white p-3.5">
-                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400 mb-2">Quick actions</p>
-                        <div className="space-y-1">
-                            <QuickAction label="Create campaign" onClick={() => navigate('/mediabuyer/campaigns/new')} />
-                            <QuickAction label="View statistics" onClick={() => navigate('/mediabuyer/statistics')} />
-                            <QuickAction label="View payments" onClick={() => navigate('/mediabuyer/payments')} />
-                            <QuickAction label="All campaigns" onClick={() => navigate('/mediabuyer/campaigns')} />
-                        </div>
-                    </div>
-
-                    {/* Month earnings */}
-                    {myEarnings && (
-                        <div className="rounded-xl border border-gray-100 bg-white p-3.5">
-                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400 mb-2">This month</p>
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                    <p className="text-[10px] text-gray-500">To be paid</p>
-                                    <p className="text-[13px] font-semibold tabular-nums text-brand-navy">{fmtCur(myEarnings.remaining_amount, currency)}</p>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                    <p className="text-[10px] text-gray-500">Delivered</p>
-                                    <p className="text-[12px] font-semibold tabular-nums text-emerald-600">{fmtNum(myEarnings.delivered_orders)}</p>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                    <p className="text-[10px] text-gray-500">Campaigns</p>
-                                    <p className="text-[12px] font-semibold tabular-nums text-brand-navy">{fmtNum(myEarnings.campaigns_count)}</p>
-                                </div>
+                    <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                        <div className="h-[3px] w-full bg-ant-ink" />
+                        <div className="px-4 md:px-5 py-3.5 border-b border-ant-line">
+                            <div className="flex items-center gap-2">
+                                <span className="font-display text-[11px] text-ant-orange">03</span>
+                                <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                                    Actions rapides
+                                </span>
                             </div>
                         </div>
+                        <div className="p-2">
+                            <QuickAction label="Créer une campagne" onClick={() => navigate('/mediabuyer/campaigns/new')} />
+                            <QuickAction label="Voir les statistiques" onClick={() => navigate('/mediabuyer/statistics')} />
+                            <QuickAction label="Voir les paiements" onClick={() => navigate('/mediabuyer/payments')} />
+                            <QuickAction label="Toutes les campagnes" onClick={() => navigate('/mediabuyer/campaigns')} />
+                        </div>
+                    </section>
+
+                    {/* Month earnings ink card */}
+                    {myEarnings && (
+                        <section className="rounded-2xl bg-ant-ink text-ant-light p-4 md:p-5 space-y-3">
+                            <div className="flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-ant-orange" />
+                                <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-light/55">
+                                    Ce mois · Vos gains
+                                </span>
+                            </div>
+                            <p className="font-display text-[28px] tabular-nums leading-none text-ant-light">
+                                {fmtCur(myEarnings.remaining_amount, currency)}
+                            </p>
+                            <p className="font-serif italic text-[11px] text-ant-light/60">
+                                à percevoir · {fmtNum(myEarnings.delivered_orders)} livrées sur {fmtNum(myEarnings.campaigns_count)} campagne{myEarnings.campaigns_count !== 1 ? 's' : ''}
+                            </p>
+                            <div className="pt-3 border-t border-white/10 flex items-center justify-between">
+                                <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-light/45">
+                                    Livrées
+                                </span>
+                                <span className="font-display text-[13px] tabular-nums text-ant-green">
+                                    {fmtNum(myEarnings.delivered_orders)}
+                                </span>
+                            </div>
+                        </section>
                     )}
                 </div>
             </div>
@@ -413,25 +457,27 @@ const Dashboard: React.FC = () => {
     );
 };
 
-// ─── KPI Tile ────────
 const KpiTile: React.FC<{ label: string; value: string; accent: string }> = ({ label, value, accent }) => (
-    <div className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
-        <span className="w-[3px] self-stretch rounded-full shrink-0" style={{ background: accent }} />
-        <div className="flex-1 min-w-0">
-            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{label}</p>
-            <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1 leading-none">{value}</p>
+    <div className="bg-ant-paper p-4 md:p-5 flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+            <span className={cn('w-1 h-4 rounded-full', accent)} />
+            <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-ant-mid truncate">
+                {label}
+            </span>
         </div>
+        <p className="font-display text-[22px] md:text-[26px] leading-none tabular-nums text-ant-ink">
+            {value}
+        </p>
     </div>
 );
 
-// ─── Quick Action ────────
 const QuickAction: React.FC<{ label: string; onClick: () => void }> = ({ label, onClick }) => (
     <button
         onClick={onClick}
-        className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg hover:bg-gray-50 transition-colors text-left group/qa"
+        className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-ant-light transition-colors text-left group/qa"
     >
-        <span className="text-[11px] font-semibold text-brand-navy/80">{label}</span>
-        <ChevronRight className="w-3 h-3 text-gray-300 group-hover/qa:text-brand-navy/40" />
+        <span className="text-[12px] font-medium text-ant-ink">{label}</span>
+        <ChevronRight className="w-3.5 h-3.5 text-ant-mid group-hover/qa:text-ant-ink" />
     </button>
 );
 

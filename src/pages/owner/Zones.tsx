@@ -9,20 +9,14 @@ import {
     Edit2,
     Trash2,
     MapPin,
-    Calendar,
     Loader2,
     X,
     Building2,
     LayoutGrid,
     Table2,
     Pencil,
-    Inbox,
-    CheckCircle2,
 } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { Input } from '@/components/ui/input';
 import {
     Select,
     SelectContent,
@@ -34,7 +28,6 @@ import {
     Dialog,
     DialogContent,
     DialogDescription,
-    DialogFooter,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
@@ -51,15 +44,15 @@ import {
     FormField,
     FormItem,
     FormLabel,
-    FormMessage
+    FormMessage,
 } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { cn } from '@/lib/utils';
-
 import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 const zoneSchema = z.object({
     name: z.string().min(2, "Name must be at least 2 characters"),
@@ -80,6 +73,8 @@ const errorMessage = (err: unknown): string =>
 function zoneCityCount(zone: ZoneRow): number {
     return zone.master_cities?.length ?? 0;
 }
+
+const inputClass = "w-full h-10 px-3.5 rounded-xl border border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid/60 focus:outline-none focus:border-ant-ink focus:ring-2 focus:ring-ant-orange/20 transition-all";
 
 const Zones = () => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -110,7 +105,6 @@ const Zones = () => {
     });
     const isOwner = userRole === 'owner';
 
-    // --- Queries ---
     const { data: zones, isLoading } = useQuery({
         queryKey: ['zones'],
         queryFn: async () => {
@@ -128,9 +122,7 @@ const Zones = () => {
         mutationFn: async (values: ZoneFormValues) => {
             const { data, error } = await supabase
                 .from('zones')
-                .insert({
-                    name: values.name,
-                })
+                .insert({ name: values.name })
                 .select()
                 .single();
 
@@ -144,16 +136,14 @@ const Zones = () => {
         },
         onError: (error) => {
             toast({ title: "Error", description: errorMessage(error), variant: "destructive" });
-        }
+        },
     });
 
     const updateZoneMutation = useMutation({
         mutationFn: async ({ id, values }: { id: string, values: ZoneFormValues }) => {
             const { data, error } = await supabase
                 .from('zones')
-                .update({
-                    name: values.name,
-                })
+                .update({ name: values.name })
                 .eq('id', id)
                 .select()
                 .single();
@@ -164,29 +154,25 @@ const Zones = () => {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['zones'] });
             setEditingZone(null);
-            toast({ title: "Zone updated", description: "The zone has been successfully updated." });
+            toast({ title: "Zone updated", description: "Saved successfully." });
         },
         onError: (error) => {
             toast({ title: "Error", description: errorMessage(error), variant: "destructive" });
-        }
+        },
     });
 
     const deleteZoneMutation = useMutation({
         mutationFn: async (id: string) => {
-            const { error } = await supabase
-                .from('zones')
-                .delete()
-                .eq('id', id);
-
+            const { error } = await supabase.from('zones').delete().eq('id', id);
             if (error) throw error;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['zones'] });
-            toast({ title: "Zone deleted", description: "The zone has been successfully removed." });
+            toast({ title: "Zone deleted", description: "Removed from the catalog." });
         },
         onError: (error) => {
             toast({ title: "Error", description: errorMessage(error), variant: "destructive" });
-        }
+        },
     });
 
     useEffect(() => {
@@ -219,7 +205,7 @@ const Zones = () => {
 
     const visibleZones = useMemo(
         () => filteredZones.slice(0, visibleLimit),
-        [filteredZones, visibleLimit]
+        [filteredZones, visibleLimit],
     );
     const hiddenCount = Math.max(0, filteredZones.length - visibleZones.length);
     const hasMore = hiddenCount > 0;
@@ -243,117 +229,147 @@ const Zones = () => {
     }, [zones]);
 
     return (
-        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
-            {/* Header */}
-            <header className="space-y-2.5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Geographic Zones</h1>
-                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Delivery zones and regional territories</p>
+        <div className="space-y-5 md:space-y-6">
+            {/* Editorial header */}
+            <header className="space-y-3">
+                <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-ant-orange" />
+                    <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                        Platform · Geographic zones
+                    </span>
+                </div>
+                <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
+                    <div className="space-y-1.5">
+                        <h1 className="font-display text-[26px] sm:text-[32px] leading-[1.05] tracking-[-0.02em] text-ant-ink">
+                            Geographic zones
+                        </h1>
+                        <p className="font-serif italic text-[13px] sm:text-[14px] leading-relaxed text-ant-mid">
+                            Regional territories that group cities into delivery hubs.
+                        </p>
                     </div>
                     {isOwner && (
-                        <Button
+                        <button
+                            type="button"
                             onClick={() => setIsAddModalOpen(true)}
-                            className="h-8 rounded-md text-[11px] font-semibold bg-brand-navy hover:bg-brand-navy/90 text-white gap-1.5 px-3"
+                            className="inline-flex items-center gap-2 h-10 px-4 rounded-full bg-ant-ink text-ant-light text-[12px] font-medium hover:bg-ant-ink/95 transition-colors shadow-[0_10px_24px_-10px_rgba(20,20,19,0.5)] self-start lg:self-auto"
                         >
                             <Plus className="w-3.5 h-3.5" />
-                            Add Zone
-                        </Button>
+                            Add zone
+                        </button>
                     )}
                 </div>
             </header>
 
-            {/* KPI Strip */}
+            {/* KPI hairline strip */}
             {!isLoading && zones != null && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                    {[
-                        { label: 'Total zones', value: zoneCatalogStats.totalZones, accent: '#3b5e5e' },
-                        { label: 'With cities', value: zoneCatalogStats.withCities, accent: '#059669' },
-                        { label: 'Empty zones', value: zoneCatalogStats.emptyZones, accent: '#d97706' },
-                        { label: 'City links', value: zoneCatalogStats.cityLinks, accent: '#3b5e5e' },
-                    ].map((kpi) => (
-                        <div key={kpi.label} className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
-                            <span className="w-[3px] self-stretch rounded-full shrink-0" style={{ background: kpi.accent }} />
-                            <div className="flex-1 min-w-0">
-                                <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{kpi.label}</p>
-                                <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{kpi.value}</p>
-                            </div>
-                        </div>
-                    ))}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ant-line rounded-2xl overflow-hidden border border-ant-line">
+                    <KpiTile label="Total zones" value={zoneCatalogStats.totalZones} accent="bg-ant-ink" />
+                    <KpiTile label="With cities" value={zoneCatalogStats.withCities} accent="bg-ant-green" />
+                    <KpiTile label="Empty zones" value={zoneCatalogStats.emptyZones} accent="bg-ant-orange" />
+                    <KpiTile label="City links" value={zoneCatalogStats.cityLinks} accent="bg-ant-ink" />
                 </div>
             )}
 
             {/* Filters */}
             <div className="flex flex-wrap gap-2 items-center">
-                <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
-                    <Input
-                        placeholder="Search zone..."
+                <div className="relative flex-1 sm:flex-initial min-w-[200px]">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
+                    <input
+                        type="search"
+                        placeholder="Search zone…"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-7 h-8 rounded-md border-gray-200 bg-white text-[11px] w-44"
+                        className="w-full sm:w-56 h-10 pl-10 pr-10 rounded-full border border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid/70 focus:outline-none focus:border-ant-ink focus:ring-2 focus:ring-ant-orange/20 transition-all"
                     />
+                    {searchQuery && (
+                        <button
+                            type="button"
+                            onClick={() => setSearchQuery('')}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-ant-mid hover:text-ant-ink"
+                        >
+                            <X className="w-3 h-3" />
+                        </button>
+                    )}
                 </div>
                 <Select value={filterCities} onValueChange={setFilterCities}>
-                    <SelectTrigger className="h-8 rounded-md border-gray-200 bg-white text-[11px] w-[130px]">
+                    <SelectTrigger className="h-10 rounded-full border-ant-line bg-ant-paper text-[12px] px-4 w-[140px]">
                         <SelectValue placeholder="Cities" />
                     </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all" className="text-[11px]">All zones</SelectItem>
-                        <SelectItem value="with_cities" className="text-[11px]">Has cities</SelectItem>
-                        <SelectItem value="empty" className="text-[11px]">No cities</SelectItem>
+                    <SelectContent className="rounded-xl border-ant-line bg-ant-paper">
+                        <SelectItem value="all" className="text-[12px]">All zones</SelectItem>
+                        <SelectItem value="with_cities" className="text-[12px]">Has cities</SelectItem>
+                        <SelectItem value="empty" className="text-[12px]">No cities</SelectItem>
                     </SelectContent>
                 </Select>
                 <Select value={sortBy} onValueChange={(v) => setSortBy(v as 'created' | 'name')}>
-                    <SelectTrigger className="h-8 rounded-md border-gray-200 bg-white text-[11px] w-[120px]">
+                    <SelectTrigger className="h-10 rounded-full border-ant-line bg-ant-paper text-[12px] px-4 w-[140px]">
                         <SelectValue placeholder="Sort" />
                     </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="created" className="text-[11px]">Newest first</SelectItem>
-                        <SelectItem value="name" className="text-[11px]">Name A–Z</SelectItem>
+                    <SelectContent className="rounded-xl border-ant-line bg-ant-paper">
+                        <SelectItem value="created" className="text-[12px]">Newest first</SelectItem>
+                        <SelectItem value="name" className="text-[12px]">Name A–Z</SelectItem>
                     </SelectContent>
                 </Select>
-                <div className="flex items-center gap-0.5 bg-gray-100 p-0.5 rounded-md ml-auto">
+                <div className="inline-flex items-center gap-0.5 p-1 rounded-full border border-ant-line bg-ant-paper ml-auto">
                     <button
+                        type="button"
                         onClick={() => setViewMode('table')}
-                        className={cn("h-7 px-2.5 rounded text-[10px] font-semibold flex items-center gap-1 transition-all", viewMode === 'table' ? "bg-white text-brand-navy shadow-sm" : "text-gray-500 hover:text-gray-700")}
+                        className={cn(
+                            'h-8 px-3 rounded-full flex items-center gap-1 text-[11px] font-medium transition-all',
+                            viewMode === 'table' ? 'bg-ant-ink text-ant-light' : 'text-ant-mid hover:text-ant-ink',
+                        )}
                     >
                         <Table2 className="w-3 h-3" /> Table
                     </button>
                     <button
+                        type="button"
                         onClick={() => setViewMode('grid')}
-                        className={cn("h-7 px-2.5 rounded text-[10px] font-semibold flex items-center gap-1 transition-all", viewMode === 'grid' ? "bg-white text-brand-navy shadow-sm" : "text-gray-500 hover:text-gray-700")}
+                        className={cn(
+                            'h-8 px-3 rounded-full flex items-center gap-1 text-[11px] font-medium transition-all',
+                            viewMode === 'grid' ? 'bg-ant-ink text-ant-light' : 'text-ant-mid hover:text-ant-ink',
+                        )}
                     >
                         <LayoutGrid className="w-3 h-3" /> Grid
                     </button>
                 </div>
-                <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em]">
+                <span className="font-serif italic text-[11px] text-ant-mid tabular-nums">
                     {visibleZones.length} / {filteredZones.length}
-                </p>
+                </span>
             </div>
 
             {isLoading ? (
                 <div className="flex items-center justify-center py-20">
-                    <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                    <Loader2 className="w-5 h-5 animate-spin text-ant-mid" />
                 </div>
             ) : filteredZones.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-10 rounded-xl border border-dashed border-gray-200 bg-white">
-                    <MapPin className="w-6 h-6 text-gray-300 mb-2" />
-                    <p className="text-[11px] font-medium text-gray-500">No zones match</p>
-                </div>
+                <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                    <div className="h-[3px] w-full bg-ant-orange" />
+                    <div className="p-10 flex flex-col items-center gap-3 text-center">
+                        <MapPin className="w-6 h-6 text-ant-mid" />
+                        <p className="font-display text-[14px] text-ant-ink">No zones match</p>
+                        <p className="font-serif italic text-[12px] text-ant-mid max-w-sm">
+                            Adjust your search or filters to see more results.
+                        </p>
+                    </div>
+                </section>
             ) : viewMode === 'table' ? (
-                <div className="rounded-xl border border-gray-100 bg-white overflow-hidden">
+                <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                    <div className="h-[3px] w-full bg-ant-ink" />
                     <div className="overflow-x-auto">
                         <table className="w-full min-w-[480px] border-collapse">
                             <thead>
-                                <tr className="border-b border-gray-100">
-                                    {isOwner && <th className="px-3 py-2 text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold w-20">Actions</th>}
-                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Zone</th>
-                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Cities</th>
-                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold hidden sm:table-cell">Created</th>
+                                <tr className="border-b border-ant-line bg-ant-light/60">
+                                    {isOwner && (
+                                        <th className="px-3 py-2.5 text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid w-24 text-center">
+                                            Actions
+                                        </th>
+                                    )}
+                                    <th className="px-4 py-2.5 text-left text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid">Zone</th>
+                                    <th className="px-3 py-2.5 text-left text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid">Cities</th>
+                                    <th className="px-3 py-2.5 text-left text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid hidden sm:table-cell">Created</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-50">
+                            <tbody>
                                 {visibleZones.map((zone) => {
                                     const n = zoneCityCount(zone);
                                     return (
@@ -368,43 +384,47 @@ const Zones = () => {
                                                     setSelectedZoneCities(zone);
                                                 }
                                             }}
-                                            className="cursor-pointer hover:bg-gray-50/50 transition-colors"
+                                            className="border-b border-ant-line last:border-b-0 cursor-pointer hover:bg-ant-light/40 transition-colors"
                                         >
                                             {isOwner && (
-                                                <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                                                    <div className="flex items-center gap-0.5 justify-center">
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
+                                                <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
+                                                    <div className="flex items-center gap-1 justify-center">
+                                                        <button
                                                             type="button"
                                                             onClick={() => setEditingZone(zone)}
-                                                            className="h-7 w-7 p-0 rounded text-gray-400 hover:text-brand-navy hover:bg-gray-100"
+                                                            className="w-8 h-8 rounded-full border border-ant-line bg-ant-paper flex items-center justify-center text-ant-ink hover:bg-ant-ink hover:text-ant-light hover:border-ant-ink transition-colors"
+                                                            title="Edit"
                                                         >
-                                                            <Pencil className="h-3 w-3" />
-                                                        </Button>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
+                                                            <Pencil className="w-3 h-3" />
+                                                        </button>
+                                                        <button
                                                             type="button"
                                                             onClick={() => setZoneToDelete(zone)}
-                                                            className="h-7 w-7 p-0 rounded text-gray-400 hover:text-red-600 hover:bg-red-50"
+                                                            className="w-8 h-8 rounded-full border border-ant-line bg-ant-paper flex items-center justify-center text-ant-mid hover:bg-ant-rose/10 hover:text-ant-rose hover:border-ant-rose/30 transition-colors"
+                                                            title="Delete"
                                                         >
-                                                            <Trash2 className="h-3 w-3" />
-                                                        </Button>
+                                                            <Trash2 className="w-3 h-3" />
+                                                        </button>
                                                     </div>
                                                 </td>
                                             )}
-                                            <td className="px-3 py-2">
-                                                <span className="text-[11px] font-semibold text-brand-navy">{zone.name}</span>
+                                            <td className="px-4 py-2.5">
+                                                <div className="flex items-center gap-2">
+                                                    <Map className="w-3.5 h-3.5 text-ant-mid shrink-0" />
+                                                    <span className="font-display text-[13px] text-ant-ink">{zone.name}</span>
+                                                </div>
                                             </td>
-                                            <td className="px-3 py-2">
-                                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-brand-navy/70 tabular-nums">
-                                                    <Building2 className="h-3 w-3 shrink-0" />
-                                                    {n}
+                                            <td className="px-3 py-2.5">
+                                                <span className={cn(
+                                                    'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-[0.14em]',
+                                                    n > 0 ? 'bg-ant-green/12 text-ant-green' : 'bg-ant-mid/10 text-ant-mid',
+                                                )}>
+                                                    <Building2 className="w-2.5 h-2.5" />
+                                                    {n} {n === 1 ? 'city' : 'cities'}
                                                 </span>
                                             </td>
-                                            <td className="px-3 py-2 text-[11px] text-brand-navy/60 tabular-nums hidden sm:table-cell">
-                                                {zone.created_at ? format(new Date(zone.created_at), 'MMM d, yyyy') : '—'}
+                                            <td className="px-3 py-2.5 text-[11px] text-ant-mid tabular-nums hidden sm:table-cell">
+                                                {zone.created_at ? format(new Date(zone.created_at), 'dd MMM yyyy', { locale: fr }) : '—'}
                                             </td>
                                         </tr>
                                     );
@@ -413,16 +433,20 @@ const Zones = () => {
                         </table>
                     </div>
                     {hasMore && (
-                        <div className="flex justify-center border-t border-gray-100 p-3">
-                            <Button variant="outline" className="h-8 rounded-md text-[11px] font-semibold" onClick={() => setVisibleLimit((x) => x + 200)}>
-                                Load more ({hiddenCount} left)
-                            </Button>
+                        <div className="flex justify-center border-t border-ant-line p-3">
+                            <button
+                                type="button"
+                                onClick={() => setVisibleLimit((x) => x + 200)}
+                                className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full border border-ant-line bg-ant-paper text-ant-ink text-[11px] font-medium hover:bg-ant-ink hover:text-ant-light hover:border-ant-ink transition-colors"
+                            >
+                                Load more <span className="tabular-nums">({hiddenCount})</span>
+                            </button>
                         </div>
                     )}
-                </div>
+                </section>
             ) : (
                 <>
-                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    <div className="grid grid-cols-1 gap-3 md:gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                         {visibleZones.map((zone) => (
                             <ZoneCard
                                 key={zone.id}
@@ -436,9 +460,13 @@ const Zones = () => {
                     </div>
                     {hasMore && (
                         <div className="flex justify-center pt-2">
-                            <Button variant="outline" className="h-8 rounded-md text-[11px] font-semibold" onClick={() => setVisibleLimit((x) => x + 200)}>
-                                Load more ({hiddenCount} left)
-                            </Button>
+                            <button
+                                type="button"
+                                onClick={() => setVisibleLimit((x) => x + 200)}
+                                className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full border border-ant-line bg-ant-paper text-ant-ink text-[11px] font-medium hover:bg-ant-ink hover:text-ant-light hover:border-ant-ink transition-colors"
+                            >
+                                Load more <span className="tabular-nums">({hiddenCount})</span>
+                            </button>
                         </div>
                     )}
                 </>
@@ -456,7 +484,8 @@ const Zones = () => {
                 onClose={() => setIsAddModalOpen(false)}
                 onSubmit={(values) => addZoneMutation.mutate(values)}
                 loading={addZoneMutation.isPending}
-                title="Create New Zone"
+                kicker="Zone · New"
+                title="Create zone"
             />
 
             {editingZone && (
@@ -466,7 +495,8 @@ const Zones = () => {
                     onSubmit={(values) => editingZone && updateZoneMutation.mutate({ id: editingZone.id, values })}
                     initialData={editingZone}
                     loading={updateZoneMutation.isPending}
-                    title="Edit Zone"
+                    kicker="Zone · Edit"
+                    title="Edit zone"
                 />
             )}
 
@@ -491,47 +521,77 @@ const Zones = () => {
     );
 };
 
-const ZoneCard = ({ zone, isOwner, onClick, onEdit, onDelete }: { zone: ZoneRow, isOwner: boolean, onClick: () => void, onEdit: () => void, onDelete: () => void }) => {
+const KpiTile = ({ label, value, accent }: { label: string; value: number; accent: string }) => (
+    <div className="bg-ant-paper p-4 md:p-5 flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+            <span className={cn('w-1 h-4 rounded-full', accent)} />
+            <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-ant-mid truncate">{label}</span>
+        </div>
+        <p className="font-display text-[22px] md:text-[26px] leading-none tabular-nums text-ant-ink">
+            {value.toLocaleString('fr-MA')}
+        </p>
+    </div>
+);
+
+const ZoneCard = ({ zone, isOwner, onClick, onEdit, onDelete }: {
+    zone: ZoneRow;
+    isOwner: boolean;
+    onClick: () => void;
+    onEdit: () => void;
+    onDelete: () => void;
+}) => {
+    const n = zoneCityCount(zone);
     return (
         <div
             onClick={onClick}
             role="button"
             tabIndex={0}
             onKeyDown={(e) => { if (e.key === 'Enter') onClick(); }}
-            className="rounded-xl border border-gray-100 bg-white p-3.5 cursor-pointer hover:bg-gray-50/50 transition-colors"
+            className="group rounded-2xl border border-ant-line bg-ant-paper overflow-hidden cursor-pointer hover:border-ant-ink/25 transition-colors"
         >
-            <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-2">
-                    <Map className="w-4 h-4 text-brand-navy/40 shrink-0" />
-                    <span className="text-[12px] font-semibold text-brand-navy leading-tight">{zone.name}</span>
+            <div className={cn('h-[3px] w-full', n > 0 ? 'bg-ant-green' : 'bg-ant-orange')} />
+            <div className="p-4 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        <div className="w-9 h-9 rounded-xl bg-ant-light border border-ant-line flex items-center justify-center text-ant-ink shrink-0">
+                            <Map className="w-4 h-4" />
+                        </div>
+                        <span className="font-display text-[14px] text-ant-ink leading-tight truncate">{zone.name}</span>
+                    </div>
+                    {isOwner && (
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                <button
+                                    type="button"
+                                    className="w-8 h-8 rounded-full border border-ant-line bg-ant-paper flex items-center justify-center text-ant-ink hover:bg-ant-light transition-colors shrink-0"
+                                >
+                                    <MoreVertical className="w-3.5 h-3.5" />
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="rounded-xl border-ant-line bg-ant-paper p-1 min-w-[140px] shadow-[0_12px_30px_-12px_rgba(20,20,19,0.25)]">
+                                <DropdownMenuItem onClick={onEdit} className="rounded-lg px-2.5 py-2 text-[12px] cursor-pointer gap-2 focus:bg-ant-light">
+                                    <Edit2 className="w-3.5 h-3.5" /> Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator className="bg-ant-line" />
+                                <DropdownMenuItem onClick={onDelete} className="rounded-lg px-2.5 py-2 text-[12px] cursor-pointer gap-2 text-ant-rose focus:text-ant-rose focus:bg-ant-rose/10">
+                                    <Trash2 className="w-3.5 h-3.5" /> Delete
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    )}
                 </div>
-                {isOwner && (
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" className="h-7 w-7 p-0 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100">
-                                <MoreVertical className="h-3.5 w-3.5" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="rounded-lg border border-gray-200 shadow-md p-1 min-w-[120px]">
-                            <DropdownMenuItem onClick={onEdit} className="rounded px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer gap-2">
-                                <Edit2 className="w-3 h-3" /> Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={onDelete} className="rounded px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer gap-2 text-red-600 focus:text-red-600 focus:bg-red-50">
-                                <Trash2 className="w-3 h-3" /> Delete
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                )}
-            </div>
-            <div className="flex items-center justify-between">
-                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-brand-navy/60 tabular-nums">
-                    <Building2 className="w-3 h-3" />
-                    {zone.master_cities?.length || 0} cities
-                </span>
-                <span className="text-[10px] text-gray-400">
-                    {zone.created_at ? format(new Date(zone.created_at), 'MMM d, yyyy') : '—'}
-                </span>
+                <div className="pt-3 border-t border-ant-line flex items-center justify-between">
+                    <span className={cn(
+                        'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-[0.14em]',
+                        n > 0 ? 'bg-ant-green/12 text-ant-green' : 'bg-ant-mid/10 text-ant-mid',
+                    )}>
+                        <Building2 className="w-3 h-3" />
+                        {n} {n === 1 ? 'city' : 'cities'}
+                    </span>
+                    <span className="font-serif italic text-[10px] text-ant-mid tabular-nums">
+                        {zone.created_at ? format(new Date(zone.created_at), 'dd MMM yyyy', { locale: fr }) : '—'}
+                    </span>
+                </div>
             </div>
         </div>
     );
@@ -543,34 +603,62 @@ type ZoneModalProps = {
     onSubmit: (values: ZoneFormValues) => void;
     initialData?: ZoneRow | null;
     loading?: boolean;
+    kicker: string;
     title: string;
 };
 
-const ZoneModal = ({ isOpen, onClose, onSubmit, initialData, loading, title }: ZoneModalProps) => {
+const ZoneModal = ({ isOpen, onClose, onSubmit, initialData, loading, kicker, title }: ZoneModalProps) => {
     const form = useForm<ZoneFormValues>({
         resolver: zodResolver(zoneSchema),
-        defaultValues: {
-            name: '',
-        }
+        defaultValues: { name: '' },
     });
 
     React.useEffect(() => {
         if (isOpen) {
-            if (initialData) {
-                form.reset({ name: initialData.name });
-            } else {
-                form.reset({ name: '' });
-            }
+            if (initialData) form.reset({ name: initialData.name });
+            else form.reset({ name: '' });
         }
     }, [initialData, form, isOpen]);
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="max-w-sm p-0 border border-gray-100 bg-white rounded-xl shadow-md overflow-hidden gap-0">
+            <DialogContent className={cn(
+                'max-w-md p-0 gap-0 border border-ant-line bg-ant-paper overflow-hidden',
+                'shadow-[0_32px_80px_-24px_rgba(20,20,19,0.4)]',
+                'sm:rounded-2xl',
+                'max-sm:!left-0 max-sm:!right-0 max-sm:!top-auto max-sm:!bottom-0',
+                'max-sm:!translate-x-0 max-sm:!translate-y-0',
+                'max-sm:!w-full max-sm:!max-w-none',
+                'max-sm:!rounded-t-2xl max-sm:!rounded-b-none',
+                '[&>button.absolute]:hidden',
+            )}>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)}>
-                        <DialogHeader className="px-5 pt-5 pb-3 border-b border-gray-100">
-                            <DialogTitle className="text-[14px] font-semibold text-brand-navy">{title}</DialogTitle>
+                        <div className="h-[3px] w-full bg-ant-orange" />
+                        <DialogHeader className="px-5 pt-4 pb-4 border-b border-ant-line text-left space-y-1.5">
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0 space-y-1.5 flex-1">
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-ant-orange" />
+                                        <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                                            {kicker}
+                                        </span>
+                                    </div>
+                                    <DialogTitle className="font-display text-[20px] leading-[1.1] tracking-[-0.01em] text-ant-ink">
+                                        {title}
+                                    </DialogTitle>
+                                    <DialogDescription className="font-serif italic text-[12px] text-ant-mid">
+                                        A zone groups multiple cities into a single delivery territory.
+                                    </DialogDescription>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={onClose}
+                                    className="w-8 h-8 rounded-full border border-ant-line bg-ant-paper hover:bg-ant-light flex items-center justify-center text-ant-ink shrink-0 transition-colors"
+                                >
+                                    <X className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
                         </DialogHeader>
 
                         <div className="px-5 py-4">
@@ -579,25 +667,33 @@ const ZoneModal = ({ isOpen, onClose, onSubmit, initialData, loading, title }: Z
                                 name="name"
                                 render={({ field }) => (
                                     <FormItem className="space-y-1.5">
-                                        <FormLabel className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Zone Name</FormLabel>
+                                        <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Zone name</FormLabel>
                                         <FormControl>
-                                            <Input placeholder="E.g. Northern Region" {...field} className="h-9 rounded-md border-gray-200 text-sm" />
+                                            <input placeholder="E.g. Northern Region" {...field} className={inputClass} />
                                         </FormControl>
-                                        <FormMessage />
+                                        <FormMessage className="text-[10px] text-ant-rose" />
                                     </FormItem>
                                 )}
                             />
                         </div>
 
-                        <DialogFooter className="px-5 py-3 border-t border-gray-100 gap-2">
-                            <Button type="button" variant="ghost" onClick={onClose} className="h-8 px-3 text-[11px] font-semibold text-gray-500">
+                        <div className="px-5 py-3 flex flex-row gap-2 bg-ant-paper border-t border-ant-line pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                className="flex-1 sm:flex-initial h-11 px-5 rounded-full border border-ant-line bg-ant-paper text-ant-ink text-[12px] font-medium hover:bg-ant-light transition-colors"
+                            >
                                 Cancel
-                            </Button>
-                            <Button type="submit" disabled={loading} className="h-8 px-4 text-[11px] font-semibold bg-brand-navy hover:bg-brand-navy/90 text-white rounded-md gap-1.5">
-                                {loading && <Loader2 className="w-3 h-3 animate-spin" />}
-                                {initialData ? 'Save Changes' : 'Create Zone'}
-                            </Button>
-                        </DialogFooter>
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="flex-1 h-11 px-5 rounded-full bg-ant-ink text-ant-light text-[12px] font-medium flex items-center justify-center gap-2 hover:bg-ant-ink/95 disabled:opacity-60 transition-all shadow-[0_10px_24px_-10px_rgba(20,20,19,0.5)]"
+                            >
+                                {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                                {initialData ? 'Save changes' : 'Create zone'}
+                            </button>
+                        </div>
                     </form>
                 </Form>
             </DialogContent>
@@ -605,15 +701,20 @@ const ZoneModal = ({ isOpen, onClose, onSubmit, initialData, loading, title }: Z
     );
 };
 
-const ZoneCitiesModal = ({ zone, isOpen, onClose, isOwner }: { zone: ZoneRow, isOpen: boolean, onClose: () => void, isOwner: boolean }) => {
+const ZoneCitiesModal = ({ zone, isOpen, onClose, isOwner }: {
+    zone: ZoneRow | null;
+    isOpen: boolean;
+    onClose: () => void;
+    isOwner: boolean;
+}) => {
     const [citySearch, setCitySearch] = useState("");
     const queryClient = useQueryClient();
     const { toast } = useToast();
 
-    const { data: cities, isLoading } = useQuery({
+    const { data: cities } = useQuery({
         queryKey: ['cities-all'],
         queryFn: () => fetchAllRows<{ id: string; name: string; zone_id: string | null }>('master_cities', '*', { orderBy: 'name' }),
-        enabled: isOpen
+        enabled: isOpen,
     });
 
     const updateCityZoneMutation = useMutation({
@@ -627,8 +728,8 @@ const ZoneCitiesModal = ({ zone, isOpen, onClose, isOwner }: { zone: ZoneRow, is
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['cities-all'] });
             queryClient.invalidateQueries({ queryKey: ['zones'] });
-            toast({ title: "Updated", description: "City association updated successfully." });
-        }
+            toast({ title: "Updated", description: "City association updated." });
+        },
     });
 
     const currentZoneCities = cities?.filter(c => c.zone_id === zone?.id) || [];
@@ -639,66 +740,145 @@ const ZoneCitiesModal = ({ zone, isOpen, onClose, isOwner }: { zone: ZoneRow, is
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="max-w-lg p-0 border border-gray-100 bg-white rounded-xl shadow-md overflow-hidden flex flex-col max-h-[90vh] gap-0">
-                <DialogHeader className="px-5 pt-5 pb-3 border-b border-gray-100 shrink-0">
-                    <DialogTitle className="text-[14px] font-semibold text-brand-navy">{zone?.name}</DialogTitle>
-                    <div className="relative mt-2">
-                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
-                        <Input
-                            placeholder="Search cities..."
+            <DialogContent className={cn(
+                'max-w-lg p-0 gap-0 border border-ant-line bg-ant-paper overflow-hidden flex flex-col max-h-[92vh]',
+                'shadow-[0_32px_80px_-24px_rgba(20,20,19,0.4)]',
+                'sm:rounded-2xl',
+                'max-sm:!left-0 max-sm:!right-0 max-sm:!top-auto max-sm:!bottom-0',
+                'max-sm:!translate-x-0 max-sm:!translate-y-0',
+                'max-sm:!w-full max-sm:!max-w-none',
+                'max-sm:!h-[94dvh] max-sm:!max-h-[94dvh]',
+                'max-sm:!rounded-t-2xl max-sm:!rounded-b-none',
+                '[&>button.absolute]:hidden',
+            )}>
+                <div className="h-[3px] w-full bg-ant-ink shrink-0" />
+                <DialogHeader className="px-5 pt-4 pb-4 shrink-0 border-b border-ant-line text-left space-y-2">
+                    <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 space-y-1.5 flex-1">
+                            <div className="flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-ant-orange" />
+                                <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                                    Zone · Cities
+                                </span>
+                            </div>
+                            <DialogTitle className="font-display text-[20px] leading-[1.1] tracking-[-0.01em] text-ant-ink">
+                                {zone?.name || '—'}
+                            </DialogTitle>
+                            <DialogDescription className="font-serif italic text-[12px] text-ant-mid">
+                                Attach cities to this zone or detach them.
+                            </DialogDescription>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="w-8 h-8 rounded-full border border-ant-line bg-ant-paper hover:bg-ant-light flex items-center justify-center text-ant-ink shrink-0 transition-colors"
+                        >
+                            <X className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+                    <div className="relative">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
+                        <input
+                            type="search"
+                            placeholder="Search cities…"
                             value={citySearch}
                             onChange={(e) => setCitySearch(e.target.value)}
-                            className="pl-7 h-8 rounded-md border-gray-200 text-[11px]"
+                            className="w-full h-10 pl-10 pr-10 rounded-full border border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid/70 focus:outline-none focus:border-ant-ink focus:ring-2 focus:ring-ant-orange/20 transition-all"
                         />
+                        {citySearch && (
+                            <button
+                                type="button"
+                                onClick={() => setCitySearch('')}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-ant-mid hover:text-ant-ink"
+                            >
+                                <X className="w-3 h-3" />
+                            </button>
+                        )}
                     </div>
                 </DialogHeader>
 
-                <div className="overflow-y-auto p-4 space-y-4 flex-1">
-                    <div>
-                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400 mb-2">
-                            Assigned ({currentZoneCities.length})
-                        </p>
-                        <div className="space-y-1">
+                <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+                    <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                        <div className="h-[3px] w-full bg-ant-green" />
+                        <div className="px-4 py-3 border-b border-ant-line flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <span className="font-display text-[10px] text-ant-orange">01</span>
+                                <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                                    Assigned
+                                </span>
+                            </div>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-[0.14em] bg-ant-green/12 text-ant-green">
+                                <Building2 className="w-2.5 h-2.5" />
+                                {currentZoneCities.length}
+                            </span>
+                        </div>
+                        <div className="p-2 space-y-1">
                             {filteredCurrent.length > 0 ? filteredCurrent.map(city => (
-                                <div key={city.id} className="flex items-center justify-between px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-100">
-                                    <span className="text-[11px] font-semibold text-brand-navy">{city.name}</span>
+                                <div key={city.id} className="flex items-center justify-between px-3 py-2 rounded-xl bg-ant-light border border-ant-line">
+                                    <span className="text-[12px] font-medium text-ant-ink truncate">{city.name}</span>
                                     {isOwner && (
-                                        <Button size="icon" variant="ghost" onClick={() => updateCityZoneMutation.mutate({ cityId: city.id, zoneId: null })} className="h-6 w-6 p-0 rounded text-gray-400 hover:text-red-500 hover:bg-red-50">
+                                        <button
+                                            type="button"
+                                            onClick={() => updateCityZoneMutation.mutate({ cityId: city.id, zoneId: null })}
+                                            className="w-7 h-7 rounded-full border border-ant-line bg-ant-paper flex items-center justify-center text-ant-mid hover:bg-ant-rose/10 hover:text-ant-rose hover:border-ant-rose/30 transition-colors"
+                                        >
                                             <X className="w-3 h-3" />
-                                        </Button>
+                                        </button>
                                     )}
                                 </div>
                             )) : (
-                                <p className="text-[11px] text-gray-400 px-1 py-2">No cities assigned yet.</p>
+                                <p className="font-serif italic text-[11px] text-ant-mid text-center py-3">
+                                    No cities assigned yet.
+                                </p>
                             )}
                         </div>
-                    </div>
+                    </section>
 
-                    <div>
-                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400 mb-2">
-                            Unassigned
-                        </p>
-                        <div className="space-y-1">
+                    <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                        <div className="h-[3px] w-full bg-ant-orange" />
+                        <div className="px-4 py-3 border-b border-ant-line flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <span className="font-display text-[10px] text-ant-orange">02</span>
+                                <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                                    Unassigned
+                                </span>
+                            </div>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-[0.14em] bg-ant-orange/12 text-ant-orange">
+                                <Building2 className="w-2.5 h-2.5" />
+                                {availableCities.length}
+                            </span>
+                        </div>
+                        <div className="p-2 space-y-1">
                             {filteredAvailable.length > 0 ? filteredAvailable.map(city => (
-                                <div key={city.id} className="flex items-center justify-between px-2.5 py-1.5 rounded-md border border-gray-100 bg-white">
-                                    <span className="text-[11px] font-medium text-brand-navy/70">{city.name}</span>
-                                    {isOwner && (
-                                        <Button size="icon" variant="ghost" onClick={() => updateCityZoneMutation.mutate({ cityId: city.id, zoneId: zone.id })} className="h-6 w-6 p-0 rounded text-gray-400 hover:text-emerald-600 hover:bg-emerald-50">
+                                <div key={city.id} className="flex items-center justify-between px-3 py-2 rounded-xl bg-ant-paper border border-ant-line">
+                                    <span className="text-[12px] text-ant-ink truncate">{city.name}</span>
+                                    {isOwner && zone && (
+                                        <button
+                                            type="button"
+                                            onClick={() => updateCityZoneMutation.mutate({ cityId: city.id, zoneId: zone.id })}
+                                            className="w-7 h-7 rounded-full border border-ant-line bg-ant-paper flex items-center justify-center text-ant-mid hover:bg-ant-green/10 hover:text-ant-green hover:border-ant-green/30 transition-colors"
+                                        >
                                             <Plus className="w-3 h-3" />
-                                        </Button>
+                                        </button>
                                     )}
                                 </div>
                             )) : (
-                                <p className="text-[11px] text-gray-400 px-1 py-2">No unassigned cities available.</p>
+                                <p className="font-serif italic text-[11px] text-ant-mid text-center py-3">
+                                    No unassigned cities available.
+                                </p>
                             )}
                         </div>
-                    </div>
+                    </section>
                 </div>
 
-                <div className="px-5 py-3 border-t border-gray-100 shrink-0 flex justify-end">
-                    <Button onClick={onClose} variant="ghost" className="h-8 px-3 text-[11px] font-semibold text-gray-500">
+                <div className="px-5 py-3 border-t border-ant-line shrink-0 flex justify-end pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="h-11 px-5 rounded-full border border-ant-line bg-ant-paper text-ant-ink text-[12px] font-medium hover:bg-ant-light transition-colors"
+                    >
                         Close
-                    </Button>
+                    </button>
                 </div>
             </DialogContent>
         </Dialog>

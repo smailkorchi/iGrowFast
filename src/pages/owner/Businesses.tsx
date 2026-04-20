@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import {
@@ -13,19 +13,14 @@ import {
     List,
     AlertTriangle,
     Upload,
+    X,
 } from 'lucide-react';
-import {
-    Card,
-    CardContent
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
     Dialog,
     DialogContent,
-    DialogFooter,
     DialogHeader,
     DialogTitle,
+    DialogDescription,
 } from "@/components/ui/dialog";
 import {
     DropdownMenu,
@@ -51,10 +46,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useDropzone } from 'react-dropzone';
 import { Switch } from '@/components/ui/switch';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 import { AddEditBusinessModal, BusinessFormValues } from '@/components/businesses/AddEditBusinessModal';
 
-// businesses row shape verified via MCP, joined with creator (users) and plan (plans).
 type BusinessRow = {
     id: string;
     name: string;
@@ -112,10 +108,10 @@ const LICENSE_DURATIONS: Record<string, number> = {
     yearly: 365,
 };
 
-const STATUS_DOT: Record<string, string> = {
-    active: 'bg-emerald-500',
-    suspended: 'bg-amber-500',
-    deactivated: 'bg-red-500',
+const STATUS_CFG: Record<string, { label: string; dot: string; tint: string; text: string; stripe: string }> = {
+    active: { label: 'Active', dot: 'bg-ant-green', tint: 'bg-ant-green/12', text: 'text-ant-green', stripe: 'bg-ant-green' },
+    suspended: { label: 'Suspended', dot: 'bg-ant-orange', tint: 'bg-ant-orange/12', text: 'text-ant-orange', stripe: 'bg-ant-orange' },
+    deactivated: { label: 'Deactivated', dot: 'bg-ant-rose', tint: 'bg-ant-rose/12', text: 'text-ant-rose', stripe: 'bg-ant-rose' },
 };
 
 function computeLicenseEnd(type: string, from?: Date): string | null {
@@ -171,12 +167,27 @@ const Businesses = () => {
         );
     }, [businesses, searchQuery]);
 
+    const stats = useMemo(() => {
+        if (!businesses) return { total: 0, active: 0, suspended: 0, deactivated: 0, expired: 0 };
+        const now = Date.now();
+        let active = 0, suspended = 0, deactivated = 0, expired = 0;
+        for (const b of businesses) {
+            const s = (b.status || 'active').toLowerCase();
+            if (s === 'active') active++;
+            else if (s === 'suspended') suspended++;
+            else if (s === 'deactivated') deactivated++;
+            if (b.license_end && new Date(b.license_end).getTime() < now) expired++;
+        }
+        return { total: businesses.length, active, suspended, deactivated, expired };
+    }, [businesses]);
+
     const upsertMutation = useMutation({
         mutationFn: async (payload: BusinessFormValues & { id?: string }) => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error("Not authenticated");
 
             const { id, status, ...values } = payload;
+            void status;
             const now = new Date();
 
             const plan = await fetchPlanById(values.plan_id);
@@ -219,9 +230,6 @@ const Businesses = () => {
                 dataToSubmit.license_end = computeLicenseEnd(plan.license_type, now);
                 dataToSubmit.status = 'active';
                 dataToSubmit.paid = true;
-                // dataToSubmit is built conditionally above; cast through unknown because the generated
-                // Insert type requires every NOT NULL column even though computeLicenseEnd + branch logic
-                // already guarantees them at runtime.
                 const { data, error } = await supabase.from('businesses').insert([dataToSubmit as unknown as never]).select('id').single();
                 if (error) throw error;
                 return { isNew: true, businessId: data.id };
@@ -361,61 +369,105 @@ const Businesses = () => {
     };
 
     return (
-        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
-            {/* Header */}
-            <header className="space-y-2.5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Business Units</h1>
-                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Manage tenants, licenses and branches</p>
+        <div className="space-y-5 md:space-y-6">
+            {/* Editorial header */}
+            <header className="space-y-3">
+                <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-ant-orange" />
+                    <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                        Platform · Businesses
+                    </span>
+                </div>
+                <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
+                    <div className="space-y-1.5">
+                        <h1 className="font-display text-[26px] sm:text-[32px] leading-[1.05] tracking-[-0.02em] text-ant-ink">
+                            Business units
+                        </h1>
+                        <p className="font-serif italic text-[13px] sm:text-[14px] leading-relaxed text-ant-mid">
+                            Manage tenants, licenses and ownership — every business on the platform.
+                        </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <div className="relative">
-                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
-                            <Input
-                                placeholder="Search businesses..."
+                    <div className="flex flex-wrap items-center gap-2">
+                        <div className="relative flex-1 lg:flex-initial min-w-[200px]">
+                            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
+                            <input
+                                type="search"
+                                placeholder="Search businesses…"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="pl-7 h-8 rounded-md border-gray-200 bg-white text-[11px] w-48"
+                                className="w-full lg:w-60 h-10 pl-10 pr-10 rounded-full border border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid/70 focus:outline-none focus:border-ant-ink focus:ring-2 focus:ring-ant-orange/20 transition-all"
                             />
+                            {searchQuery && (
+                                <button
+                                    type="button"
+                                    onClick={() => setSearchQuery('')}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-ant-mid hover:text-ant-ink"
+                                    aria-label="Clear"
+                                >
+                                    <X className="w-3 h-3" />
+                                </button>
+                            )}
                         </div>
-                        <div className="flex items-center gap-0.5 bg-gray-100 p-0.5 rounded-md">
+                        <div className="inline-flex items-center gap-0.5 p-1 rounded-full border border-ant-line bg-ant-paper">
                             <button
+                                type="button"
                                 onClick={() => setViewMode('grid')}
-                                className={cn("h-7 px-2.5 rounded text-[10px] font-semibold flex items-center gap-1 transition-all", viewMode === 'grid' ? "bg-white text-brand-navy shadow-sm" : "text-gray-500 hover:text-gray-700")}
+                                className={cn(
+                                    'h-8 px-3 rounded-full flex items-center gap-1 text-[11px] font-medium transition-all',
+                                    viewMode === 'grid' ? 'bg-ant-ink text-ant-light' : 'text-ant-mid hover:text-ant-ink',
+                                )}
                             >
                                 <LayoutGrid className="w-3 h-3" /> Grid
                             </button>
                             <button
+                                type="button"
                                 onClick={() => setViewMode('list')}
-                                className={cn("h-7 px-2.5 rounded text-[10px] font-semibold flex items-center gap-1 transition-all", viewMode === 'list' ? "bg-white text-brand-navy shadow-sm" : "text-gray-500 hover:text-gray-700")}
+                                className={cn(
+                                    'h-8 px-3 rounded-full flex items-center gap-1 text-[11px] font-medium transition-all',
+                                    viewMode === 'list' ? 'bg-ant-ink text-ant-light' : 'text-ant-mid hover:text-ant-ink',
+                                )}
                             >
                                 <List className="w-3 h-3" /> List
                             </button>
                         </div>
-                        <Button
+                        <button
+                            type="button"
                             onClick={() => { setSelectedBusiness(null); setIsAddEditModalOpen(true); }}
-                            className="h-8 rounded-md text-[11px] font-semibold bg-brand-navy hover:bg-brand-navy/90 text-white gap-1.5 px-3"
+                            className="inline-flex items-center gap-2 h-10 px-4 rounded-full bg-ant-ink text-ant-light text-[12px] font-medium hover:bg-ant-ink/95 transition-colors shadow-[0_10px_24px_-10px_rgba(20,20,19,0.5)]"
                         >
                             <Plus className="w-3.5 h-3.5" />
-                            New Business
-                        </Button>
+                            New business
+                        </button>
                     </div>
                 </div>
             </header>
 
+            {/* KPI hairline strip */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ant-line rounded-2xl overflow-hidden border border-ant-line">
+                <KpiTile label="Total" value={stats.total} accent="bg-ant-ink" />
+                <KpiTile label="Active" value={stats.active} accent="bg-ant-green" />
+                <KpiTile label="Suspended" value={stats.suspended} accent="bg-ant-orange" />
+                <KpiTile label="Expired" value={stats.expired} accent="bg-ant-rose" />
+            </div>
+
             {/* Content */}
             {isLoading ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {[1, 2, 3].map(i => <Skeleton key={i} className="h-36 rounded-xl w-full" />)}
+                    {[1, 2, 3].map(i => <Skeleton key={i} className="h-40 rounded-2xl w-full" />)}
                 </div>
             ) : filteredBusinesses.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-10 rounded-xl border border-dashed border-gray-200 bg-white">
-                    <Building2 className="w-6 h-6 text-gray-300 mb-2" />
-                    <p className="text-[11px] font-medium text-gray-500">No businesses found</p>
-                </div>
+                <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                    <div className="h-[3px] w-full bg-ant-orange" />
+                    <div className="p-10 flex flex-col items-center gap-3 text-center">
+                        <Building2 className="w-6 h-6 text-ant-mid" />
+                        <p className="font-display text-[14px] text-ant-ink">No businesses found</p>
+                        <p className="font-serif italic text-[12px] text-ant-mid max-w-sm">
+                            Create the first business or adjust your search to see results.
+                        </p>
+                    </div>
+                </section>
             ) : viewMode === 'grid' ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
                     {filteredBusinesses.map(business => (
                         <BusinessCard
                             key={business.id}
@@ -426,29 +478,32 @@ const Businesses = () => {
                     ))}
                 </div>
             ) : (
-                <div className="rounded-xl border border-gray-100 bg-white overflow-hidden">
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="border-b border-gray-100">
-                                <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Business</th>
-                                <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold hidden sm:table-cell">Plan</th>
-                                <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold hidden md:table-cell">Status</th>
-                                <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold hidden lg:table-cell">Creator</th>
-                                <th className="px-3 py-2 w-20" />
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-50">
-                            {filteredBusinesses.map(business => (
-                                <BusinessListItem
-                                    key={business.id}
-                                    business={business}
-                                    onEdit={() => handleEdit(business)}
-                                    onDelete={() => handleDeleteClick(business)}
-                                />
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                    <div className="h-[3px] w-full bg-ant-ink" />
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead>
+                                <tr className="border-b border-ant-line bg-ant-light/40">
+                                    <th className="px-4 py-3 text-left text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid">Business</th>
+                                    <th className="px-4 py-3 text-left text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid hidden sm:table-cell">Plan</th>
+                                    <th className="px-4 py-3 text-left text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid hidden md:table-cell">Status</th>
+                                    <th className="px-4 py-3 text-left text-[9px] font-medium uppercase tracking-[0.22em] text-ant-mid hidden lg:table-cell">Creator</th>
+                                    <th className="px-4 py-3 w-24" />
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredBusinesses.map(business => (
+                                    <BusinessListItem
+                                        key={business.id}
+                                        business={business}
+                                        onEdit={() => handleEdit(business)}
+                                        onDelete={() => handleDeleteClick(business)}
+                                    />
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
             )}
 
             {/* Add/Edit Modal */}
@@ -477,7 +532,7 @@ const Businesses = () => {
                 isOpen={isDeleteModalOpen}
                 onClose={() => setIsDeleteModalOpen(false)}
                 business={selectedBusiness}
-                onConfirm={() => deleteMutation.mutate(selectedBusiness.id)}
+                onConfirm={() => selectedBusiness && deleteMutation.mutate(selectedBusiness.id)}
                 loading={deleteMutation.isPending}
                 step={deleteStep}
                 setStep={setDeleteStep}
@@ -500,30 +555,44 @@ const Businesses = () => {
 
 // --- Sub-components ---
 
-const StatusDot = ({ status }: { status: string }) => (
-    <div className={cn('w-1.5 h-1.5 rounded-full shrink-0', STATUS_DOT[status] || STATUS_DOT.active)} />
+const KpiTile = ({ label, value, accent }: { label: string; value: number; accent: string }) => (
+    <div className="bg-ant-paper p-4 md:p-5 flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+            <span className={cn('w-1 h-4 rounded-full', accent)} />
+            <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-ant-mid truncate">{label}</span>
+        </div>
+        <p className="font-display text-[22px] md:text-[26px] leading-none tabular-nums text-ant-ink">
+            {value.toLocaleString('fr-MA')}
+        </p>
+    </div>
 );
 
-const LicenseMeta = ({ business }: { business: BusinessRow }) => {
+const LicenseMeta = ({ business, compact = false }: { business: BusinessRow; compact?: boolean }) => {
     const type = business.license_type || 'monthly';
     const end = business.license_end ? new Date(business.license_end) : null;
     const isExpired = end && end < new Date();
     const daysLeft = end ? Math.ceil((end.getTime() - Date.now()) / 86400000) : null;
     const status = business.status || 'active';
     const paid = business.paid ?? false;
-    const planName = business.plan?.name;
+    const cfg = STATUS_CFG[status] || STATUS_CFG.active;
 
     return (
-        <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
-            <StatusDot status={status} />
-            <span className="capitalize">{status}</span>
+        <div className={cn('flex items-center gap-2 flex-wrap', compact ? 'text-[10px]' : 'text-[11px]')}>
+            <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-semibold uppercase tracking-[0.14em] text-[9px]', cfg.tint, cfg.text)}>
+                <span className={cn('w-1 h-1 rounded-full', cfg.dot)} />
+                {cfg.label}
+            </span>
             {type !== 'lifetime' && daysLeft !== null && (
-                <span className={cn('tabular-nums', isExpired ? 'text-red-500' : '')}>
-                    · {isExpired ? 'Expired' : `${daysLeft}d`}
+                <span className={cn('tabular-nums', isExpired ? 'text-ant-rose font-medium' : 'text-ant-mid')}>
+                    {isExpired ? 'Expired' : `${daysLeft}d left`}
                 </span>
             )}
-            <span className={cn(paid ? 'text-emerald-600' : 'text-red-500')}>
-                · {paid ? 'Paid' : 'Unpaid'}
+            {type === 'lifetime' && (
+                <span className="text-ant-green font-medium">Lifetime</span>
+            )}
+            <span className={cn('inline-flex items-center gap-1 text-[10px] font-medium', paid ? 'text-ant-green' : 'text-ant-rose')}>
+                <span className={cn('w-1 h-1 rounded-full', paid ? 'bg-ant-green' : 'bg-ant-rose')} />
+                {paid ? 'Paid' : 'Unpaid'}
             </span>
         </div>
     );
@@ -531,97 +600,129 @@ const LicenseMeta = ({ business }: { business: BusinessRow }) => {
 
 type CardProps = { business: BusinessRow; onEdit: () => void; onDelete: () => void };
 
-const BusinessCard = ({ business, onEdit, onDelete }: CardProps) => (
-    <div className="rounded-xl border border-gray-100 bg-white p-3.5 space-y-3">
-        <div className="flex items-start justify-between">
-            <div className="flex items-center gap-2.5">
-                <div className="h-8 w-8 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center overflow-hidden shrink-0">
+const BusinessCard = ({ business, onEdit, onDelete }: CardProps) => {
+    const status = business.status || 'active';
+    const cfg = STATUS_CFG[status] || STATUS_CFG.active;
+    return (
+        <div className="group rounded-2xl border border-ant-line bg-ant-paper overflow-hidden hover:border-ant-ink/25 transition-colors">
+            <div className={cn('h-[3px] w-full', cfg.stripe)} />
+            <div className="p-4 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className="h-10 w-10 rounded-xl bg-ant-light border border-ant-line flex items-center justify-center overflow-hidden shrink-0">
+                            {business.logo ? (
+                                <img src={business.logo} alt="" className="w-full h-full object-contain p-1" />
+                            ) : (
+                                <Building2 className="w-4 h-4 text-ant-mid" />
+                            )}
+                        </div>
+                        <div className="min-w-0">
+                            <p className="font-display text-[14px] text-ant-ink truncate leading-tight">{business.name}</p>
+                            <p className="font-serif italic text-[11px] text-ant-mid truncate mt-0.5">
+                                {business.plan?.name || business.license_type}
+                            </p>
+                        </div>
+                    </div>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <button
+                                type="button"
+                                className="w-8 h-8 rounded-full border border-ant-line bg-ant-paper flex items-center justify-center text-ant-ink hover:bg-ant-light transition-colors shrink-0"
+                            >
+                                <MoreVertical className="w-3.5 h-3.5" />
+                            </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="rounded-xl border-ant-line bg-ant-paper p-1 min-w-[140px] shadow-[0_12px_30px_-12px_rgba(20,20,19,0.25)]">
+                            <DropdownMenuItem onClick={onEdit} className="rounded-lg px-2.5 py-2 text-[12px] cursor-pointer gap-2 focus:bg-ant-light">
+                                <Edit2 className="w-3.5 h-3.5" /> Manage
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator className="bg-ant-line" />
+                            <DropdownMenuItem onClick={onDelete} className="rounded-lg px-2.5 py-2 text-[12px] cursor-pointer gap-2 text-ant-rose focus:text-ant-rose focus:bg-ant-rose/10">
+                                <Trash2 className="w-3.5 h-3.5" /> Delete
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
+
+                <LicenseMeta business={business} />
+
+                <div className="pt-3 border-t border-ant-line flex items-center gap-2">
+                    <Avatar className="h-6 w-6 border border-ant-line">
+                        <AvatarImage src={business.creator?.avatar_url || undefined} />
+                        <AvatarFallback className="bg-ant-light text-ant-ink text-[9px] font-medium">
+                            {business.creator?.name?.substring(0, 2)?.toUpperCase() || '??'}
+                        </AvatarFallback>
+                    </Avatar>
+                    <span className="text-[11px] text-ant-mid truncate font-medium">{business.creator?.name || '—'}</span>
+                    {business.created_at && (
+                        <span className="ml-auto text-[10px] text-ant-mid tabular-nums">
+                            {format(new Date(business.created_at), 'dd MMM yyyy', { locale: fr })}
+                        </span>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const BusinessListItem = ({ business, onEdit, onDelete }: CardProps) => (
+    <tr className="border-b border-ant-line last:border-b-0 hover:bg-ant-light/40 transition-colors">
+        <td className="px-4 py-3">
+            <div className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-xl bg-ant-light border border-ant-line flex items-center justify-center overflow-hidden shrink-0">
                     {business.logo ? (
                         <img src={business.logo} alt="" className="w-full h-full object-contain p-1" />
                     ) : (
-                        <Building2 className="w-4 h-4 text-gray-300" />
+                        <Building2 className="w-4 h-4 text-ant-mid" />
                     )}
                 </div>
                 <div className="min-w-0">
-                    <p className="text-[12px] font-semibold text-brand-navy truncate leading-tight">{business.name}</p>
-                    <span className="inline-flex items-center h-5 px-1.5 rounded text-[9px] font-semibold bg-gray-100 text-gray-500 uppercase tracking-wide mt-0.5">
-                        {business.plan?.name || business.license_type}
-                    </span>
-                </div>
-            </div>
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 p-0 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100">
-                        <MoreVertical className="h-3.5 w-3.5" />
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="rounded-lg border border-gray-200 shadow-md p-1 min-w-[130px]">
-                    <DropdownMenuItem onClick={onEdit} className="rounded px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer gap-2">
-                        <Edit2 className="w-3 h-3" /> Manage
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={onDelete} className="rounded px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer gap-2 text-red-600 focus:text-red-600 focus:bg-red-50">
-                        <Trash2 className="w-3 h-3" /> Delete
-                    </DropdownMenuItem>
-                </DropdownMenuContent>
-            </DropdownMenu>
-        </div>
-
-        <div>
-            <LicenseMeta business={business} />
-        </div>
-
-        <div className="pt-2.5 border-t border-gray-50 flex items-center gap-2">
-            <Avatar className="h-5 w-5">
-                <AvatarImage src={business.creator?.avatar_url} />
-                <AvatarFallback className="bg-gray-100 text-gray-500 text-[8px] font-medium">
-                    {business.creator?.name?.substring(0, 2) || '??'}
-                </AvatarFallback>
-            </Avatar>
-            <span className="text-[10px] text-gray-500 truncate">{business.creator?.name || 'N/A'}</span>
-        </div>
-    </div>
-);
-
-const BusinessListItem = ({ business, onEdit, onDelete }: CardProps) => (
-    <tr className="hover:bg-gray-50/50 transition-colors">
-        <td className="px-3 py-2">
-            <div className="flex items-center gap-2.5">
-                <div className="h-8 w-8 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center overflow-hidden shrink-0">
-                    {business.logo ? (
-                        <img src={business.logo} alt="" className="w-full h-full object-contain p-1" />
-                    ) : (
-                        <Building2 className="w-4 h-4 text-gray-300" />
+                    <p className="font-display text-[13px] text-ant-ink truncate leading-tight">{business.name}</p>
+                    {business.created_at && (
+                        <p className="text-[10px] text-ant-mid tabular-nums mt-0.5">
+                            {format(new Date(business.created_at), 'dd MMM yyyy', { locale: fr })}
+                        </p>
                     )}
                 </div>
-                <span className="text-[11px] font-semibold text-brand-navy">{business.name}</span>
             </div>
         </td>
-        <td className="px-3 py-2 hidden sm:table-cell">
-            <span className="inline-flex items-center h-5 px-1.5 rounded text-[9px] font-semibold bg-gray-100 text-gray-500 uppercase tracking-wide">
+        <td className="px-4 py-3 hidden sm:table-cell">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-ant-light border border-ant-line text-ant-ink uppercase tracking-[0.14em]">
                 {business.plan?.name || business.license_type}
             </span>
         </td>
-        <td className="px-3 py-2 hidden md:table-cell">
-            <LicenseMeta business={business} />
+        <td className="px-4 py-3 hidden md:table-cell">
+            <LicenseMeta business={business} compact />
         </td>
-        <td className="px-3 py-2 hidden lg:table-cell">
-            <div className="flex items-center gap-1.5">
-                <Avatar className="h-5 w-5">
-                    <AvatarImage src={business.creator?.avatar_url} />
-                    <AvatarFallback className="text-[8px] bg-gray-100">{business.creator?.name?.substring(0, 2)}</AvatarFallback>
+        <td className="px-4 py-3 hidden lg:table-cell">
+            <div className="flex items-center gap-2">
+                <Avatar className="h-6 w-6 border border-ant-line">
+                    <AvatarImage src={business.creator?.avatar_url || undefined} />
+                    <AvatarFallback className="bg-ant-light text-ant-ink text-[9px] font-medium">
+                        {business.creator?.name?.substring(0, 2)?.toUpperCase() || '??'}
+                    </AvatarFallback>
                 </Avatar>
-                <span className="text-[10px] text-gray-500 truncate">{business.creator?.name}</span>
+                <span className="text-[11px] text-ant-ink truncate">{business.creator?.name || '—'}</span>
             </div>
         </td>
-        <td className="px-3 py-2">
-            <div className="flex items-center gap-1 justify-end">
-                <Button variant="ghost" size="icon" onClick={onEdit} className="h-7 w-7 p-0 rounded text-gray-400 hover:text-brand-navy hover:bg-gray-100">
-                    <Edit2 className="w-3 h-3" />
-                </Button>
-                <Button variant="ghost" size="icon" onClick={onDelete} className="h-7 w-7 p-0 rounded text-gray-400 hover:text-red-500 hover:bg-red-50">
-                    <Trash2 className="w-3 h-3" />
-                </Button>
+        <td className="px-4 py-3">
+            <div className="flex items-center gap-1.5 justify-end">
+                <button
+                    type="button"
+                    onClick={onEdit}
+                    className="w-8 h-8 rounded-full border border-ant-line bg-ant-paper flex items-center justify-center text-ant-ink hover:bg-ant-ink hover:text-ant-light hover:border-ant-ink transition-colors"
+                    title="Manage"
+                >
+                    <Edit2 className="w-3.5 h-3.5" />
+                </button>
+                <button
+                    type="button"
+                    onClick={onDelete}
+                    className="w-8 h-8 rounded-full border border-ant-line bg-ant-paper flex items-center justify-center text-ant-ink hover:bg-ant-rose/10 hover:text-ant-rose hover:border-ant-rose/30 transition-colors"
+                    title="Delete"
+                >
+                    <Trash2 className="w-3.5 h-3.5" />
+                </button>
             </div>
         </td>
     </tr>
@@ -653,88 +754,133 @@ const DeleteConfirmationDialog = ({
     setConfirmName,
     confirmDeleteText,
     setConfirmDeleteText
-}: DeleteDialogProps) => {
-    return (
-        <Dialog open={isOpen} onOpenChange={(v) => !v && onClose()}>
-            <DialogContent className="max-w-md p-0 border border-slate-200/60 bg-white rounded-2xl shadow-xl overflow-hidden gap-0">
-                <div className="px-6 pt-6 pb-4 border-b border-slate-100">
-                    <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 bg-red-50 rounded-lg flex items-center justify-center text-red-500">
-                            <AlertTriangle className="w-4.5 h-4.5" />
+}: DeleteDialogProps) => (
+    <Dialog open={isOpen} onOpenChange={(v) => !v && onClose()}>
+        <DialogContent className={cn(
+            'max-w-md p-0 gap-0 border border-ant-line bg-ant-paper overflow-hidden',
+            'shadow-[0_32px_80px_-24px_rgba(20,20,19,0.4)]',
+            'sm:rounded-2xl',
+            'max-sm:!left-0 max-sm:!right-0 max-sm:!top-auto max-sm:!bottom-0',
+            'max-sm:!translate-x-0 max-sm:!translate-y-0',
+            'max-sm:!w-full max-sm:!max-w-none',
+            'max-sm:!rounded-t-2xl max-sm:!rounded-b-none',
+            '[&>button.absolute]:hidden',
+        )}>
+            <div className="h-[3px] w-full bg-ant-rose" />
+            <DialogHeader className="px-5 pt-4 pb-4 border-b border-ant-line text-left space-y-2">
+                <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
+                        <div className="w-10 h-10 rounded-xl bg-ant-rose/10 border border-ant-rose/25 flex items-center justify-center text-ant-rose shrink-0">
+                            <AlertTriangle className="w-4 h-4" />
                         </div>
-                        <div>
-                            <DialogTitle className="text-lg font-semibold text-slate-900">
-                                Delete Business
+                        <div className="min-w-0 space-y-1">
+                            <div className="flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-ant-rose" />
+                                <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-rose">
+                                    Suppression · Définitive
+                                </span>
+                            </div>
+                            <DialogTitle className="font-display text-[18px] leading-tight text-ant-ink">
+                                Delete business
                             </DialogTitle>
-                            <p className="text-xs text-slate-500 mt-0.5">This action is permanent and cannot be undone.</p>
+                            <DialogDescription className="font-serif italic text-[12px] text-ant-mid">
+                                This action is permanent and cannot be undone.
+                            </DialogDescription>
                         </div>
                     </div>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="w-8 h-8 rounded-full border border-ant-line bg-ant-paper hover:bg-ant-light flex items-center justify-center text-ant-ink shrink-0 transition-colors"
+                        aria-label="Close"
+                    >
+                        <X className="w-3.5 h-3.5" />
+                    </button>
+                </div>
+            </DialogHeader>
+
+            <div className="px-5 py-4 space-y-4">
+                <p className="text-[13px] text-ant-ink">
+                    You are about to permanently delete{' '}
+                    <span className="font-display">"{business?.name}"</span>{' '}
+                    and all associated data.
+                </p>
+
+                {/* Step indicator */}
+                <div className="flex items-center gap-1.5">
+                    <div className={cn('h-1 flex-1 rounded-full transition-colors', step >= 1 ? 'bg-ant-rose' : 'bg-ant-line')} />
+                    <div className={cn('h-1 flex-1 rounded-full transition-colors', step >= 2 ? 'bg-ant-rose' : 'bg-ant-line')} />
                 </div>
 
-                <div className="px-6 py-5 space-y-5">
-                    <p className="text-sm text-slate-600">
-                        You are about to permanently delete <span className="font-semibold text-slate-900">"{business?.name}"</span> and all associated data.
-                    </p>
-
-                    <div className="flex items-center gap-1.5">
-                        <div className={cn("h-1 flex-1 rounded-full transition-colors", step >= 1 ? "bg-red-400" : "bg-slate-100")} />
-                        <div className={cn("h-1 flex-1 rounded-full transition-colors", step >= 2 ? "bg-red-400" : "bg-slate-100")} />
-                    </div>
-
-                    {step === 1 ? (
-                        <div className="space-y-3">
-                            <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                {step === 1 ? (
+                    <div className="space-y-3">
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
                                 Type the business name to confirm
                             </label>
-                            <Input
+                            <input
+                                type="text"
                                 placeholder={business?.name}
                                 value={confirmName}
                                 onChange={(e) => setConfirmName(e.target.value)}
-                                className="h-10 rounded-lg border-slate-200 text-sm"
+                                className="w-full h-11 px-3.5 rounded-xl border border-ant-line bg-ant-paper text-[13px] text-ant-ink placeholder:text-ant-mid/60 focus:outline-none focus:border-ant-ink focus:ring-2 focus:ring-ant-orange/20 transition-all"
                             />
-                            <Button
-                                onClick={() => setStep(2)}
-                                disabled={confirmName !== business?.name}
-                                className="w-full h-9 rounded-lg bg-slate-900 text-white text-sm font-medium disabled:opacity-30"
-                            >
-                                Continue
-                            </Button>
                         </div>
-                    ) : (
-                        <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                                <label className="text-[11px] font-semibold uppercase tracking-wider text-red-400">
-                                    Type "DELETE" to confirm
-                                </label>
-                                <button onClick={() => setStep(1)} className="text-xs text-slate-400 hover:text-slate-600 transition-colors">Back</button>
-                            </div>
-                            <Input
-                                placeholder="DELETE"
-                                value={confirmDeleteText}
-                                onChange={(e) => setConfirmDeleteText(e.target.value)}
-                                className="h-10 rounded-lg border-red-200 text-sm text-red-600 focus-visible:ring-red-200"
-                            />
-                            <Button
-                                onClick={onConfirm}
-                                disabled={confirmDeleteText !== "DELETE" || loading}
-                                className="w-full h-9 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium disabled:opacity-30 gap-2"
+                        <button
+                            type="button"
+                            onClick={() => setStep(2)}
+                            disabled={confirmName !== business?.name}
+                            className="w-full h-11 rounded-full bg-ant-ink text-ant-light text-[12px] font-medium hover:bg-ant-ink/95 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                        >
+                            Continue
+                        </button>
+                    </div>
+                ) : (
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-rose">
+                                Type "DELETE" to confirm
+                            </label>
+                            <button
+                                type="button"
+                                onClick={() => setStep(1)}
+                                className="text-[11px] text-ant-mid hover:text-ant-ink transition-colors"
                             >
-                                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                                Delete Permanently
-                            </Button>
+                                Back
+                            </button>
                         </div>
-                    )}
-                </div>
+                        <input
+                            type="text"
+                            placeholder="DELETE"
+                            value={confirmDeleteText}
+                            onChange={(e) => setConfirmDeleteText(e.target.value)}
+                            className="w-full h-11 px-3.5 rounded-xl border border-ant-rose/30 bg-ant-rose/5 text-[13px] text-ant-rose placeholder:text-ant-rose/50 focus:outline-none focus:border-ant-rose focus:ring-2 focus:ring-ant-rose/20 transition-all"
+                        />
+                        <button
+                            type="button"
+                            onClick={onConfirm}
+                            disabled={confirmDeleteText !== 'DELETE' || loading}
+                            className="w-full h-11 rounded-full bg-ant-rose text-white text-[12px] font-medium flex items-center justify-center gap-2 hover:bg-ant-rose/95 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-[0_10px_24px_-10px_rgba(201,57,66,0.5)]"
+                        >
+                            {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                            Delete permanently
+                        </button>
+                    </div>
+                )}
+            </div>
 
-                <div className="px-6 py-3 border-t border-slate-100 flex justify-end">
-                    <Button variant="ghost" onClick={onClose} className="h-8 px-3 text-xs text-slate-500 hover:text-slate-700">
-                        Cancel
-                    </Button>
-                </div>
-            </DialogContent>
-        </Dialog>
-    );
-};
+            <div className="px-5 py-3 border-t border-ant-line flex justify-end">
+                <button
+                    type="button"
+                    onClick={onClose}
+                    className="h-9 px-4 rounded-full text-[12px] text-ant-mid hover:text-ant-ink transition-colors"
+                >
+                    Cancel
+                </button>
+            </div>
+        </DialogContent>
+    </Dialog>
+);
 
 type CreateAdminModalProps = {
     isOpen: boolean;
@@ -784,110 +930,173 @@ const CreateAdminModal = ({ isOpen, onClose, onSubmit, loading }: CreateAdminMod
 
     return (
         <Dialog open={isOpen} onOpenChange={(v) => !v && onClose()}>
-            <DialogContent className="max-w-lg p-0 border border-slate-200/60 bg-white rounded-2xl shadow-xl overflow-hidden gap-0">
+            <DialogContent className={cn(
+                'max-w-lg p-0 gap-0 border border-ant-line bg-ant-paper overflow-hidden flex flex-col max-h-[92vh]',
+                'shadow-[0_32px_80px_-24px_rgba(20,20,19,0.4)]',
+                'sm:rounded-2xl',
+                'max-sm:!left-0 max-sm:!right-0 max-sm:!top-auto max-sm:!bottom-0',
+                'max-sm:!translate-x-0 max-sm:!translate-y-0',
+                'max-sm:!w-full max-sm:!max-w-none',
+                'max-sm:!h-[94dvh] max-sm:!max-h-[94dvh]',
+                'max-sm:!rounded-t-2xl max-sm:!rounded-b-none',
+                '[&>button.absolute]:hidden',
+            )}>
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col">
-                        <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-100">
-                            <DialogTitle className="text-lg font-semibold text-slate-900">
-                                Assign Super Admin
-                            </DialogTitle>
-                            <p className="text-xs text-slate-500 mt-0.5">Create the primary administrator for this business.</p>
+                    <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col h-full overflow-hidden">
+                        <div className="h-[3px] w-full bg-ant-orange shrink-0" />
+                        <DialogHeader className="px-5 pt-4 pb-4 shrink-0 border-b border-ant-line text-left space-y-1.5">
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0 space-y-1.5 flex-1">
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-ant-orange" />
+                                        <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                                            Admin · Super Admin
+                                        </span>
+                                    </div>
+                                    <DialogTitle className="font-display text-[20px] leading-[1.1] tracking-[-0.01em] text-ant-ink">
+                                        Assign super admin
+                                    </DialogTitle>
+                                    <DialogDescription className="font-serif italic text-[12px] text-ant-mid">
+                                        Create the primary administrator for this business.
+                                    </DialogDescription>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={onClose}
+                                    className="w-8 h-8 rounded-full border border-ant-line bg-ant-paper hover:bg-ant-light flex items-center justify-center text-ant-ink shrink-0 transition-colors"
+                                    aria-label="Close"
+                                >
+                                    <X className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
                         </DialogHeader>
 
-                        <div className="px-6 py-5 space-y-4">
+                        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
                             {/* Avatar */}
                             <div className="flex items-center gap-3">
                                 <div
                                     {...getRootProps()}
                                     className={cn(
-                                        "relative group flex items-center justify-center border-2 border-dashed rounded-full w-14 h-14 shrink-0 cursor-pointer transition-colors overflow-hidden",
-                                        isDragActive ? "border-blue-400 bg-blue-50" : "border-slate-200 hover:border-slate-300",
-                                        avatarPreview && "border-transparent"
+                                        'relative group flex items-center justify-center border-2 border-dashed rounded-full w-16 h-16 shrink-0 cursor-pointer transition-colors overflow-hidden',
+                                        isDragActive ? 'border-ant-ink bg-ant-ink/5' : 'border-ant-line hover:border-ant-ink/40',
+                                        avatarPreview && 'border-transparent',
                                     )}
                                 >
                                     <input {...getInputProps()} />
                                     {avatarPreview ? (
                                         <>
                                             <img src={avatarPreview} alt="" className="w-full h-full object-cover" />
-                                            <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <Upload className="w-4 h-4 text-white" />
+                                            <div className="absolute inset-0 bg-ant-ink/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Upload className="w-4 h-4 text-ant-light" />
                                             </div>
                                         </>
                                     ) : (
-                                        <Upload className="w-4 h-4 text-slate-400" />
+                                        <Upload className="w-4 h-4 text-ant-mid" />
                                     )}
                                 </div>
                                 <div>
-                                    <p className="text-sm font-medium text-slate-700">Photo</p>
-                                    <p className="text-xs text-slate-400">Click or drop</p>
+                                    <p className="font-display text-[13px] text-ant-ink">Photo</p>
+                                    <p className="font-serif italic text-[11px] text-ant-mid">Click or drop an image</p>
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-3">
                                 <FormField control={form.control} name="name" render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Full Name</FormLabel>
+                                    <FormItem className="space-y-1.5">
+                                        <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Full name</FormLabel>
                                         <FormControl>
-                                            <Input placeholder="John Doe" {...field} className="h-9 rounded-lg border-slate-200 text-sm" />
+                                            <input
+                                                placeholder="John Doe"
+                                                {...field}
+                                                className="w-full h-10 px-3.5 rounded-xl border border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid/60 focus:outline-none focus:border-ant-ink focus:ring-2 focus:ring-ant-orange/20 transition-all"
+                                            />
                                         </FormControl>
-                                        <FormMessage />
+                                        <FormMessage className="text-[10px] text-ant-rose" />
                                     </FormItem>
                                 )} />
                                 <FormField control={form.control} name="username" render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Username</FormLabel>
+                                    <FormItem className="space-y-1.5">
+                                        <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Username</FormLabel>
                                         <FormControl>
                                             <div className="relative">
-                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">@</span>
-                                                <Input placeholder="johndoe" {...field} className="h-9 pl-7 rounded-lg border-slate-200 text-sm" />
+                                                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ant-mid text-[13px]">@</span>
+                                                <input
+                                                    placeholder="johndoe"
+                                                    {...field}
+                                                    className="w-full h-10 pl-7 pr-3.5 rounded-xl border border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid/60 focus:outline-none focus:border-ant-ink focus:ring-2 focus:ring-ant-orange/20 transition-all"
+                                                />
                                             </div>
                                         </FormControl>
-                                        <FormMessage />
+                                        <FormMessage className="text-[10px] text-ant-rose" />
                                     </FormItem>
                                 )} />
                             </div>
 
                             <FormField control={form.control} name="email" render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Email</FormLabel>
+                                <FormItem className="space-y-1.5">
+                                    <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Email</FormLabel>
                                     <FormControl>
-                                        <Input type="email" placeholder="admin@business.com" {...field} className="h-9 rounded-lg border-slate-200 text-sm" />
+                                        <input
+                                            type="email"
+                                            placeholder="admin@business.com"
+                                            {...field}
+                                            className="w-full h-10 px-3.5 rounded-xl border border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid/60 focus:outline-none focus:border-ant-ink focus:ring-2 focus:ring-ant-orange/20 transition-all"
+                                        />
                                     </FormControl>
-                                    <FormMessage />
+                                    <FormMessage className="text-[10px] text-ant-rose" />
                                 </FormItem>
                             )} />
 
                             <div className="grid grid-cols-2 gap-3">
                                 <FormField control={form.control} name="password" render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Password</FormLabel>
+                                    <FormItem className="space-y-1.5">
+                                        <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Password</FormLabel>
                                         <FormControl>
-                                            <Input type="password" placeholder="Min 6 chars" {...field} className="h-9 rounded-lg border-slate-200 text-sm" />
+                                            <input
+                                                type="password"
+                                                placeholder="Min 6 chars"
+                                                {...field}
+                                                className="w-full h-10 px-3.5 rounded-xl border border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid/60 focus:outline-none focus:border-ant-ink focus:ring-2 focus:ring-ant-orange/20 transition-all"
+                                            />
                                         </FormControl>
-                                        <FormMessage />
+                                        <FormMessage className="text-[10px] text-ant-rose" />
                                     </FormItem>
                                 )} />
                                 <FormField control={form.control} name="active" render={({ field }) => (
-                                    <FormItem className="flex flex-col justify-end">
-                                        <FormLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Status</FormLabel>
-                                        <div className="flex items-center gap-2.5 h-9 px-3 bg-slate-50 rounded-lg border border-slate-200">
-                                            <Switch checked={field.value} onCheckedChange={field.onChange} className="data-[state=checked]:bg-emerald-500 scale-90" />
-                                            <span className="text-xs font-medium text-slate-600">{field.value ? 'Active' : 'Disabled'}</span>
+                                    <FormItem className="flex flex-col justify-end space-y-1.5">
+                                        <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Status</FormLabel>
+                                        <div className="flex items-center gap-2.5 h-10 px-3.5 bg-ant-light rounded-xl border border-ant-line">
+                                            <Switch
+                                                checked={field.value}
+                                                onCheckedChange={field.onChange}
+                                                className="data-[state=checked]:bg-ant-green scale-90"
+                                            />
+                                            <span className="text-[11px] font-medium text-ant-ink">
+                                                {field.value ? 'Active' : 'Disabled'}
+                                            </span>
                                         </div>
                                     </FormItem>
                                 )} />
                             </div>
                         </div>
 
-                        <DialogFooter className="px-6 py-4 border-t border-slate-100 gap-2 sm:gap-2">
-                            <Button type="button" variant="ghost" onClick={onClose} className="h-9 px-4 text-sm text-slate-500 hover:text-slate-700">
+                        <div className="shrink-0 px-5 py-3 flex flex-row gap-2 bg-ant-paper border-t border-ant-line pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                className="flex-1 sm:flex-initial h-11 px-5 rounded-full border border-ant-line bg-ant-paper text-ant-ink text-[12px] font-medium hover:bg-ant-light transition-colors"
+                            >
                                 Skip
-                            </Button>
-                            <Button type="submit" disabled={loading} className="h-9 px-5 bg-brand-navy hover:bg-brand-navy/90 text-white text-sm font-medium rounded-lg">
-                                {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                                Create Admin
-                            </Button>
-                        </DialogFooter>
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="flex-1 h-11 px-5 rounded-full bg-ant-ink text-ant-light text-[12px] font-medium flex items-center justify-center gap-2 hover:bg-ant-ink/95 disabled:opacity-60 transition-all shadow-[0_10px_24px_-10px_rgba(20,20,19,0.5)]"
+                            >
+                                {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                                Create admin
+                            </button>
+                        </div>
                     </form>
                 </Form>
             </DialogContent>

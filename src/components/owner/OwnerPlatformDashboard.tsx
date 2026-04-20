@@ -2,17 +2,11 @@ import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { Button } from '@/components/ui/button';
 import {
-    Building2,
-    CreditCard,
-    Users,
-    Receipt,
     AlertCircle,
-    LayoutDashboard,
     Loader2,
     ArrowRight,
-    Shield,
+    ChevronRight,
 } from 'lucide-react';
 import {
     Area,
@@ -33,6 +27,8 @@ import {
     startOfDay,
     subDays,
 } from 'date-fns';
+import { fr } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 
 type BusinessRow = {
     id: string;
@@ -47,6 +43,15 @@ type BusinessRow = {
 type PaymentRow = {
     status: string;
     created_at: string;
+};
+
+const ANT = {
+    ink: '#141413',
+    orange: '#D97706',
+    green: '#2D7A3E',
+    rose: '#c93942',
+    mid: '#6b6a63',
+    line: '#e8e6dc',
 };
 
 async function fetchOwnerPlatformData() {
@@ -106,13 +111,11 @@ function buildDailySeries(
         const key = format(d, 'yyyy-MM-dd');
         return {
             day: key,
-            label: format(d, 'dd MMM'),
+            label: format(d, 'dd MMM', { locale: fr }),
             count: counts.get(key) || 0,
         };
     });
 }
-
-const KPI_ACCENTS = ['#3b5e5e', '#d97706', '#059669', '#9ca3af', '#9ca3af', '#9ca3af'];
 
 const OwnerPlatformDashboard = () => {
     const { data, isLoading, isError, error, refetch } = useQuery({
@@ -149,10 +152,10 @@ const OwnerPlatformDashboard = () => {
             .slice(0, 10);
 
         const statusChart = [
-            { name: 'Active', value: byStatus.active, fill: '#059669' },
-            { name: 'Suspended', value: byStatus.suspended, fill: '#d97706' },
-            { name: 'Deactivated', value: byStatus.deactivated, fill: '#ef4444' },
-            ...(byStatus.other > 0 ? [{ name: 'Other', value: byStatus.other, fill: '#9ca3af' }] : []),
+            { name: 'Active', value: byStatus.active, fill: ANT.green },
+            { name: 'Suspended', value: byStatus.suspended, fill: ANT.orange },
+            { name: 'Deactivated', value: byStatus.deactivated, fill: ANT.rose },
+            ...(byStatus.other > 0 ? [{ name: 'Other', value: byStatus.other, fill: ANT.mid }] : []),
         ].filter((d) => d.value > 0);
 
         const bizDaily = buildDailySeries(
@@ -178,193 +181,273 @@ const OwnerPlatformDashboard = () => {
 
     if (isLoading) {
         return (
-            <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 flex items-center justify-center min-h-[50vh]">
-                <Loader2 className="w-5 h-5 animate-spin text-brand-navy/40" />
+            <div className="flex items-center justify-center min-h-[60vh]">
+                <Loader2 className="w-5 h-5 animate-spin text-ant-mid" />
             </div>
         );
     }
 
     if (isError || !data || !stats) {
         return (
-            <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 flex flex-col items-center justify-center min-h-[50vh] gap-3 text-center">
-                <AlertCircle className="w-5 h-5 text-red-500" />
-                <p className="text-[11px] text-gray-500 max-w-sm">
-                    {(error as Error)?.message || 'Could not load platform overview.'}
-                </p>
-                <Button variant="outline" size="sm" className="h-8 rounded-md text-[11px] font-semibold" onClick={() => refetch()}>
-                    Retry
-                </Button>
-            </div>
+            <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                <div className="h-[3px] w-full bg-ant-rose" />
+                <div className="p-10 flex flex-col items-center gap-3 text-center">
+                    <AlertCircle className="w-6 h-6 text-ant-rose" />
+                    <div className="space-y-1">
+                        <p className="font-display text-[14px] text-ant-ink">Impossible de charger l'aperçu</p>
+                        <p className="font-serif italic text-[12px] text-ant-mid max-w-sm mx-auto">
+                            {(error as Error)?.message || 'Une erreur est survenue lors du chargement des données.'}
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => refetch()}
+                        className="inline-flex items-center gap-1.5 h-10 px-4 rounded-full bg-ant-ink text-ant-light text-[12px] font-medium hover:bg-ant-ink/95 transition-colors"
+                    >
+                        Réessayer
+                    </button>
+                </div>
+            </section>
         );
     }
 
-    const kpi = [
+    const kpi: Array<{
+        title: string;
+        value: number;
+        sub: string;
+        accent: string;
+        to: string;
+    }> = [
         {
             title: 'Businesses',
             value: stats.total,
-            sub: `${stats.byStatus.active} active`,
-            accent: KPI_ACCENTS[0],
+            sub: `${stats.byStatus.active} actifs`,
+            accent: 'bg-ant-ink',
             to: '/owner/businesses',
         },
         {
-            title: 'Pending payments',
+            title: 'Paiements en attente',
             value: stats.pendingPayments,
-            sub: 'Proof submissions to review',
-            accent: KPI_ACCENTS[1],
+            sub: 'Justificatifs à valider',
+            accent: 'bg-ant-orange',
             to: '/owner/payments',
         },
         {
-            title: 'Paid businesses',
+            title: 'Businesses payés',
             value: stats.paidTrue,
-            sub: `${stats.total ? Math.round((stats.paidTrue / stats.total) * 100) : 0}% of total`,
-            accent: KPI_ACCENTS[2],
+            sub: `${stats.total ? Math.round((stats.paidTrue / stats.total) * 100) : 0}% du total`,
+            accent: 'bg-ant-green',
             to: '/owner/businesses',
         },
         {
-            title: 'Owner accounts',
+            title: 'Comptes owner',
             value: data.ownerCount,
-            sub: 'Platform owner role',
-            accent: KPI_ACCENTS[3],
+            sub: 'Rôle plateforme',
+            accent: 'bg-ant-ink',
             to: '/owner/users',
         },
         {
-            title: 'Tenant users',
+            title: 'Utilisateurs tenants',
             value: data.tenantUserCount,
-            sub: 'Linked to a business',
-            accent: KPI_ACCENTS[4],
+            sub: 'Liés à un business',
+            accent: 'bg-ant-ink',
             to: '/owner/businesses',
         },
         {
-            title: 'Active plans',
+            title: 'Plans actifs',
             value: stats.activePlans,
-            sub: `${data.plans.length} total in catalog`,
-            accent: KPI_ACCENTS[5],
+            sub: `${data.plans.length} au catalogue`,
+            accent: 'bg-ant-green',
             to: '/owner/plans',
         },
     ];
 
     return (
-        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
-            {/* Header */}
-            <header className="space-y-2.5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Owner Overview</h1>
-                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Platform-wide businesses, billing, and access</p>
+        <div className="space-y-5 md:space-y-6">
+            {/* Editorial header */}
+            <header className="space-y-3">
+                <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-ant-orange" />
+                    <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                        Platform · Owner
+                    </span>
+                </div>
+                <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
+                    <div className="space-y-1.5">
+                        <h1 className="font-display text-[26px] sm:text-[32px] leading-[1.05] tracking-[-0.02em] text-ant-ink">
+                            Vue d'ensemble
+                        </h1>
+                        <p className="font-serif italic text-[13px] sm:text-[14px] leading-relaxed text-ant-mid">
+                            Businesses, facturation et accès — état de la plateforme en temps réel.
+                        </p>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                        <Button asChild variant="outline" className="h-8 rounded-md text-[11px] font-semibold gap-1.5 px-3">
-                            <Link to="/owner/businesses">
-                                Businesses <ArrowRight className="w-3 h-3" />
-                            </Link>
-                        </Button>
-                        <Button asChild variant="outline" className="h-8 rounded-md text-[11px] font-semibold gap-1.5 px-3">
-                            <Link to="/owner/payments">
-                                Payments <ArrowRight className="w-3 h-3" />
-                            </Link>
-                        </Button>
-                        <Button asChild className="h-8 rounded-md text-[11px] font-semibold px-3 bg-brand-navy hover:bg-brand-navy/90">
-                            <Link to="/owner/plans">Plans</Link>
-                        </Button>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                        <Link
+                            to="/owner/businesses"
+                            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-full border border-ant-line bg-ant-paper text-ant-ink text-[11px] font-medium hover:bg-ant-ink hover:text-ant-light hover:border-ant-ink transition-colors"
+                        >
+                            Businesses <ArrowRight className="w-3 h-3" />
+                        </Link>
+                        <Link
+                            to="/owner/payments"
+                            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-full border border-ant-line bg-ant-paper text-ant-ink text-[11px] font-medium hover:bg-ant-ink hover:text-ant-light hover:border-ant-ink transition-colors"
+                        >
+                            Paiements <ArrowRight className="w-3 h-3" />
+                        </Link>
+                        <Link
+                            to="/owner/plans"
+                            className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-full bg-ant-ink text-ant-light text-[11px] font-medium hover:bg-ant-ink/95 transition-colors shadow-[0_8px_20px_-8px_rgba(20,20,19,0.45)]"
+                        >
+                            Plans
+                        </Link>
                     </div>
                 </div>
             </header>
 
-            {/* KPI tiles */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            {/* KPI hairline strip — 6 tiles */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-px bg-ant-line rounded-2xl overflow-hidden border border-ant-line">
                 {kpi.map((card) => (
-                    <Link key={card.title} to={card.to} className="block">
-                        <div className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5 hover:border-gray-200 transition-colors">
-                            <span className="w-[3px] self-stretch rounded-full shrink-0" style={{ background: card.accent }} />
-                            <div className="flex-1 min-w-0">
-                                <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400 leading-tight">{card.title}</p>
-                                <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1 leading-none">
-                                    {typeof card.value === 'number' ? card.value.toLocaleString('fr-MA') : card.value}
-                                </p>
-                                {card.sub && <p className="text-[9px] text-gray-400 mt-0.5 leading-tight">{card.sub}</p>}
-                            </div>
+                    <Link
+                        key={card.title}
+                        to={card.to}
+                        className="group bg-ant-paper p-4 flex flex-col gap-2 hover:bg-ant-light/40 transition-colors"
+                    >
+                        <div className="flex items-center gap-2">
+                            <span className={cn('w-1 h-4 rounded-full', card.accent)} />
+                            <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-ant-mid truncate flex-1">
+                                {card.title}
+                            </span>
+                            <ChevronRight className="w-3 h-3 text-ant-mid opacity-0 group-hover:opacity-100 transition-opacity" />
                         </div>
+                        <p className="font-display text-[22px] leading-none tabular-nums text-ant-ink">
+                            {card.value.toLocaleString('fr-MA')}
+                        </p>
+                        <p className="font-serif italic text-[11px] text-ant-mid leading-tight">
+                            {card.sub}
+                        </p>
                     </Link>
                 ))}
             </div>
 
-            {/* Charts row 1 */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                <div className="rounded-xl border border-gray-100 bg-white p-3.5">
-                    <div className="mb-2">
-                        <p className="text-[11px] font-semibold text-brand-navy">New businesses (30 days)</p>
-                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em]">Registrations per day</p>
+            {/* Charts row 1 — growth */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-5">
+                <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                    <div className="h-[3px] w-full bg-ant-ink" />
+                    <div className="px-4 md:px-6 py-4 md:py-5 border-b border-ant-line">
+                        <div className="flex items-center gap-2">
+                            <span className="font-display text-[11px] text-ant-orange">01</span>
+                            <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                                Nouveaux businesses
+                            </span>
+                        </div>
+                        <p className="font-serif italic text-[12px] text-ant-mid mt-1">
+                            30 derniers jours · inscriptions par jour
+                        </p>
                     </div>
-                    <div className="h-[220px]">
-                        <ResponsiveContainer width="100%" height="100%">
+                    <div className="p-3 md:p-5">
+                        <ResponsiveContainer width="100%" height={220}>
                             <AreaChart data={stats.bizDaily} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                                 <defs>
                                     <linearGradient id="ownerBizGrad" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stopColor="#3b5e5e" stopOpacity={0.25} />
-                                        <stop offset="100%" stopColor="#3b5e5e" stopOpacity={0} />
+                                        <stop offset="0%" stopColor={ANT.ink} stopOpacity={0.2} />
+                                        <stop offset="100%" stopColor={ANT.ink} stopOpacity={0} />
                                     </linearGradient>
                                 </defs>
-                                <CartesianGrid strokeDasharray="3 3" className="stroke-gray-100" />
-                                <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#9ca3af' }} interval="preserveStartEnd" />
-                                <YAxis tick={{ fontSize: 9, fill: '#9ca3af' }} allowDecimals={false} width={28} />
+                                <CartesianGrid strokeDasharray="3 3" stroke={ANT.line} vertical={false} />
+                                <XAxis dataKey="label" tick={{ fontSize: 10, fill: ANT.mid }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                                <YAxis tick={{ fontSize: 10, fill: ANT.mid }} axisLine={false} tickLine={false} allowDecimals={false} width={28} />
                                 <Tooltip
-                                    contentStyle={{ borderRadius: 8, border: '1px solid #f3f4f6', boxShadow: 'none', fontSize: 11 }}
-                                    labelFormatter={(_, payload) =>
-                                        payload?.[0]?.payload?.day ? String(payload[0].payload.day) : ''
-                                    }
+                                    contentStyle={{
+                                        borderRadius: 10,
+                                        border: `1px solid ${ANT.line}`,
+                                        background: '#ffffff',
+                                        boxShadow: '0 8px 24px rgba(20,20,19,0.08)',
+                                        fontSize: 11,
+                                    }}
+                                    labelFormatter={(_, payload) => payload?.[0]?.payload?.day ? String(payload[0].payload.day) : ''}
                                 />
-                                <Area type="monotone" dataKey="count" stroke="#3b5e5e" strokeWidth={1.5} fill="url(#ownerBizGrad)" name="New businesses" />
+                                <Area type="monotone" dataKey="count" stroke={ANT.ink} strokeWidth={1.75} fill="url(#ownerBizGrad)" name="Inscriptions" />
                             </AreaChart>
                         </ResponsiveContainer>
                     </div>
-                </div>
+                </section>
 
-                <div className="rounded-xl border border-gray-100 bg-white p-3.5">
-                    <div className="mb-2">
-                        <p className="text-[11px] font-semibold text-brand-navy">Payment submissions (90 days)</p>
-                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em]">Proof uploads per day</p>
+                <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                    <div className="h-[3px] w-full bg-ant-orange" />
+                    <div className="px-4 md:px-6 py-4 md:py-5 border-b border-ant-line">
+                        <div className="flex items-center gap-2">
+                            <span className="font-display text-[11px] text-ant-orange">02</span>
+                            <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                                Justificatifs de paiement
+                            </span>
+                        </div>
+                        <p className="font-serif italic text-[12px] text-ant-mid mt-1">
+                            90 derniers jours · uploads par jour
+                        </p>
                     </div>
-                    <div className="h-[220px]">
-                        <ResponsiveContainer width="100%" height="100%">
+                    <div className="p-3 md:p-5">
+                        <ResponsiveContainer width="100%" height={220}>
                             <AreaChart data={stats.payDaily} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                                 <defs>
                                     <linearGradient id="ownerPayGrad" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stopColor="#d97706" stopOpacity={0.25} />
-                                        <stop offset="100%" stopColor="#d97706" stopOpacity={0} />
+                                        <stop offset="0%" stopColor={ANT.orange} stopOpacity={0.25} />
+                                        <stop offset="100%" stopColor={ANT.orange} stopOpacity={0} />
                                     </linearGradient>
                                 </defs>
-                                <CartesianGrid strokeDasharray="3 3" className="stroke-gray-100" />
-                                <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#9ca3af' }} interval="preserveStartEnd" />
-                                <YAxis tick={{ fontSize: 9, fill: '#9ca3af' }} allowDecimals={false} width={28} />
+                                <CartesianGrid strokeDasharray="3 3" stroke={ANT.line} vertical={false} />
+                                <XAxis dataKey="label" tick={{ fontSize: 10, fill: ANT.mid }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                                <YAxis tick={{ fontSize: 10, fill: ANT.mid }} axisLine={false} tickLine={false} allowDecimals={false} width={28} />
                                 <Tooltip
-                                    contentStyle={{ borderRadius: 8, border: '1px solid #f3f4f6', boxShadow: 'none', fontSize: 11 }}
-                                    labelFormatter={(_, payload) =>
-                                        payload?.[0]?.payload?.day ? String(payload[0].payload.day) : ''
-                                    }
+                                    contentStyle={{
+                                        borderRadius: 10,
+                                        border: `1px solid ${ANT.line}`,
+                                        background: '#ffffff',
+                                        boxShadow: '0 8px 24px rgba(20,20,19,0.08)',
+                                        fontSize: 11,
+                                    }}
+                                    labelFormatter={(_, payload) => payload?.[0]?.payload?.day ? String(payload[0].payload.day) : ''}
                                 />
-                                <Area type="monotone" dataKey="count" stroke="#d97706" strokeWidth={1.5} fill="url(#ownerPayGrad)" name="Submissions" />
+                                <Area type="monotone" dataKey="count" stroke={ANT.orange} strokeWidth={1.75} fill="url(#ownerPayGrad)" name="Soumissions" />
                             </AreaChart>
                         </ResponsiveContainer>
                     </div>
-                </div>
+                </section>
             </div>
 
-            {/* Charts row 2 */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                <div className="rounded-xl border border-gray-100 bg-white p-3.5">
-                    <div className="mb-2">
-                        <p className="text-[11px] font-semibold text-brand-navy">Businesses by status</p>
+            {/* Charts row 2 — status + plans */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-5">
+                <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                    <div className="h-[3px] w-full bg-ant-green" />
+                    <div className="px-4 md:px-6 py-4 md:py-5 border-b border-ant-line">
+                        <div className="flex items-center gap-2">
+                            <span className="font-display text-[11px] text-ant-orange">03</span>
+                            <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                                Businesses par statut
+                            </span>
+                        </div>
+                        <p className="font-serif italic text-[12px] text-ant-mid mt-1">
+                            Active · suspended · deactivated
+                        </p>
                     </div>
-                    <div className="h-[220px]">
+                    <div className="p-3 md:p-5">
                         {stats.statusChart.length === 0 ? (
-                            <p className="text-[11px] text-gray-400 text-center py-16">No data</p>
+                            <p className="font-serif italic text-[12px] text-ant-mid text-center py-16">Aucune donnée</p>
                         ) : (
-                            <ResponsiveContainer width="100%" height="100%">
+                            <ResponsiveContainer width="100%" height={220}>
                                 <BarChart data={stats.statusChart} layout="vertical" margin={{ left: 16 }}>
-                                    <CartesianGrid strokeDasharray="3 3" className="stroke-gray-100" />
-                                    <XAxis type="number" allowDecimals={false} tick={{ fontSize: 9, fill: '#9ca3af' }} />
-                                    <YAxis type="category" dataKey="name" width={80} tick={{ fontSize: 10, fill: '#6b7280' }} />
-                                    <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #f3f4f6', boxShadow: 'none', fontSize: 11 }} />
+                                    <CartesianGrid strokeDasharray="3 3" stroke={ANT.line} horizontal={false} />
+                                    <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10, fill: ANT.mid }} axisLine={false} tickLine={false} />
+                                    <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 11, fill: ANT.ink }} axisLine={false} tickLine={false} />
+                                    <Tooltip
+                                        contentStyle={{
+                                            borderRadius: 10,
+                                            border: `1px solid ${ANT.line}`,
+                                            background: '#ffffff',
+                                            boxShadow: '0 8px 24px rgba(20,20,19,0.08)',
+                                            fontSize: 11,
+                                        }}
+                                        cursor={{ fill: 'rgba(20,20,19,0.04)' }}
+                                    />
                                     <Bar dataKey="value" radius={[0, 6, 6, 0]} name="Businesses">
                                         {stats.statusChart.map((entry) => (
                                             <Cell key={entry.name} fill={entry.fill} />
@@ -374,29 +457,55 @@ const OwnerPlatformDashboard = () => {
                             </ResponsiveContainer>
                         )}
                     </div>
-                </div>
+                </section>
 
-                <div className="rounded-xl border border-gray-100 bg-white p-3.5">
-                    <div className="mb-2">
-                        <p className="text-[11px] font-semibold text-brand-navy">Businesses by plan</p>
-                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em]">Top plans by assigned businesses</p>
+                <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                    <div className="h-[3px] w-full bg-ant-ink" />
+                    <div className="px-4 md:px-6 py-4 md:py-5 border-b border-ant-line">
+                        <div className="flex items-center gap-2">
+                            <span className="font-display text-[11px] text-ant-orange">04</span>
+                            <span className="font-display text-[10px] uppercase tracking-[0.22em] text-ant-mid">
+                                Businesses par plan
+                            </span>
+                        </div>
+                        <p className="font-serif italic text-[12px] text-ant-mid mt-1">
+                            Top 10 · plans avec le plus d'assignations
+                        </p>
                     </div>
-                    <div className="h-[220px]">
+                    <div className="p-3 md:p-5">
                         {stats.planChart.length === 0 ? (
-                            <p className="text-[11px] text-gray-400 text-center py-16">No businesses yet</p>
+                            <p className="font-serif italic text-[12px] text-ant-mid text-center py-16">Aucun business</p>
                         ) : (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={stats.planChart} margin={{ top: 8, right: 8, left: 0, bottom: 40 }}>
-                                    <CartesianGrid strokeDasharray="3 3" className="stroke-gray-100" />
-                                    <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#9ca3af' }} interval={0} angle={-25} textAnchor="end" height={52} />
-                                    <YAxis tick={{ fontSize: 9, fill: '#9ca3af' }} allowDecimals={false} width={28} />
-                                    <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #f3f4f6', boxShadow: 'none', fontSize: 11 }} />
-                                    <Bar dataKey="value" fill="#3b5e5e" radius={[6, 6, 0, 0]} name="Businesses" />
+                            <ResponsiveContainer width="100%" height={220}>
+                                <BarChart data={stats.planChart} margin={{ top: 8, right: 8, left: 0, bottom: 52 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke={ANT.line} vertical={false} />
+                                    <XAxis
+                                        dataKey="name"
+                                        tick={{ fontSize: 10, fill: ANT.mid }}
+                                        axisLine={false}
+                                        tickLine={false}
+                                        interval={0}
+                                        angle={-25}
+                                        textAnchor="end"
+                                        height={60}
+                                    />
+                                    <YAxis tick={{ fontSize: 10, fill: ANT.mid }} axisLine={false} tickLine={false} allowDecimals={false} width={28} />
+                                    <Tooltip
+                                        contentStyle={{
+                                            borderRadius: 10,
+                                            border: `1px solid ${ANT.line}`,
+                                            background: '#ffffff',
+                                            boxShadow: '0 8px 24px rgba(20,20,19,0.08)',
+                                            fontSize: 11,
+                                        }}
+                                        cursor={{ fill: 'rgba(20,20,19,0.04)' }}
+                                    />
+                                    <Bar dataKey="value" fill={ANT.ink} radius={[6, 6, 0, 0]} name="Businesses" />
                                 </BarChart>
                             </ResponsiveContainer>
                         )}
                     </div>
-                </div>
+                </section>
             </div>
         </div>
     );
