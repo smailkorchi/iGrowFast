@@ -567,12 +567,12 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[700px] rounded-[32px] border-none p-0 overflow-hidden">
+            <DialogContent className="sm:max-w-[700px] rounded-2xl border-none p-0 overflow-hidden">
                 {step === 'courier' && (
                     <>
-                        <div className="bg-brand-navy p-8 text-white relative">
+                        <div className="bg-ant-ink p-8 text-white relative">
                             <DialogHeader>
-                                <DialogTitle className="text-2xl font-black text-white">Select Courier</DialogTitle>
+                                <DialogTitle className="text-2xl font-semibold text-white">Select Courier</DialogTitle>
                                 <DialogDescription className="text-white/60 font-medium">
                                     Choose an internal courier to generate delivery notes for all confirmed orders.
                                 </DialogDescription>
@@ -581,29 +581,29 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
 
                         <div className="p-8 space-y-6">
                             <div className="relative">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ant-muted" />
                                 <Input
                                     placeholder="Search couriers..."
                                     value={courierSearch}
                                     onChange={(e) => setCourierSearch(e.target.value)}
-                                    className="pl-11 h-12 bg-slate-50 border-none rounded-2xl"
+                                    className="pl-11 h-12 bg-ant-light border-none rounded-2xl"
                                 />
                             </div>
 
                             <div className="space-y-2 max-h-[400px] overflow-y-auto">
                                 {lockCourierId ? (
-                                    <div className="p-4 rounded-2xl border-2 border-brand-navy bg-brand-navy/5">
+                                    <div className="p-4 rounded-2xl border-2 border-ant-ink bg-ant-ink/5">
                                         <div className="flex items-center justify-between">
                                             <div>
-                                                <div className="font-bold text-brand-navy">
+                                                <div className="font-bold text-ant-ink">
                                                     {availableCouriers?.find((c) => c.id === lockCourierId)?.name ||
                                                         'Selected Courier'}
                                                 </div>
-                                                <div className="text-xs text-muted-foreground mt-1">
+                                                <div className="text-xs text-ant-muted mt-1">
                                                     Adding orders to existing delivery note
                                                 </div>
                                             </div>
-                                            <Badge className="bg-brand-navy text-white">LOCKED</Badge>
+                                            <Badge className="bg-ant-ink text-white">LOCKED</Badge>
                                         </div>
                                     </div>
                                 ) : (
@@ -613,17 +613,17 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
                                                 onClick={() => setSelectedCourierId('all')}
                                                 className={`w-full p-4 rounded-2xl border-2 transition-all text-left ${
                                                     selectedCourierId === 'all'
-                                                        ? 'border-brand-navy bg-brand-navy/5'
-                                                        : 'border-slate-200 hover:border-brand-navy/30'
+                                                        ? 'border-ant-ink bg-ant-ink/5'
+                                                        : 'border-slate-200 hover:border-ant-ink/30'
                                                 }`}
                                             >
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-xl bg-brand-navy/10 flex items-center justify-center">
-                                                        <Layers className="w-5 h-5 text-brand-navy" />
+                                                    <div className="w-10 h-10 rounded-xl bg-ant-ink/10 flex items-center justify-center">
+                                                        <Layers className="w-5 h-5 text-ant-ink" />
                                                     </div>
                                                     <div className="flex-1">
-                                                        <div className="font-bold text-brand-navy">All Couriers</div>
-                                                        <div className="text-xs text-muted-foreground mt-1">
+                                                        <div className="font-bold text-ant-ink">All Couriers</div>
+                                                        <div className="text-xs text-ant-muted mt-1">
                                                             {availableCouriers?.reduce((s, c) => s + c.orderCount, 0) || 0} orders across {availableCouriers?.length || 0} couriers
                                                         </div>
                                                     </div>
@@ -637,12 +637,12 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
                                                 onClick={() => setSelectedCourierId(courier.id)}
                                                 className={`w-full p-4 rounded-2xl border-2 transition-all text-left ${
                                                     selectedCourierId === courier.id
-                                                        ? 'border-brand-navy bg-brand-navy/5'
-                                                        : 'border-slate-200 hover:border-brand-navy/30'
+                                                        ? 'border-ant-ink bg-ant-ink/5'
+                                                        : 'border-slate-200 hover:border-ant-ink/30'
                                                 }`}
                                             >
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-xl bg-brand-navy/10 flex items-center justify-center overflow-hidden">
+                                                    <div className="w-10 h-10 rounded-xl bg-ant-ink/10 flex items-center justify-center overflow-hidden">
                                                         {courier.avatar_url ? (
                                                             <img
                                                                 src={courier.avatar_url}
@@ -650,19 +650,19 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
                                                                 className="w-full h-full object-cover"
                                                             />
                                                         ) : (
-                                                            <UserIcon className="w-5 h-5 text-brand-navy" />
+                                                            <UserIcon className="w-5 h-5 text-ant-ink" />
                                                         )}
                                                     </div>
                                                     <div className="flex-1">
-                                                        <div className="font-bold text-brand-navy">{courier.name}</div>
-                                                        <div className="text-xs text-muted-foreground mt-1">
+                                                        <div className="font-bold text-ant-ink">{courier.name}</div>
+                                                        <div className="text-xs text-ant-muted mt-1">
                                                             {courier.orderCount} confirmed orders
                                                             {courier.phone ? ` • ${courier.phone}` : ''}
                                                         </div>
                                                     </div>
                                                     <Badge
                                                         variant="outline"
-                                                        className="text-[10px] font-black text-brand-navy/60 border-brand-navy/10"
+                                                        className="text-[10px] font-semibold text-ant-ink/60 border-ant-ink/10"
                                                     >
                                                         {courier.orderCount}
                                                     </Badge>
@@ -671,7 +671,7 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
                                         ))}
 
                                         {filteredCouriers.length === 0 && (
-                                            <div className="text-center py-8 text-muted-foreground text-sm">
+                                            <div className="text-center py-8 text-ant-muted text-sm">
                                                 No couriers with confirmed orders found.
                                             </div>
                                         )}
@@ -681,7 +681,7 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
 
                             {selectedCourierId && ordersGrouped && (
                                 <div className="space-y-3 pt-4 border-t">
-                                    <div className="text-sm font-bold text-brand-navy/60">Orders to Process:</div>
+                                    <div className="text-sm font-bold text-ant-ink/60">Orders to Process:</div>
                                     <div className="flex gap-3 flex-wrap">
                                         {Object.values(
                                             ordersGrouped as Record<
@@ -691,9 +691,9 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
                                         ).map(({ courier, orders }) => (
                                             <div
                                                 key={courier?.id || 'unknown'}
-                                                className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl flex-1 min-w-[200px]"
+                                                className="flex items-center gap-3 p-3 bg-ant-light rounded-xl flex-1 min-w-[200px]"
                                             >
-                                                <div className="w-10 h-10 rounded-xl bg-brand-navy/10 flex items-center justify-center overflow-hidden">
+                                                <div className="w-10 h-10 rounded-xl bg-ant-ink/10 flex items-center justify-center overflow-hidden">
                                                     {courier?.avatar_url ? (
                                                         <img
                                                             src={courier.avatar_url}
@@ -701,12 +701,12 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
                                                             className="w-full h-full object-cover"
                                                         />
                                                     ) : (
-                                                        <Truck className="w-5 h-5 text-brand-navy" />
+                                                        <Truck className="w-5 h-5 text-ant-ink" />
                                                     )}
                                                 </div>
                                                 <div className="flex-1">
                                                     <div className="font-bold text-sm">{courier?.name || 'Courier'}</div>
-                                                    <div className="text-xs text-muted-foreground">
+                                                    <div className="text-xs text-ant-muted">
                                                         {orders.length} orders (all zones)
                                                     </div>
                                                 </div>
@@ -723,7 +723,7 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
                                 <Button
                                     onClick={handleCourierSelect}
                                     disabled={!selectedCourierId}
-                                    className="bg-brand-navy hover:bg-brand-navy/90 text-white rounded-2xl"
+                                    className="bg-ant-ink hover:bg-ant-ink/90 text-white rounded-2xl"
                                 >
                                     Next: Select Orders
                                 </Button>
@@ -738,9 +738,9 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
                     const allSelected = allOrders.length > 0 && allOrders.every(o => selectedOrderIds.has(o.id));
                     return (
                         <>
-                            <div className="bg-brand-navy p-8 text-white relative">
+                            <div className="bg-ant-ink p-8 text-white relative">
                                 <DialogHeader>
-                                    <DialogTitle className="text-2xl font-black text-white flex items-center gap-3">
+                                    <DialogTitle className="text-2xl font-semibold text-white flex items-center gap-3">
                                         <ListChecks className="w-7 h-7" />
                                         Select Orders
                                     </DialogTitle>
@@ -759,7 +759,7 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
                                             setSelectedOrderIds(new Set(allOrders.map(o => o.id)));
                                         }
                                     }}
-                                    className="flex items-center gap-2 text-sm font-bold text-brand-navy hover:text-brand-navy/70 transition-colors"
+                                    className="flex items-center gap-2 text-sm font-bold text-ant-ink hover:text-ant-ink/70 transition-colors"
                                 >
                                     <Checkbox checked={allSelected} />
                                     {allSelected ? 'Deselect All' : `Select All (${allOrders.length})`}
@@ -770,14 +770,14 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
                                         <div key={courierId}>
                                             {selectedCourierId === 'all' && (
                                                 <div className="flex items-center gap-2 py-2 px-1">
-                                                    <div className="w-6 h-6 rounded-lg bg-brand-navy/10 flex items-center justify-center overflow-hidden">
+                                                    <div className="w-6 h-6 rounded-lg bg-ant-ink/10 flex items-center justify-center overflow-hidden">
                                                         {courier?.avatar_url ? (
                                                             <img src={courier.avatar_url} alt={courier?.name || ''} className="w-full h-full object-cover" />
                                                         ) : (
-                                                            <UserIcon className="w-3.5 h-3.5 text-brand-navy" />
+                                                            <UserIcon className="w-3.5 h-3.5 text-ant-ink" />
                                                         )}
                                                     </div>
-                                                    <span className="text-xs font-bold text-brand-navy/60 uppercase tracking-wide">{courier?.name}</span>
+                                                    <span className="text-xs font-bold text-ant-ink/60 uppercase tracking-wide">{courier?.name}</span>
                                                 </div>
                                             )}
                                             {orders.map((order) => (
@@ -793,20 +793,20 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
                                                     }}
                                                     className={`w-full p-3 rounded-xl border transition-all text-left flex items-center gap-3 ${
                                                         selectedOrderIds.has(order.id)
-                                                            ? 'border-brand-navy/30 bg-brand-navy/5'
+                                                            ? 'border-ant-ink/30 bg-ant-ink/5'
                                                             : 'border-slate-200 hover:border-slate-300'
                                                     }`}
                                                 >
                                                     <Checkbox checked={selectedOrderIds.has(order.id)} className="pointer-events-none" />
                                                     <div className="flex-1 min-w-0">
-                                                        <div className="font-bold text-sm text-brand-navy truncate">{order.name || 'No name'}</div>
-                                                        <div className="text-xs text-muted-foreground mt-0.5">
+                                                        <div className="font-bold text-sm text-ant-ink truncate">{order.name || 'No name'}</div>
+                                                        <div className="text-xs text-ant-muted mt-0.5">
                                                             {order.phone || '—'}
                                                             {order.city?.name ? ` · ${order.city.name}` : ''}
                                                             {order.price != null ? ` · ${order.price} MAD` : ''}
                                                         </div>
                                                         {order.items && order.items.length > 0 && (
-                                                            <div className="text-[10px] text-muted-foreground/70 mt-0.5 truncate">
+                                                            <div className="text-[10px] text-ant-mid mt-0.5 truncate">
                                                                 {order.items.filter(i => i.quantity > 0).map(i => `${i.product?.code || i.product?.name || 'P'} x${i.quantity}`).join(', ')}
                                                             </div>
                                                         )}
@@ -824,7 +824,7 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
                                     <Button
                                         onClick={handleOrderSelectionConfirm}
                                         disabled={selectedOrderIds.size === 0}
-                                        className="bg-brand-navy hover:bg-brand-navy/90 text-white rounded-2xl"
+                                        className="bg-ant-ink hover:bg-ant-ink/90 text-white rounded-2xl"
                                     >
                                         <Package className="w-4 h-4 mr-2" />
                                         Create Parcels ({selectedOrderIds.size})
@@ -837,19 +837,19 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
 
                 {step === 'creating' && (
                     <div className="p-16 text-center space-y-6">
-                        <Loader2 className="w-16 h-16 animate-spin mx-auto text-brand-navy" />
+                        <Loader2 className="w-16 h-16 animate-spin mx-auto text-ant-ink" />
                         <div>
-                            <div className="text-xl font-black text-brand-navy">Creating Parcels...</div>
-                            <div className="text-sm text-muted-foreground mt-2">Courier: {currentCourier}</div>
+                            <div className="text-xl font-semibold text-ant-ink">Creating Parcels...</div>
+                            <div className="text-sm text-ant-muted mt-2">Courier: {currentCourier}</div>
                         </div>
                     </div>
                 )}
 
                 {step === 'review' && (
                     <>
-                        <div className="bg-brand-navy p-8 text-white">
+                        <div className="bg-ant-ink p-8 text-white">
                             <DialogHeader>
-                                <DialogTitle className="text-2xl font-black text-white">Review Parcels</DialogTitle>
+                                <DialogTitle className="text-2xl font-semibold text-white">Review Parcels</DialogTitle>
                                 <DialogDescription className="text-white/60 font-medium">
                                     {successfulParcels.length} parcels created successfully
                                 </DialogDescription>
@@ -858,13 +858,13 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
 
                         <div className="p-8 space-y-4 max-h-[500px] overflow-y-auto">
                             {successfulParcels.map((item, idx) => (
-                                <div key={idx} className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200">
+                                <div key={idx} className="p-4 bg-ant-green/10 rounded-2xl border border-emerald-200">
                                     <div className="flex items-start justify-between">
                                         <div className="flex-1">
-                                            <div className="font-bold text-brand-navy">{item.order.name}</div>
-                                            <div className="text-xs text-muted-foreground">{item.order.phone}</div>
+                                            <div className="font-bold text-ant-ink">{item.order.name}</div>
+                                            <div className="text-xs text-ant-muted">{item.order.phone}</div>
                                         </div>
-                                        <Badge className="bg-emerald-500 text-white border-none">
+                                        <Badge className="bg-ant-green text-white border-none">
                                             {item.tracking_code}
                                         </Badge>
                                     </div>
@@ -873,14 +873,14 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
 
                             {failedParcels.length > 0 && (
                                 <div className="space-y-4 pt-4 border-t">
-                                    <div className="text-sm font-bold text-red-500 flex items-center gap-2">
+                                    <div className="text-sm font-bold text-ant-rose flex items-center gap-2">
                                         <AlertCircle className="w-4 h-4" />
                                         Failed to create ({failedParcels.length})
                                     </div>
                                     {failedParcels.map((item, idx) => (
-                                        <div key={idx} className="p-4 bg-red-50 rounded-2xl border border-red-200">
+                                        <div key={idx} className="p-4 bg-ant-rose/10 rounded-2xl border border-red-200">
                                             <div className="font-bold text-red-900">{item.order.name}</div>
-                                            <div className="text-xs text-red-600 mt-1">{item.error}</div>
+                                            <div className="text-xs text-ant-rose mt-1">{item.error}</div>
                                         </div>
                                     ))}
                                 </div>
@@ -895,7 +895,7 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
                                 <Button
                                     onClick={handleConfirmDeliveryNotes}
                                     disabled={successfulParcels.length === 0}
-                                    className="bg-brand-navy hover:bg-brand-navy/90 text-white rounded-2xl"
+                                    className="bg-ant-ink hover:bg-ant-ink/90 text-white rounded-2xl"
                                 >
                                     <FileText className="w-4 h-4 mr-2" />
                                     Generate Delivery Notes
@@ -907,10 +907,10 @@ export const CourierDeliveryNoteWizard: React.FC<CourierDeliveryNoteWizardProps>
 
                 {step === 'finalizing' && (
                     <div className="p-16 text-center space-y-6">
-                        <Loader2 className="w-16 h-16 animate-spin mx-auto text-brand-navy" />
+                        <Loader2 className="w-16 h-16 animate-spin mx-auto text-ant-ink" />
                         <div>
-                            <div className="text-xl font-black text-brand-navy">Generating Delivery Notes...</div>
-                            <div className="text-sm text-muted-foreground mt-2">Please wait</div>
+                            <div className="text-xl font-semibold text-ant-ink">Generating Delivery Notes...</div>
+                            <div className="text-sm text-ant-muted mt-2">Please wait</div>
                         </div>
                     </div>
                 )}

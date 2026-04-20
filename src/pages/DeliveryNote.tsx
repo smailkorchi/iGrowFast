@@ -1028,13 +1028,13 @@ const DeliveryNote = () => {
     const getStatusBadge = (status: string) => {
         switch (status) {
             case 'delivered':
-                return <Badge className="bg-emerald-50 text-emerald-600 border-none font-bold text-[10px] tracking-widest px-3 py-1.5 rounded-xl uppercase flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3" /> Delivered</Badge>;
+                return <Badge className="bg-ant-green/10 text-ant-green border-none font-bold text-[10px] tracking-widest px-3 py-1.5 rounded-xl uppercase flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3" /> Delivered</Badge>;
             case 'pending':
-                return <Badge className="bg-amber-50 text-amber-600 border-none font-bold text-[10px] tracking-widest px-3 py-1.5 rounded-xl uppercase flex items-center gap-1.5"><Clock className="w-3 h-3" /> Pending</Badge>;
+                return <Badge className="bg-ant-orange/10 text-ant-orange border-none font-bold text-[10px] tracking-widest px-3 py-1.5 rounded-xl uppercase flex items-center gap-1.5"><Clock className="w-3 h-3" /> Pending</Badge>;
             case 'picked_up':
                 return <Badge className="bg-indigo-50 text-indigo-600 border-none font-bold text-[10px] tracking-widest px-3 py-1.5 rounded-xl uppercase flex items-center gap-1.5"><Truck className="w-3 h-3" /> Picked Up</Badge>;
             default:
-                return <Badge className="bg-slate-50 text-slate-600 border-none font-bold text-[10px] tracking-widest px-3 py-1.5 rounded-xl uppercase flex items-center gap-1.5">{status}</Badge>;
+                return <Badge className="bg-ant-light text-ant-muted border-none font-bold text-[10px] tracking-widest px-3 py-1.5 rounded-xl uppercase flex items-center gap-1.5">{status}</Badge>;
         }
     };
 
@@ -1044,105 +1044,167 @@ const DeliveryNote = () => {
         const isCourier = type === 'courier';
         const provider = note.providers;
         const courier = note.courier;
-        const brandColor = isCourier ? '#2d6d6c' : getProviderColor(provider);
+        const brandColor = isCourier ? '#788c5d' : getProviderColor(provider);
         const displayName = isCourier
             ? (courier?.name || 'Local')
             : (provider?.business_name || provider?.name || 'N/A');
         const logoUrl = !isCourier ? provider?.logo_url : null;
         const avatarUrl = isCourier ? courier?.avatar_url : null;
+        const parcelCount = note.parcel_count || 0;
 
         return (
-            <Card key={note.id} className="group relative overflow-hidden border-none bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-2xl transition-all duration-500 rounded-[32px]">
-                {/* Brand color accent */}
-                <div className="absolute top-0 left-0 w-full h-1.5" style={{ backgroundColor: brandColor }} />
+            <Card
+                key={note.id}
+                className="group relative overflow-hidden border border-ant-line bg-ant-paper shadow-none hover:border-ant-ink/20 transition-all duration-300 rounded-2xl"
+            >
+                {/* Brand color hairline — hugs the inside of the rounded border */}
+                <div className="h-[3px]" style={{ backgroundColor: brandColor }} />
 
-                <CardContent className="p-8 space-y-6">
-                    {/* Header with identity avatar/logo */}
-                    <div className="flex justify-between items-start gap-4">
-                        <div className="flex items-center gap-4 flex-1">
-                            {logoUrl ? (
-                                <div className="p-3 rounded-2xl border-2" style={{ backgroundColor: `${brandColor}15`, borderColor: `${brandColor}40` }}>
-                                    <img src={logoUrl} alt={displayName} className="w-12 h-12 object-contain" />
-                                </div>
-                            ) : avatarUrl ? (
-                                <div className="w-16 h-16 rounded-2xl overflow-hidden border-2 shadow-sm" style={{ borderColor: `${brandColor}40` }}>
-                                    <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
-                                </div>
-                            ) : (
-                                <div className="w-16 h-16 rounded-2xl flex items-center justify-center font-bold text-white" style={{ backgroundColor: brandColor }}>
-                                    {isCourier ? <Truck className="w-7 h-7" /> : <Building2 className="w-7 h-7" />}
-                                </div>
-                            )}
+                <CardContent className="p-5 space-y-4">
+                    {/* Identity row — logo/avatar + reference/draft + meta */}
+                    <div className="flex items-start gap-4">
+                        {logoUrl ? (
+                            <div
+                                className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 p-2 border border-ant-line bg-ant-paper"
+                            >
+                                <img src={logoUrl} alt={displayName} className="w-full h-full object-contain" />
+                            </div>
+                        ) : avatarUrl ? (
+                            <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 border border-ant-line">
+                                <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
+                            </div>
+                        ) : (
+                            <div
+                                className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 text-white"
+                                style={{ backgroundColor: brandColor }}
+                            >
+                                {isCourier ? <Truck className="w-5 h-5" strokeWidth={1.75} /> : <Building2 className="w-5 h-5" strokeWidth={1.75} />}
+                            </div>
+                        )}
 
-                            {/* Note Info */}
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                    <h3 className="text-xl font-black text-brand-navy tracking-tight truncate">{note.reference}</h3>
-                                    {!note.is_finalized && (
-                                        <Badge className="bg-amber-500/10 text-amber-600 border-none font-black text-[9px] uppercase tracking-tighter px-2 rounded-lg">Draft</Badge>
-                                    )}
-                                </div>
-                                <div className="flex items-center gap-2 text-muted-foreground mt-1">
-                                    <Calendar className="w-3.5 h-3.5" />
-                                    <span className="text-xs font-semibold">
-                                        {note.created_at ? format(new Date(note.created_at), 'dd MMM yyyy, HH:mm') : 'N/A'}
+                        <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="font-display text-[16px] font-semibold text-ant-ink tracking-[-0.01em] truncate">
+                                    {note.reference}
+                                </h3>
+                                {!note.is_finalized ? (
+                                    <span className="inline-flex items-center gap-1 text-[9.5px] font-medium uppercase tracking-[0.22em] text-ant-orange bg-ant-orange/10 border border-ant-orange/30 px-2 py-0.5 rounded-full">
+                                        <span className="w-1 h-1 rounded-full bg-ant-orange" />
+                                        Draft
                                     </span>
-                                </div>
+                                ) : (
+                                    <span className="inline-flex items-center gap-1 text-[9.5px] font-medium uppercase tracking-[0.22em] text-ant-green bg-ant-green/10 border border-ant-green/25 px-2 py-0.5 rounded-full">
+                                        <CheckCircle2 className="w-2.5 h-2.5" />
+                                        Finalized
+                                    </span>
+                                )}
+                            </div>
+                            <div className="mt-1 flex items-center gap-3 text-[11px] text-ant-muted">
+                                <span className="flex items-center gap-1 tabular-nums">
+                                    <Calendar className="w-3 h-3 text-ant-mid" />
+                                    {note.created_at ? format(new Date(note.created_at), 'dd MMM yyyy · HH:mm') : 'N/A'}
+                                </span>
                                 {note.creator && (
-                                    <div className="flex items-center gap-2 text-muted-foreground mt-1 min-w-0">
+                                    <span className="flex items-center gap-1 min-w-0">
                                         {note.creator?.avatar_url ? (
-                                            <img src={note.creator.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover shrink-0" />
+                                            <img src={note.creator.avatar_url} alt="" className="w-4 h-4 rounded-full object-cover shrink-0" />
                                         ) : (
-                                            <User className="w-3.5 h-3.5 shrink-0" />
+                                            <User className="w-3 h-3 text-ant-mid shrink-0" />
                                         )}
-                                        <span className="text-xs font-semibold truncate">{note.creator?.name ?? 'Unknown'}</span>
-                                    </div>
+                                        <span className="truncate">{note.creator?.name ?? 'Unknown'}</span>
+                                    </span>
                                 )}
                             </div>
                         </div>
                     </div>
 
-                    {/* Identity + Parcel Count */}
-                    <div className="grid grid-cols-2 gap-6">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${brandColor}15`, color: brandColor }}>
-                                {isCourier ? <Truck className="w-5 h-5" /> : <Building2 className="w-5 h-5" />}
-                            </div>
-                            <div className="flex flex-col min-w-0">
-                                <span className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest leading-none">
+                    {/* Two-column identity strip on hairline divider row */}
+                    <div className="grid grid-cols-2 gap-px bg-ant-line rounded-xl overflow-hidden border border-ant-line">
+                        <div className="bg-ant-paper px-3 py-2.5">
+                            <div className="flex items-center gap-1.5">
+                                <span className="w-1 h-1 rounded-full shrink-0" style={{ backgroundColor: brandColor }} />
+                                <span className="text-[9.5px] font-medium uppercase tracking-[0.22em] text-ant-mid">
                                     {isCourier ? 'Courier' : 'Provider'}
                                 </span>
-                                <span className="text-sm font-bold text-brand-navy truncate mt-1">{displayName}</span>
+                            </div>
+                            <div className="font-display text-[14px] font-semibold text-ant-ink tracking-[-0.01em] leading-tight mt-1 truncate">
+                                {displayName}
                             </div>
                         </div>
-
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${brandColor}15`, color: brandColor }}>
-                                <Package className="w-5 h-5" />
+                        <div className="bg-ant-paper px-3 py-2.5">
+                            <div className="flex items-center gap-1.5">
+                                <Package className="w-2.5 h-2.5 text-ant-mid" strokeWidth={2} />
+                                <span className="text-[9.5px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                                    Parcels
+                                </span>
                             </div>
-                            <div className="flex flex-col">
-                                <span className="text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest leading-none">Parcels</span>
-                                <span className="text-sm font-bold text-brand-navy mt-1">{note.parcel_count || 0} units</span>
+                            <div className="font-display text-[18px] font-semibold text-ant-ink tabular-nums tracking-[-0.02em] leading-none mt-1">
+                                {parcelCount}
+                                <span className="text-[10px] font-medium text-ant-mid ml-1">units</span>
                             </div>
                         </div>
                     </div>
 
-                    <Separator className="bg-brand-navy/[0.05]" />
-
-                    {/* Actions */}
-                    <div className="flex items-center justify-between">
+                    {/* Actions footer */}
+                    <div className="flex items-center gap-2 flex-wrap">
                         <Button
-                            variant="ghost"
-                            size="sm"
+                            variant="outline"
                             onClick={() => {
                                 setSelectedNote(note);
                                 setIsViewModalOpen(true);
                             }}
-                            className="font-bold text-xs gap-2 rounded-xl h-11 px-5 hover:opacity-90"
-                            style={{ color: brandColor }}
+                            className="flex-1 h-9 rounded-full border-ant-line bg-ant-paper text-ant-ink hover:border-ant-ink/25 hover:bg-ant-line-soft text-[11.5px] font-medium gap-1.5"
                         >
-                            <Eye className="w-4 h-4" /> Preview
+                            <Eye className="w-3.5 h-3.5" /> Preview
                         </Button>
+
+                        {!note.is_finalized && (note.provider_id || note.courier_id) && (
+                            <Button
+                                onClick={() => handleFinalizeNote(note)}
+                                className="flex-1 h-9 rounded-full bg-ant-ink hover:bg-ant-ink/90 text-ant-light text-[11.5px] font-medium gap-1.5"
+                            >
+                                <CheckCircle2 className="w-3.5 h-3.5 text-ant-orange" /> Finalize
+                            </Button>
+                        )}
+                        {note.is_finalized && (note.provider_id || note.courier_id) && (
+                            <Button
+                                onClick={() => handleReopenNote(note)}
+                                disabled={isReopening}
+                                className="flex-1 h-9 rounded-full bg-ant-orange/10 hover:bg-ant-orange/20 text-ant-orange border border-ant-orange/25 text-[11.5px] font-medium gap-1.5 disabled:opacity-50"
+                            >
+                                {isReopening ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Unlock className="w-3.5 h-3.5" />}
+                                {isReopening ? 'Reopening…' : 'Reopen'}
+                            </Button>
+                        )}
+
+                        {!note.is_finalized && note.provider_id && (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                    setWizardProviderId(note.provider_id);
+                                    setIsWizardOpen(true);
+                                }}
+                                className="h-9 w-9 rounded-full text-ant-mid hover:text-ant-ink hover:bg-ant-line-soft"
+                                title="Add orders to this note"
+                            >
+                                <PlusCircle className="w-4 h-4" />
+                            </Button>
+                        )}
+                        {!note.is_finalized && isCourier && note.courier_id && (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                    setCourierWizardLockId(note.courier_id);
+                                    setIsCourierWizardOpen(true);
+                                }}
+                                className="h-9 w-9 rounded-full text-ant-mid hover:text-ant-ink hover:bg-ant-line-soft"
+                                title="Add orders to this note"
+                            >
+                                <PlusCircle className="w-4 h-4" />
+                            </Button>
+                        )}
 
                         {!note.is_finalized && (
                             <Button
@@ -1152,75 +1214,31 @@ const DeliveryNote = () => {
                                     setSelectedNote(note);
                                     setIsDeleteModalOpen(true);
                                 }}
-                                className="w-11 h-11 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50"
-                                title="Supprimer le bon"
+                                className="h-9 w-9 rounded-full text-ant-mid hover:text-ant-rose hover:bg-ant-rose/10"
+                                title="Delete note"
                             >
                                 <Trash2 className="w-4 h-4" />
                             </Button>
                         )}
                     </div>
-
-                    {/* Finalize / Reopen */}
-                    {!note.is_finalized && (note.provider_id || note.courier_id) && (
-                        <Button
-                            onClick={() => handleFinalizeNote(note)}
-                            className="w-full bg-emerald-500/10 hover:bg-emerald-500 text-emerald-600 hover:text-white rounded-xl h-10 font-bold text-xs gap-2 transition-all"
-                        >
-                            <CheckCircle2 className="w-4 h-4" /> Finaliser le Bon
-                        </Button>
-                    )}
-                    {note.is_finalized && (note.provider_id || note.courier_id) && (
-                        <Button
-                            onClick={() => handleReopenNote(note)}
-                            disabled={isReopening}
-                            className="w-full bg-amber-500/10 hover:bg-amber-500 text-amber-600 hover:text-white rounded-xl h-10 font-bold text-xs gap-2 transition-all disabled:opacity-50"
-                        >
-                            {isReopening ? <Loader2 className="w-4 h-4 animate-spin" /> : <Unlock className="w-4 h-4" />}
-                            {isReopening ? 'Réouverture...' : 'Réouvrir le Bon'}
-                        </Button>
-                    )}
-
-                    {/* Add Orders */}
-                    {!note.is_finalized && note.provider_id && (
-                        <Button
-                            onClick={() => {
-                                setWizardProviderId(note.provider_id);
-                                setIsWizardOpen(true);
-                            }}
-                            className="w-full bg-brand-navy/5 hover:bg-brand-navy/10 text-brand-navy rounded-xl h-10 font-bold text-xs gap-2"
-                        >
-                            <PlusCircle className="w-4 h-4" /> Add Orders
-                        </Button>
-                    )}
-                    {!note.is_finalized && isCourier && note.courier_id && (
-                        <Button
-                            onClick={() => {
-                                setCourierWizardLockId(note.courier_id);
-                                setIsCourierWizardOpen(true);
-                            }}
-                            className="w-full bg-brand-navy/5 hover:bg-brand-navy/10 text-brand-navy rounded-xl h-10 font-bold text-xs gap-2"
-                        >
-                            <PlusCircle className="w-4 h-4" /> Add Orders
-                        </Button>
-                    )}
                 </CardContent>
             </Card>
         );
     };
 
     const renderNoteTable = (notes: any[], type: 'company' | 'courier') => (
-        <div className="bg-white/50 backdrop-blur-sm shadow-xl rounded-[32px] overflow-hidden border border-brand-navy/[0.03] mb-20 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="bg-ant-paper rounded-2xl overflow-hidden border border-ant-line">
             <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                     <thead>
-                        <tr className="bg-brand-navy/[0.02]">
-                            <th className="p-6 text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Reference & Date</th>
-                            <th className="p-6 text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Provider / Courier</th>
-                            <th className="p-6 text-[10px] font-black uppercase tracking-widest text-brand-navy/40">Shipment Info</th>
-                            <th className="p-6 text-[10px] font-black uppercase tracking-widest text-brand-navy/40 text-right">Actions</th>
+                        <tr className="bg-ant-line-soft">
+                            <th className="px-4 py-3 text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Reference & Date</th>
+                            <th className="px-4 py-3 text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Provider / Courier</th>
+                            <th className="px-4 py-3 text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Shipment Info</th>
+                            <th className="px-4 py-3 text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid text-right">Actions</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-brand-navy/[0.03]">
+                    <tbody className="divide-y divide-ant-line">
                         {notes.map((note) => {
                             const isCourier = type === 'courier';
                             const provider = note.providers;
@@ -1233,26 +1251,35 @@ const DeliveryNote = () => {
                             const avatarUrl = isCourier ? courier?.avatar_url : null;
 
                             return (
-                                <tr key={note.id} className="hover:bg-brand-navy/[0.01] transition-colors group">
-                                    <td className="p-6">
+                                <tr key={note.id} className="hover:bg-ant-line-soft transition-colors group">
+                                    <td className="px-4 py-3">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform" style={{ backgroundColor: `${brandColor}15`, color: brandColor }}>
-                                                <FileText className="w-5 h-5" />
+                                            <div
+                                                className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+                                                style={{ backgroundColor: `${brandColor}14`, color: brandColor }}
+                                            >
+                                                <FileText className="w-4 h-4" strokeWidth={1.75} />
                                             </div>
                                             <div className="flex flex-col min-w-0">
                                                 <div className="flex items-center gap-2">
-                                                    <span className="text-sm font-bold text-brand-navy truncate">
+                                                    <span className="font-display text-[13px] font-semibold text-ant-ink tracking-[-0.01em] truncate">
                                                         {note.reference}
                                                     </span>
-                                                    {!note.is_finalized && (
-                                                        <Badge className="bg-amber-500/10 text-amber-600 border-none font-black text-[8px] uppercase tracking-tighter px-1.5 rounded-md">Draft</Badge>
+                                                    {note.is_finalized ? (
+                                                        <span className="inline-flex items-center text-[9px] font-medium uppercase tracking-[0.2em] text-ant-green bg-ant-green/10 border border-ant-green/25 px-1.5 py-0.5 rounded-full">
+                                                            Final
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center text-[9px] font-medium uppercase tracking-[0.2em] text-ant-orange bg-ant-orange/10 border border-ant-orange/30 px-1.5 py-0.5 rounded-full">
+                                                            Draft
+                                                        </span>
                                                     )}
                                                 </div>
-                                                <span className="text-[10px] font-bold text-muted-foreground tracking-wider">
+                                                <span className="text-[10.5px] text-ant-muted tabular-nums">
                                                     {note.created_at ? format(new Date(note.created_at), 'dd MMM yyyy, HH:mm') : 'N/A'}
                                                 </span>
                                                 {note.creator && (
-                                                    <span className="text-[10px] font-bold text-muted-foreground flex items-center gap-1 mt-0.5">
+                                                    <span className="text-[10.5px] text-ant-muted flex items-center gap-1 mt-0.5">
                                                         {note.creator?.avatar_url ? (
                                                             <img src={note.creator.avatar_url} alt="" className="w-4 h-4 rounded-full object-cover" />
                                                         ) : (
@@ -1264,37 +1291,37 @@ const DeliveryNote = () => {
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="p-6">
+                                    <td className="px-4 py-3">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-xl bg-brand-navy/[0.04] flex items-center justify-center overflow-hidden border border-brand-navy/[0.03]">
+                                            <div className="w-10 h-10 rounded-lg bg-ant-line-soft flex items-center justify-center overflow-hidden border border-ant-line">
                                                 {logoUrl ? (
                                                     <img src={logoUrl} alt="" className="w-full h-full object-contain p-1.5" />
                                                 ) : avatarUrl ? (
                                                     <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
                                                 ) : (
-                                                    isCourier ? <Truck className="w-4 h-4 text-brand-navy/50" /> : <Building2 className="w-4 h-4 text-blue-500" />
+                                                    isCourier ? <Truck className="w-4 h-4 text-ant-mid" /> : <Building2 className="w-4 h-4 text-ant-orange" />
                                                 )}
                                             </div>
                                             <div className="flex flex-col min-w-0">
-                                                <span className="text-[10px] font-black text-muted-foreground/40 uppercase tracking-widest leading-none">
+                                                <span className="text-[9.5px] font-medium text-ant-mid uppercase tracking-[0.22em] leading-none">
                                                     {isCourier ? 'Courier' : 'Provider'}
                                                 </span>
-                                                <span className="text-sm font-bold text-brand-navy truncate mt-1">{displayName}</span>
+                                                <span className="text-[13px] font-semibold text-ant-ink truncate mt-1">{displayName}</span>
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="p-6">
+                                    <td className="px-4 py-3">
                                         <div className="flex flex-col gap-1">
-                                            <div className="flex items-center gap-1.5 text-xs font-bold text-brand-navy">
-                                                <Package className="w-3.5 h-3.5 text-indigo-500" />
+                                            <div className="flex items-center gap-1.5 text-[12.5px] font-semibold text-ant-ink">
+                                                <Package className="w-3.5 h-3.5 text-ant-orange" />
                                                 {note.parcel_count || 0} Parcels
                                             </div>
-                                            <div className="flex items-center gap-1.5 text-[10px] font-black text-muted-foreground/40 uppercase tracking-widest">
+                                            <div className="flex items-center gap-1.5 text-[9.5px] font-medium text-ant-mid uppercase tracking-[0.22em]">
                                                 ID: {note.id.split('-')[0]}
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="p-6 text-right">
+                                    <td className="px-4 py-3 text-right">
                                         <div className="flex items-center justify-end gap-2">
                                             <Button
                                                 variant="ghost"
@@ -1303,7 +1330,7 @@ const DeliveryNote = () => {
                                                     setSelectedNote(note);
                                                     setIsViewModalOpen(true);
                                                 }}
-                                                className="h-9 w-9 rounded-xl bg-brand-navy/[0.04] hover:bg-brand-navy text-brand-navy hover:text-brand-white transition-all shadow-sm"
+                                                className="h-9 w-9 rounded-full border border-ant-line bg-ant-paper text-ant-ink hover:border-ant-ink/25 hover:bg-ant-line-soft"
                                             >
                                                 <Eye className="w-4 h-4" />
                                             </Button>
@@ -1312,7 +1339,7 @@ const DeliveryNote = () => {
                                                     variant="ghost"
                                                     size="icon"
                                                     onClick={() => handleFinalizeNote(note)}
-                                                    className="h-9 w-9 rounded-xl bg-emerald-500/10 hover:bg-emerald-500 text-emerald-600 hover:text-white transition-all shadow-sm"
+                                                    className="h-9 w-9 rounded-full border border-ant-green/25 bg-ant-green/10 text-ant-green hover:bg-ant-green hover:text-white"
                                                     title="Finaliser le Bon"
                                                 >
                                                     <CheckCircle2 className="w-4 h-4" />
@@ -1324,7 +1351,7 @@ const DeliveryNote = () => {
                                                     size="icon"
                                                     onClick={() => handleReopenNote(note)}
                                                     disabled={isReopening}
-                                                    className="h-9 w-9 rounded-xl bg-amber-500/10 hover:bg-amber-500 text-amber-600 hover:text-white transition-all shadow-sm disabled:opacity-50"
+                                                    className="h-9 w-9 rounded-full border border-ant-orange/25 bg-ant-orange/10 text-ant-orange hover:bg-ant-orange hover:text-white disabled:opacity-50"
                                                     title="Réouvrir le Bon"
                                                 >
                                                     {isReopening ? <Loader2 className="w-4 h-4 animate-spin" /> : <Unlock className="w-4 h-4" />}
@@ -1338,7 +1365,7 @@ const DeliveryNote = () => {
                                                         setWizardProviderId(note.provider_id);
                                                         setIsWizardOpen(true);
                                                     }}
-                                                    className="h-9 w-9 rounded-xl bg-brand-navy/[0.04] hover:bg-emerald-500 text-brand-navy hover:text-white transition-all shadow-sm"
+                                                    className="h-9 w-9 rounded-full border border-ant-line bg-ant-paper text-ant-ink hover:bg-ant-green hover:text-white hover:border-ant-green"
                                                     title="Add Orders"
                                                 >
                                                     <PlusCircle className="w-4 h-4" />
@@ -1352,7 +1379,7 @@ const DeliveryNote = () => {
                                                         setCourierWizardLockId(note.courier_id);
                                                         setIsCourierWizardOpen(true);
                                                     }}
-                                                    className="h-9 w-9 rounded-xl bg-brand-navy/[0.04] hover:bg-emerald-500 text-brand-navy hover:text-white transition-all shadow-sm"
+                                                    className="h-9 w-9 rounded-full border border-ant-line bg-ant-paper text-ant-ink hover:bg-ant-green hover:text-white hover:border-ant-green"
                                                     title="Add Orders"
                                                 >
                                                     <PlusCircle className="w-4 h-4" />
@@ -1366,7 +1393,7 @@ const DeliveryNote = () => {
                                                         setSelectedNote(note);
                                                         setIsDeleteModalOpen(true);
                                                     }}
-                                                    className="h-9 w-9 rounded-xl bg-brand-navy/[0.04] text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all shadow-sm"
+                                                    className="h-9 w-9 rounded-xl bg-ant-ink/[0.04] text-ant-mid hover:text-ant-rose hover:bg-ant-rose/10 transition-all shadow-sm"
                                                     title="Supprimer le bon"
                                                 >
                                                     <Trash2 className="w-4 h-4" />
@@ -1383,113 +1410,151 @@ const DeliveryNote = () => {
         </div>
     );
 
+    const totalCompany = companyNotes?.length || 0;
+    const totalCourier = courierNotes?.length || 0;
+    const openCompany = (companyNotes || []).filter((n: any) => !n.is_finalized).length;
+    const openCourier = (courierNotes || []).filter((n: any) => !n.is_finalized).length;
+    const activeList = activeTab === 'company' ? companyNotes : courierNotes;
+    const activeLoading = activeTab === 'company' ? loadingCompany : loadingCourier;
+    const activeOpen = activeTab === 'company' ? openCompany : openCourier;
+    const activeTotal = activeTab === 'company' ? totalCompany : totalCourier;
+
     return (
-        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
-            {/* Header — compact Analytics style */}
-            <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div>
-                    <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">
-                        Delivery Notes
+        <div className="ant-surface mx-auto max-w-[1440px] px-2 md:px-3 py-2 space-y-4">
+            {/* Editorial header */}
+            <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 pt-1">
+                <div className="space-y-1.5">
+                    <span className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                        <span className="w-1 h-1 rounded-full bg-ant-orange" />
+                        Shipping · Documents
+                    </span>
+                    <h1 className="font-display text-[30px] md:text-[34px] font-semibold text-ant-ink leading-[1.05] tracking-[-0.02em]">
+                        Delivery notes
                     </h1>
-                    <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">
-                        Outgoing shipment documents
+                    <p className="font-serif-display text-[13px] text-ant-muted italic">
+                        Bundle confirmed orders into a handover manifest for couriers and providers.
                     </p>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
-                    <div className="relative sm:w-72">
-                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                <div className="flex items-center gap-2 flex-wrap">
+                    <div className="relative w-full sm:w-[280px]">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
                         <Input
-                            placeholder="Search by reference or provider…"
+                            placeholder="Search reference or provider…"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-7 h-8 rounded-md border-gray-200 bg-white text-[11px]"
+                            className="pl-9 h-10 rounded-full border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid focus-visible:ring-ant-orange focus-visible:ring-offset-0 focus-visible:border-ant-ink/25"
                         />
                     </div>
                     <Button
-                        size="sm"
                         onClick={() => {
                             if (activeTab === 'courier') setIsCourierWizardOpen(true);
                             else setIsWizardOpen(true);
                         }}
-                        className="bg-brand-navy hover:bg-brand-navy/90 text-white h-8 px-3 rounded-md text-[11px] font-semibold gap-1.5 shrink-0"
+                        className="h-10 px-5 rounded-full bg-ant-ink hover:bg-ant-ink/90 text-ant-light text-[12px] font-medium shadow-none gap-2 shrink-0"
                     >
                         <Plus className="w-3.5 h-3.5" />
-                        {activeTab === 'courier' ? 'Generate courier note' : 'Generate note'}
+                        {activeTab === 'courier' ? 'New courier note' : 'New note'}
                     </Button>
                 </div>
             </header>
 
+            {/* Summary strip */}
+            <div className="grid grid-cols-3 gap-px bg-ant-line rounded-xl overflow-hidden border border-ant-line">
+                <DeliverySummaryTile label={activeTab === 'company' ? 'Company notes' : 'Courier notes'} value={activeTotal} accent="#141413" icon={FileText} />
+                <DeliverySummaryTile label="Drafts" value={activeOpen} accent="#d97757" icon={Clock} />
+                <DeliverySummaryTile label="Finalized" value={Math.max(0, activeTotal - activeOpen)} accent="#788c5d" icon={CheckCircle2} />
+            </div>
+
             {/* Content Tabs */}
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'company' | 'courier')} className="space-y-3">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                        <TabsList className="h-8">
-                            <TabsTrigger value="company" className="text-[11px] h-6 px-3">Company</TabsTrigger>
-                            <TabsTrigger value="courier" className="text-[11px] h-6 px-3">Courier</TabsTrigger>
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {/* Channel tabs — pill group */}
+                        <TabsList className="h-9 p-0.5 rounded-full bg-ant-paper border border-ant-line gap-0">
+                            <TabsTrigger
+                                value="company"
+                                className="rounded-full px-4 h-8 text-[11.5px] font-medium data-[state=active]:bg-ant-ink data-[state=active]:text-ant-light data-[state=inactive]:text-ant-muted gap-1.5"
+                            >
+                                <Building2 className="w-3 h-3" /> Company
+                                <span className="text-[10px] tabular-nums opacity-70">{totalCompany}</span>
+                            </TabsTrigger>
+                            <TabsTrigger
+                                value="courier"
+                                className="rounded-full px-4 h-8 text-[11.5px] font-medium data-[state=active]:bg-ant-ink data-[state=active]:text-ant-light data-[state=inactive]:text-ant-muted gap-1.5"
+                            >
+                                <Truck className="w-3 h-3" /> Courier
+                                <span className="text-[10px] tabular-nums opacity-70">{totalCourier}</span>
+                            </TabsTrigger>
                         </TabsList>
 
-                        {/* View Switcher — native shadcn ToggleGroup */}
+                        {/* View Switcher — pill group with orange active state */}
                         <ToggleGroup
                             type="single"
                             value={viewMode}
                             onValueChange={(v) => { if (v) setViewMode(v as 'grid' | 'list'); }}
-                            variant="outline"
-                            size="sm"
-                            className="gap-0 shrink-0"
+                            className="gap-0 shrink-0 rounded-full border border-ant-line bg-ant-paper p-0.5"
                         >
-                            <ToggleGroupItem value="grid" aria-label="Grid view" className="h-8 w-8 p-0 rounded-r-none">
+                            <ToggleGroupItem
+                                value="grid"
+                                aria-label="Grid view"
+                                className="h-8 w-8 p-0 rounded-full border-0 text-ant-mid data-[state=on]:bg-ant-ink data-[state=on]:text-ant-light"
+                            >
                                 <LayoutGrid className="w-3.5 h-3.5" />
                             </ToggleGroupItem>
-                            <ToggleGroupItem value="list" aria-label="List view" className="h-8 w-8 p-0 rounded-l-none border-l-0">
+                            <ToggleGroupItem
+                                value="list"
+                                aria-label="List view"
+                                className="h-8 w-8 p-0 rounded-full border-0 text-ant-mid data-[state=on]:bg-ant-ink data-[state=on]:text-ant-light"
+                            >
                                 <List className="w-3.5 h-3.5" />
                             </ToggleGroupItem>
                         </ToggleGroup>
                     </div>
 
-                    <div className="flex items-center gap-1.5 px-2 py-1 bg-white rounded-md border border-gray-100">
-                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        <span className="text-[10px] font-semibold text-gray-500">
-                            History updated just now
+                    <div className="inline-flex items-center gap-2 h-9 px-3.5 rounded-full bg-ant-paper border border-ant-line">
+                        <span className="relative inline-flex">
+                            <span className="w-1.5 h-1.5 rounded-full bg-ant-green" />
+                            <span className="absolute inset-0 w-1.5 h-1.5 rounded-full bg-ant-green animate-ping" />
                         </span>
+                        <span className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Live</span>
+                        <span className="text-[11px] font-medium text-ant-ink">History up to date</span>
                     </div>
                 </div>
 
                 <TabsContent value="company" className="mt-0">
-                    {loadingCompany ? (
-                        <div className="flex items-center justify-center py-8">
-                            <Loader2 className="w-4 h-4 animate-spin text-brand-navy" />
-                        </div>
-                    ) : companyNotes?.length === 0 ? (
-                        <div className="text-center py-8 text-[11px] text-gray-400">
-                            No company delivery notes yet. Click "Generate note" to create one.
-                        </div>
+                    {activeLoading && activeList === companyNotes ? (
+                        <DeliveryListSkeleton />
+                    ) : !companyNotes || companyNotes.length === 0 ? (
+                        <EmptyDeliveryState
+                            kind="company"
+                            onAction={() => setIsWizardOpen(true)}
+                        />
                     ) : (
                         viewMode === 'grid' ? (
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
-                                {companyNotes?.map(note => renderNoteCard(note, 'company'))}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                                {companyNotes.map((note) => renderNoteCard(note, 'company'))}
                             </div>
                         ) : (
-                            renderNoteTable(companyNotes || [], 'company')
+                            renderNoteTable(companyNotes, 'company')
                         )
                     )}
                 </TabsContent>
 
                 <TabsContent value="courier" className="mt-0">
                     {loadingCourier ? (
-                        <div className="flex items-center justify-center py-8">
-                            <Loader2 className="w-4 h-4 animate-spin text-brand-navy" />
-                        </div>
-                    ) : courierNotes?.length === 0 ? (
-                        <div className="text-center py-8 text-[11px] text-gray-400">
-                            No courier delivery notes yet.
-                        </div>
+                        <DeliveryListSkeleton />
+                    ) : !courierNotes || courierNotes.length === 0 ? (
+                        <EmptyDeliveryState
+                            kind="courier"
+                            onAction={() => setIsCourierWizardOpen(true)}
+                        />
                     ) : (
                         viewMode === 'grid' ? (
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
-                                {courierNotes?.map(note => renderNoteCard(note, 'courier'))}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                                {courierNotes.map((note) => renderNoteCard(note, 'courier'))}
                             </div>
                         ) : (
-                            renderNoteTable(courierNotes || [], 'courier')
+                            renderNoteTable(courierNotes, 'courier')
                         )
                     )}
                 </TabsContent>
@@ -1521,26 +1586,31 @@ const DeliveryNote = () => {
 
             {/* Preview Modal */}
             <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
-                <DialogContent className="sm:max-w-[700px] rounded-[32px] border-none p-0 overflow-hidden bg-slate-50">
-                    <div className="p-10 space-y-8 max-h-[85vh] overflow-y-auto">
-                        <div className="flex justify-between items-start">
-                            <div className="space-y-2">
-                                <div className="text-3xl font-black text-brand-navy uppercase tracking-tighter">Delivery Note</div>
-                                <div className="flex items-center gap-2 text-muted-foreground font-bold">
-                                    <span className="text-brand-navy/40">Ref:</span>
-                                    <span>{selectedNote?.reference}</span>
-                                </div>
+                <DialogContent className="ant-surface sm:max-w-[720px] rounded-2xl border border-ant-line p-0 overflow-hidden bg-ant-paper shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)]">
+                    <div className="p-8 space-y-6 max-h-[85vh] overflow-y-auto custom-scrollbar">
+                        <div className="flex justify-between items-start gap-6">
+                            <div>
+                                <span className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                                    <span className="w-1 h-1 rounded-full bg-ant-orange" />
+                                    Delivery note
+                                </span>
+                                <h2 className="font-display text-[28px] font-semibold text-ant-ink tracking-[-0.02em] mt-1 leading-tight">
+                                    {selectedNote?.reference || '—'}
+                                </h2>
+                                <p className="font-serif-display text-[12.5px] text-ant-muted italic mt-1">
+                                    Handover manifest for {noteDetails?.provider?.isCourier ? 'the courier' : 'the provider'}.
+                                </p>
                             </div>
                             {noteDetails?.provider?.logo_url ? (
-                                <div className="p-3 bg-white rounded-2xl shadow-sm border border-brand-navy/5 flex items-center justify-center min-w-[80px]">
+                                <div className="p-3 bg-white rounded-2xl shadow-sm border border-ant-line flex items-center justify-center min-w-[80px]">
                                     <img src={noteDetails.provider.logo_url} alt="Provider Logo" className="h-10 w-auto object-contain" />
                                 </div>
                             ) : noteDetails?.provider?.avatar_url ? (
-                                <div className="w-16 h-16 rounded-2xl shadow-sm border border-brand-navy/5 overflow-hidden">
+                                <div className="w-16 h-16 rounded-2xl shadow-sm border border-ant-line overflow-hidden">
                                     <img src={noteDetails.provider.avatar_url} alt={noteDetails.provider.name || 'Courier'} className="w-full h-full object-cover" />
                                 </div>
                             ) : (
-                                <div className="w-16 h-16 bg-brand-navy rounded-2xl flex items-center justify-center text-white font-black text-xl">
+                                <div className="w-16 h-16 bg-ant-ink rounded-2xl flex items-center justify-center text-white font-semibold text-xl">
                                     {noteDetails?.provider?.isCourier ? <Truck className="w-7 h-7" /> : 'D'}
                                 </div>
                             )}
@@ -1548,32 +1618,32 @@ const DeliveryNote = () => {
 
                         <div className="grid grid-cols-2 gap-10">
                             <div className="space-y-4">
-                                <div className="text-[10px] font-black text-brand-navy/40 uppercase tracking-widest">
+                                <div className="text-[10px] font-semibold text-ant-mid uppercase tracking-widest">
                                     {noteDetails?.provider?.isCourier ? 'Courier' : 'Provider / Business'}
                                 </div>
                                 <div className="space-y-1">
-                                    <div className="font-bold text-brand-navy text-lg">{noteDetails?.provider?.business_name || noteDetails?.provider?.name || 'Loading...'}</div>
+                                    <div className="font-bold text-ant-ink text-lg">{noteDetails?.provider?.business_name || noteDetails?.provider?.name || 'Loading...'}</div>
                                     {noteDetails?.provider?.isCourier ? (
                                         <>
                                             {noteDetails?.provider?.phone && (
-                                                <div className="text-sm text-muted-foreground font-medium">Phone: {noteDetails.provider.phone}</div>
+                                                <div className="text-sm text-ant-muted font-medium">Phone: {noteDetails.provider.phone}</div>
                                             )}
-                                            <div className="text-sm text-muted-foreground font-medium">Reference: {selectedNote?.reference}</div>
+                                            <div className="text-sm text-ant-muted font-medium">Reference: {selectedNote?.reference}</div>
                                         </>
                                     ) : (
                                         <>
-                                            <div className="text-sm text-muted-foreground font-medium">Provider: {noteDetails?.provider?.provider_type?.toUpperCase() || 'N/A'}</div>
-                                            <div className="text-sm text-muted-foreground font-medium">Reference: {selectedNote?.reference}</div>
+                                            <div className="text-sm text-ant-muted font-medium">Provider: {noteDetails?.provider?.provider_type?.toUpperCase() || 'N/A'}</div>
+                                            <div className="text-sm text-ant-muted font-medium">Reference: {selectedNote?.reference}</div>
                                         </>
                                     )}
                                 </div>
                             </div>
                                 <div className="space-y-4 text-right">
-                                <div className="text-[10px] font-black text-brand-navy/40 uppercase tracking-widest">Delivery Details</div>
+                                <div className="text-[10px] font-semibold text-ant-mid uppercase tracking-widest">Delivery Details</div>
                                 <div className="space-y-1">
-                                    <div className="font-bold text-brand-navy text-lg">{selectedNote?.parcel_count || 0} Parcels</div>
-                                    <div className="text-sm text-muted-foreground font-medium">Created: {selectedNote?.created_at ? format(new Date(selectedNote.created_at), 'dd MMM yyyy, HH:mm') : 'N/A'}</div>
-                                    <div className="text-sm text-muted-foreground font-medium flex items-center justify-end gap-2">
+                                    <div className="font-bold text-ant-ink text-lg">{selectedNote?.parcel_count || 0} Parcels</div>
+                                    <div className="text-sm text-ant-muted font-medium">Created: {selectedNote?.created_at ? format(new Date(selectedNote.created_at), 'dd MMM yyyy, HH:mm') : 'N/A'}</div>
+                                    <div className="text-sm text-ant-muted font-medium flex items-center justify-end gap-2">
                                         {selectedNote?.creator?.avatar_url ? (
                                             <img src={selectedNote.creator.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover" />
                                         ) : (
@@ -1585,34 +1655,34 @@ const DeliveryNote = () => {
                             </div>
                         </div>
 
-                        <div className="bg-white rounded-[24px] overflow-hidden shadow-sm border border-brand-navy/5">
+                        <div className="bg-white rounded-[24px] overflow-hidden shadow-sm border border-ant-line">
                             <table className="w-full">
-                                <thead className="bg-brand-navy/[0.03]">
+                                <thead className="bg-ant-ink/[0.03]">
                                     <tr>
-                                        <th className="px-6 py-4 text-left text-[10px] font-black text-brand-navy/40 uppercase tracking-widest">Tracking Code</th>
-                                        <th className="px-6 py-4 text-left text-[10px] font-black text-brand-navy/40 uppercase tracking-widest">Order Ref</th>
-                                        <th className="px-6 py-4 text-center text-[10px] font-black text-brand-navy/40 uppercase tracking-widest">Status</th>
-                                        <th className="px-6 py-4 text-right text-[10px] font-black text-brand-navy/40 uppercase tracking-widest">Action</th>
+                                        <th className="px-6 py-4 text-left text-[10px] font-semibold text-ant-mid uppercase tracking-widest">Tracking Code</th>
+                                        <th className="px-6 py-4 text-left text-[10px] font-semibold text-ant-mid uppercase tracking-widest">Order Ref</th>
+                                        <th className="px-6 py-4 text-center text-[10px] font-semibold text-ant-mid uppercase tracking-widest">Status</th>
+                                        <th className="px-6 py-4 text-right text-[10px] font-semibold text-ant-mid uppercase tracking-widest">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-brand-navy/5">
                                     {!noteDetails ? (
                                         <tr>
-                                            <td colSpan={4} className="px-6 py-8 text-center text-muted-foreground">Loading parcels...</td>
+                                            <td colSpan={4} className="px-6 py-8 text-center text-ant-muted">Loading parcels...</td>
                                         </tr>
                                     ) : noteDetails.parcels.length === 0 ? (
                                         <tr>
-                                            <td colSpan={4} className="px-6 py-8 text-center text-muted-foreground">No parcels in this delivery note</td>
+                                            <td colSpan={4} className="px-6 py-8 text-center text-ant-muted">No parcels in this delivery note</td>
                                         </tr>
                                     ) : (
                                         noteDetails.parcels.map((parcel: any) => (
-                                            <tr key={parcel.id} className="hover:bg-brand-navy/[0.01] transition-colors">
-                                                <td className="px-6 py-4 font-bold text-sm text-brand-navy">{parcel.tracking_code || parcel.reference}</td>
-                                                <td className="px-6 py-4 text-xs font-medium text-muted-foreground">{parcel.order_id?.slice(0, 8)}</td>
+                                            <tr key={parcel.id} className="hover:bg-ant-light transition-colors">
+                                                <td className="px-6 py-4 font-bold text-sm text-ant-ink">{parcel.tracking_code || parcel.reference}</td>
+                                                <td className="px-6 py-4 text-xs font-medium text-ant-muted">{parcel.order_id?.slice(0, 8)}</td>
                                                 <td className="px-6 py-4 text-center">
                                                     {parcel.real_time_status_label ? (
                                                         <Badge
-                                                            className="border-none text-[8px] font-black px-2 py-0.5 rounded-lg shadow-none"
+                                                            className="border-none text-[8px] font-semibold px-2 py-0.5 rounded-lg shadow-none"
                                                             style={{
                                                                 backgroundColor: parcel.real_time_status_color ? `${parcel.real_time_status_color}15` : '#10b98115',
                                                                 color: parcel.real_time_status_color || '#10b981'
@@ -1621,7 +1691,7 @@ const DeliveryNote = () => {
                                                             {parcel.real_time_status_label}
                                                         </Badge>
                                                     ) : (
-                                                        <Badge className="bg-emerald-50 text-emerald-600 border-none text-[8px] font-black px-2 py-0.5 rounded-lg shadow-none">
+                                                        <Badge className="bg-ant-green/10 text-ant-green border-none text-[8px] font-semibold px-2 py-0.5 rounded-lg shadow-none">
                                                             {parcel.status_label || 'Nouveau'}
                                                         </Badge>
                                                     )}
@@ -1633,7 +1703,7 @@ const DeliveryNote = () => {
                                                                 type="button"
                                                                 size="icon"
                                                                 variant="ghost"
-                                                                className="h-8 w-8 shrink-0 rounded-lg text-brand-navy hover:bg-slate-200/90 hover:text-brand-navy focus-visible:text-brand-navy"
+                                                                className="h-8 w-8 shrink-0 rounded-lg text-ant-ink hover:bg-slate-200/90 hover:text-ant-ink focus-visible:text-ant-ink"
                                                                 title="Suivi"
                                                                 aria-label="Suivi"
                                                                 onClick={() => handleTrackParcel(parcel)}
@@ -1646,7 +1716,7 @@ const DeliveryNote = () => {
                                                                 type="button"
                                                                 size="icon"
                                                                 variant="ghost"
-                                                                className="h-8 w-8 shrink-0 rounded-lg text-red-600 hover:bg-red-100 hover:text-red-700 focus-visible:text-red-700"
+                                                                className="h-8 w-8 shrink-0 rounded-lg text-ant-rose hover:bg-ant-rose/15 hover:text-ant-rose focus-visible:text-ant-rose"
                                                                 title="Retirer du bon"
                                                                 aria-label="Retirer du bon"
                                                                 disabled={removingParcelId === parcel.id}
@@ -1673,7 +1743,7 @@ const DeliveryNote = () => {
                                 <Button
                                     onClick={() => setIsDeleteModalOpen(true)}
                                     variant="ghost"
-                                    className="rounded-2xl h-12 px-6 font-bold text-red-600 hover:bg-red-50 hover:text-red-700 transition-all flex items-center gap-2"
+                                    className="rounded-2xl h-12 px-6 font-bold text-ant-rose hover:bg-ant-rose/10 hover:text-ant-rose transition-all flex items-center gap-2"
                                 >
                                     <Trash2 className="w-4 h-4" />
                                     Supprimer
@@ -1683,7 +1753,7 @@ const DeliveryNote = () => {
                             {!selectedNote?.is_finalized && (selectedNote?.provider_id || selectedNote?.courier_id) && (
                                 <Button
                                     onClick={() => handleFinalizeNote(selectedNote)}
-                                    className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl h-12 px-8 font-bold shadow-lg shadow-emerald-500/10 transition-all flex items-center gap-2"
+                                    className="bg-ant-green hover:bg-ant-green text-white rounded-2xl h-12 px-8 font-bold shadow-lg shadow-emerald-500/10 transition-all flex items-center gap-2"
                                 >
                                     <CheckCircle2 className="w-4 h-4" />
                                     Finaliser le Bon
@@ -1694,7 +1764,7 @@ const DeliveryNote = () => {
                                 <Button
                                     onClick={() => handleReopenNote(selectedNote)}
                                     disabled={isReopening}
-                                    className="bg-amber-500 hover:bg-amber-600 text-white rounded-2xl h-12 px-8 font-bold shadow-lg shadow-amber-500/10 transition-all flex items-center gap-2 disabled:opacity-50"
+                                    className="bg-ant-orange hover:bg-amber-600 text-white rounded-2xl h-12 px-8 font-bold shadow-lg shadow-amber-500/10 transition-all flex items-center gap-2 disabled:opacity-50"
                                 >
                                     {isReopening ? (
                                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -1708,12 +1778,12 @@ const DeliveryNote = () => {
                             {noteDetails?.provider?.isCourier ? (
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <Button className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-12 px-8 font-bold shadow-lg shadow-brand-navy/10 transition-all flex items-center gap-2">
+                                        <Button className="bg-ant-ink hover:bg-ant-ink/90 text-brand-white rounded-2xl h-12 px-8 font-bold shadow-lg shadow-brand-navy/10 transition-all flex items-center gap-2">
                                             <Download className="w-4 h-4" />
                                             Imprimer Étiquettes
                                         </Button>
                                     </DropdownMenuTrigger>
-                                    <DropdownMenuContent className="rounded-2xl p-2 border-none shadow-2xl bg-white min-w-[220px]">
+                                    <DropdownMenuContent className="rounded-2xl p-2 border-none shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] bg-white min-w-[220px]">
                                         <DropdownMenuItem
                                             className="rounded-xl font-bold py-3 cursor-pointer"
                                             onClick={async () => {
@@ -1730,7 +1800,7 @@ const DeliveryNote = () => {
                                         </DropdownMenuItem>
                                         <DropdownMenuSeparator />
                                         <DropdownMenuItem
-                                            className="rounded-xl font-bold py-3 cursor-pointer text-blue-600"
+                                            className="rounded-xl font-bold py-3 cursor-pointer text-ant-orange"
                                             onClick={async () => {
                                                 if (!selectedNote?.id) return;
                                                 try {
@@ -1748,12 +1818,12 @@ const DeliveryNote = () => {
                             ) : noteDetails?.provider?.provider_type === 'ameex' ? (
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <Button className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-12 px-8 font-bold shadow-lg shadow-brand-navy/10 transition-all flex items-center gap-2">
+                                        <Button className="bg-ant-ink hover:bg-ant-ink/90 text-brand-white rounded-2xl h-12 px-8 font-bold shadow-lg shadow-brand-navy/10 transition-all flex items-center gap-2">
                                             <Download className="w-4 h-4" />
                                             Imprimer Étiquettes
                                         </Button>
                                     </DropdownMenuTrigger>
-                                    <DropdownMenuContent className="rounded-2xl p-2 border-none shadow-2xl bg-white min-w-[200px]">
+                                    <DropdownMenuContent className="rounded-2xl p-2 border-none shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] bg-white min-w-[200px]">
                                         <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer" onClick={() => handlePrintLabels('Label_100_100')}>
                                             Étiquette 100/100
                                         </DropdownMenuItem>
@@ -1767,7 +1837,7 @@ const DeliveryNote = () => {
                                             Étiquette 70/100
                                         </DropdownMenuItem>
                                         <DropdownMenuSeparator />
-                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer text-blue-600" onClick={() => handlePrintLabels('Note')}>
+                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer text-ant-orange" onClick={() => handlePrintLabels('Note')}>
                                             Bon Livraison
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
@@ -1775,12 +1845,12 @@ const DeliveryNote = () => {
                             ) : noteDetails?.provider?.provider_type === 'coliaty' ? (
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <Button className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-12 px-8 font-bold shadow-lg shadow-brand-navy/10 transition-all flex items-center gap-2">
+                                        <Button className="bg-ant-ink hover:bg-ant-ink/90 text-brand-white rounded-2xl h-12 px-8 font-bold shadow-lg shadow-brand-navy/10 transition-all flex items-center gap-2">
                                             <Download className="w-4 h-4" />
                                             Imprimer Étiquettes
                                         </Button>
                                     </DropdownMenuTrigger>
-                                    <DropdownMenuContent className="rounded-2xl p-2 border-none shadow-2xl bg-white min-w-[200px]">
+                                    <DropdownMenuContent className="rounded-2xl p-2 border-none shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] bg-white min-w-[200px]">
                                         <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer" onClick={() => handlePrintLabels('10x10')}>
                                             10cm / 10cm
                                         </DropdownMenuItem>
@@ -1792,12 +1862,12 @@ const DeliveryNote = () => {
                             ) : (noteDetails?.provider?.provider_type === 'ozon' || noteDetails?.provider?.provider_type === 'OZON') ? (
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <Button className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-12 px-8 font-bold shadow-lg shadow-brand-navy/10 transition-all flex items-center gap-2">
+                                        <Button className="bg-ant-ink hover:bg-ant-ink/90 text-brand-white rounded-2xl h-12 px-8 font-bold shadow-lg shadow-brand-navy/10 transition-all flex items-center gap-2">
                                             <Download className="w-4 h-4" />
                                             Imprimer
                                         </Button>
                                     </DropdownMenuTrigger>
-                                    <DropdownMenuContent className="rounded-2xl p-2 border-none shadow-2xl bg-white min-w-[200px]">
+                                    <DropdownMenuContent className="rounded-2xl p-2 border-none shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] bg-white min-w-[200px]">
                                         <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer" onClick={() => handlePrintLabels('10x10')}>
                                             Ticket Thermique (10x10)
                                         </DropdownMenuItem>
@@ -1805,14 +1875,14 @@ const DeliveryNote = () => {
                                             Tickets A4 (4/page)
                                         </DropdownMenuItem>
                                         <DropdownMenuSeparator />
-                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer text-blue-600" onClick={() => handlePrintLabels('Note')}>
+                                        <DropdownMenuItem className="rounded-xl font-bold py-3 cursor-pointer text-ant-orange" onClick={() => handlePrintLabels('Note')}>
                                             Bon de Livraison
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
                             ) : (
                                 <Button
-                                    className="bg-brand-navy hover:bg-brand-navy/90 text-brand-white rounded-2xl h-12 px-8 font-bold shadow-lg shadow-brand-navy/10 transition-all flex items-center gap-2"
+                                    className="bg-ant-ink hover:bg-ant-ink/90 text-brand-white rounded-2xl h-12 px-8 font-bold shadow-lg shadow-brand-navy/10 transition-all flex items-center gap-2"
                                     onClick={() => handlePrintLabels()}
                                 >
                                     <Download className="w-4 h-4" />
@@ -1826,24 +1896,32 @@ const DeliveryNote = () => {
 
             {/* Tracking Modal */}
             <Dialog open={isTrackingModalOpen} onOpenChange={setIsTrackingModalOpen}>
-                <DialogContent className="sm:max-w-[500px] rounded-[32px] border-none p-0 overflow-hidden bg-white">
-                    <DialogHeader className="p-8 pb-0">
-                        <DialogTitle className="text-2xl font-black text-brand-navy flex items-center gap-3">
-                            <div className="p-2 bg-brand-navy/5 rounded-xl">
-                                <Truck className="w-5 h-5 text-brand-navy" />
+                <DialogContent className="ant-surface sm:max-w-[520px] rounded-2xl border border-ant-line p-0 overflow-hidden bg-ant-paper shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)]">
+                    <DialogHeader className="p-6 pb-3 border-b border-ant-line">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-ant-orange/10 ring-1 ring-ant-orange/20 flex items-center justify-center">
+                                <Truck className="w-5 h-5 text-ant-orange" strokeWidth={1.75} />
                             </div>
-                            Suivi du colis
-                        </DialogTitle>
-                        <DialogDescription className="font-bold text-muted-foreground">
-                            Code: <span className="text-brand-navy">{trackingParcel?.tracking_code}</span>
-                        </DialogDescription>
+                            <div className="min-w-0">
+                                <span className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                                    <span className="w-1 h-1 rounded-full bg-ant-orange" />
+                                    Parcel tracking
+                                </span>
+                                <DialogTitle className="font-display text-[18px] font-semibold text-ant-ink tracking-[-0.02em] leading-tight mt-0.5">
+                                    Shipment history
+                                </DialogTitle>
+                                <DialogDescription className="text-[11.5px] text-ant-muted mt-1 tabular-nums">
+                                    Code: <span className="text-ant-ink font-medium">{trackingParcel?.tracking_code || '—'}</span>
+                                </DialogDescription>
+                            </div>
+                        </div>
                     </DialogHeader>
 
                     <div className="p-8 max-h-[60vh] overflow-y-auto">
                         {isTrackingLoading ? (
                             <div className="flex flex-col items-center justify-center py-12 gap-4">
-                                <Loader2 className="w-10 h-10 text-brand-navy animate-spin" />
-                                <p className="font-bold text-muted-foreground animate-pulse">Récupération des données...</p>
+                                <Loader2 className="w-10 h-10 text-ant-ink animate-spin" />
+                                <p className="font-bold text-ant-muted animate-pulse">Récupération des données...</p>
                             </div>
                         ) : trackingHistory ? (
                             <div className="relative pl-10">
@@ -1865,9 +1943,9 @@ const DeliveryNote = () => {
                                         'PICKED_UP': 'Ramassé', 'READY_FOR_PICKUP': 'Prêt pour ramassage'
                                     };
                                     const situationMap: Record<string, { label: string; className: string }> = {
-                                        PAID: { label: 'Payé', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-                                        NOT_PAID: { label: 'Non payé', className: 'bg-amber-50 text-amber-700 border-amber-200' },
-                                        INVOICED: { label: 'Facturé', className: 'bg-blue-50 text-blue-700 border-blue-200' },
+                                        PAID: { label: 'Payé', className: 'bg-ant-green/10 text-ant-green border-emerald-200' },
+                                        NOT_PAID: { label: 'Non payé', className: 'bg-ant-orange/10 text-ant-orange border-amber-200' },
+                                        INVOICED: { label: 'Facturé', className: 'bg-ant-blue/10 text-blue-700 border-blue-200' },
                                     };
 
                                     const rawStatus = event.status || "Nouveau";
@@ -1899,26 +1977,26 @@ const DeliveryNote = () => {
                                             </div>
                                             <div className="space-y-1.5">
                                                 <div className="flex items-center gap-2 flex-wrap">
-                                                    <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg" style={{ color: statusColor, backgroundColor: `${statusColor}15` }}>
+                                                    <span className="text-[10px] font-semibold uppercase tracking-widest px-2.5 py-1 rounded-lg" style={{ color: statusColor, backgroundColor: `${statusColor}15` }}>
                                                         {status}
                                                     </span>
                                                     {sitInfo && <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border ${sitInfo.className}`}>{sitInfo.label}</span>}
                                                 </div>
-                                                {date && <p className="text-[10px] font-bold text-muted-foreground/50">{format(new Date(date), 'dd/MM/yyyy HH:mm')}</p>}
-                                                {comment && <p className="text-[11px] font-medium text-muted-foreground leading-relaxed italic">&quot;{comment}&quot;</p>}
+                                                {date && <p className="text-[10px] font-bold text-ant-muted/50">{format(new Date(date), 'dd/MM/yyyy HH:mm')}</p>}
+                                                {comment && <p className="text-[11px] font-medium text-ant-muted leading-relaxed italic">&quot;{comment}&quot;</p>}
                                                 {location && (
-                                                    <div className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground/70">
+                                                    <div className="flex items-center gap-1.5 text-[10px] font-semibold text-ant-mid">
                                                         <MapPin className="w-3 h-3 shrink-0" /><span>{location}</span>
                                                     </div>
                                                 )}
                                                 {(user || phone) && (
                                                     <div className="flex items-center gap-3 flex-wrap">
-                                                        {user && <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground"><div className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center"><Hash className="w-2 h-2" /></div>Par {user}</div>}
-                                                        {phone && <a href={`tel:${phone}`} className="flex items-center gap-1 text-[10px] font-bold text-brand-navy/70 hover:text-brand-navy transition-colors"><Phone className="w-3 h-3" />{phone}</a>}
+                                                        {user && <div className="flex items-center gap-1.5 text-[10px] font-bold text-ant-muted"><div className="w-4 h-4 rounded-full bg-ant-line flex items-center justify-center"><Hash className="w-2 h-2" /></div>Par {user}</div>}
+                                                        {phone && <a href={`tel:${phone}`} className="flex items-center gap-1 text-[10px] font-bold text-ant-ink/70 hover:text-ant-ink transition-colors"><Phone className="w-3 h-3" />{phone}</a>}
                                                     </div>
                                                 )}
                                                 {scheduledDate && (
-                                                    <div className="flex items-center gap-1.5 text-[10px] font-semibold text-blue-600/70">
+                                                    <div className="flex items-center gap-1.5 text-[10px] font-semibold text-ant-orange/70">
                                                         <CalendarClock className="w-3 h-3 shrink-0" /><span>Programmé: {format(new Date(scheduledDate), 'dd/MM/yyyy')}</span>
                                                     </div>
                                                 )}
@@ -1928,10 +2006,10 @@ const DeliveryNote = () => {
                                                             const isItemPhone = /^0[5-8]\d{8}$/.test(String(item.value));
                                                             const isDateVal = /^\d{4}-\d{2}-\d{2}$/.test(String(item.value));
                                                             return (
-                                                                <div key={i} className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground/80">
+                                                                <div key={i} className="flex items-center gap-1.5 text-[10px] font-medium text-ant-muted/80">
                                                                     <Info className="w-2.5 h-2.5 shrink-0 opacity-50" /><span className="font-semibold">{item.title}:</span>
-                                                                    {isItemPhone ? <a href={`tel:${item.value}`} className="text-brand-navy/70 hover:text-brand-navy font-bold transition-colors">{item.value}</a>
-                                                                    : isDateVal ? <span className="text-blue-600/70 font-semibold">{item.value}</span>
+                                                                    {isItemPhone ? <a href={`tel:${item.value}`} className="text-ant-ink/70 hover:text-ant-ink font-bold transition-colors">{item.value}</a>
+                                                                    : isDateVal ? <span className="text-ant-orange/70 font-semibold">{item.value}</span>
                                                                     : <span className="font-semibold">{item.value}</span>}
                                                                 </div>
                                                             );
@@ -1946,21 +2024,21 @@ const DeliveryNote = () => {
                             </div>
                         ) : (
                             <div className="flex flex-col items-center justify-center py-12 text-center space-y-3">
-                                <div className="p-4 bg-slate-50 rounded-full">
-                                    <SearchX className="w-8 h-8 text-muted-foreground/40" />
+                                <div className="p-4 bg-ant-light rounded-full">
+                                    <SearchX className="w-8 h-8 text-ant-muted/40" />
                                 </div>
-                                <p className="font-bold text-muted-foreground">Aucun historique disponible pour ce colis.</p>
+                                <p className="font-bold text-ant-muted">Aucun historique disponible pour ce colis.</p>
                             </div>
                         )}
                     </div>
 
-                    <div className="p-8 pt-0">
+                    <div className="px-6 pb-6 pt-2 border-t border-ant-line">
                         <Button
-                            variant="ghost"
+                            variant="outline"
                             onClick={() => setIsTrackingModalOpen(false)}
-                            className="w-full h-14 rounded-2xl font-black text-sm tracking-widest uppercase hover:bg-slate-50"
+                            className="w-full h-10 rounded-full border-ant-line bg-ant-paper text-ant-ink hover:bg-ant-line-soft font-medium text-[12px]"
                         >
-                            Fermer
+                            Close
                         </Button>
                     </div>
                 </DialogContent>
@@ -1969,40 +2047,46 @@ const DeliveryNote = () => {
 
             {/* Delete Confirmation */}
             <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
-                <DialogContent className="sm:max-w-[400px] rounded-[32px] border-none p-8 text-center space-y-6">
-                    <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center text-red-500 mx-auto">
+                <DialogContent className="ant-surface sm:max-w-[420px] rounded-2xl border border-ant-line p-7 text-center space-y-5 bg-ant-paper shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)]">
+                    <div className="w-20 h-20 bg-ant-rose/10 rounded-full flex items-center justify-center text-ant-rose mx-auto">
                         <Trash2 className="w-10 h-10" />
                     </div>
-                    <div className="space-y-2">
-                        <DialogTitle className="text-2xl font-black text-brand-navy">Supprimer le bon ?</DialogTitle>
-                        <DialogDescription className="text-muted-foreground font-medium">
+                    <div className="w-12 h-12 rounded-2xl bg-ant-rose/10 ring-1 ring-ant-rose/20 flex items-center justify-center text-ant-rose mx-auto">
+                        <Trash2 className="w-5 h-5" strokeWidth={1.75} />
+                    </div>
+                    <div className="space-y-1.5">
+                        <DialogTitle className="font-display text-[20px] font-semibold text-ant-ink tracking-[-0.02em]">
+                            Delete this note?
+                        </DialogTitle>
+                        <DialogDescription className="font-serif-display text-[12.5px] text-ant-muted italic leading-relaxed">
                             {selectedNote?.provider_id != null ? (
                                 <>
-                                    Le bon{' '}
-                                    <span className="font-bold text-brand-navy">{selectedNote?.reference}</span> sera
-                                    supprimé. Les commandes qui n’ont plus d’autre colis repasseront en{' '}
-                                    <span className="font-bold text-brand-navy">confirmée</span> et leur logistique sera
-                                    effacée.
+                                    Note <span className="not-italic font-medium text-ant-ink">{selectedNote?.reference}</span> will be removed.
+                                    Orders with no other parcel will revert to{' '}
+                                    <span className="not-italic font-medium text-ant-ink">confirmed</span> and their logistics data will be cleared.
                                 </>
                             ) : (
                                 <>
-                                    Cette action est définitive. Le bon coursier{' '}
-                                    <span className="font-bold text-brand-navy">{selectedNote?.reference}</span> et ses
-                                    colis seront supprimés.
+                                    Courier note <span className="not-italic font-medium text-ant-ink">{selectedNote?.reference}</span> and its parcels will be permanently deleted.
                                 </>
                             )}
                         </DialogDescription>
                     </div>
-                    <div className="flex flex-col gap-3">
+                    <div className="flex gap-2 pt-1">
+                        <Button
+                            variant="outline"
+                            onClick={() => setIsDeleteModalOpen(false)}
+                            className="flex-1 h-10 rounded-full border-ant-line bg-ant-paper text-ant-ink hover:bg-ant-line-soft font-medium text-[12px]"
+                        >
+                            Keep it
+                        </Button>
                         <Button
                             variant="destructive"
                             onClick={handleDeleteNote}
-                            className="h-14 rounded-2xl font-black text-sm tracking-widest uppercase shadow-lg shadow-red-500/20 active:scale-95 transition-all"
+                            className="flex-1 h-10 rounded-full font-medium text-[12px] bg-ant-rose hover:bg-ant-rose/90"
                         >
-                            Confirm Deletion
-                        </Button>
-                        <Button variant="ghost" onClick={() => setIsDeleteModalOpen(false)} className="h-12 rounded-2xl font-bold text-brand-navy">
-                            Keep Record
+                            <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                            Delete note
                         </Button>
                     </div>
                 </DialogContent>
@@ -2014,31 +2098,35 @@ const DeliveryNote = () => {
                     if (!open) setParcelPendingRemove(null);
                 }}
             >
-                <AlertDialogContent className="rounded-[32px] border-none shadow-2xl max-w-md p-8">
-                    <AlertDialogHeader className="space-y-3">
-                        <AlertDialogTitle className="text-2xl font-black text-brand-navy tracking-tight">
-                            Retirer ce colis du bon ?
+                <AlertDialogContent className="ant-surface rounded-2xl border border-ant-line bg-ant-paper shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] max-w-md p-6">
+                    <AlertDialogHeader className="space-y-2">
+                        <div className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-ant-orange/10 ring-1 ring-ant-orange/20 mb-1">
+                            <Package className="w-5 h-5 text-ant-orange" strokeWidth={1.75} />
+                        </div>
+                        <AlertDialogTitle className="font-display text-[18px] font-semibold text-ant-ink tracking-[-0.02em]">
+                            Remove this parcel from the note?
                         </AlertDialogTitle>
-                        <AlertDialogDescription className="text-base text-brand-navy/60 font-medium leading-relaxed">
-                            La commande repassera en confirmée et la logistique (transporteur, suivi, statuts) sera
-                            effacée.
+                        <AlertDialogDescription className="font-serif-display text-[12.5px] text-ant-muted italic leading-relaxed">
+                            The order will revert to confirmed and all logistics (carrier, tracking, statuses) will be wiped.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
-                    <AlertDialogFooter className="flex-col-reverse sm:flex-row gap-2 sm:gap-3 pt-2">
-                        <AlertDialogCancel className="rounded-2xl h-12 font-bold border border-brand-navy/10 bg-brand-navy/[0.04] text-brand-navy hover:bg-brand-navy/[0.08] hover:text-brand-navy m-0">
-                            Annuler
+                    <AlertDialogFooter className="flex-col-reverse sm:flex-row gap-2 pt-3">
+                        <AlertDialogCancel className="rounded-full h-10 px-4 font-medium border border-ant-line bg-ant-paper text-ant-ink hover:bg-ant-line-soft hover:text-ant-ink m-0 text-[12px]">
+                            Cancel
                         </AlertDialogCancel>
                         <Button
                             type="button"
                             variant="destructive"
-                            className="rounded-2xl h-12 font-bold shadow-lg m-0 w-full sm:w-auto"
+                            className="rounded-full h-10 px-4 font-medium text-[12px] bg-ant-rose hover:bg-ant-rose/90 m-0 w-full sm:w-auto"
                             disabled={!!removingParcelId}
                             onClick={() => void confirmRemoveParcelFromNote()}
                         >
                             {removingParcelId === parcelPendingRemove?.id ? (
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            ) : null}
-                            Retirer
+                                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                            ) : (
+                                <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                            )}
+                            Remove
                         </Button>
                     </AlertDialogFooter>
                 </AlertDialogContent>
@@ -2046,5 +2134,75 @@ const DeliveryNote = () => {
         </div>
     );
 };
+
+// Editorial summary cell used in the strip above the tabs. Matches the Orders
+// KPI tile so the two pages feel continuous.
+function DeliverySummaryTile({
+    label,
+    value,
+    accent,
+    icon: Icon,
+}: {
+    label: string;
+    value: number;
+    accent: string;
+    icon: typeof FileText;
+}) {
+    return (
+        <div className="bg-ant-paper px-4 py-3">
+            <div className="flex items-center justify-between gap-1.5">
+                <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="w-1 h-1 rounded-full shrink-0" style={{ backgroundColor: accent }} aria-hidden />
+                    <span className="text-[9.5px] font-medium uppercase tracking-[0.22em] text-ant-mid truncate">
+                        {label}
+                    </span>
+                </div>
+                <span
+                    className="flex items-center justify-center w-5 h-5 rounded-md shrink-0"
+                    style={{ backgroundColor: `${accent}14`, color: accent }}
+                >
+                    <Icon className="w-3 h-3" strokeWidth={1.75} />
+                </span>
+            </div>
+            <div className="font-display text-[22px] font-semibold text-ant-ink tabular-nums tracking-[-0.02em] leading-none mt-2">
+                {value.toLocaleString('fr-FR')}
+            </div>
+        </div>
+    );
+}
+
+function DeliveryListSkeleton() {
+    return (
+        <div className="space-y-2">
+            {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="h-20 rounded-xl bg-ant-line-soft animate-pulse" />
+            ))}
+        </div>
+    );
+}
+
+function EmptyDeliveryState({ kind, onAction }: { kind: 'company' | 'courier'; onAction: () => void }) {
+    const Icon = kind === 'courier' ? Truck : Building2;
+    return (
+        <div className="rounded-2xl border border-ant-line bg-ant-paper px-6 py-14 text-center">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-ant-orange/10 ring-1 ring-ant-orange/20 mb-4">
+                <Icon className="w-5 h-5 text-ant-orange" strokeWidth={1.5} />
+            </div>
+            <h3 className="font-display text-[18px] font-semibold text-ant-ink tracking-tight">
+                No {kind} delivery notes yet
+            </h3>
+            <p className="font-serif-display text-[12.5px] text-ant-muted italic mt-1 mb-5 max-w-md mx-auto">
+                Bundle a batch of confirmed orders into a single handover document — one click ships them to the {kind === 'courier' ? 'courier' : 'provider'}.
+            </p>
+            <Button
+                onClick={onAction}
+                className="h-10 px-5 rounded-full bg-ant-ink hover:bg-ant-ink/90 text-ant-light text-[12px] font-medium gap-2"
+            >
+                <Plus className="w-3.5 h-3.5" />
+                Generate the first note
+            </Button>
+        </div>
+    );
+}
 
 export default DeliveryNote;
