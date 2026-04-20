@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users } from 'lucide-react';
 import { DateFilter } from '@/components/analytics/AnalyticsDateFilter';
 import { startOfDay, endOfDay, isWithinInterval } from 'date-fns';
@@ -275,14 +274,10 @@ export function SellerSelfPerformanceSection({
 
     if (loading) {
         return (
-            <Card className="border-0 shadow-sm rounded-3xl">
-                <CardHeader className="pb-2">
-                    <div className="h-10 w-48 rounded-xl bg-gray-100 animate-pulse" />
-                </CardHeader>
-                <CardContent>
-                    <div className="h-24 rounded-2xl bg-gray-50 animate-pulse" />
-                </CardContent>
-            </Card>
+            <div className="rounded-2xl border border-ant-line bg-ant-paper p-5 animate-pulse">
+                <div className="h-4 w-48 bg-ant-line rounded" />
+                <div className="mt-4 h-24 bg-ant-line rounded-xl" />
+            </div>
         );
     }
 
@@ -292,61 +287,59 @@ export function SellerSelfPerformanceSection({
     const stages: FunnelStage[] = [
         {
             key: 'assigned',
-            label: 'Assigned',
+            label: 'Attribuées',
             count: s.assignedCount,
-            sub: `${s.assignedPercent.toFixed(1)}% of all`,
-            accent: '#6b7280',
-            fillClass: 'bg-gray-50',
+            sub: `${s.assignedPercent.toFixed(1)}% du total`,
+            accent: '#141413',
+            fillClass: 'bg-ant-ink/5',
         },
         {
             key: 'confirmed',
-            label: 'Confirmed',
+            label: 'Confirmées',
             count: s.confirmedCount,
             ratePct: s.confirmedPercent,
-            accent: '#3b82f6',
-            fillClass: 'bg-blue-50/70',
+            accent: '#D97706',
+            fillClass: 'bg-ant-orange/10',
         },
         {
             key: 'delivered',
-            label: 'Delivered',
+            label: 'Livrées',
             count: s.deliveredCount,
             ratePct: s.deliveredPercent,
-            accent: '#10b981',
-            fillClass: 'bg-emerald-50/70',
+            accent: '#2D7A3E',
+            fillClass: 'bg-ant-green/12',
         },
     ];
 
     return (
-        <Card className="border border-gray-100 shadow-none rounded-2xl">
-            <CardHeader className="px-4 pt-3 pb-2">
-                <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                        <Users className="w-3.5 h-3.5 text-gray-400" />
-                        <CardTitle className="text-[13px] font-semibold text-brand-navy">
-                            Your performance
-                        </CardTitle>
-                    </div>
-                    <span className="text-[10px] text-gray-400 uppercase tracking-[0.16em] tabular-nums">
-                        {s.totalInWindow.toLocaleString('fr-MA')} orders
-                        {businessId ? ' · business' : ''}
-                    </span>
+        <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+            <div className="h-[3px] w-full bg-ant-orange" />
+            <div className="px-5 py-4 border-b border-ant-line flex items-center justify-between flex-wrap gap-2">
+                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                    <Users className="w-3.5 h-3.5" strokeWidth={1.75} />
+                    Votre performance
                 </div>
-            </CardHeader>
-            <CardContent className="px-3 pb-3 pt-0 space-y-2">
-                <div className="grid grid-cols-[minmax(130px,150px)_1fr_minmax(110px,130px)] items-center gap-3 px-1 py-1">
-                    <div className="flex items-center gap-2 min-w-0">
+                <span className="font-serif italic text-[11px] text-ant-mid tabular-nums">
+                    {s.totalInWindow.toLocaleString('fr-MA')} commandes{businessId ? ' · business' : ''}
+                </span>
+            </div>
+
+            <div className="p-5 space-y-4">
+                <div className="grid grid-cols-1 lg:grid-cols-[minmax(160px,180px)_1fr_minmax(130px,160px)] items-center gap-4">
+                    <div className="flex items-center gap-3 min-w-0">
                         {s.avatar_url ? (
-                            <img src={s.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
+                            <img src={s.avatar_url} alt="" className="w-10 h-10 rounded-xl object-cover border border-ant-line shrink-0" />
                         ) : (
-                            <div className="w-7 h-7 rounded-full bg-brand-navy/10 flex items-center justify-center text-[11px] font-semibold text-brand-navy shrink-0">
+                            <div className="w-10 h-10 rounded-xl border border-ant-line bg-ant-light text-ant-ink flex items-center justify-center font-display text-[14px] font-semibold shrink-0">
                                 {s.name?.[0] ?? '?'}
                             </div>
                         )}
                         <div className="min-w-0">
-                            <p className="font-semibold text-brand-navy text-[12px] truncate leading-tight">{s.name || 'You'}</p>
-                            <p className="text-[9px] text-gray-400 uppercase tracking-[0.16em] mt-0.5">
-                                {sellerRow && sellerRow.active === false ? 'Inactive' : 'Commercial'}
-                            </p>
+                            <p className="font-display text-[13px] font-semibold text-ant-ink truncate leading-tight">{s.name || 'Vous'}</p>
+                            <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] mt-1 text-ant-mid">
+                                <span className={`h-1.5 w-1.5 rounded-full ${sellerRow && sellerRow.active === false ? 'bg-ant-mid' : 'bg-ant-green'}`} />
+                                {sellerRow && sellerRow.active === false ? 'Inactif' : 'Commercial'}
+                            </div>
                         </div>
                     </div>
 
@@ -354,55 +347,58 @@ export function SellerSelfPerformanceSection({
                         <PerformanceFunnel stages={stages} dense />
                     </div>
 
-                    <div className="min-w-0 border-l border-gray-100 pl-3">
-                        <p className="text-[9px] text-gray-400 font-bold uppercase tracking-[0.16em]">Commission</p>
-                        <p className="text-[14px] font-semibold text-emerald-600 leading-tight tabular-nums">
+                    <div className="min-w-0 lg:border-l lg:border-ant-line lg:pl-4">
+                        <div className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">
+                            <span className="h-1.5 w-1.5 rounded-full bg-ant-green" />
+                            Commission
+                        </div>
+                        <p className="font-display text-[18px] font-semibold text-ant-green tabular-nums leading-tight mt-1">
                             {Math.round(s.commission).toLocaleString('fr-MA')}
-                            <span className="text-[9px] text-gray-400 font-medium ml-1">MAD</span>
+                            <span className="text-[10px] text-ant-mid font-normal ml-1">MAD</span>
                         </p>
                         {s.commissionDrift && (
-                            <p className="text-[9px] text-amber-600 mt-0.5 tabular-nums">
-                                client {Math.round(s.commissionClient).toLocaleString('fr-MA')}
+                            <p className="font-serif italic text-[11px] text-ant-orange mt-0.5 tabular-nums">
+                                client {Math.round(s.commissionClient).toLocaleString('fr-MA')} MAD
                             </p>
                         )}
                     </div>
                 </div>
 
-                <section className="rounded-lg bg-white border border-gray-100 p-3 space-y-3">
-                    <header className="flex items-baseline justify-between">
-                        <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.16em]">
+                <div className="rounded-xl border border-ant-line bg-ant-light p-4 space-y-3">
+                    <div className="flex items-baseline justify-between">
+                        <h4 className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">
                             Funnel dropoff
                         </h4>
-                        <span className="text-[10px] text-gray-400 tabular-nums">
+                        <span className="font-serif italic text-[11px] text-ant-mid tabular-nums">
                             {(s.assignedCount - s.deliveredCount).toLocaleString('fr-MA')} / {s.assignedCount.toLocaleString('fr-MA')}
                         </span>
-                    </header>
+                    </div>
                     <StatusQueuePane
-                        title="Before confirmation"
+                        title="Avant confirmation"
                         totalLost={s.assignedCount - s.confirmedCount}
                         cohortSize={s.assignedCount}
                         entries={s.preConfEntries}
-                        emptyText="All cohort orders confirmed"
+                        emptyText="Toutes les commandes confirmées"
                     />
-                    <div className="h-px bg-gray-100" />
+                    <div className="h-px bg-ant-line" />
                     <StatusQueuePane
-                        title="After confirmation"
+                        title="Après confirmation"
                         totalLost={s.confirmedCount - s.deliveredCount}
                         cohortSize={s.confirmedCount}
                         entries={s.postConfEntries}
-                        emptyText="All confirmed orders delivered"
+                        emptyText="Toutes les commandes livrées"
                     />
-                </section>
+                </div>
 
-                <section className="rounded-lg bg-white border border-gray-100 px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                    <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.16em] shrink-0">
+                <div className="rounded-xl border border-ant-line bg-ant-light px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+                    <h4 className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid shrink-0">
                         Sources
                     </h4>
                     <div className="flex-1 min-w-[200px]">
                         <SourcePills sources={s.sources} />
                     </div>
-                </section>
-            </CardContent>
-        </Card>
+                </div>
+            </div>
+        </section>
     );
 }

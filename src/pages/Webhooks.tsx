@@ -34,6 +34,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
     Dialog,
     DialogContent,
@@ -105,6 +106,7 @@ const Webhooks = () => {
     const [isHookModalOpen, setIsHookModalOpen] = useState(false);
     const [editingItem, setEditingItem] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState("");
+    const [hookToDelete, setHookToDelete] = useState<any>(null);
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const activeBusinessId = localStorage.getItem('activeBusinessId');
@@ -292,7 +294,7 @@ const Webhooks = () => {
                                     hook={hook}
                                     projectUrl={WEBHOOK_BASE_URL}
                                     onEdit={() => { setEditingItem(hook); setIsHookModalOpen(true); }}
-                                    onDelete={() => { if (confirm('Terminate this gateway and stop receiving updates?')) deleteMutation.mutate({ table: WEBHOOKS_TABLE, id: hook.id }); }}
+                                    onDelete={() => setHookToDelete(hook)}
                                 />
                             ))}
                         </div>
@@ -392,6 +394,23 @@ const Webhooks = () => {
                 providers={providers || []}
                 loading={hookMutation.isPending}
                 onGenerateSecret={generateSecret}
+            />
+
+            <ConfirmDialog
+                open={!!hookToDelete}
+                onOpenChange={(o) => { if (!o) setHookToDelete(null); }}
+                kicker="Gateway · Déconnexion"
+                title="Couper cette passerelle ?"
+                description="La passerelle sera supprimée et l'application cessera de recevoir les mises à jour. L'action est irréversible."
+                confirmLabel="Terminer la passerelle"
+                loading={deleteMutation.isPending}
+                onConfirm={() => {
+                    if (!hookToDelete) return;
+                    deleteMutation.mutate(
+                        { table: WEBHOOKS_TABLE, id: hookToDelete.id },
+                        { onSettled: () => setHookToDelete(null) },
+                    );
+                }}
             />
         </div>
     );

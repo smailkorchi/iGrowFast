@@ -12,10 +12,16 @@ import {
     Loader2,
     X,
     TrendingUp,
+    Package,
+    Coins,
+    Bike,
+    MapPin,
+    Sparkles,
+    ArrowUpRight,
+    type LucideIcon,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
@@ -51,11 +57,52 @@ type PaymentNote = {
     created_at: string;
 };
 
+const KPI_ACCENTS = {
+    ink: { dot: 'bg-ant-ink', tile: 'bg-ant-ink/6 border-ant-ink/15 text-ant-ink' },
+    orange: { dot: 'bg-ant-orange', tile: 'bg-ant-orange/10 border-ant-orange/25 text-ant-orange' },
+    green: { dot: 'bg-ant-green', tile: 'bg-ant-green/10 border-ant-green/25 text-ant-green' },
+    rose: { dot: 'bg-ant-rose', tile: 'bg-ant-rose/10 border-ant-rose/25 text-ant-rose' },
+} as const;
+
+const CourierKpi: React.FC<{
+    label: string;
+    value: number | string;
+    suffix?: string;
+    accent: keyof typeof KPI_ACCENTS;
+    icon: LucideIcon;
+}> = ({ label, value, suffix, accent, icon: Icon }) => {
+    const a = KPI_ACCENTS[accent];
+    return (
+        <div className="bg-ant-paper p-4">
+            <div className="flex items-start justify-between gap-3">
+                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.24em] text-ant-mid">
+                    <span className={cn('h-1.5 w-1.5 rounded-full', a.dot)} />
+                    {label}
+                </div>
+                <div className={cn('h-8 w-8 rounded-lg border flex items-center justify-center', a.tile)}>
+                    <Icon className="w-4 h-4" strokeWidth={1.75} />
+                </div>
+            </div>
+            <p className="font-display text-[22px] font-semibold text-ant-ink tabular-nums mt-2 truncate">
+                {value}
+                {suffix ? <span className="text-[12px] text-ant-mid font-normal ml-1.5">{suffix}</span> : null}
+            </p>
+        </div>
+    );
+};
+
+const deliveryTier = (rate: number) => {
+    if (rate >= 70) return { stripe: 'bg-ant-green', text: 'text-ant-green', bg: 'bg-ant-green/10', border: 'border-ant-green/25', dot: 'bg-ant-green', label: 'Strong' };
+    if (rate >= 40) return { stripe: 'bg-ant-orange', text: 'text-ant-orange', bg: 'bg-ant-orange/10', border: 'border-ant-orange/25', dot: 'bg-ant-orange', label: 'Steady' };
+    return { stripe: 'bg-ant-rose', text: 'text-ant-rose', bg: 'bg-ant-rose/10', border: 'border-ant-rose/25', dot: 'bg-ant-rose', label: 'At risk' };
+};
+
 const Couriers = () => {
     const activeBusinessId = localStorage.getItem('activeBusinessId');
     const { deliveredPkgIds, shippedPkgIds, returnedPkgIds } = useStatusCategories();
     const [search, setSearch] = useState('');
     const [selected, setSelected] = useState<Courier | null>(null);
+    const [sortBy, setSortBy] = useState<'rate' | 'delivered' | 'orders' | 'unpaid'>('rate');
 
     const { data: couriers = [], isLoading: loadingCouriers } = useQuery<Courier[]>({
         queryKey: ['couriers', activeBusinessId],
@@ -107,7 +154,6 @@ const Couriers = () => {
         enabled: !!activeBusinessId && courierIds.length > 0,
     });
 
-    // Per-courier aggregates
     const stats = useMemo(() => {
         const m = new Map<
             string,
@@ -149,25 +195,42 @@ const Couriers = () => {
         return m;
     }, [couriers, orders, paymentNotes, deliveredPkgIds, shippedPkgIds, returnedPkgIds]);
 
+    const rankMap = useMemo(() => {
+        const sorted = [...couriers].sort((a, b) => {
+            const sa = stats.get(a.id);
+            const sb = stats.get(b.id);
+            return (sb?.delivered || 0) - (sa?.delivered || 0);
+        });
+        const map = new Map<string, number>();
+        sorted.forEach((c, i) => map.set(c.id, i + 1));
+        return map;
+    }, [couriers, stats]);
+
     const filtered = useMemo(() => {
         const q = search.toLowerCase().trim();
         const list = q
             ? couriers.filter(
-                (c) =>
-                    c.name.toLowerCase().includes(q) ||
-                    c.email.toLowerCase().includes(q) ||
-                    (c.phone || '').toLowerCase().includes(q)
-            )
+                  (c) =>
+                      c.name.toLowerCase().includes(q) ||
+                      c.email.toLowerCase().includes(q) ||
+                      (c.phone || '').toLowerCase().includes(q)
+              )
             : [...couriers];
-        // Sort by delivery rate descending
+
         return list.sort((a, b) => {
             const sa = stats.get(a.id);
             const sb = stats.get(b.id);
-            const ra = sa && sa.totalOrders > 0 ? sa.delivered / sa.totalOrders : 0;
-            const rb = sb && sb.totalOrders > 0 ? sb.delivered / sb.totalOrders : 0;
-            return rb - ra;
+            if (sortBy === 'rate') {
+                const ra = sa && sa.totalOrders > 0 ? sa.delivered / sa.totalOrders : 0;
+                const rb = sb && sb.totalOrders > 0 ? sb.delivered / sb.totalOrders : 0;
+                return rb - ra;
+            }
+            if (sortBy === 'delivered') return (sb?.delivered || 0) - (sa?.delivered || 0);
+            if (sortBy === 'orders') return (sb?.totalOrders || 0) - (sa?.totalOrders || 0);
+            if (sortBy === 'unpaid') return (sb?.totalUnpaid || 0) - (sa?.totalUnpaid || 0);
+            return 0;
         });
-    }, [couriers, search, stats]);
+    }, [couriers, search, stats, sortBy]);
 
     const totals = useMemo(() => {
         let totalOrders = 0;
@@ -184,231 +247,355 @@ const Couriers = () => {
     }, [stats]);
 
     return (
-        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
-            {/* Header */}
-            <header className="space-y-2.5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Couriers</h1>
-                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Deliveries, shipments & shipping fees</p>
+        <div className="ant-surface min-h-screen">
+            <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 md:py-8 space-y-6">
+                {/* Editorial header */}
+                <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                    <div className="space-y-2">
+                        <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                            <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                            Collaborators · Delivery crew
+                        </div>
+                        <h1 className="font-display text-[30px] md:text-[34px] leading-[1.05] tracking-[-0.02em] text-ant-ink">
+                            Couriers
+                        </h1>
+                        <p className="font-serif italic text-[14px] leading-relaxed text-ant-mid max-w-xl">
+                            Miles, doors, collections — the fleet that turns a confirmed order into a delivered one. Each profile below is a ledger of those miles.
+                        </p>
                     </div>
-                    <div className="relative sm:w-64">
-                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                    <div className="inline-flex items-center gap-1.5 rounded-full border border-ant-line bg-ant-paper px-3 h-9 text-[12px] font-semibold text-ant-ink shrink-0">
+                        <Bike className="w-3.5 h-3.5 text-ant-orange" />
+                        <span className="tabular-nums">{couriers.length}</span>
+                        <span className="text-ant-mid font-normal">couriers</span>
+                    </div>
+                </header>
+
+                {/* KPI strip */}
+                <section className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
+                    <CourierKpi label="Couriers" value={couriers.length} suffix="active" accent="ink" icon={Bike} />
+                    <CourierKpi label="Total orders" value={fmtNum(totals.totalOrders)} suffix="shipments" accent="orange" icon={Package} />
+                    <CourierKpi label="Delivered" value={fmtNum(totals.totalDelivered)} suffix="to door" accent="green" icon={PackageCheck} />
+                    <CourierKpi label="Unpaid notes" value={fmtCur(totals.totalUnpaid)} suffix="MAD" accent="rose" icon={Coins} />
+                </section>
+
+                {/* Search + Sort toolbar */}
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div className="relative w-full md:w-[340px]">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid pointer-events-none" />
                         <Input
                             placeholder="Search name, email, phone..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            className="pl-8 h-8 rounded-md border-gray-200 text-[11px]"
+                            className="pl-9 h-10 rounded-full border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid focus-visible:ring-1 focus-visible:ring-ant-orange/40"
                         />
                     </div>
-                </div>
-            </header>
 
-            {/* KPI tiles */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {[
-                    { label: 'Couriers', value: couriers.length, accent: '#3b5e5e' },
-                    { label: 'Total Orders', value: fmtNum(totals.totalOrders), accent: '#3b5e5e' },
-                    { label: 'Delivered', value: fmtNum(totals.totalDelivered), accent: '#059669' },
-                    { label: 'Unpaid Notes', value: fmtCur(totals.totalUnpaid), accent: '#d97706' },
-                ].map((stat, i) => (
-                    <div key={i} className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
-                        <span className="w-[3px] self-stretch rounded-full" style={{ background: stat.accent }} />
-                        <div className="flex-1 min-w-0">
-                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{stat.label}</p>
-                            <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{stat.value}</p>
-                        </div>
+                    <div className="inline-flex items-center gap-1 p-1 rounded-full border border-ant-line bg-ant-paper">
+                        {([
+                            { key: 'rate', label: 'Rate' },
+                            { key: 'delivered', label: 'Delivered' },
+                            { key: 'orders', label: 'Orders' },
+                            { key: 'unpaid', label: 'Unpaid' },
+                        ] as const).map((t) => {
+                            const active = sortBy === t.key;
+                            return (
+                                <button
+                                    key={t.key}
+                                    onClick={() => setSortBy(t.key)}
+                                    className={cn(
+                                        'inline-flex items-center rounded-full px-3.5 h-8 text-[11px] font-semibold transition cursor-pointer whitespace-nowrap',
+                                        active ? 'bg-ant-ink text-white' : 'text-ant-mid hover:text-ant-ink'
+                                    )}
+                                >
+                                    {t.label}
+                                </button>
+                            );
+                        })}
                     </div>
-                ))}
-            </div>
+                </div>
 
-            {/* Listing */}
-            {loadingCouriers ? (
-                <div className="flex justify-center py-16">
-                    <Loader2 className="w-5 h-5 animate-spin text-brand-navy/40" />
-                </div>
-            ) : filtered.length === 0 ? (
-                <div className="rounded-xl border border-gray-100 bg-white p-12 text-center">
-                    <Truck className="w-8 h-8 text-gray-200 mx-auto mb-3" />
-                    <p className="text-[11px] text-gray-400">No couriers found. Create a courier via Users → Add New User.</p>
-                </div>
-            ) : (
-                <div className="rounded-xl border border-gray-100 bg-white overflow-hidden">
-                    <table className="w-full">
-                        <thead className="border-b border-gray-100">
-                            <tr>
-                                {['Courier', 'Status', 'Orders', 'Delivered', 'In-Transit', 'Del. Rate', 'Shipping Fees', 'Unpaid'].map(h => (
-                                    <th key={h} className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold whitespace-nowrap">{h}</th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filtered.map((c) => {
-                                const s = stats.get(c.id);
-                                const deliveryRate = s && s.totalOrders > 0 ? (s.delivered / s.totalOrders) * 100 : 0;
-                                const rateColor = deliveryRate > 70 ? '#059669' : deliveryRate > 40 ? '#d97706' : '#ef4444';
-                                return (
-                                    <tr
-                                        key={c.id}
-                                        onClick={() => setSelected(c)}
-                                        className="border-b border-gray-100 hover:bg-gray-50/50 cursor-pointer transition-colors"
-                                    >
-                                        <td className="px-3 py-2">
-                                            <div className="flex items-center gap-2.5">
-                                                <Avatar className="h-7 w-7 shrink-0">
-                                                    <AvatarImage src={c.avatar_url || ''} />
-                                                    <AvatarFallback className="bg-gray-100 text-brand-navy/60 text-[9px] font-semibold">
-                                                        {c.name.substring(0, 2).toUpperCase()}
-                                                    </AvatarFallback>
-                                                </Avatar>
-                                                <div className="min-w-0">
-                                                    <p className="text-[12px] font-semibold text-brand-navy truncate leading-none">{c.name}</p>
-                                                    <p className="text-[10px] text-gray-500 truncate mt-0.5">{c.email}</p>
+                {/* Courier roster grid */}
+                {loadingCouriers ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {Array.from({ length: 6 }).map((_, i) => (
+                            <div key={i} className="h-56 rounded-2xl bg-ant-light animate-pulse" />
+                        ))}
+                    </div>
+                ) : filtered.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-ant-line bg-ant-paper px-8 py-16 text-center">
+                        <div className="mx-auto w-12 h-12 rounded-2xl bg-ant-orange/10 border border-ant-orange/25 flex items-center justify-center mb-4">
+                            <Truck className="w-5 h-5 text-ant-orange" strokeWidth={1.75} />
+                        </div>
+                        <h3 className="font-display text-[18px] text-ant-ink tracking-tight">
+                            {couriers.length ? 'No couriers match that search' : 'No couriers yet'}
+                        </h3>
+                        <p className="font-serif italic text-[13px] text-ant-mid mt-2 max-w-sm mx-auto">
+                            {couriers.length
+                                ? 'Loosen the search to bring the fleet back into view.'
+                                : 'Create a courier user from the Users page and the fleet ledger starts here.'}
+                        </p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {filtered.map((c) => {
+                            const s = stats.get(c.id);
+                            const rate = s && s.totalOrders > 0 ? (s.delivered / s.totalOrders) * 100 : 0;
+                            const tier = deliveryTier(rate);
+                            const rank = rankMap.get(c.id) ?? 0;
+                            const isActive = c.active !== false;
+
+                            return (
+                                <div
+                                    key={c.id}
+                                    onClick={() => setSelected(c)}
+                                    className="relative overflow-hidden rounded-2xl border border-ant-line bg-ant-paper cursor-pointer hover:border-ant-ink/20 hover:shadow-[0_16px_48px_-20px_rgba(20,20,19,0.15)] transition-all group"
+                                >
+                                    <div className={cn('h-[3px] w-full', tier.stripe)} />
+                                    <div className="p-4 space-y-3">
+                                        <div className="flex items-start gap-3">
+                                            <Avatar className="h-12 w-12 shrink-0 rounded-2xl border border-ant-line">
+                                                <AvatarImage src={c.avatar_url || ''} className="object-cover" />
+                                                <AvatarFallback className="rounded-2xl bg-ant-ink/5 text-ant-ink font-display font-semibold text-[14px]">
+                                                    {c.name.substring(0, 2).toUpperCase()}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-2">
+                                                    <h3 className="font-display text-[14px] font-semibold text-ant-ink truncate">{c.name}</h3>
+                                                    <span className="inline-flex items-center rounded-full border border-ant-line bg-ant-light px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-ant-mid tabular-nums">
+                                                        #{rank}
+                                                    </span>
                                                 </div>
+                                                <p className="text-[11px] text-ant-mid truncate mt-0.5">{c.email}</p>
                                             </div>
-                                        </td>
-                                        <td className="px-3 py-2">
-                                            <span className={cn(
-                                                'h-5 px-1.5 inline-flex items-center rounded text-[9px] font-semibold',
-                                                c.active !== false ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'
-                                            )}>
-                                                {c.active !== false ? 'Active' : 'Inactive'}
-                                            </span>
-                                        </td>
-                                        <td className="px-3 py-2 text-[11px] text-brand-navy/80 tabular-nums">{fmtNum(s?.totalOrders || 0)}</td>
-                                        <td className="px-3 py-2 text-[11px] text-brand-navy/80 tabular-nums">{fmtNum(s?.delivered || 0)}</td>
-                                        <td className="px-3 py-2 text-[11px] text-brand-navy/80 tabular-nums">{fmtNum(s?.inTransit || 0)}</td>
-                                        <td className="px-3 py-2 text-[11px] font-semibold tabular-nums" style={{ color: rateColor }}>
-                                            {deliveryRate.toFixed(1)}%
-                                        </td>
-                                        <td className="px-3 py-2 text-[11px] text-brand-navy/80 tabular-nums" title={fmtCurFull(s?.totalShippingFees || 0)}>
-                                            {fmtCur(s?.totalShippingFees || 0)}
-                                        </td>
-                                        <td className="px-3 py-2 text-[11px] tabular-nums" style={{ color: (s?.totalUnpaid || 0) > 0 ? '#d97706' : undefined }}>
-                                            {fmtCur(s?.totalUnpaid || 0)}
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-            )}
+                                            <ArrowUpRight className="w-4 h-4 text-ant-mid opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                                        </div>
+
+                                        {/* Delivery progress bar */}
+                                        <div className="space-y-1.5">
+                                            <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">
+                                                <span>Delivery rate</span>
+                                                <span className={cn('font-display text-[14px] tracking-normal tabular-nums normal-case', tier.text)}>
+                                                    {rate.toFixed(0)}%
+                                                </span>
+                                            </div>
+                                            <div className="h-1.5 bg-ant-line rounded-full overflow-hidden">
+                                                <div
+                                                    className={cn('h-full rounded-full transition-all', tier.stripe)}
+                                                    style={{ width: `${Math.min(100, rate)}%` }}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* 4-col hairline stats */}
+                                        <div className="grid grid-cols-4 gap-px bg-ant-line rounded-xl border border-ant-line overflow-hidden">
+                                            <div className="bg-ant-paper px-2.5 py-2">
+                                                <p className="text-[9px] uppercase tracking-[0.2em] font-semibold text-ant-mid">Orders</p>
+                                                <p className="text-[13px] font-semibold text-ant-ink tabular-nums">{fmtNum(s?.totalOrders || 0)}</p>
+                                            </div>
+                                            <div className="bg-ant-paper px-2.5 py-2">
+                                                <p className="text-[9px] uppercase tracking-[0.2em] font-semibold text-ant-mid">Deliv</p>
+                                                <p className="text-[13px] font-semibold text-ant-green tabular-nums">{fmtNum(s?.delivered || 0)}</p>
+                                            </div>
+                                            <div className="bg-ant-paper px-2.5 py-2">
+                                                <p className="text-[9px] uppercase tracking-[0.2em] font-semibold text-ant-mid">Transit</p>
+                                                <p className="text-[13px] font-semibold text-ant-orange tabular-nums">{fmtNum(s?.inTransit || 0)}</p>
+                                            </div>
+                                            <div className="bg-ant-paper px-2.5 py-2">
+                                                <p className="text-[9px] uppercase tracking-[0.2em] font-semibold text-ant-mid">Return</p>
+                                                <p className="text-[13px] font-semibold text-ant-rose tabular-nums">{fmtNum(s?.returned || 0)}</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Footer: active pill + unpaid */}
+                                        <div className="flex items-center justify-between pt-2 border-t border-ant-line">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className={cn(
+                                                    'inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold',
+                                                    isActive ? 'bg-ant-green/10 border-ant-green/25 text-ant-green' : 'bg-ant-light border-ant-line text-ant-mid'
+                                                )}>
+                                                    <span className={cn('h-1.5 w-1.5 rounded-full', isActive ? 'bg-ant-green' : 'bg-ant-mid')} />
+                                                    {isActive ? 'Active' : 'Off'}
+                                                </span>
+                                                <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold', tier.bg, tier.border, tier.text)}>
+                                                    <span className={cn('h-1.5 w-1.5 rounded-full', tier.dot)} />
+                                                    {tier.label}
+                                                </span>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-[9px] uppercase tracking-[0.2em] font-semibold text-ant-mid">Unpaid</p>
+                                                <p className="font-display text-[14px] font-semibold text-ant-ink tabular-nums" title={fmtCurFull(s?.totalUnpaid || 0)}>
+                                                    {fmtCur(s?.totalUnpaid || 0)}
+                                                    <span className="text-[10px] text-ant-mid font-normal ml-1">MAD</span>
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
 
             {/* Detail drawer */}
             <Sheet open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
-                <SheetContent className="sm:max-w-md overflow-y-auto border-l border-gray-100 shadow-none bg-white">
+                <SheetContent className="ant-surface sm:max-w-md overflow-y-auto ant-scroll border-l border-ant-line bg-ant-paper p-0">
                     {selected && (() => {
                         const s = stats.get(selected.id);
                         const notes = paymentNotes.filter((n) => n.courier_id === selected.id);
                         const totalFees = s?.totalShippingFees || 0;
                         const paidFees = s?.totalPaid || 0;
                         const pendingFees = s?.totalUnpaid || 0;
+                        const rate = s && s.totalOrders > 0 ? (s.delivered / s.totalOrders) * 100 : 0;
+                        const tier = deliveryTier(rate);
+                        const isActive = selected.active !== false;
+
                         return (
-                            <div className="space-y-4 pt-2">
-                                <div className="flex items-start justify-between gap-3">
-                                    <div className="flex items-center gap-2.5 min-w-0">
-                                        <Avatar className="h-7 w-7 shrink-0">
-                                            <AvatarImage src={selected.avatar_url || ''} />
-                                            <AvatarFallback className="bg-gray-100 text-brand-navy/60 text-[9px] font-semibold">
+                            <div className="flex flex-col h-full">
+                                {/* Editorial header */}
+                                <div className="px-6 pt-6 pb-4 border-b border-ant-line">
+                                    <div className="flex items-start gap-3">
+                                        <Avatar className="h-14 w-14 shrink-0 rounded-2xl border border-ant-line">
+                                            <AvatarImage src={selected.avatar_url || ''} className="object-cover" />
+                                            <AvatarFallback className="rounded-2xl bg-ant-ink/5 text-ant-ink font-display font-semibold text-[18px]">
                                                 {selected.name.substring(0, 2).toUpperCase()}
                                             </AvatarFallback>
                                         </Avatar>
-                                        <div className="min-w-0">
-                                            <p className="text-[12px] font-semibold text-brand-navy truncate leading-none">{selected.name}</p>
-                                            <p className="text-[10px] text-gray-500 truncate mt-0.5">{selected.email}</p>
-                                        </div>
-                                    </div>
-                                    <Button variant="ghost" size="icon" onClick={() => setSelected(null)} className="h-7 w-7 rounded-md shrink-0">
-                                        <X className="w-3.5 h-3.5" />
-                                    </Button>
-                                </div>
-
-                                <div className="border-b border-gray-100 pb-4 space-y-2">
-                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Contact</p>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        {[
-                                            { icon: Phone, label: 'Phone', value: selected.phone || '—' },
-                                            { icon: Mail, label: 'Email', value: selected.email },
-                                        ].map(({ icon: Icon, label, value }) => (
-                                            <div key={label} className="rounded-xl border border-gray-100 p-2.5 flex items-center gap-2">
-                                                <Icon className="w-3 h-3 text-gray-400 shrink-0" />
-                                                <div className="min-w-0">
-                                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{label}</p>
-                                                    <p className="text-[10px] font-semibold text-brand-navy truncate">{value}</p>
-                                                </div>
+                                        <div className="flex-1 min-w-0 space-y-1.5">
+                                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                                <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                                                Courier · Profile
                                             </div>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <div className="border-b border-gray-100 pb-4 space-y-2">
-                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Performance</p>
-                                    <div className="grid grid-cols-4 gap-2">
-                                        {[
-                                            { label: 'Orders', value: fmtNum(s?.totalOrders || 0), accent: '#3b5e5e' },
-                                            { label: 'Delivered', value: fmtNum(s?.delivered || 0), accent: '#059669' },
-                                            { label: 'In-Transit', value: fmtNum(s?.inTransit || 0), accent: '#3b82f6' },
-                                            { label: 'Returned', value: fmtNum(s?.returned || 0), accent: '#ef4444' },
-                                        ].map(t => (
-                                            <div key={t.label} className="rounded-xl border border-gray-100 p-2.5 flex items-start gap-1.5">
-                                                <span className="w-[3px] self-stretch rounded-full shrink-0" style={{ background: t.accent }} />
-                                                <div>
-                                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{t.label}</p>
-                                                    <p className="text-[15px] font-semibold tabular-nums text-brand-navy mt-0.5 leading-none">{t.value}</p>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <div className="border-b border-gray-100 pb-4 space-y-2">
-                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400 flex items-center gap-1">
-                                        <TrendingUp className="w-3 h-3" /> Profit (delivery fees)
-                                    </p>
-                                    <div className="rounded-xl border border-gray-100 p-3 flex items-start gap-2.5">
-                                        <span className="w-[3px] self-stretch rounded-full" style={{ background: '#059669' }} />
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Total fees earned</p>
-                                            <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1" title={fmtCurFull(totalFees)}>{fmtCur(totalFees)}</p>
-                                            <p className="text-[9px] text-gray-400 mt-1">Shipping fees from delivered orders deducted from COD collection.</p>
-                                            <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-gray-100">
-                                                <div>
-                                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Paid out</p>
-                                                    <p className="text-[12px] font-semibold text-brand-navy tabular-nums" title={fmtCurFull(paidFees)}>{fmtCur(paidFees)}</p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Pending</p>
-                                                    <p className={cn('text-[12px] font-semibold tabular-nums', pendingFees > 0 ? 'text-amber-600' : 'text-brand-navy/40')} title={fmtCurFull(pendingFees)}>{fmtCur(pendingFees)}</p>
-                                                </div>
+                                            <h2 className="font-display text-[20px] leading-tight tracking-tight text-ant-ink truncate">{selected.name}</h2>
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <span className={cn(
+                                                    'inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold',
+                                                    isActive ? 'bg-ant-green/10 border-ant-green/25 text-ant-green' : 'bg-ant-light border-ant-line text-ant-mid'
+                                                )}>
+                                                    <span className={cn('h-1.5 w-1.5 rounded-full', isActive ? 'bg-ant-green' : 'bg-ant-mid')} />
+                                                    {isActive ? 'Active' : 'Inactive'}
+                                                </span>
+                                                <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold', tier.bg, tier.border, tier.text)}>
+                                                    <span className={cn('h-1.5 w-1.5 rounded-full', tier.dot)} />
+                                                    {tier.label} · {rate.toFixed(0)}%
+                                                </span>
                                             </div>
                                         </div>
+                                        <Button variant="ghost" size="icon" onClick={() => setSelected(null)} className="h-9 w-9 rounded-full hover:bg-ant-ink/5 text-ant-mid shrink-0 cursor-pointer">
+                                            <X className="w-4 h-4" />
+                                        </Button>
                                     </div>
                                 </div>
 
-                                <div className="space-y-2">
-                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Payment notes · {notes.length}</p>
-                                    {notes.length === 0 ? (
-                                        <p className="text-[10px] text-gray-400">No payment notes yet.</p>
-                                    ) : (
-                                        <div className="space-y-1.5">
-                                            {notes.slice(0, 10).map((n) => (
-                                                <div key={n.id} className="flex items-center gap-2.5 px-3 py-2 rounded-xl border border-gray-100">
-                                                    <CreditCard className="w-3 h-3 text-gray-400 shrink-0" />
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="text-[11px] font-semibold text-brand-navy">{fmtCurFull(Number(n.net_amount || 0))}</p>
-                                                        <p className="text-[9px] text-gray-400">{n.order_count} orders · {new Date(n.created_at).toLocaleDateString()}</p>
-                                                    </div>
-                                                    <span className={cn(
-                                                        'h-5 px-1.5 inline-flex items-center rounded text-[9px] font-semibold',
-                                                        n.status === 'paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
-                                                    )}>
-                                                        {n.status}
-                                                    </span>
-                                                </div>
-                                            ))}
+                                <div className="p-6 space-y-5 flex-1 overflow-y-auto ant-scroll">
+                                    {/* Contact */}
+                                    <section className="space-y-2">
+                                        <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                            <Phone className="w-3 h-3" />
+                                            Contact
                                         </div>
-                                    )}
+                                        <div className="grid grid-cols-1 gap-2">
+                                            <ContactRow icon={Phone} label="Phone" value={selected.phone || '—'} />
+                                            <ContactRow icon={Mail} label="Email" value={selected.email} />
+                                            {selected.address && <ContactRow icon={MapPin} label="Address" value={selected.address} />}
+                                        </div>
+                                    </section>
+
+                                    {/* Performance */}
+                                    <section className="space-y-3">
+                                        <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                            <Package className="w-3 h-3" />
+                                            Performance
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
+                                            <CourierKpi label="Orders" value={fmtNum(s?.totalOrders || 0)} suffix="total" accent="ink" icon={Package} />
+                                            <CourierKpi label="Delivered" value={fmtNum(s?.delivered || 0)} suffix="to door" accent="green" icon={PackageCheck} />
+                                            <CourierKpi label="In-transit" value={fmtNum(s?.inTransit || 0)} suffix="shipping" accent="orange" icon={Truck} />
+                                            <CourierKpi label="Returned" value={fmtNum(s?.returned || 0)} suffix="bounced" accent="rose" icon={RotateCcw} />
+                                        </div>
+                                    </section>
+
+                                    {/* Financial — ink panel */}
+                                    <section className="rounded-2xl border border-ant-ink bg-ant-ink text-white overflow-hidden">
+                                        <div className="px-5 pt-4 pb-2 flex items-center justify-between">
+                                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-white/55">
+                                                <TrendingUp className="w-3 h-3" />
+                                                Shipping fees
+                                            </div>
+                                            <Sparkles className="w-3.5 h-3.5 text-ant-orange/70" />
+                                        </div>
+                                        <div className="px-5 pb-4">
+                                            <p className="font-display text-[28px] font-semibold text-white tabular-nums" title={fmtCurFull(totalFees)}>
+                                                {fmtCur(totalFees)}
+                                                <span className="text-[12px] text-white/55 font-normal ml-2">MAD earned</span>
+                                            </p>
+                                            <p className="font-serif italic text-[11px] text-white/55 mt-1">Fees from delivered orders, deducted from COD collection.</p>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-px bg-white/10 border-t border-white/10">
+                                            <div className="bg-ant-ink px-5 py-3">
+                                                <p className="text-[9px] uppercase tracking-[0.24em] font-semibold text-white/55 inline-flex items-center gap-1.5">
+                                                    <span className="h-1.5 w-1.5 rounded-full bg-ant-green" />
+                                                    Paid out
+                                                </p>
+                                                <p className="font-display text-[16px] font-semibold text-white mt-0.5 tabular-nums" title={fmtCurFull(paidFees)}>
+                                                    {fmtCur(paidFees)} <span className="text-[10px] text-white/55 font-normal">MAD</span>
+                                                </p>
+                                            </div>
+                                            <div className="bg-ant-ink px-5 py-3">
+                                                <p className="text-[9px] uppercase tracking-[0.24em] font-semibold text-white/55 inline-flex items-center gap-1.5">
+                                                    <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                                                    Pending
+                                                </p>
+                                                <p className={cn('font-display text-[16px] font-semibold mt-0.5 tabular-nums', pendingFees > 0 ? 'text-ant-orange' : 'text-white/40')} title={fmtCurFull(pendingFees)}>
+                                                    {fmtCur(pendingFees)} <span className="text-[10px] text-white/55 font-normal">MAD</span>
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </section>
+
+                                    {/* Payment notes */}
+                                    <section className="space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                                <CreditCard className="w-3 h-3" />
+                                                Payment notes
+                                            </div>
+                                            <span className="inline-flex items-center rounded-full border border-ant-line bg-ant-light px-2 py-0.5 text-[10px] font-semibold text-ant-ink tabular-nums">
+                                                {notes.length}
+                                            </span>
+                                        </div>
+                                        {notes.length === 0 ? (
+                                            <p className="font-serif italic text-[12px] text-ant-mid py-6 text-center border border-dashed border-ant-line rounded-2xl">
+                                                No payment notes yet.
+                                            </p>
+                                        ) : (
+                                            <div className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                                                {notes.slice(0, 10).map((n) => {
+                                                    const paid = n.status === 'paid';
+                                                    return (
+                                                        <div key={n.id} className="flex items-center gap-3 px-4 py-3 border-b border-ant-line last:border-0 hover:bg-ant-light/60 transition-colors">
+                                                            <div className={cn('h-9 w-9 rounded-xl border flex items-center justify-center shrink-0', paid ? 'bg-ant-green/10 border-ant-green/25 text-ant-green' : 'bg-ant-orange/10 border-ant-orange/25 text-ant-orange')}>
+                                                                <CreditCard className="w-4 h-4" strokeWidth={1.75} />
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="font-display text-[14px] font-semibold text-ant-ink tabular-nums">
+                                                                    {fmtCurFull(Number(n.net_amount || 0))} <span className="text-[10px] text-ant-mid font-normal">MAD</span>
+                                                                </p>
+                                                                <p className="text-[11px] text-ant-mid tabular-nums">
+                                                                    {n.order_count} orders · {new Date(n.created_at).toLocaleDateString()}
+                                                                </p>
+                                                            </div>
+                                                            <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize', paid ? 'bg-ant-green/10 border-ant-green/25 text-ant-green' : 'bg-ant-orange/10 border-ant-orange/25 text-ant-orange')}>
+                                                                <span className={cn('h-1.5 w-1.5 rounded-full', paid ? 'bg-ant-green' : 'bg-ant-orange')} />
+                                                                {n.status}
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </section>
                                 </div>
                             </div>
                         );
@@ -418,5 +605,17 @@ const Couriers = () => {
         </div>
     );
 };
+
+const ContactRow: React.FC<{ icon: LucideIcon; label: string; value: string }> = ({ icon: Icon, label, value }) => (
+    <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-ant-line bg-ant-paper">
+        <div className="h-8 w-8 rounded-lg bg-ant-light border border-ant-line flex items-center justify-center shrink-0">
+            <Icon className="w-3.5 h-3.5 text-ant-ink" strokeWidth={1.75} />
+        </div>
+        <div className="min-w-0">
+            <p className="text-[9px] uppercase tracking-[0.24em] font-semibold text-ant-mid">{label}</p>
+            <p className="text-[12px] font-semibold text-ant-ink truncate">{value}</p>
+        </div>
+    </div>
+);
 
 export default Couriers;

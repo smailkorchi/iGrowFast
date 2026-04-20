@@ -18,11 +18,8 @@ import {
     Database,
     X,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
-import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import {
@@ -469,205 +466,274 @@ const ImportProducts = () => {
     const totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
     const validCount = data.filter((d) => d.status === 'valid').length;
 
-    return (
-        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
-            <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div>
-                    <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Import Products</h1>
-                    <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Bulk create or update products by code</p>
-                </div>
-                <Button
-                    variant="outline"
-                    onClick={() => window.open(TEMPLATE_URL, '_blank')}
-                    className="h-8 px-3 rounded-md text-[11px] font-semibold border-gray-200 gap-1.5 shrink-0"
-                >
-                    <Download className="w-3.5 h-3.5" />
-                    Download Excel model
-                </Button>
-            </header>
+    const errorCount = data.length - validCount;
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-                <Card className={cn(
-                    'lg:col-span-2 border border-gray-100 shadow-none rounded-xl overflow-hidden transition-all duration-300',
-                    isDragActive ? 'border-brand-navy/30' : ''
-                )}>
-                    <CardContent className="p-0">
-                        <div
-                            {...getRootProps()}
-                            className={cn(
-                                'border-dashed border-gray-200 rounded-xl p-6 flex flex-col items-center justify-center min-h-[200px] cursor-pointer transition-all duration-300',
-                                isDragActive ? 'border-brand-navy/40 bg-brand-navy/[0.03]' : 'hover:border-gray-300'
-                            )}
-                        >
-                            <input {...getInputProps()} />
-                            {isParsing ? (
-                                <div className="text-center space-y-2">
-                                    <Loader2 className="w-6 h-6 text-brand-navy animate-spin mx-auto" />
-                                    <p className="text-[11px] font-semibold text-brand-navy">Analyzing file...</p>
+    return (
+        <div className="ant-surface min-h-screen">
+            <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 md:py-8 space-y-6">
+                <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                    <div className="space-y-2">
+                        <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                            <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                            Data · Catalogue
+                        </div>
+                        <h1 className="font-display text-[30px] md:text-[34px] leading-[1.05] tracking-[-0.02em] text-ant-ink">
+                            Import Products
+                        </h1>
+                        <p className="font-serif italic text-[14px] leading-relaxed text-ant-mid max-w-xl">
+                            Un fichier Excel, une base catalogue. Les codes existants sont mis à jour, les accessoires par défaut recalibrés, les nouvelles références créées sans friction.
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => window.open(TEMPLATE_URL, '_blank')}
+                        className="inline-flex items-center gap-2 h-10 px-4 rounded-full border border-ant-line bg-ant-paper hover:bg-ant-light text-[12px] font-semibold text-ant-ink cursor-pointer shrink-0 transition-colors"
+                    >
+                        <Download className="w-3.5 h-3.5" strokeWidth={1.75} />
+                        Télécharger le modèle Excel
+                    </button>
+                </header>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                    <section className={cn(
+                        'lg:col-span-2 rounded-2xl border bg-ant-paper overflow-hidden transition-colors',
+                        isDragActive ? 'border-ant-orange bg-ant-orange/5' : 'border-ant-line'
+                    )}>
+                        <div className={cn('h-[3px] w-full', isDragActive ? 'bg-ant-orange' : 'bg-ant-ink')} />
+                        <div className="p-5 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                    <span className="font-display text-ant-orange font-semibold">01</span>
+                                    Dépôt du fichier
                                 </div>
-                            ) : file && data.length > 0 ? (
-                                <div className="text-center space-y-2">
-                                    <p className="text-[12px] font-semibold text-brand-navy">{file.name}</p>
-                                    <p className="text-[11px] text-gray-500">{data.length} rows</p>
-                                    <div className="flex items-center justify-center gap-2">
-                                        <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 border h-5 px-1.5 text-[9px] font-semibold">{validCount} ready</Badge>
-                                        <Badge className="bg-red-50 text-red-700 border-red-100 border h-5 px-1.5 text-[9px] font-semibold">{data.length - validCount} errors</Badge>
+                                <span className="font-serif italic text-[11px] text-ant-mid">Excel XLSX · XLS</span>
+                            </div>
+                            <div
+                                {...getRootProps()}
+                                className={cn(
+                                    'rounded-xl border border-dashed p-8 flex flex-col items-center justify-center min-h-[220px] cursor-pointer transition-colors',
+                                    isDragActive
+                                        ? 'border-ant-orange bg-ant-orange/5'
+                                        : 'border-ant-line bg-ant-light hover:bg-ant-light/70 hover:border-ant-mid/40'
+                                )}
+                            >
+                                <input {...getInputProps()} />
+                                {isParsing ? (
+                                    <div className="text-center space-y-2">
+                                        <Loader2 className="w-6 h-6 text-ant-ink animate-spin mx-auto" strokeWidth={1.5} />
+                                        <p className="font-display text-[14px] font-semibold text-ant-ink">Analyse du fichier…</p>
+                                        <p className="font-serif italic text-[12px] text-ant-mid">Extraction des lignes produit.</p>
                                     </div>
-                                    <Button
-                                        onClick={(e) => { e.stopPropagation(); setFile(null); setData([]); }}
-                                        variant="ghost"
-                                        className="h-7 px-2 rounded-md text-[10px] font-semibold text-red-500 hover:bg-red-50 gap-1"
-                                    >
-                                        <Trash2 className="w-3 h-3" />
-                                        Remove file
-                                    </Button>
+                                ) : file && data.length > 0 ? (
+                                    <div className="text-center space-y-2.5 max-w-sm">
+                                        <div className="h-10 w-10 rounded-xl border border-ant-green/25 bg-ant-green/10 text-ant-green flex items-center justify-center mx-auto">
+                                            <CheckCircle2 className="w-4 h-4" strokeWidth={1.75} />
+                                        </div>
+                                        <p className="font-display text-[14px] font-semibold text-ant-ink truncate max-w-[280px] mx-auto">{file.name}</p>
+                                        <p className="font-serif italic text-[12px] text-ant-mid">{data.length} lignes détectées</p>
+                                        <div className="flex items-center justify-center gap-2 flex-wrap">
+                                            <span className="inline-flex items-center gap-1.5 rounded-full border border-ant-green/25 bg-ant-green/10 px-2 py-0.5 text-[10px] font-semibold text-ant-green">
+                                                <span className="h-1.5 w-1.5 rounded-full bg-ant-green" />
+                                                {validCount} prêtes
+                                            </span>
+                                            {errorCount > 0 && (
+                                                <span className="inline-flex items-center gap-1.5 rounded-full border border-ant-rose/25 bg-ant-rose/10 px-2 py-0.5 text-[10px] font-semibold text-ant-rose">
+                                                    <span className="h-1.5 w-1.5 rounded-full bg-ant-rose" />
+                                                    {errorCount} erreurs
+                                                </span>
+                                            )}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); setFile(null); setData([]); }}
+                                            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full border border-ant-line bg-ant-paper hover:bg-ant-rose/10 hover:border-ant-rose/25 text-[11px] font-semibold text-ant-rose cursor-pointer transition-colors"
+                                        >
+                                            <Trash2 className="w-3 h-3" strokeWidth={1.75} />
+                                            Retirer le fichier
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="text-center space-y-2">
+                                        <div className="h-10 w-10 rounded-xl border border-ant-line bg-ant-paper text-ant-mid flex items-center justify-center mx-auto">
+                                            <Upload className="w-4 h-4" strokeWidth={1.75} />
+                                        </div>
+                                        <p className="font-display text-[14px] font-semibold text-ant-ink">Glissez votre Excel ici</p>
+                                        <p className="font-serif italic text-[12px] text-ant-mid">ou cliquez pour parcourir votre poste.</p>
+                                        <div className="flex items-center justify-center gap-4 pt-1">
+                                            <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">
+                                                <FileSpreadsheet className="w-3 h-3" strokeWidth={1.75} /> XLSX
+                                            </span>
+                                            <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">
+                                                <FileSpreadsheet className="w-3 h-3" strokeWidth={1.75} /> XLS
+                                            </span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </section>
+
+                    <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                        <div className="h-[3px] w-full bg-ant-orange" />
+                        <div className="p-5 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                    <span className="font-display text-ant-orange font-semibold">02</span>
+                                    Produits + liaisons
                                 </div>
-                            ) : (
-                                <div className="text-center space-y-2">
-                                    <Upload className="w-6 h-6 text-gray-400 mx-auto" />
-                                    <p className="text-[12px] font-semibold text-brand-navy">Drop Excel here</p>
-                                    <p className="text-[11px] text-gray-400">or click to browse</p>
-                                    <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400 flex items-center gap-1 justify-center">
-                                        <FileSpreadsheet className="w-3 h-3" /> XLSX / XLS
+                                <Database className="w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
+                            </div>
+                            <p className="font-serif italic text-[12px] text-ant-mid leading-relaxed">
+                                Les codes existants sont mis à jour. Les accessoires par défaut sont remplacés par le fichier — une colonne vide efface les liens.
+                            </p>
+                            <div className="space-y-2">
+                                {[
+                                    'Importer les accessoires en premier si vous utilisez les SKUs',
+                                    'Codes matchés sans distinction de casse',
+                                    'Les doublons dans le fichier sont rejetés',
+                                ].map((t) => (
+                                    <div key={t} className="flex items-start gap-2.5">
+                                        <div className="h-5 w-5 rounded-md border border-ant-green/25 bg-ant-green/10 text-ant-green flex items-center justify-center shrink-0 mt-px">
+                                            <CheckCircle2 className="w-2.5 h-2.5" strokeWidth={2} />
+                                        </div>
+                                        <p className="text-[11px] text-ant-ink leading-relaxed">{t}</p>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="pt-3 border-t border-ant-line">
+                                {uploadProgress > 0 ? (
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between items-baseline">
+                                            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Sync en cours</span>
+                                            <span className="font-display text-[14px] font-semibold tabular-nums text-ant-ink">{uploadProgress}%</span>
+                                        </div>
+                                        <Progress value={uploadProgress} className="h-1.5" />
+                                    </div>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        disabled={data.length === 0 || validCount === 0 || !activeBusinessId || uploadMutation.isPending}
+                                        onClick={() => uploadMutation.mutate(data.filter((d) => d.status === 'valid'))}
+                                        className="w-full inline-flex items-center justify-center gap-2 h-10 rounded-full bg-ant-ink hover:bg-ant-ink/90 disabled:bg-ant-mid/40 disabled:cursor-not-allowed text-white text-[12px] font-semibold cursor-pointer transition-colors"
+                                    >
+                                        {uploadMutation.isPending ? (
+                                            <><Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.75} /> Traitement…</>
+                                        ) : (
+                                            <>Importer {validCount} lignes <ArrowRight className="w-3.5 h-3.5" strokeWidth={1.75} /></>
+                                        )}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                {data.length > 0 && (
+                    <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                        <div className="h-[3px] w-full bg-ant-green" />
+                        <div className="px-5 py-4 flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-ant-line">
+                            <div className="space-y-1">
+                                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                    <span className="font-display text-ant-orange font-semibold">03</span>
+                                    Prévisualisation
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="font-display text-[16px] font-semibold text-ant-ink tabular-nums">{filteredData.length}</span>
+                                    <span className="font-serif italic text-[12px] text-ant-mid">
+                                        {filteredData.length > 1 ? 'lignes filtrées' : 'ligne filtrée'}
                                     </span>
                                 </div>
-                            )}
+                            </div>
+                            <div className="relative w-full md:w-72">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
+                                <Input
+                                    placeholder="Rechercher un code, nom, description…"
+                                    className="pl-9 h-9 rounded-full border-ant-line bg-ant-paper text-[12px] focus-visible:ring-1 focus-visible:ring-ant-orange/40"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                />
+                            </div>
                         </div>
-                    </CardContent>
-                </Card>
 
-                <Card className="border border-gray-100 shadow-none rounded-xl overflow-hidden">
-                    <CardContent className="p-3.5 space-y-3">
-                        <div className="flex items-center gap-2">
-                            <Database className="w-4 h-4 text-brand-navy/40" />
-                            <p className="text-[11px] font-semibold text-brand-navy">Products + links</p>
-                        </div>
-                        <p className="text-[10px] text-gray-400 leading-relaxed">
-                            Existing product codes are updated. Default accessory links are replaced by the sheet (empty column clears links).
-                        </p>
-                        <div className="space-y-1.5">
-                            {[
-                                'Import accessories first if you use Accessory SKUs',
-                                'Codes matched case-insensitively',
-                                'Duplicate codes in the same file are rejected',
-                            ].map((t) => (
-                                <div key={t} className="flex items-start gap-1.5">
-                                    <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0 mt-0.5" />
-                                    <p className="text-[10px] text-brand-navy/80">{t}</p>
-                                </div>
-                            ))}
-                        </div>
-                        <div className="pt-2 border-t border-gray-100">
-                            {uploadProgress > 0 ? (
-                                <div className="space-y-1.5">
-                                    <div className="flex justify-between text-[10px] font-semibold text-brand-navy">
-                                        <span>Syncing</span>
-                                        <span>{uploadProgress}%</span>
-                                    </div>
-                                    <Progress value={uploadProgress} className="h-1.5" />
-                                </div>
-                            ) : (
-                                <Button
-                                    disabled={data.length === 0 || validCount === 0 || !activeBusinessId || uploadMutation.isPending}
-                                    onClick={() => uploadMutation.mutate(data.filter((d) => d.status === 'valid'))}
-                                    className="w-full h-8 bg-brand-navy hover:bg-brand-navy/90 text-white rounded-md text-[11px] font-semibold gap-1.5"
-                                >
-                                    {uploadMutation.isPending ? (
-                                        <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Processing...</>
-                                    ) : (
-                                        <>Commit {validCount} rows <ArrowRight className="w-3.5 h-3.5" /></>
-                                    )}
-                                </Button>
-                            )}
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
-
-            {data.length > 0 && (
-                <div className="space-y-3">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                            <p className="text-[13px] font-semibold text-brand-navy">Preview</p>
-                            <Badge variant="secondary" className="h-5 px-1.5 text-[9px] font-semibold">{filteredData.length} rows</Badge>
-                        </div>
-                        <div className="relative w-full md:w-64">
-                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
-                            <Input
-                                placeholder="Search..."
-                                className="pl-7 h-8 rounded-md border-gray-200 text-[11px]"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                            />
-                        </div>
-                    </div>
-
-                    <Card className="border border-gray-100 shadow-none rounded-xl overflow-hidden">
                         <div className="overflow-x-auto max-w-full">
                             <Table>
                                 <TableHeader>
-                                    <TableRow className="bg-gray-50/60 hover:bg-gray-50/60">
-                                        <TableHead className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold py-2 pl-3 min-w-[140px]">Code / Name</TableHead>
-                                        <TableHead className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold py-2 min-w-[120px]">Label</TableHead>
-                                        <TableHead className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold py-2 min-w-[200px]">Description</TableHead>
-                                        <TableHead className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold py-2 min-w-[100px]">Prices</TableHead>
-                                        <TableHead className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold py-2 min-w-[140px]">Accessories</TableHead>
-                                        <TableHead className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold py-2">Op</TableHead>
-                                        <TableHead className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold py-2">Status</TableHead>
-                                        <TableHead className="py-2 pr-3 w-10" />
+                                    <TableRow className="bg-ant-light hover:bg-ant-light border-ant-line">
+                                        <TableHead className="text-[10px] uppercase tracking-[0.18em] text-ant-mid font-semibold py-2.5 pl-5 min-w-[140px]">Code / Nom</TableHead>
+                                        <TableHead className="text-[10px] uppercase tracking-[0.18em] text-ant-mid font-semibold py-2.5 min-w-[120px]">Label</TableHead>
+                                        <TableHead className="text-[10px] uppercase tracking-[0.18em] text-ant-mid font-semibold py-2.5 min-w-[200px]">Description</TableHead>
+                                        <TableHead className="text-[10px] uppercase tracking-[0.18em] text-ant-mid font-semibold py-2.5 min-w-[100px]">Prix</TableHead>
+                                        <TableHead className="text-[10px] uppercase tracking-[0.18em] text-ant-mid font-semibold py-2.5 min-w-[140px]">Accessoires</TableHead>
+                                        <TableHead className="text-[10px] uppercase tracking-[0.18em] text-ant-mid font-semibold py-2.5">Opération</TableHead>
+                                        <TableHead className="text-[10px] uppercase tracking-[0.18em] text-ant-mid font-semibold py-2.5">Statut</TableHead>
+                                        <TableHead className="py-2.5 pr-5 w-10" />
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {paginatedData.map((row) => (
-                                        <TableRow key={row.id} className="hover:bg-gray-50 transition-colors border-gray-50">
-                                            <TableCell className="pl-3 py-2 align-top">
-                                                <div className="font-mono text-[10px] font-semibold text-brand-navy">{row.code}</div>
-                                                <div className="text-[10px] text-gray-500">{row.name}</div>
+                                        <TableRow key={row.id} className="hover:bg-ant-light/40 transition-colors border-ant-line">
+                                            <TableCell className="pl-5 py-3 align-top">
+                                                <div className="font-display text-[13px] font-semibold text-ant-ink tabular-nums">{row.code}</div>
+                                                <div className="font-serif italic text-[11px] text-ant-mid truncate max-w-[160px]">{row.name}</div>
                                             </TableCell>
-                                            <TableCell className="py-2 align-top text-[10px] text-brand-navy/80 max-w-[120px] break-words">
-                                                {row.label || '—'}
+                                            <TableCell className="py-3 align-top text-[11px] text-ant-ink max-w-[120px] break-words">
+                                                {row.label || <span className="font-serif italic text-ant-mid">—</span>}
                                             </TableCell>
-                                            <TableCell className="py-2 align-top max-w-[min(300px,35vw)]">
-                                                <p className="text-[10px] text-gray-500 line-clamp-3 whitespace-pre-wrap break-words">
-                                                    {row.description || '—'}
+                                            <TableCell className="py-3 align-top max-w-[min(300px,35vw)]">
+                                                <p className="text-[11px] text-ant-mid line-clamp-3 whitespace-pre-wrap break-words">
+                                                    {row.description || <span className="font-serif italic">—</span>}
                                                 </p>
                                             </TableCell>
-                                            <TableCell className="py-2 align-top text-[10px] tabular-nums text-brand-navy/80">
-                                                <div>{row.cost_price} / {row.selling_price} DH</div>
-                                                <div className="text-gray-400">Stock {row.stock}</div>
+                                            <TableCell className="py-3 align-top">
+                                                <div className="font-display text-[12px] font-semibold tabular-nums text-ant-ink">
+                                                    {row.cost_price} / {row.selling_price} <span className="text-[10px] text-ant-mid font-normal">MAD</span>
+                                                </div>
+                                                <div className="font-serif italic text-[11px] text-ant-mid tabular-nums">Stock · {row.stock}</div>
                                             </TableCell>
-                                            <TableCell className="py-2 align-top max-w-[160px] truncate text-[10px] text-gray-500">
-                                                {row.accessory_codes_raw || '—'}
+                                            <TableCell className="py-3 align-top max-w-[160px] truncate text-[11px] text-ant-mid">
+                                                {row.accessory_codes_raw || <span className="font-serif italic">—</span>}
                                             </TableCell>
-                                            <TableCell className="py-2 align-top">
+                                            <TableCell className="py-3 align-top">
                                                 {row.existing_product_id ? (
-                                                    <Badge variant="secondary" className="text-[9px] h-5 px-1.5">Update</Badge>
+                                                    <span className="inline-flex items-center gap-1.5 rounded-full border border-ant-orange/25 bg-ant-orange/10 px-2 py-0.5 text-[10px] font-semibold text-ant-orange">
+                                                        <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                                                        Update
+                                                    </span>
                                                 ) : (
-                                                    <Badge className="text-[9px] h-5 px-1.5">Create</Badge>
+                                                    <span className="inline-flex items-center gap-1.5 rounded-full border border-ant-ink/15 bg-ant-ink/6 px-2 py-0.5 text-[10px] font-semibold text-ant-ink">
+                                                        <span className="h-1.5 w-1.5 rounded-full bg-ant-ink" />
+                                                        Create
+                                                    </span>
                                                 )}
                                             </TableCell>
-                                            <TableCell className="py-2 align-top">
+                                            <TableCell className="py-3 align-top">
                                                 {row.status === 'valid' ? (
-                                                    <Badge className="bg-emerald-50 text-emerald-700 border-none h-5 px-1.5 text-[9px] font-semibold">Valid</Badge>
+                                                    <span className="inline-flex items-center gap-1.5 rounded-full border border-ant-green/25 bg-ant-green/10 px-2 py-0.5 text-[10px] font-semibold text-ant-green">
+                                                        <span className="h-1.5 w-1.5 rounded-full bg-ant-green" />
+                                                        Valide
+                                                    </span>
                                                 ) : (
-                                                    <div className="space-y-0.5">
-                                                        <Badge className="bg-red-50 text-red-600 border-none h-5 px-1.5 text-[9px] font-semibold block w-fit">Invalid</Badge>
-                                                        <span className="text-[9px] text-red-500 flex items-start gap-1">
-                                                            <AlertCircle className="w-2.5 h-2.5 shrink-0 mt-0.5" />
-                                                            {row.errors[0]}
+                                                    <div className="space-y-1">
+                                                        <span className="inline-flex items-center gap-1.5 rounded-full border border-ant-rose/25 bg-ant-rose/10 px-2 py-0.5 text-[10px] font-semibold text-ant-rose">
+                                                            <span className="h-1.5 w-1.5 rounded-full bg-ant-rose" />
+                                                            Invalide
                                                         </span>
+                                                        <p className="font-serif italic text-[10px] text-ant-rose/80 flex items-start gap-1">
+                                                            <AlertCircle className="w-2.5 h-2.5 shrink-0 mt-0.5" strokeWidth={1.75} />
+                                                            {row.errors[0]}
+                                                        </p>
                                                     </div>
                                                 )}
                                             </TableCell>
-                                            <TableCell className="py-2 pr-3 align-top">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-6 w-6 rounded-md text-gray-400 hover:bg-red-50 hover:text-red-500"
+                                            <TableCell className="py-3 pr-5 align-top">
+                                                <button
+                                                    type="button"
                                                     onClick={() => setData((prev) => prev.filter((d) => d.id !== row.id))}
+                                                    aria-label="Retirer"
+                                                    className="inline-flex items-center justify-center h-7 w-7 rounded-lg border border-ant-line bg-ant-paper hover:bg-ant-rose/10 hover:border-ant-rose/25 text-ant-mid hover:text-ant-rose cursor-pointer transition-colors"
                                                 >
-                                                    <X className="w-3.5 h-3.5" />
-                                                </Button>
+                                                    <X className="w-3.5 h-3.5" strokeWidth={1.75} />
+                                                </button>
                                             </TableCell>
                                         </TableRow>
                                     ))}
@@ -675,33 +741,35 @@ const ImportProducts = () => {
                             </Table>
                         </div>
                         {totalPages > 1 && (
-                            <div className="px-3 py-2 border-t border-gray-100 flex items-center justify-between bg-gray-50/40">
-                                <span className="text-[10px] text-gray-400">Page {currentPage} / {totalPages}</span>
+                            <div className="px-5 py-3 border-t border-ant-line flex items-center justify-between bg-ant-light/50">
+                                <span className="font-serif italic text-[11px] text-ant-mid">
+                                    Page {currentPage} sur {totalPages}
+                                </span>
                                 <div className="flex gap-1">
-                                    <Button
-                                        variant="outline"
-                                        size="icon"
+                                    <button
+                                        type="button"
                                         disabled={currentPage === 1}
                                         onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                                        className="h-7 w-7 rounded-md border-gray-200"
+                                        aria-label="Précédente"
+                                        className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-ant-line bg-ant-paper hover:bg-ant-light disabled:opacity-40 disabled:cursor-not-allowed text-ant-ink cursor-pointer transition-colors"
                                     >
-                                        <ChevronLeft className="w-3.5 h-3.5" />
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        size="icon"
+                                        <ChevronLeft className="w-3.5 h-3.5" strokeWidth={1.75} />
+                                    </button>
+                                    <button
+                                        type="button"
                                         disabled={currentPage === totalPages}
                                         onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                                        className="h-7 w-7 rounded-md border-gray-200"
+                                        aria-label="Suivante"
+                                        className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-ant-line bg-ant-paper hover:bg-ant-light disabled:opacity-40 disabled:cursor-not-allowed text-ant-ink cursor-pointer transition-colors"
                                     >
-                                        <ChevronRight className="w-3.5 h-3.5" />
-                                    </Button>
+                                        <ChevronRight className="w-3.5 h-3.5" strokeWidth={1.75} />
+                                    </button>
                                 </div>
                             </div>
                         )}
-                    </Card>
-                </div>
-            )}
+                    </section>
+                )}
+            </div>
         </div>
     );
 };

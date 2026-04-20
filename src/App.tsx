@@ -26,7 +26,6 @@ import ExpensesDetails from "./pages/ExpensesDetails";
 import ExpensesTypes from "./pages/ExpensesTypes";
 import Profile from "./pages/Profile";
 import Webhooks from "./pages/Webhooks";
-import AiKeys from "./pages/AiKeys";
 import Trash from "./pages/Trash";
 import OwnerBusinesses from "./pages/owner/Businesses";
 import OwnerSelectBusiness from "./pages/owner/SelectBusiness";
@@ -80,6 +79,7 @@ import SellerReturnNote from "./pages/seller/ReturnNote";
 import SellerProducts from "./pages/seller/Products";
 import SellerAccessories from "./pages/seller/Accessories";
 import SellerWhatsAppInbox from "./pages/seller/WhatsAppInbox";
+import SellerHelp from "./pages/seller/Help";
 import { WhatsAppNotificationsProvider } from "./components/notifications/WhatsAppNotificationsProvider";
 import AppLayout from "./components/layout/AppLayout";
 import SellerLayout from "./components/layout/SellerLayout";
@@ -92,7 +92,7 @@ import WhatsAppInbox from "./pages/business/WhatsAppInbox";
 import WhatsAppAutomations from "./pages/business/WhatsAppAutomations";
 import { useEffect, useState } from "react";
 import { supabase } from "./lib/supabase";
-import { Loader2 } from "lucide-react";
+import { FullscreenLoader } from "@/components/ui/fullscreen-loader";
 import SuspensionOverlay from "./components/layout/SuspensionOverlay";
 
 const BusinessGuard = ({ children }: { children: React.ReactNode }) => {
@@ -146,11 +146,7 @@ const BusinessGuard = ({ children }: { children: React.ReactNode }) => {
   }, [ready]);
 
   if (!ready) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-brand-white">
-        <Loader2 className="w-10 h-10 animate-spin text-brand-navy" />
-      </div>
-    );
+    return <FullscreenLoader sublabel="Nous vérifions votre session et chargeons votre espace." />;
   }
 
   const isSuspended = businessStatus && businessStatus !== 'active' && userRole !== 'owner';
@@ -258,6 +254,7 @@ const App = () => (
                   <Route path="delivery-note" element={<SellerDeliveryNote />} />
                   <Route path="return-note" element={<SellerReturnNote />} />
                   <Route path="whatsapp/inbox" element={<SellerWhatsAppInbox />} />
+                  <Route path="help" element={<SellerHelp />} />
                   <Route path="" element={<Navigate to="dashboard" replace />} />
                 </Routes>
               </SellerLayout>
@@ -281,7 +278,6 @@ const App = () => (
                     <Route path="/delivery-services" element={<DeliveryServices />} />
                     <Route path="/payments" element={<Payments />} />
                     <Route path="/webhooks" element={<Webhooks />} />
-                    <Route path="/ai-keys" element={<AiKeys />} />
                     <Route path="/trash" element={<Trash />} />
                     <Route path="/transactions" element={<Transactions />} />
                     <Route path="/products" element={<Products />} />

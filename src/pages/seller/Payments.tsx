@@ -7,6 +7,9 @@ import {
     Receipt,
     Eye,
     Building2,
+    TrendingUp,
+    TrendingDown,
+    CircleDollarSign,
 } from 'lucide-react';
 import {
     AreaChart,
@@ -17,18 +20,15 @@ import {
     Tooltip,
     ResponsiveContainer,
 } from 'recharts';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import {
     Dialog,
     DialogContent,
     DialogHeader,
     DialogTitle,
     DialogDescription,
-    DialogFooter,
-} from "@/components/ui/dialog";
+} from '@/components/ui/dialog';
 import { format, parseISO } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 interface SellerPayment {
     id: string;
@@ -81,17 +81,21 @@ const SellerPayments = () => {
             const lifetime = paidPayments.reduce((sum, p) => sum + Number(p.total_amount), 0);
             const now = new Date();
             const thisMonthStr = format(now, 'yyyy-MM-01');
-            const thisMonth = paidPayments.filter(p => p.payout_month === thisMonthStr).reduce((sum, p) => sum + Number(p.total_amount), 0);
+            const thisMonth = paidPayments
+                .filter((p) => p.payout_month === thisMonthStr)
+                .reduce((sum, p) => sum + Number(p.total_amount), 0);
             const lastMonthStr = format(new Date(now.getFullYear(), now.getMonth() - 1), 'yyyy-MM-01');
-            const lastMonth = paidPayments.filter(p => p.payout_month === lastMonthStr).reduce((sum, p) => sum + Number(p.total_amount), 0);
+            const lastMonth = paidPayments
+                .filter((p) => p.payout_month === lastMonthStr)
+                .reduce((sum, p) => sum + Number(p.total_amount), 0);
             setStats({ lifetime, thisMonth, lastMonth });
 
-            const monthlyData = paidPayments.map(p => {
+            const monthlyData = paidPayments.map((p) => {
                 const date = p.payout_month ? parseISO(p.payout_month) : null;
                 return {
-                    month: date && !isNaN(date.getTime()) ? format(date, 'MMM yyyy') : 'Unknown',
+                    month: date && !isNaN(date.getTime()) ? format(date, 'MMM yyyy', { locale: fr }) : 'Inconnu',
                     amount: Number(p.total_amount),
-                    commission: Number(p.commission_earned)
+                    commission: Number(p.commission_earned),
                 };
             });
             setChartData(monthlyData);
@@ -102,290 +106,335 @@ const SellerPayments = () => {
         }
     };
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-[400px]">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-navy" />
-            </div>
-        );
-    }
-
     const growthPct = stats.lastMonth > 0
         ? (((stats.thisMonth - stats.lastMonth) / stats.lastMonth) * 100).toFixed(0)
-        : '100';
+        : stats.thisMonth > 0
+            ? '100'
+            : '0';
     const growthPos = stats.thisMonth >= stats.lastMonth;
 
     return (
-        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
-            {/* Header */}
-            <header className="space-y-2.5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">
-                            Earnings Hub
-                        </h1>
-                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">
-                            Verified monthly settlements
-                        </p>
+        <div className="ant-surface min-h-screen">
+            <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 md:py-8 space-y-6">
+                {/* Editorial header */}
+                <header className="space-y-2">
+                    <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                        <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                        Commercial · Paiements
                     </div>
-                </div>
-            </header>
+                    <h1 className="font-display text-[30px] md:text-[34px] leading-[1.05] tracking-[-0.02em] text-ant-ink">
+                        Paiements vérifiés
+                    </h1>
+                    <p className="font-serif italic text-[14px] leading-relaxed text-ant-mid max-w-xl">
+                        L&apos;historique officiel de vos règlements mensuels — chiffre cumulé, tendance, détails de chaque décaissement.
+                    </p>
+                </header>
 
-            {/* KPI tiles */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                <div className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
-                    <span className="w-[3px] self-stretch rounded-full" style={{ background: '#3b5e5e' }} />
-                    <div className="flex-1 min-w-0">
-                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Lifetime Earnings</p>
-                        <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{stats.lifetime.toLocaleString()} MAD</p>
-                        <p className="text-[9px] text-gray-400 mt-0.5 flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3 text-[#059669]" />
-                            Cumulative paid settlements
-                        </p>
-                    </div>
-                </div>
-
-                <div className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
-                    <span className="w-[3px] self-stretch rounded-full" style={{ background: '#059669' }} />
-                    <div className="flex-1 min-w-0">
-                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{format(new Date(), 'MMMM yyyy')}</p>
-                        <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{stats.thisMonth.toLocaleString()} MAD</p>
-                        <p className="text-[9px] mt-0.5 flex items-center gap-1" style={{ color: growthPos ? '#059669' : '#ef4444' }}>
-                            {growthPos ? '+' : ''}{growthPct}% vs last month ({stats.lastMonth.toLocaleString()} MAD)
-                        </p>
-                    </div>
-                </div>
-
-                <div className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
-                    <span className="w-[3px] self-stretch rounded-full" style={{ background: '#d97706' }} />
-                    <div className="flex-1 min-w-0">
-                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Total Payouts</p>
-                        <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{payments.length}</p>
-                        <p className="text-[9px] text-gray-400 mt-0.5">Confirmed settlement periods</p>
-                    </div>
-                </div>
-            </div>
-
-            {/* Revenue chart */}
-            <Card className="border border-gray-100 shadow-none rounded-xl">
-                <CardHeader className="p-3.5 pb-2">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-[11px] font-semibold text-brand-navy">Revenue Growth</p>
-                            <p className="text-[9px] text-gray-400 mt-0.5">
-                                <span className="inline-flex items-center gap-1">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#3b5e5e] inline-block" />
-                                    Monthly payout progression
-                                </span>
-                            </p>
-                        </div>
-                    </div>
-                </CardHeader>
-                <CardContent className="px-3.5 pb-3.5">
-                    <div className="h-[160px]">
-                        {chartData.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                                    <defs>
-                                        <linearGradient id="sellerPayGrad" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#3b5e5e" stopOpacity={0.12} />
-                                            <stop offset="95%" stopColor="#3b5e5e" stopOpacity={0} />
-                                        </linearGradient>
-                                    </defs>
-                                    <CartesianGrid stroke="#f3f4f6" strokeDasharray="3 3" />
-                                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#9ca3af' }} dy={4} />
-                                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#9ca3af' }} width={40} />
-                                    <Tooltip
-                                        contentStyle={{ background: '#fff', border: '1px solid #f3f4f6', borderRadius: 8, boxShadow: 'none', fontSize: 11 }}
-                                        formatter={(v: number) => [`${v.toLocaleString()} MAD`, 'Total Payout']}
-                                    />
-                                    <Area type="monotone" dataKey="amount" stroke="#3b5e5e" strokeWidth={2} fill="url(#sellerPayGrad)" fillOpacity={1} />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                        ) : (
-                            <div className="h-full flex items-center justify-center text-[11px] text-gray-400">
-                                No historical data to display yet
+                {loading ? (
+                    <section className="rounded-2xl border border-ant-line bg-ant-paper p-12 flex flex-col items-center justify-center gap-3">
+                        <div className="h-8 w-8 rounded-full border-2 border-ant-line border-t-ant-ink animate-spin" />
+                        <p className="font-serif italic text-[12px] text-ant-mid">Chargement de vos paiements…</p>
+                    </section>
+                ) : (
+                    <>
+                        {/* KPI strip */}
+                        <section className="grid grid-cols-1 sm:grid-cols-3 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
+                            <div className="bg-ant-paper p-4">
+                                <div className="flex items-start justify-between gap-2">
+                                    <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.24em] text-ant-mid">
+                                        <span className="h-1.5 w-1.5 rounded-full bg-ant-ink" />
+                                        Gains à vie
+                                    </div>
+                                    <div className="h-8 w-8 rounded-lg border bg-ant-ink/6 border-ant-ink/15 text-ant-ink flex items-center justify-center">
+                                        <CircleDollarSign className="w-4 h-4" strokeWidth={1.75} />
+                                    </div>
+                                </div>
+                                <p className="font-display text-[22px] font-semibold text-ant-ink tabular-nums mt-2 truncate">
+                                    {stats.lifetime.toLocaleString()}
+                                    <span className="text-[12px] text-ant-mid font-normal ml-1.5">MAD</span>
+                                </p>
+                                <p className="font-serif italic text-[11px] text-ant-mid mt-0.5 inline-flex items-center gap-1">
+                                    <CheckCircle2 className="w-3 h-3 text-ant-green" strokeWidth={1.75} />
+                                    cumul des règlements payés
+                                </p>
                             </div>
-                        )}
-                    </div>
-                </CardContent>
-            </Card>
+                            <div className="bg-ant-paper p-4">
+                                <div className="flex items-start justify-between gap-2">
+                                    <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.24em] text-ant-mid">
+                                        <span className="h-1.5 w-1.5 rounded-full bg-ant-green" />
+                                        {format(new Date(), 'MMMM yyyy', { locale: fr })}
+                                    </div>
+                                    <div className="h-8 w-8 rounded-lg border bg-ant-green/10 border-ant-green/25 text-ant-green flex items-center justify-center">
+                                        <Wallet className="w-4 h-4" strokeWidth={1.75} />
+                                    </div>
+                                </div>
+                                <p className="font-display text-[22px] font-semibold text-ant-ink tabular-nums mt-2 truncate">
+                                    {stats.thisMonth.toLocaleString()}
+                                    <span className="text-[12px] text-ant-mid font-normal ml-1.5">MAD</span>
+                                </p>
+                                <p className={`inline-flex items-center gap-1 mt-0.5 text-[11px] font-serif italic ${growthPos ? 'text-ant-green' : 'text-ant-rose'}`}>
+                                    {growthPos ? <TrendingUp className="w-3 h-3" strokeWidth={1.75} /> : <TrendingDown className="w-3 h-3" strokeWidth={1.75} />}
+                                    {growthPos ? '+' : ''}{growthPct}% vs {stats.lastMonth.toLocaleString()} MAD
+                                </p>
+                            </div>
+                            <div className="bg-ant-paper p-4">
+                                <div className="flex items-start justify-between gap-2">
+                                    <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.24em] text-ant-mid">
+                                        <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                                        Règlements
+                                    </div>
+                                    <div className="h-8 w-8 rounded-lg border bg-ant-orange/10 border-ant-orange/25 text-ant-orange flex items-center justify-center">
+                                        <Receipt className="w-4 h-4" strokeWidth={1.75} />
+                                    </div>
+                                </div>
+                                <p className="font-display text-[22px] font-semibold text-ant-ink tabular-nums mt-2">
+                                    {payments.length}
+                                    <span className="text-[12px] text-ant-mid font-normal ml-1.5">versements</span>
+                                </p>
+                                <p className="font-serif italic text-[11px] text-ant-mid mt-0.5">périodes de règlement validées</p>
+                            </div>
+                        </section>
 
-            {/* Settlement Logs table */}
-            <Card className="border border-gray-100 shadow-none rounded-xl">
-                <CardHeader className="p-3.5 pb-2">
-                    <div className="flex items-center gap-2">
-                        <Wallet className="w-3.5 h-3.5 text-gray-400" />
-                        <div>
-                            <p className="text-[11px] font-semibold text-brand-navy">Settlement Logs</p>
-                            <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 mt-0.5">Official record of confirmed payouts</p>
-                        </div>
-                    </div>
-                </CardHeader>
-                <CardContent className="p-0">
-                    <div className="overflow-x-auto">
-                        <table className="w-full border-collapse">
-                            <thead>
-                                <tr className="text-left border-b border-gray-50 bg-gray-50/40">
-                                    <th className="px-3.5 py-2 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Payment ID</th>
-                                    <th className="px-3.5 py-2 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Period</th>
-                                    <th className="px-3.5 py-2 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Activity</th>
-                                    <th className="px-3.5 py-2 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Settled</th>
-                                    <th className="px-3.5 py-2 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400 text-right">Net Payout</th>
-                                    <th className="px-3.5 py-2" />
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-50">
-                                {payments.length > 0 ? (
-                                    payments.map((p) => (
-                                        <tr key={p.id} className="hover:bg-gray-50/50 transition-colors">
-                                            <td className="px-3.5 py-2.5">
-                                                <code className="text-[10px] text-gray-400 font-mono">#{p.id.slice(0, 8).toUpperCase()}</code>
-                                            </td>
-                                            <td className="px-3.5 py-2.5">
-                                                <div className="flex items-center gap-2">
-                                                    <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                                                    <div>
-                                                        <p className="text-[11px] font-semibold text-brand-navy">
-                                                            {(() => {
-                                                                const date = parseISO(p.payout_month);
-                                                                return isNaN(date.getTime()) ? 'Invalid Date' : format(date, 'MMMM yyyy');
-                                                            })()}
-                                                        </p>
-                                                        <p className="text-[9px] text-gray-400 uppercase tracking-wider">Settlement window</p>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-3.5 py-2.5">
-                                                <div className="flex items-center gap-1.5">
-                                                    <Badge variant="outline" className="rounded border-gray-100 text-[9px] font-semibold h-5 px-1.5 text-gray-500">
-                                                        {p.days_present} days
-                                                    </Badge>
-                                                    <Badge variant="outline" className="rounded border-gray-100 text-[9px] font-semibold h-5 px-1.5 text-gray-500">
-                                                        {p.delivered_orders} units
-                                                    </Badge>
-                                                </div>
-                                            </td>
-                                            <td className="px-3.5 py-2.5">
-                                                <p className="text-[11px] text-gray-500">
-                                                    {(() => {
-                                                        const iso = settledDateIso(p);
-                                                        return iso ? format(new Date(iso), 'MMM dd, yyyy') : 'N/A';
-                                                    })()}
-                                                </p>
-                                            </td>
-                                            <td className="px-3.5 py-2.5 text-right">
-                                                <p className="text-[13px] font-semibold text-brand-navy tabular-nums">
-                                                    {Number(p.total_amount).toLocaleString()} <span className="text-[10px] text-gray-400">MAD</span>
-                                                </p>
-                                            </td>
-                                            <td className="px-3.5 py-2.5 text-right">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() => { setSelectedPayment(p); setIsDetailModalOpen(true); }}
-                                                    className="w-7 h-7 rounded-md text-gray-400 hover:text-brand-navy hover:bg-gray-100"
-                                                >
-                                                    <Eye className="w-3.5 h-3.5" />
-                                                </Button>
-                                            </td>
+                        {/* Revenue chart */}
+                        <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                            <div className="h-[3px] w-full bg-ant-green" />
+                            <div className="p-5 space-y-3">
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                    <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                        <span className="font-display text-ant-orange font-semibold">01</span>
+                                        Courbe des versements
+                                    </div>
+                                    <span className="font-serif italic text-[11px] text-ant-mid">progression mensuelle</span>
+                                </div>
+                                <div className="h-[200px]">
+                                    {chartData.length > 0 ? (
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                                                <defs>
+                                                    <linearGradient id="sellerPayGrad" x1="0" y1="0" x2="0" y2="1">
+                                                        <stop offset="5%" stopColor="#2D7A3E" stopOpacity={0.18} />
+                                                        <stop offset="95%" stopColor="#2D7A3E" stopOpacity={0} />
+                                                    </linearGradient>
+                                                </defs>
+                                                <CartesianGrid stroke="#EDE9E0" strokeDasharray="3 3" vertical={false} />
+                                                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#6B6760' }} dy={4} />
+                                                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#6B6760' }} width={50} />
+                                                <Tooltip
+                                                    contentStyle={{
+                                                        background: '#FFFFFF',
+                                                        border: '1px solid #E8E6DC',
+                                                        borderRadius: 12,
+                                                        boxShadow: '0 16px 48px -20px rgba(20,20,19,0.2)',
+                                                        fontSize: 12,
+                                                    }}
+                                                    formatter={(v: number) => [`${v.toLocaleString()} MAD`, 'Paiement']}
+                                                />
+                                                <Area type="monotone" dataKey="amount" stroke="#2D7A3E" strokeWidth={1.75} fill="url(#sellerPayGrad)" fillOpacity={1} />
+                                            </AreaChart>
+                                        </ResponsiveContainer>
+                                    ) : (
+                                        <div className="h-full flex items-center justify-center">
+                                            <p className="font-serif italic text-[12px] text-ant-mid">
+                                                Pas encore d&apos;historique à afficher
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </section>
+
+                        {/* Settlement Logs table */}
+                        <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                            <div className="h-[3px] w-full bg-ant-orange" />
+                            <div className="px-5 py-4 border-b border-ant-line flex items-center justify-between">
+                                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                    <span className="font-display text-ant-orange font-semibold">02</span>
+                                    Journal des règlements
+                                </div>
+                                <span className="font-serif italic text-[11px] text-ant-mid">paiements officiels</span>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead>
+                                        <tr className="border-b border-ant-line bg-ant-light">
+                                            <th className="px-5 py-2.5 text-left text-[10px] uppercase tracking-[0.18em] text-ant-mid font-semibold">Référence</th>
+                                            <th className="px-5 py-2.5 text-left text-[10px] uppercase tracking-[0.18em] text-ant-mid font-semibold">Période</th>
+                                            <th className="px-5 py-2.5 text-left text-[10px] uppercase tracking-[0.18em] text-ant-mid font-semibold">Activité</th>
+                                            <th className="px-5 py-2.5 text-left text-[10px] uppercase tracking-[0.18em] text-ant-mid font-semibold">Réglé le</th>
+                                            <th className="px-5 py-2.5 text-right text-[10px] uppercase tracking-[0.18em] text-ant-mid font-semibold">Net</th>
+                                            <th className="px-5 py-2.5 pr-5 w-12" />
                                         </tr>
-                                    ))
-                                ) : (
-                                    <tr>
-                                        <td colSpan={6} className="px-3.5 py-12 text-center">
-                                            <Receipt className="w-8 h-8 text-gray-200 mx-auto mb-2" />
-                                            <p className="text-[11px] text-gray-400">No confirmed payments yet.</p>
-                                            <p className="text-[10px] text-gray-300 mt-0.5">Earnings will appear here once processed by admin.</p>
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </CardContent>
-            </Card>
+                                    </thead>
+                                    <tbody>
+                                        {payments.length > 0 ? (
+                                            payments.map((p) => {
+                                                const date = parseISO(p.payout_month);
+                                                const periodLabel = isNaN(date.getTime()) ? '—' : format(date, 'MMMM yyyy', { locale: fr });
+                                                const iso = settledDateIso(p);
+                                                return (
+                                                    <tr key={p.id} className="border-b border-ant-line last:border-0 hover:bg-ant-light/50 transition-colors">
+                                                        <td className="px-5 py-3">
+                                                            <code className="font-mono text-[11px] text-ant-mid">#{p.id.slice(0, 8).toUpperCase()}</code>
+                                                        </td>
+                                                        <td className="px-5 py-3">
+                                                            <div className="flex items-center gap-2">
+                                                                <Calendar className="w-3 h-3 text-ant-mid shrink-0" strokeWidth={1.75} />
+                                                                <div>
+                                                                    <p className="font-display text-[13px] font-semibold text-ant-ink capitalize">{periodLabel}</p>
+                                                                    <p className="font-serif italic text-[10px] text-ant-mid">fenêtre de règlement</p>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-5 py-3">
+                                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                                <span className="inline-flex items-center gap-1.5 rounded-full border border-ant-ink/15 bg-ant-ink/6 px-2 py-0.5 text-[10px] font-semibold text-ant-ink tabular-nums">
+                                                                    <span className="h-1.5 w-1.5 rounded-full bg-ant-ink" />
+                                                                    {p.days_present} j
+                                                                </span>
+                                                                <span className="inline-flex items-center gap-1.5 rounded-full border border-ant-green/25 bg-ant-green/10 px-2 py-0.5 text-[10px] font-semibold text-ant-green tabular-nums">
+                                                                    <span className="h-1.5 w-1.5 rounded-full bg-ant-green" />
+                                                                    {p.delivered_orders} unités
+                                                                </span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-5 py-3">
+                                                            <p className="font-serif italic text-[12px] text-ant-mid tabular-nums">
+                                                                {iso ? format(new Date(iso), 'd MMM yyyy', { locale: fr }) : '—'}
+                                                            </p>
+                                                        </td>
+                                                        <td className="px-5 py-3 text-right">
+                                                            <p className="font-display text-[14px] font-semibold text-ant-ink tabular-nums">
+                                                                {Number(p.total_amount).toLocaleString()}
+                                                                <span className="text-[10px] text-ant-mid font-normal ml-1">MAD</span>
+                                                            </p>
+                                                        </td>
+                                                        <td className="px-5 py-3 pr-5 text-right">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => { setSelectedPayment(p); setIsDetailModalOpen(true); }}
+                                                                aria-label="Détails"
+                                                                className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-ant-line bg-ant-paper hover:bg-ant-light text-ant-ink cursor-pointer transition-colors"
+                                                            >
+                                                                <Eye className="w-3.5 h-3.5" strokeWidth={1.75} />
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                        ) : (
+                                            <tr>
+                                                <td colSpan={6} className="p-0">
+                                                    <div className="mx-5 my-5 rounded-xl border border-dashed border-ant-line bg-ant-light/50 py-10 flex flex-col items-center justify-center gap-3 text-center">
+                                                        <div className="h-10 w-10 rounded-xl border border-ant-line bg-ant-paper flex items-center justify-center">
+                                                            <Receipt className="w-4 h-4 text-ant-mid" strokeWidth={1.5} />
+                                                        </div>
+                                                        <div className="space-y-0.5">
+                                                            <p className="font-display text-[14px] font-semibold text-ant-ink">Aucun paiement confirmé</p>
+                                                            <p className="font-serif italic text-[11px] text-ant-mid">Vos gains apparaîtront ici dès qu&apos;un administrateur les aura traités.</p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </section>
+                    </>
+                )}
+            </div>
 
             {/* Detail Modal */}
             <Dialog open={isDetailModalOpen} onOpenChange={setIsDetailModalOpen}>
-                <DialogContent className="max-w-xl border border-gray-100 shadow-none rounded-xl p-0 overflow-hidden bg-white">
+                <DialogContent className="max-w-xl p-0 gap-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_32px_80px_-24px_rgba(20,20,19,0.4)] overflow-hidden">
                     {selectedPayment && (
-                        <div className="overflow-y-auto max-h-[80vh]">
-                            <DialogHeader className="p-4 border-b border-gray-50">
-                                <div className="flex items-center gap-2">
-                                    <Receipt className="w-4 h-4 text-gray-400" />
-                                    <div>
-                                        <DialogTitle className="text-[13px] font-semibold text-brand-navy">Settlement Report</DialogTitle>
-                                        <DialogDescription className="text-[10px] text-gray-400 mt-0.5">
-                                            {(() => {
-                                                const date = parseISO(selectedPayment.payout_month);
-                                                return isNaN(date.getTime()) ? 'Invalid Date' : format(date, 'MMMM yyyy');
-                                            })()}
-                                        </DialogDescription>
-                                    </div>
+                        <>
+                            <div className="h-[3px] w-full bg-ant-orange" />
+                            <DialogHeader className="px-5 py-4 border-b border-ant-line text-left space-y-1.5">
+                                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                                    Règlement · Détail
+                                    <span className="inline-flex items-center gap-1.5 rounded-full border border-ant-green/25 bg-ant-green/10 px-2 py-0.5 text-[10px] font-semibold text-ant-green tracking-normal normal-case">
+                                        <span className="h-1.5 w-1.5 rounded-full bg-ant-green" />
+                                        Payé
+                                    </span>
                                 </div>
-                            </DialogHeader>
-
-                            <div className="p-4 space-y-3">
-                                {/* Status badge */}
-                                <div className="flex items-center justify-between">
-                                    <Badge className="bg-[#05966920] text-[#059669] border-0 text-[9px] font-bold uppercase tracking-wider h-5 px-2 rounded">
-                                        Verified Paid
-                                    </Badge>
+                                <DialogTitle className="font-display text-[18px] font-semibold text-ant-ink leading-tight capitalize">
+                                    {(() => {
+                                        const d = parseISO(selectedPayment.payout_month);
+                                        return isNaN(d.getTime()) ? '—' : format(d, 'MMMM yyyy', { locale: fr });
+                                    })()}
+                                </DialogTitle>
+                                <DialogDescription className="font-serif italic text-[12px] text-ant-mid">
                                     {(() => {
                                         const iso = settledDateIso(selectedPayment);
-                                        return iso ? (
-                                            <p className="text-[10px] text-gray-400">Settled {format(new Date(iso), 'MMM d, yyyy')}</p>
-                                        ) : null;
+                                        return iso ? `Réglé le ${format(new Date(iso), 'd MMMM yyyy', { locale: fr })}` : 'Date de règlement inconnue';
                                     })()}
-                                </div>
+                                </DialogDescription>
+                            </DialogHeader>
 
-                                {/* Commission breakdown */}
-                                <div className="rounded-lg border border-gray-100 p-3">
-                                    <p className="text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400 mb-2">Settlement Breakdown</p>
-                                    <p className="text-[22px] font-semibold text-brand-navy tabular-nums">
-                                        {Number(selectedPayment.commission_earned).toLocaleString()} <span className="text-[11px] text-gray-400">MAD</span>
+                            <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto ant-scroll">
+                                {/* Commission card */}
+                                <div className="rounded-xl border border-ant-line bg-ant-light p-4">
+                                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Commission</p>
+                                    <p className="font-display text-[28px] font-semibold tabular-nums text-ant-ink leading-none mt-2">
+                                        {Number(selectedPayment.commission_earned).toLocaleString()}
+                                        <span className="text-[12px] text-ant-mid font-normal ml-1.5">MAD</span>
                                     </p>
-                                    <div className="mt-2 pt-2 border-t border-gray-50 flex items-center justify-between">
-                                        <span className="text-[9px] text-gray-400 uppercase font-bold">Activity</span>
-                                        <span className="text-[10px] font-semibold text-gray-600">{selectedPayment.delivered_orders} units · {selectedPayment.days_present} days</span>
+                                    <div className="flex items-center justify-between pt-2 mt-2 border-t border-ant-line">
+                                        <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Activité</span>
+                                        <span className="font-display text-[12px] font-semibold text-ant-ink tabular-nums">
+                                            {selectedPayment.delivered_orders} unités · {selectedPayment.days_present} jours
+                                        </span>
                                     </div>
                                 </div>
 
-                                {/* Total */}
-                                <div className="rounded-lg bg-brand-navy p-3 flex items-center justify-between">
-                                    <div>
-                                        <p className="text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400 mb-1">Total Disbursed</p>
-                                        <p className="text-[22px] font-semibold text-white tabular-nums">
-                                            {Number(selectedPayment.total_amount).toLocaleString()} <span className="text-[11px] text-gray-400">MAD</span>
-                                        </p>
+                                {/* Total ink card */}
+                                <div className="rounded-xl bg-ant-ink p-4">
+                                    <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-white/50">
+                                        <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                                        Total versé
                                     </div>
+                                    <p className="font-display text-[28px] font-semibold tabular-nums text-white leading-none mt-2">
+                                        {Number(selectedPayment.total_amount).toLocaleString()}
+                                        <span className="text-[12px] text-white/50 font-normal ml-1.5">MAD</span>
+                                    </p>
                                 </div>
 
                                 {/* Bank info */}
-                                <div className="rounded-lg border border-gray-100 p-3">
-                                    <div className="flex items-center gap-2 mb-2.5">
-                                        <Building2 className="w-3.5 h-3.5 text-gray-400" />
-                                        <p className="text-[10px] font-semibold text-gray-600">Destination Account</p>
-                                        <Badge variant="outline" className="ml-auto text-[9px] uppercase border-gray-100 px-1.5 h-4 rounded">Snapshot at payout</Badge>
+                                <div className="rounded-xl border border-ant-line bg-ant-paper p-4">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <div className="h-8 w-8 rounded-lg border border-ant-line bg-ant-light text-ant-mid flex items-center justify-center">
+                                            <Building2 className="w-4 h-4" strokeWidth={1.75} />
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="font-display text-[13px] font-semibold text-ant-ink">Compte destinataire</p>
+                                            <p className="font-serif italic text-[11px] text-ant-mid">snapshot au moment du paiement</p>
+                                        </div>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-y-2.5 gap-x-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-3 gap-x-4">
                                         <div>
-                                            <p className="text-[9px] text-gray-400 uppercase font-bold mb-0.5">Bank Name</p>
-                                            <p className="text-[11px] text-gray-700">{selectedPayment.bank_snapshot?.name || 'N/A'}</p>
+                                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Banque</p>
+                                            <p className="font-display text-[13px] font-semibold text-ant-ink mt-0.5">
+                                                {selectedPayment.bank_snapshot?.name || <span className="font-serif italic font-normal text-ant-mid">—</span>}
+                                            </p>
                                         </div>
                                         <div>
-                                            <p className="text-[9px] text-gray-400 uppercase font-bold mb-0.5">RIB Account</p>
-                                            <p className="text-[11px] text-gray-700 font-mono">{selectedPayment.bank_snapshot?.rib || 'N/A'}</p>
+                                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">RIB</p>
+                                            <p className="font-mono text-[12px] text-ant-ink mt-0.5">
+                                                {selectedPayment.bank_snapshot?.rib || '—'}
+                                            </p>
                                         </div>
-                                        <div className="col-span-2">
-                                            <p className="text-[9px] text-gray-400 uppercase font-bold mb-0.5">Account Holder</p>
-                                            <p className="text-[11px] text-gray-700">{selectedPayment.bank_snapshot?.holder || 'N/A'}</p>
+                                        <div className="sm:col-span-2">
+                                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Titulaire</p>
+                                            <p className="font-display text-[13px] font-semibold text-ant-ink mt-0.5">
+                                                {selectedPayment.bank_snapshot?.holder || <span className="font-serif italic font-normal text-ant-mid">—</span>}
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        </>
                     )}
                 </DialogContent>
             </Dialog>

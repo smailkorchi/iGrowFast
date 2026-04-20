@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import {
@@ -14,17 +14,17 @@ import {
     ShieldCheck,
     Key,
     LayoutGrid,
-    CheckCircle2
+    CheckCircle2,
+    Sparkles,
+    Link2,
+    type LucideIcon,
 } from 'lucide-react';
-import {
-    Card,
-    CardContent
-} from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
@@ -67,9 +67,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 
-// --- Schema ---
 const salesChannelSchema = z.object({
     name: z.string().min(2, "Name must be at least 2 characters"),
     type: z.enum(['Woocommerce', 'Google Sheets']),
@@ -88,6 +86,39 @@ const LOGOS: Record<string, string> = {
     "Google Sheets": "https://cdn.pixabay.com/photo/2017/03/08/21/21/spreadsheet-2127832_1280.png"
 };
 
+const KPI_ACCENTS = {
+    ink: { dot: 'bg-ant-ink', tile: 'bg-ant-ink/6 border-ant-ink/15 text-ant-ink' },
+    orange: { dot: 'bg-ant-orange', tile: 'bg-ant-orange/10 border-ant-orange/25 text-ant-orange' },
+    green: { dot: 'bg-ant-green', tile: 'bg-ant-green/10 border-ant-green/25 text-ant-green' },
+} as const;
+
+const ChannelKpi: React.FC<{
+    label: string;
+    value: number | string;
+    suffix?: string;
+    accent: keyof typeof KPI_ACCENTS;
+    icon: LucideIcon;
+}> = ({ label, value, suffix, accent, icon: Icon }) => {
+    const a = KPI_ACCENTS[accent];
+    return (
+        <div className="bg-ant-paper p-4">
+            <div className="flex items-start justify-between gap-3">
+                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.24em] text-ant-mid">
+                    <span className={cn('h-1.5 w-1.5 rounded-full', a.dot)} />
+                    {label}
+                </div>
+                <div className={cn('h-8 w-8 rounded-lg border flex items-center justify-center', a.tile)}>
+                    <Icon className="w-4 h-4" strokeWidth={1.75} />
+                </div>
+            </div>
+            <p className="font-display text-[22px] font-semibold text-ant-ink tabular-nums mt-2 truncate">
+                {value}
+                {suffix ? <span className="text-[12px] text-ant-mid font-normal ml-1.5">{suffix}</span> : null}
+            </p>
+        </div>
+    );
+};
+
 const SalesChannels = () => {
     const [isUpsertOpen, setIsUpsertOpen] = useState(false);
     const [editingChannel, setEditingChannel] = useState<any>(null);
@@ -99,7 +130,6 @@ const SalesChannels = () => {
 
     const activeBusinessId = localStorage.getItem('activeBusinessId');
 
-    // --- Queries ---
     const { data: channels, isLoading } = useQuery({
         queryKey: ['sales_channels', activeBusinessId],
         queryFn: async () => {
@@ -115,7 +145,6 @@ const SalesChannels = () => {
         },
     });
 
-    // --- Form Setup ---
     const form = useForm<SalesChannelFormValues>({
         resolver: zodResolver(salesChannelSchema),
         defaultValues: {
@@ -132,7 +161,6 @@ const SalesChannels = () => {
 
     const channelType = form.watch('type');
 
-    // --- Mutations ---
     const upsertMutation = useMutation({
         mutationFn: async (values: SalesChannelFormValues) => {
             if (editingChannel) {
@@ -226,274 +254,347 @@ const SalesChannels = () => {
         c.type.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
+    const totals = useMemo(() => {
+        const list = (channels || []) as any[];
+        return {
+            total: list.length,
+            woo: list.filter((c) => c.type === 'Woocommerce').length,
+            sheets: list.filter((c) => c.type === 'Google Sheets').length,
+        };
+    }, [channels]);
+
     return (
-        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
-            {/* Header */}
-            <header className="space-y-2.5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Sales Channels</h1>
-                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Connect and manage external storefronts</p>
+        <div className="ant-surface min-h-screen">
+            <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 md:py-8 space-y-6">
+                {/* Editorial header */}
+                <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                    <div className="space-y-2">
+                        <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                            <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                            Integrations · Storefronts
+                        </div>
+                        <h1 className="font-display text-[30px] md:text-[34px] leading-[1.05] tracking-[-0.02em] text-ant-ink">
+                            Sales channels
+                        </h1>
+                        <p className="font-serif italic text-[14px] leading-relaxed text-ant-mid max-w-xl">
+                            Wire up WooCommerce, Google Sheets, or any upstream store — the orders show up here, attributed to the right channel.
+                        </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <div className="relative">
-                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                    <div className="flex items-center gap-2 shrink-0">
+                        <div className="relative w-full md:w-[240px]">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid pointer-events-none" />
                             <Input
                                 placeholder="Search channels..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="pl-7 h-8 rounded-md border-gray-200 bg-white text-[11px] w-52"
+                                className="pl-9 h-10 rounded-full border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid focus-visible:ring-1 focus-visible:ring-ant-orange/40"
                             />
                         </div>
                         <Button
                             onClick={() => openUpsert()}
-                            className="bg-brand-navy hover:bg-brand-navy/90 text-white h-8 px-3 rounded-md text-[11px] font-semibold gap-1.5 shrink-0"
+                            className="bg-ant-ink hover:bg-ant-ink/90 text-white h-10 px-5 rounded-full text-[12px] font-semibold gap-2 cursor-pointer"
                         >
-                            <Plus className="w-3.5 h-3.5" /> New Channel
+                            <Plus className="w-4 h-4" /> New channel
                         </Button>
                     </div>
-                </div>
-            </header>
+                </header>
 
-            {/* Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+                {/* KPI strip */}
                 {isLoading ? (
-                    Array.from({ length: 4 }).map((_, i) => (
-                        <Skeleton key={i} className="h-44 w-full rounded-xl" />
-                    ))
-                ) : filteredChannels?.length === 0 ? (
-                    <div className="col-span-full border border-dashed border-gray-200 rounded-xl py-8 flex flex-col items-center justify-center text-center gap-2">
-                        <LayoutGrid className="w-5 h-5 text-gray-300" />
-                        <p className="text-[11px] font-semibold text-brand-navy">No channels linked</p>
-                        <p className="text-[10px] text-gray-400">Connect WooCommerce or Google Sheets to get started.</p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
+                        {Array.from({ length: 3 }).map((_, i) => (
+                            <div key={i} className="bg-ant-paper p-4"><Skeleton className="h-12 rounded-lg" /></div>
+                        ))}
                     </div>
                 ) : (
-                    filteredChannels?.map((channel: any) => (
-                        <ChannelCard
-                            key={channel.id}
-                            channel={channel}
-                            onEdit={() => openUpsert(channel)}
-                            onDelete={() => setChannelToDelete(channel)}
-                        />
-                    ))
+                    <section className="grid grid-cols-1 md:grid-cols-3 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
+                        <ChannelKpi label="Total" value={totals.total} suffix="connected" accent="ink" icon={Link2} />
+                        <ChannelKpi label="WooCommerce" value={totals.woo} suffix="stores" accent="orange" icon={Globe} />
+                        <ChannelKpi label="Google Sheets" value={totals.sheets} suffix="sheets" accent="green" icon={Database} />
+                    </section>
                 )}
-            </div>
 
-            {/* Upsert Modal */}
-            <Dialog open={isUpsertOpen} onOpenChange={setIsUpsertOpen}>
-                <DialogContent className="max-w-lg p-0 border border-gray-100 rounded-xl shadow-none overflow-hidden">
-                    <Form {...form}>
-                        <form onSubmit={form.handleSubmit(handleUpsert)} className="flex flex-col">
-                            <DialogHeader className="px-4 pt-4 pb-3 border-b border-gray-100">
-                                <div className="flex items-center justify-between">
-                                    <DialogTitle className="text-[13px] font-semibold text-brand-navy">
-                                        {editingChannel ? 'Update Connection' : 'New Connection'}
-                                    </DialogTitle>
-                                    {LOGOS[channelType] && (
-                                        <div className="w-7 h-7 bg-gray-50 border border-gray-100 rounded-md p-1 flex items-center justify-center">
-                                            <img src={LOGOS[channelType]} alt={channelType} className="w-full h-full object-contain" />
+                {/* Grid */}
+                {isLoading ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                        {Array.from({ length: 4 }).map((_, i) => (
+                            <Skeleton key={i} className="h-48 w-full rounded-2xl" />
+                        ))}
+                    </div>
+                ) : filteredChannels?.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-ant-line bg-ant-paper px-8 py-16 text-center">
+                        <div className="mx-auto w-12 h-12 rounded-2xl bg-ant-orange/10 border border-ant-orange/25 flex items-center justify-center mb-4">
+                            <LayoutGrid className="w-5 h-5 text-ant-orange" strokeWidth={1.75} />
+                        </div>
+                        <h3 className="font-display text-[18px] text-ant-ink tracking-tight">
+                            {channels?.length ? 'No channels match that search' : 'No channels connected yet'}
+                        </h3>
+                        <p className="font-serif italic text-[13px] text-ant-mid mt-2 max-w-sm mx-auto">
+                            {channels?.length
+                                ? 'Loosen the search to bring integrations back into view.'
+                                : 'Connect your first storefront — WooCommerce or a Google Sheet — and orders will flow straight in.'}
+                        </p>
+                        {!channels?.length && (
+                            <Button
+                                onClick={() => openUpsert()}
+                                className="mt-5 bg-ant-ink hover:bg-ant-ink/90 text-white h-9 px-5 rounded-full text-[12px] font-semibold gap-2 cursor-pointer"
+                            >
+                                <Plus className="w-4 h-4" />
+                                Connect your first channel
+                            </Button>
+                        )}
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                        {filteredChannels?.map((channel: any) => (
+                            <ChannelCard
+                                key={channel.id}
+                                channel={channel}
+                                onEdit={() => openUpsert(channel)}
+                                onDelete={() => setChannelToDelete(channel)}
+                            />
+                        ))}
+                    </div>
+                )}
+
+                {/* Upsert Modal */}
+                <Dialog open={isUpsertOpen} onOpenChange={setIsUpsertOpen}>
+                    <DialogContent className="max-w-lg p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden">
+                        <Form {...form}>
+                            <form onSubmit={form.handleSubmit(handleUpsert)} className="flex flex-col">
+                                <DialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="space-y-1.5 min-w-0">
+                                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                                <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                                                {editingChannel ? 'Edit · Channel' : 'New · Channel'}
+                                            </div>
+                                            <DialogTitle className="font-display text-[20px] leading-tight tracking-tight text-ant-ink">
+                                                {editingChannel ? 'Update connection' : 'Connect a new channel'}
+                                            </DialogTitle>
+                                            <DialogDescription className="font-serif italic text-[13px] text-ant-mid">
+                                                Paste the keys once — DigiCom handles the sync from here.
+                                            </DialogDescription>
+                                        </div>
+                                        {LOGOS[channelType] && (
+                                            <div className="w-12 h-12 bg-ant-light border border-ant-line rounded-2xl p-2 flex items-center justify-center shrink-0">
+                                                <img src={LOGOS[channelType]} alt={channelType} className="w-full h-full object-contain" />
+                                            </div>
+                                        )}
+                                    </div>
+                                </DialogHeader>
+
+                                <div className="ant-scroll p-6 space-y-4 max-h-[65vh] overflow-y-auto">
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <FormField
+                                            control={form.control}
+                                            name="name"
+                                            render={({ field }) => (
+                                                <FormItem className="space-y-1.5">
+                                                    <FormLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Display name</FormLabel>
+                                                    <FormControl>
+                                                        <Input placeholder="e.g. Primary Store" {...field} className="h-10 rounded-xl border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid focus-visible:ring-1 focus-visible:ring-ant-orange/40" />
+                                                    </FormControl>
+                                                    <FormMessage className="text-ant-rose" />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control}
+                                            name="type"
+                                            render={({ field }) => (
+                                                <FormItem className="space-y-1.5">
+                                                    <FormLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Platform type</FormLabel>
+                                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                        <FormControl>
+                                                            <SelectTrigger className="h-10 rounded-xl border-ant-line bg-ant-paper text-[12px] text-ant-ink">
+                                                                <SelectValue />
+                                                            </SelectTrigger>
+                                                        </FormControl>
+                                                        <SelectContent className="rounded-xl border-ant-line">
+                                                            <SelectItem value="Woocommerce" className="text-[12px]">WooCommerce</SelectItem>
+                                                            <SelectItem value="Google Sheets" className="text-[12px]">Google Sheets</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
+
+                                    {channelType === 'Woocommerce' && (
+                                        <div className="space-y-3 rounded-2xl border border-ant-line bg-ant-light/40 p-4">
+                                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                                <Globe className="w-3 h-3" />
+                                                WooCommerce credentials
+                                            </div>
+                                            <FormField
+                                                control={form.control}
+                                                name="url"
+                                                render={({ field }) => (
+                                                    <FormItem className="space-y-1.5">
+                                                        <FormLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Store URL</FormLabel>
+                                                        <FormControl>
+                                                            <Input placeholder="https://yourstore.com" {...field} className="h-10 rounded-xl border-ant-line bg-ant-paper text-[12px] font-mono text-ant-ink placeholder:text-ant-mid" />
+                                                        </FormControl>
+                                                        <FormMessage className="text-ant-rose" />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <FormField
+                                                    control={form.control}
+                                                    name="consumer_key"
+                                                    render={({ field }) => (
+                                                        <FormItem className="space-y-1.5">
+                                                            <FormLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Consumer key</FormLabel>
+                                                            <FormControl>
+                                                                <Input type="password" placeholder="ck_..." {...field} className="h-10 rounded-xl border-ant-line bg-ant-paper text-[12px] font-mono text-ant-ink placeholder:text-ant-mid" />
+                                                            </FormControl>
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                                <FormField
+                                                    control={form.control}
+                                                    name="consumer_secret"
+                                                    render={({ field }) => (
+                                                        <FormItem className="space-y-1.5">
+                                                            <FormLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Consumer secret</FormLabel>
+                                                            <FormControl>
+                                                                <Input type="password" placeholder="cs_..." {...field} className="h-10 rounded-xl border-ant-line bg-ant-paper text-[12px] font-mono text-ant-ink placeholder:text-ant-mid" />
+                                                            </FormControl>
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {channelType === 'Google Sheets' && (
+                                        <div className="space-y-3 rounded-2xl border border-ant-line bg-ant-light/40 p-4">
+                                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                                <Database className="w-3 h-3" />
+                                                Google Sheets credentials
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <FormField
+                                                    control={form.control}
+                                                    name="spreadsheet_id"
+                                                    render={({ field }) => (
+                                                        <FormItem className="space-y-1.5">
+                                                            <FormLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Spreadsheet ID</FormLabel>
+                                                            <FormControl>
+                                                                <Input placeholder="ID from URL" {...field} className="h-10 rounded-xl border-ant-line bg-ant-paper text-[12px] font-mono text-ant-ink placeholder:text-ant-mid" />
+                                                            </FormControl>
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                                <FormField
+                                                    control={form.control}
+                                                    name="spreadsheet_name"
+                                                    render={({ field }) => (
+                                                        <FormItem className="space-y-1.5">
+                                                            <FormLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Tab name</FormLabel>
+                                                            <FormControl>
+                                                                <Input placeholder="e.g. Sheet1" {...field} className="h-10 rounded-xl border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid" />
+                                                            </FormControl>
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                            </div>
+                                            <FormField
+                                                control={form.control}
+                                                name="start_row"
+                                                render={({ field }) => (
+                                                    <FormItem className="space-y-1.5">
+                                                        <FormLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Data starts at row</FormLabel>
+                                                        <FormControl>
+                                                            <Input type="number" placeholder="1" {...field} className="h-10 rounded-xl border-ant-line bg-ant-paper text-[12px] text-ant-ink tabular-nums w-32" />
+                                                        </FormControl>
+                                                        <FormMessage className="text-ant-rose" />
+                                                    </FormItem>
+                                                )}
+                                            />
                                         </div>
                                     )}
                                 </div>
-                            </DialogHeader>
 
-                            <div className="p-4 space-y-3 max-h-[65vh] overflow-y-auto bg-white">
-                                <div className="grid grid-cols-2 gap-3">
-                                    <FormField
-                                        control={form.control}
-                                        name="name"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-[10px] font-semibold text-gray-600">Display Name</FormLabel>
-                                                <FormControl>
-                                                    <Input placeholder="e.g. Primary Store" {...field} className="h-8 text-[11px] rounded-md border-gray-200" />
-                                                </FormControl>
-                                                <FormMessage className="text-[10px]" />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="type"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-[10px] font-semibold text-gray-600">Platform Type</FormLabel>
-                                                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                    <FormControl>
-                                                        <SelectTrigger className="h-8 text-[11px] rounded-md border-gray-200">
-                                                            <SelectValue />
-                                                        </SelectTrigger>
-                                                    </FormControl>
-                                                    <SelectContent>
-                                                        <SelectItem value="Woocommerce" className="text-[11px]">Woocommerce</SelectItem>
-                                                        <SelectItem value="Google Sheets" className="text-[11px]">Google Sheets</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </FormItem>
-                                        )}
-                                    />
-                                </div>
+                                <DialogFooter className="px-6 py-4 border-t border-ant-line gap-2">
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        onClick={() => setIsUpsertOpen(false)}
+                                        className="h-10 px-5 rounded-full text-[12px] font-semibold text-ant-mid hover:text-ant-ink hover:bg-ant-light cursor-pointer"
+                                    >
+                                        Cancel
+                                    </Button>
+                                    <Button
+                                        type="submit"
+                                        disabled={upsertMutation.isPending}
+                                        className="bg-ant-ink hover:bg-ant-ink/90 text-white h-10 px-5 rounded-full text-[12px] font-semibold gap-2 cursor-pointer"
+                                    >
+                                        {upsertMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                                        {editingChannel ? 'Save changes' : 'Connect channel'}
+                                    </Button>
+                                </DialogFooter>
+                            </form>
+                        </Form>
+                    </DialogContent>
+                </Dialog>
 
-                                {channelType === 'Woocommerce' && (
-                                    <div className="space-y-3">
-                                        <FormField
-                                            control={form.control}
-                                            name="url"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel className="text-[10px] font-semibold text-gray-600">Store URL</FormLabel>
-                                                    <FormControl>
-                                                        <Input placeholder="https://yourstore.com" {...field} className="h-8 text-[11px] rounded-md border-gray-200" />
-                                                    </FormControl>
-                                                    <FormMessage className="text-[10px]" />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <FormField
-                                                control={form.control}
-                                                name="consumer_key"
-                                                render={({ field }) => (
-                                                    <FormItem>
-                                                        <FormLabel className="text-[10px] font-semibold text-gray-600">Consumer Key</FormLabel>
-                                                        <FormControl>
-                                                            <Input type="password" placeholder="ck_..." {...field} className="h-8 text-[11px] rounded-md border-gray-200" />
-                                                        </FormControl>
-                                                    </FormItem>
-                                                )}
-                                            />
-                                            <FormField
-                                                control={form.control}
-                                                name="consumer_secret"
-                                                render={({ field }) => (
-                                                    <FormItem>
-                                                        <FormLabel className="text-[10px] font-semibold text-gray-600">Consumer Secret</FormLabel>
-                                                        <FormControl>
-                                                            <Input type="password" placeholder="cs_..." {...field} className="h-8 text-[11px] rounded-md border-gray-200" />
-                                                        </FormControl>
-                                                    </FormItem>
-                                                )}
-                                            />
-                                        </div>
-                                    </div>
-                                )}
-
-                                {channelType === 'Google Sheets' && (
-                                    <div className="space-y-3">
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <FormField
-                                                control={form.control}
-                                                name="spreadsheet_id"
-                                                render={({ field }) => (
-                                                    <FormItem>
-                                                        <FormLabel className="text-[10px] font-semibold text-gray-600">Spreadsheet ID</FormLabel>
-                                                        <FormControl>
-                                                            <Input placeholder="ID from URL" {...field} className="h-8 text-[11px] rounded-md border-gray-200" />
-                                                        </FormControl>
-                                                    </FormItem>
-                                                )}
-                                            />
-                                            <FormField
-                                                control={form.control}
-                                                name="spreadsheet_name"
-                                                render={({ field }) => (
-                                                    <FormItem>
-                                                        <FormLabel className="text-[10px] font-semibold text-gray-600">Sheet/Tab Name</FormLabel>
-                                                        <FormControl>
-                                                            <Input placeholder="e.g. Sheet1" {...field} className="h-8 text-[11px] rounded-md border-gray-200" />
-                                                        </FormControl>
-                                                    </FormItem>
-                                                )}
-                                            />
-                                        </div>
-                                        <FormField
-                                            control={form.control}
-                                            name="start_row"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel className="text-[10px] font-semibold text-gray-600">Data Starts At Row</FormLabel>
-                                                    <FormControl>
-                                                        <Input type="number" placeholder="1" {...field} className="h-8 text-[11px] rounded-md border-gray-200 w-28" />
-                                                    </FormControl>
-                                                    <FormMessage className="text-[10px]" />
-                                                </FormItem>
-                                            )}
-                                        />
-                                    </div>
-                                )}
+                {/* Delete Dialog */}
+                <AlertDialog open={!!channelToDelete} onOpenChange={() => setChannelToDelete(null)}>
+                    <AlertDialogContent className="max-w-md p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden">
+                        <AlertDialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line space-y-1.5">
+                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-rose">
+                                <span className="h-1.5 w-1.5 rounded-full bg-ant-rose" />
+                                Destructive action
                             </div>
-
-                            <DialogFooter className="px-4 py-3 border-t border-gray-100 bg-white gap-2">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => setIsUpsertOpen(false)}
-                                    className="h-8 px-3 rounded-md text-[11px] font-semibold border-gray-200"
-                                >
-                                    Cancel
-                                </Button>
-                                <Button
-                                    type="submit"
-                                    disabled={upsertMutation.isPending}
-                                    className="bg-brand-navy hover:bg-brand-navy/90 text-white h-8 px-3 rounded-md text-[11px] font-semibold gap-1.5"
-                                >
-                                    {upsertMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                                    {editingChannel ? 'Update' : 'Connect'}
-                                </Button>
-                            </DialogFooter>
-                        </form>
-                    </Form>
-                </DialogContent>
-            </Dialog>
-
-            {/* Delete Dialog */}
-            <AlertDialog open={!!channelToDelete} onOpenChange={() => setChannelToDelete(null)}>
-                <AlertDialogContent className="max-w-sm rounded-xl border border-gray-100 p-4">
-                    <AlertDialogHeader>
-                        <AlertDialogTitle className="text-[13px] font-semibold text-brand-navy">Remove channel?</AlertDialogTitle>
-                        <AlertDialogDescription className="text-[11px] text-gray-500">
-                            Disconnecting <span className="font-semibold text-brand-navy">"{channelToDelete?.name}"</span> will stop all data sync.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter className="gap-2 mt-3">
-                        <AlertDialogCancel className="h-8 px-3 rounded-md text-[11px] font-semibold border-gray-200">
-                            Cancel
-                        </AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={() => deleteMutation.mutate(channelToDelete.id)}
-                            className="h-8 px-3 rounded-md text-[11px] font-semibold bg-red-500 hover:bg-red-600 text-white"
-                        >
-                            {deleteMutation.isPending && <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />}
-                            Disconnect
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+                            <AlertDialogTitle className="font-display text-[20px] leading-tight tracking-tight text-ant-ink">Disconnect this channel?</AlertDialogTitle>
+                            <AlertDialogDescription className="font-serif italic text-[13px] text-ant-mid">
+                                Disconnecting <span className="not-italic font-semibold text-ant-ink">&ldquo;{channelToDelete?.name}&rdquo;</span> stops all order sync from this storefront. Past orders remain untouched.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter className="px-6 py-4 gap-2">
+                            <AlertDialogCancel className="h-10 px-5 rounded-full text-[12px] font-semibold text-ant-mid hover:text-ant-ink hover:bg-ant-light cursor-pointer border-0">
+                                Cancel
+                            </AlertDialogCancel>
+                            <AlertDialogAction
+                                onClick={() => deleteMutation.mutate(channelToDelete.id)}
+                                className="h-10 px-5 rounded-full text-[12px] font-semibold bg-ant-rose hover:bg-ant-rose/90 text-white gap-2 cursor-pointer"
+                            >
+                                {deleteMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                                <Trash2 className="w-3.5 h-3.5" />
+                                Disconnect
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            </div>
         </div>
     );
 };
 
-// --- Sub-components ---
-
+// --- Channel Card ---
 const ChannelCard = ({ channel, onEdit, onDelete }: any) => {
     const isWoo = channel.type === 'Woocommerce';
     const isSheets = channel.type === 'Google Sheets';
 
     return (
-        <Card className="border border-gray-100 shadow-none rounded-xl overflow-hidden cursor-default">
-            <CardContent className="p-3.5 space-y-3">
-                <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-gray-50 border border-gray-100 rounded-lg p-1.5 flex items-center justify-center shrink-0">
+        <div className="relative overflow-hidden rounded-2xl border border-ant-line bg-ant-paper hover:border-ant-ink/20 hover:shadow-[0_16px_48px_-20px_rgba(20,20,19,0.15)] transition-all">
+            <div className="h-[3px] w-full bg-ant-green" />
+            <div className="p-4 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 bg-ant-light border border-ant-line rounded-xl p-2 flex items-center justify-center shrink-0">
                             {LOGOS[channel.type as keyof typeof LOGOS] ? (
                                 <img src={LOGOS[channel.type as keyof typeof LOGOS]!} alt={channel.type} className="w-full h-full object-contain" />
                             ) : (
-                                <Globe className="w-4 h-4 text-brand-navy/40" />
+                                <Globe className="w-4 h-4 text-ant-mid" />
                             )}
                         </div>
-                        <div>
-                            <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold leading-none">{channel.type}</p>
-                            <h3 className="text-[12px] font-semibold text-brand-navy tracking-tight leading-tight mt-0.5 line-clamp-1">
+                        <div className="min-w-0">
+                            <p className="text-[10px] uppercase tracking-[0.24em] text-ant-mid font-semibold">{channel.type}</p>
+                            <h3 className="font-display text-[14px] font-semibold text-ant-ink tracking-tight leading-tight mt-0.5 line-clamp-1">
                                 {channel.name}
                             </h3>
                         </div>
@@ -501,73 +602,79 @@ const ChannelCard = ({ channel, onEdit, onDelete }: any) => {
 
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md hover:bg-gray-100 text-gray-400">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-ant-ink/5 text-ant-mid shrink-0 cursor-pointer">
                                 <MoreVertical className="h-3.5 w-3.5" />
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="rounded-lg border border-gray-100 shadow-sm p-1 min-w-[140px]">
+                        <DropdownMenuContent align="end" className="rounded-xl border border-ant-line bg-ant-paper shadow-[0_16px_48px_-20px_rgba(20,20,19,0.2)] p-1 min-w-[160px]">
                             {isSheets && (
                                 <>
-                                    <DropdownMenuItem className="rounded-md px-2 py-1.5 cursor-pointer text-[11px] font-medium gap-2">
-                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Check Data
+                                    <DropdownMenuItem className="rounded-lg px-3 py-2 cursor-pointer text-[12px] font-medium gap-2 text-ant-ink">
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-ant-green" /> Check data
                                     </DropdownMenuItem>
-                                    <DropdownMenuSeparator className="my-1" />
+                                    <DropdownMenuSeparator className="my-1 bg-ant-line" />
                                 </>
                             )}
-                            <DropdownMenuItem onClick={onEdit} className="rounded-md px-2 py-1.5 cursor-pointer text-[11px] font-medium gap-2">
-                                <Edit2 className="w-3.5 h-3.5 text-gray-400" /> Edit
+                            <DropdownMenuItem onClick={onEdit} className="rounded-lg px-3 py-2 cursor-pointer text-[12px] font-medium gap-2 text-ant-ink">
+                                <Edit2 className="w-3.5 h-3.5 text-ant-orange" /> Edit
                             </DropdownMenuItem>
-                            <DropdownMenuSeparator className="my-1" />
-                            <DropdownMenuItem onClick={onDelete} className="rounded-md px-2 py-1.5 cursor-pointer text-[11px] font-medium gap-2 text-red-500">
-                                <Trash2 className="w-3.5 h-3.5" /> Delete
+                            <DropdownMenuSeparator className="my-1 bg-ant-line" />
+                            <DropdownMenuItem onClick={onDelete} className="rounded-lg px-3 py-2 cursor-pointer text-[12px] font-medium gap-2 text-ant-rose focus:text-ant-rose focus:bg-ant-rose/10">
+                                <Trash2 className="w-3.5 h-3.5" /> Disconnect
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </div>
 
-                <div className="space-y-1.5 bg-gray-50 rounded-lg p-2.5">
+                <div className="space-y-2 rounded-xl border border-ant-line bg-ant-light/60 p-3">
                     {isWoo && (
                         <>
-                            <div className="flex items-center gap-1.5">
-                                <Globe className="w-3 h-3 text-gray-400 shrink-0" />
-                                <span className="text-[10px] text-brand-navy/70 truncate">{channel.url}</span>
+                            <div className="flex items-center gap-2">
+                                <Globe className="w-3.5 h-3.5 text-ant-mid shrink-0" />
+                                <span className="text-[11px] text-ant-ink font-medium truncate">{channel.url || '—'}</span>
                             </div>
-                            <div className="flex items-center gap-1.5">
-                                <ShieldCheck className="w-3 h-3 text-emerald-500 shrink-0" />
-                                <span className="text-[10px] text-gray-400 uppercase tracking-wide">Secured API Keys</span>
+                            <div className="flex items-center gap-2">
+                                <ShieldCheck className="w-3.5 h-3.5 text-ant-green shrink-0" />
+                                <span className="text-[10px] text-ant-mid uppercase tracking-[0.18em] font-semibold">Secured API keys</span>
                             </div>
                         </>
                     )}
                     {isSheets && (
                         <>
-                            <div className="flex items-center gap-1.5">
-                                <Database className="w-3 h-3 text-green-600 shrink-0" />
-                                <span className="text-[10px] text-brand-navy/70 uppercase">Sheet: {channel.spreadsheet_name}</span>
+                            <div className="flex items-center gap-2">
+                                <Database className="w-3.5 h-3.5 text-ant-green shrink-0" />
+                                <span className="text-[11px] text-ant-ink font-medium truncate">Sheet · {channel.spreadsheet_name || '—'}</span>
                             </div>
-                            <div className="flex items-center gap-1.5">
-                                <Key className="w-3 h-3 text-amber-500 shrink-0" />
-                                <span className="text-[9px] text-gray-400 truncate font-mono">{channel.spreadsheet_id}</span>
+                            <div className="flex items-center gap-2">
+                                <Key className="w-3.5 h-3.5 text-ant-orange shrink-0" />
+                                <span className="text-[10px] text-ant-mid truncate font-mono tabular-nums">{channel.spreadsheet_id || '—'}</span>
                             </div>
                         </>
                     )}
                     {!isWoo && !isSheets && (
-                        <p className="text-[10px] text-gray-400 text-center py-1">External custom hook</p>
+                        <p className="text-[11px] text-ant-mid text-center py-1 font-serif italic">External custom hook</p>
                     )}
                 </div>
 
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-                        <Badge className="h-5 px-1.5 text-[9px] bg-emerald-50 text-emerald-600 border-none font-semibold">Live</Badge>
-                    </div>
+                <div className="flex items-center justify-between pt-2 border-t border-ant-line">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-ant-green/25 bg-ant-green/10 px-2 py-0.5 text-[10px] font-semibold text-ant-green">
+                        <span className="h-1.5 w-1.5 rounded-full bg-ant-green" />
+                        Live
+                    </span>
                     {channel.url && (
-                        <a href={channel.url} target="_blank" rel="noreferrer" className="text-gray-400 hover:text-brand-navy transition-colors">
+                        <a
+                            href={channel.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 text-[11px] text-ant-mid hover:text-ant-ink font-semibold transition-colors"
+                        >
+                            Visit
                             <ExternalLink className="w-3.5 h-3.5" />
                         </a>
                     )}
                 </div>
-            </CardContent>
-        </Card>
+            </div>
+        </div>
     );
 };
 

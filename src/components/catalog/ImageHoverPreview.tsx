@@ -83,25 +83,27 @@ export function ImageHoverPreview({
                         }}
                         className="animate-in fade-in zoom-in-95 duration-150"
                     >
-                        <div className="rounded-3xl bg-white shadow-2xl border border-gray-100/80 ring-1 ring-black/5">
+                        <div className="rounded-2xl bg-ant-paper shadow-[0_32px_80px_-24px_rgba(20,20,19,0.4)] border border-ant-line overflow-hidden">
+                            <div className="h-[3px] w-full bg-ant-orange" />
                             {imageUrl ? (
                                 <img
                                     src={imageUrl}
                                     alt={name}
-                                    className="w-full rounded-t-3xl object-contain bg-gray-50"
+                                    className="w-full object-contain bg-ant-light"
                                     style={{ maxHeight: '70vh' }}
                                     draggable={false}
                                 />
                             ) : (
-                                <div className="w-full h-72 bg-brand-navy/[0.04] flex items-center justify-center rounded-t-3xl">
-                                    <Package className="w-24 h-24 text-brand-navy/15" />
+                                <div className="w-full h-72 bg-ant-light flex items-center justify-center">
+                                    <Package className="w-20 h-20 text-ant-mid" strokeWidth={1.25} />
                                 </div>
                             )}
-                            <div className="px-5 py-4 space-y-1.5">
-                                <p className="text-xs font-black uppercase tracking-widest text-brand-navy/40 truncate">
-                                    {code}
+                            <div className="px-5 py-4 space-y-1.5 border-t border-ant-line">
+                                <p className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                                    {code || 'Sans code'}
                                 </p>
-                                <p className="text-lg font-bold text-brand-navy leading-snug line-clamp-3 break-words">
+                                <p className="font-display text-[16px] font-semibold leading-snug line-clamp-3 break-words text-ant-ink">
                                     {name}
                                 </p>
                             </div>

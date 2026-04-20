@@ -3,11 +3,9 @@ import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { normalizeCommissionBasis, isDeliveredForCommission } from '@/lib/commercialCommission';
 import {
-    User, Mail, ShieldCheck, DollarSign, TrendingUp,
-    Calendar, LogOut, Loader2, CreditCard, Building2,
-    Fingerprint, MapPin, Zap, CheckCircle2, Target,
-    Search, ChevronLeft, ChevronRight, Package, X,
-    SlidersHorizontal, ArrowUpDown
+    User, Mail, ShieldCheck, LogOut, Loader2, CreditCard, Building2,
+    Fingerprint, MapPin, Zap, CheckCircle2, Target, Award,
+    Search, ChevronRight, Package, X, ArrowUpDown,
 } from 'lucide-react';
 import {
     Select,
@@ -16,11 +14,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
 import {
     Dialog,
@@ -327,307 +322,395 @@ const SellerProfile = () => {
 
     if (loading) {
         return (
-            <div className="flex h-[60vh] items-center justify-center">
-                <Loader2 className="w-8 h-8 text-primary animate-spin" />
+            <div className="ant-surface min-h-screen flex items-center justify-center">
+                <Loader2 className="w-6 h-6 text-ant-mid animate-spin" strokeWidth={1.5} />
             </div>
         );
     }
 
-    const statusAccent =
-        stats.performanceStatus === 'Elite' ? '#059669'
-            : stats.performanceStatus === 'Pro' ? '#3b5e5e'
-                : stats.performanceStatus === 'Review' ? '#ef4444'
-                    : '#9ca3af';
+    const statusTone =
+        stats.performanceStatus === 'Elite'
+            ? { bg: 'bg-ant-green/10', border: 'border-ant-green/25', text: 'text-ant-green', dot: 'bg-ant-green' }
+            : stats.performanceStatus === 'Pro'
+                ? { bg: 'bg-ant-ink/6', border: 'border-ant-ink/15', text: 'text-ant-ink', dot: 'bg-ant-ink' }
+                : stats.performanceStatus === 'Review'
+                    ? { bg: 'bg-ant-rose/10', border: 'border-ant-rose/25', text: 'text-ant-rose', dot: 'bg-ant-rose' }
+                    : { bg: 'bg-ant-light', border: 'border-ant-line', text: 'text-ant-mid', dot: 'bg-ant-mid' };
+
+    const initials = profile?.name?.charAt(0).toUpperCase() || '?';
+    const joinYear = profile?.created_at ? new Date(profile.created_at).getFullYear() : 'N/A';
+    const detailsLocked = !!profile?.bank_rib && !!profile?.cin_number;
 
     return (
-        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
-            {/* Header */}
-            <header className="space-y-2.5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">My Profile</h1>
-                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Professional identity & performance</p>
-                    </div>
-                    <Button
-                        variant="outline"
-                        onClick={handleLogout}
-                        className="h-8 rounded-md text-[11px] font-semibold text-red-600 border-red-100 hover:bg-red-50 hover:border-red-200"
-                    >
-                        <LogOut className="w-3.5 h-3.5 mr-1.5" />
-                        Log Out
-                    </Button>
-                </div>
-            </header>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-                <div className="lg:col-span-2 flex flex-col gap-3">
-                    {/* Profile Information */}
-                    <div className="rounded-xl border border-gray-100 bg-white p-3.5">
-                        <p className="text-[11px] font-semibold text-brand-navy mb-3">Personal Data</p>
-                        <div className="flex flex-col sm:flex-row items-start gap-4">
-                            <Avatar className="h-14 w-14 shrink-0">
-                                <AvatarImage src={profile?.avatar_url || ''} className="object-cover" />
-                                <AvatarFallback className="bg-gray-100 text-[15px] font-semibold text-brand-navy">
-                                    {profile?.name?.charAt(0).toUpperCase() || <User className="w-5 h-5 text-gray-400" />}
-                                </AvatarFallback>
-                            </Avatar>
-                            <div className="space-y-1">
-                                <p className="text-[13px] font-semibold text-brand-navy">{profile?.name || 'No Name Set'}</p>
-                                <p className="text-[11px] text-gray-400 flex items-center gap-1.5">
-                                    <Mail className="w-3 h-3" />
-                                    {profile?.email}
-                                </p>
-                                <div className="flex flex-wrap gap-1.5 pt-1">
-                                    <Badge variant="outline" className="rounded-md border-gray-200 text-gray-500 text-[10px] px-2 h-5 font-medium gap-1">
-                                        <ShieldCheck className="w-2.5 h-2.5" />
-                                        Verified Seller
-                                    </Badge>
-                                    <Badge variant="outline" className="rounded-md border-gray-200 text-gray-400 text-[10px] px-2 h-5 font-medium">
-                                        Since {profile?.created_at ? new Date(profile.created_at).getFullYear() : 'N/A'}
-                                    </Badge>
-                                </div>
-                            </div>
+        <div className="ant-surface min-h-screen">
+            <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 md:py-8 space-y-6">
+                {/* Editorial header */}
+                <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                    <div className="space-y-2">
+                        <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                            <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                            Commercial · Profil
                         </div>
-                    </div>
-
-                    {/* Bank & Identity Information */}
-                    <div className="rounded-xl border border-gray-100 bg-white p-3.5 flex-1">
-                        <p className="text-[11px] font-semibold text-brand-navy mb-0.5">Bank & Identity</p>
-                        <p className="text-[9px] text-gray-400 mb-3">
-                            {(!profile?.bank_rib || !profile?.cin_number)
-                                ? "Provide your details once to enable payments (cannot be edited later)."
-                                : "Secure payment and identification details"}
+                        <h1 className="font-display text-[30px] md:text-[34px] leading-[1.05] tracking-[-0.02em] text-ant-ink">
+                            Mon profil
+                        </h1>
+                        <p className="font-serif italic text-[14px] leading-relaxed text-ant-mid max-w-xl">
+                            Votre identité professionnelle, vos coordonnées bancaires et votre performance au cordeau.
                         </p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                            <div className="space-y-3">
-                                {/* Bank Name */}
-                                <div>
-                                    <label className="text-[11px] font-medium text-gray-500 flex items-center gap-1.5 mb-1.5">
-                                        <Building2 className="w-3 h-3 text-gray-400" />
-                                        Bank Name
-                                    </label>
-                                    {profile?.bank_name ? (
-                                        <p className="text-[12px] text-brand-navy font-medium">{profile.bank_name}</p>
-                                    ) : (
-                                        <Input
-                                            placeholder="Enter bank name"
-                                            value={bankInfo.bank_name}
-                                            onChange={(e) => setBankInfo({ ...bankInfo, bank_name: e.target.value })}
-                                            className="h-9 text-[12px] rounded-md border-gray-100 bg-gray-50/50"
-                                        />
-                                    )}
-                                </div>
-                                {/* Account Holder */}
-                                <div>
-                                    <label className="text-[11px] font-medium text-gray-500 flex items-center gap-1.5 mb-1.5">
-                                        <User className="w-3 h-3 text-gray-400" />
-                                        Account Holder
-                                    </label>
-                                    {profile?.bank_account_holder ? (
-                                        <p className="text-[12px] text-brand-navy font-medium">{profile.bank_account_holder}</p>
-                                    ) : (
-                                        <Input
-                                            placeholder="Enter full name"
-                                            value={bankInfo.bank_account_holder}
-                                            onChange={(e) => setBankInfo({ ...bankInfo, bank_account_holder: e.target.value })}
-                                            className="h-9 text-[12px] rounded-md border-gray-100 bg-gray-50/50"
-                                        />
-                                    )}
-                                </div>
-                                {/* RIB */}
-                                <div>
-                                    <label className="text-[11px] font-medium text-gray-500 flex items-center gap-1.5 mb-1.5">
-                                        <CreditCard className="w-3 h-3 text-gray-400" />
-                                        RIB (Bank Account Number)
-                                    </label>
-                                    {profile?.bank_rib ? (
-                                        <p className="text-[12px] text-brand-navy font-mono tracking-wider bg-gray-50 px-2.5 py-1 rounded-md inline-block">{profile.bank_rib}</p>
-                                    ) : (
-                                        <Input
-                                            placeholder="24-digit RIB"
-                                            value={bankInfo.bank_rib}
-                                            onChange={(e) => setBankInfo({ ...bankInfo, bank_rib: e.target.value })}
-                                            className="h-9 text-[12px] rounded-md border-gray-100 bg-gray-50/50 font-mono tracking-wider"
-                                        />
-                                    )}
-                                </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={handleLogout}
+                        className="inline-flex items-center gap-2 h-10 px-4 rounded-full border border-ant-line bg-ant-paper hover:bg-ant-rose/10 hover:border-ant-rose/25 text-[12px] font-semibold text-ant-rose cursor-pointer shrink-0 transition-colors"
+                    >
+                        <LogOut className="w-3.5 h-3.5" strokeWidth={1.75} />
+                        Déconnexion
+                    </button>
+                </header>
+
+                {/* Hero identity card */}
+                <section className="rounded-2xl border border-ant-ink bg-ant-ink overflow-hidden">
+                    <div className="h-[3px] w-full bg-ant-orange" />
+                    <div className="p-6 md:p-8 flex flex-col md:flex-row md:items-center gap-6">
+                        <div className="h-20 w-20 md:h-24 md:w-24 rounded-2xl overflow-hidden border-2 border-white/10 shrink-0 bg-white/5 flex items-center justify-center">
+                            {profile?.avatar_url ? (
+                                <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                                <span className="font-display text-[24px] font-semibold text-white/70">{initials}</span>
+                            )}
+                        </div>
+                        <div className="flex-1 min-w-0 space-y-2">
+                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-white/50">
+                                <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                                Commercial · vérifié
                             </div>
-
-                            <div className="space-y-3">
-                                {/* CIN */}
-                                <div>
-                                    <label className="text-[11px] font-medium text-gray-500 flex items-center gap-1.5 mb-1.5">
-                                        <Fingerprint className="w-3 h-3 text-gray-400" />
-                                        CIN (Identity Number)
-                                    </label>
-                                    {profile?.cin_number ? (
-                                        <p className="text-[12px] text-brand-navy font-medium">{profile.cin_number}</p>
-                                    ) : (
-                                        <Input
-                                            placeholder="Enter CIN"
-                                            value={bankInfo.cin_number}
-                                            onChange={(e) => setBankInfo({ ...bankInfo, cin_number: e.target.value })}
-                                            className="h-9 text-[12px] rounded-md border-gray-100 bg-gray-50/50"
-                                        />
-                                    )}
-                                </div>
-                                {/* Address */}
-                                <div>
-                                    <label className="text-[11px] font-medium text-gray-500 flex items-center gap-1.5 mb-1.5">
-                                        <MapPin className="w-3 h-3 text-gray-400" />
-                                        Full Address
-                                    </label>
-                                    {profile?.address ? (
-                                        <p className="text-[12px] text-brand-navy font-medium leading-relaxed">{profile.address}</p>
-                                    ) : (
-                                        <Input
-                                            placeholder="Enter your complete address"
-                                            value={bankInfo.address}
-                                            onChange={(e) => setBankInfo({ ...bankInfo, address: e.target.value })}
-                                            className="h-9 text-[12px] rounded-md border-gray-100 bg-gray-50/50"
-                                        />
-                                    )}
-                                </div>
-
-                                {!profile?.bank_rib && (
-                                    <div className="pt-1">
-                                        <Button
-                                            onClick={handleUpdateBankInfo}
-                                            disabled={saving || !bankInfo.bank_rib || !bankInfo.cin_number}
-                                            className="h-8 rounded-md text-[11px] font-semibold"
-                                        >
-                                            {saving ? (
-                                                <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
-                                            ) : (
-                                                <ShieldCheck className="w-3.5 h-3.5 mr-1.5" />
-                                            )}
-                                            Confirm & Lock Details
-                                        </Button>
-                                    </div>
-                                )}
+                            <h2 className="font-display text-[24px] md:text-[28px] font-semibold text-white leading-tight truncate">
+                                {profile?.name || 'Sans nom'}
+                            </h2>
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 font-serif italic text-[12px] text-white/60">
+                                <span className="inline-flex items-center gap-1.5">
+                                    <Mail className="w-3 h-3" strokeWidth={1.75} />
+                                    {profile?.email || '—'}
+                                </span>
+                            </div>
+                            <div className="flex flex-wrap gap-2 pt-1">
+                                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-white/80">
+                                    <ShieldCheck className="w-3 h-3" strokeWidth={1.75} />
+                                    Vendeur vérifié
+                                </span>
+                                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-white/80">
+                                    Depuis {joinYear}
+                                </span>
                             </div>
                         </div>
                     </div>
-                </div>
+                </section>
+
+                {/* Main grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                    <div className="lg:col-span-2 flex flex-col gap-3">
+                        {/* Bank & Identity */}
+                        <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                            <div className={`h-[3px] w-full ${detailsLocked ? 'bg-ant-green' : 'bg-ant-orange'}`} />
+                            <div className="p-5 space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                        <span className="font-display text-ant-orange font-semibold">01</span>
+                                        Banque &amp; identité
+                                    </div>
+                                    {detailsLocked ? (
+                                        <span className="inline-flex items-center gap-1.5 rounded-full border border-ant-green/25 bg-ant-green/10 px-2 py-0.5 text-[10px] font-semibold text-ant-green">
+                                            <ShieldCheck className="w-3 h-3" strokeWidth={1.75} />
+                                            Verrouillé
+                                        </span>
+                                    ) : (
+                                        <span className="inline-flex items-center gap-1.5 rounded-full border border-ant-orange/25 bg-ant-orange/10 px-2 py-0.5 text-[10px] font-semibold text-ant-orange">
+                                            <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                                            À compléter
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="font-serif italic text-[12px] text-ant-mid">
+                                    {detailsLocked
+                                        ? 'Coordonnées bancaires et pièce d\u2019identité — données sécurisées.'
+                                        : 'Renseignez vos coordonnées une seule fois pour activer les paiements. Ces champs sont verrouillés après sauvegarde.'}
+                                </p>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-3">
+                                        {/* Bank Name */}
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid inline-flex items-center gap-1.5">
+                                                <Building2 className="w-3 h-3" strokeWidth={1.75} />
+                                                Banque
+                                            </label>
+                                            {profile?.bank_name ? (
+                                                <p className="font-display text-[13px] font-semibold text-ant-ink">{profile.bank_name}</p>
+                                            ) : (
+                                                <Input
+                                                    placeholder="Nom de la banque"
+                                                    value={bankInfo.bank_name}
+                                                    onChange={(e) => setBankInfo({ ...bankInfo, bank_name: e.target.value })}
+                                                    className="h-10 rounded-xl border-ant-line bg-ant-paper text-[13px] text-ant-ink placeholder:font-serif placeholder:italic placeholder:text-ant-mid focus-visible:ring-1 focus-visible:ring-ant-orange/40"
+                                                />
+                                            )}
+                                        </div>
+
+                                        {/* Account Holder */}
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid inline-flex items-center gap-1.5">
+                                                <User className="w-3 h-3" strokeWidth={1.75} />
+                                                Titulaire du compte
+                                            </label>
+                                            {profile?.bank_account_holder ? (
+                                                <p className="font-display text-[13px] font-semibold text-ant-ink">{profile.bank_account_holder}</p>
+                                            ) : (
+                                                <Input
+                                                    placeholder="Nom complet"
+                                                    value={bankInfo.bank_account_holder}
+                                                    onChange={(e) => setBankInfo({ ...bankInfo, bank_account_holder: e.target.value })}
+                                                    className="h-10 rounded-xl border-ant-line bg-ant-paper text-[13px] text-ant-ink placeholder:font-serif placeholder:italic placeholder:text-ant-mid focus-visible:ring-1 focus-visible:ring-ant-orange/40"
+                                                />
+                                            )}
+                                        </div>
+
+                                        {/* RIB */}
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid inline-flex items-center gap-1.5">
+                                                <CreditCard className="w-3 h-3" strokeWidth={1.75} />
+                                                RIB
+                                            </label>
+                                            {profile?.bank_rib ? (
+                                                <p className="font-mono text-[12px] text-ant-ink bg-ant-light border border-ant-line px-3 py-2 rounded-lg tracking-wider">
+                                                    {profile.bank_rib}
+                                                </p>
+                                            ) : (
+                                                <Input
+                                                    placeholder="24 chiffres"
+                                                    value={bankInfo.bank_rib}
+                                                    onChange={(e) => setBankInfo({ ...bankInfo, bank_rib: e.target.value })}
+                                                    className="h-10 rounded-xl border-ant-line bg-ant-paper text-[13px] text-ant-ink font-mono tracking-wider placeholder:font-serif placeholder:italic placeholder:tracking-normal placeholder:text-ant-mid focus-visible:ring-1 focus-visible:ring-ant-orange/40"
+                                                />
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        {/* CIN */}
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid inline-flex items-center gap-1.5">
+                                                <Fingerprint className="w-3 h-3" strokeWidth={1.75} />
+                                                CIN
+                                            </label>
+                                            {profile?.cin_number ? (
+                                                <p className="font-display text-[13px] font-semibold text-ant-ink">{profile.cin_number}</p>
+                                            ) : (
+                                                <Input
+                                                    placeholder="Numéro d'identité"
+                                                    value={bankInfo.cin_number}
+                                                    onChange={(e) => setBankInfo({ ...bankInfo, cin_number: e.target.value })}
+                                                    className="h-10 rounded-xl border-ant-line bg-ant-paper text-[13px] text-ant-ink placeholder:font-serif placeholder:italic placeholder:text-ant-mid focus-visible:ring-1 focus-visible:ring-ant-orange/40"
+                                                />
+                                            )}
+                                        </div>
+
+                                        {/* Address */}
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid inline-flex items-center gap-1.5">
+                                                <MapPin className="w-3 h-3" strokeWidth={1.75} />
+                                                Adresse complète
+                                            </label>
+                                            {profile?.address ? (
+                                                <p className="font-display text-[13px] font-semibold text-ant-ink leading-relaxed">{profile.address}</p>
+                                            ) : (
+                                                <Input
+                                                    placeholder="Adresse complète"
+                                                    value={bankInfo.address}
+                                                    onChange={(e) => setBankInfo({ ...bankInfo, address: e.target.value })}
+                                                    className="h-10 rounded-xl border-ant-line bg-ant-paper text-[13px] text-ant-ink placeholder:font-serif placeholder:italic placeholder:text-ant-mid focus-visible:ring-1 focus-visible:ring-ant-orange/40"
+                                                />
+                                            )}
+                                        </div>
+
+                                        {!profile?.bank_rib && (
+                                            <div className="pt-1">
+                                                <button
+                                                    type="button"
+                                                    onClick={handleUpdateBankInfo}
+                                                    disabled={saving || !bankInfo.bank_rib || !bankInfo.cin_number}
+                                                    className="inline-flex items-center gap-2 h-10 px-4 rounded-full bg-ant-ink hover:bg-ant-ink/90 disabled:opacity-60 disabled:cursor-not-allowed text-white text-[12px] font-semibold cursor-pointer transition-colors"
+                                                >
+                                                    {saving ? (
+                                                        <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.75} />
+                                                    ) : (
+                                                        <ShieldCheck className="w-3.5 h-3.5" strokeWidth={1.75} />
+                                                    )}
+                                                    Confirmer et verrouiller
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
 
                 {/* Sidebar: Performance + Financial + Account */}
                 <div className="space-y-3">
                     {/* Performance Pulse */}
-                    <div className="rounded-xl border border-gray-100 bg-white p-3.5">
-                        <div className="flex items-center justify-between mb-3">
-                            <p className="text-[11px] font-semibold text-brand-navy">Performance Pulse</p>
-                            <span
-                                className="text-[9px] font-bold px-2 h-4 rounded flex items-center"
-                                style={{ background: `${statusAccent}18`, color: statusAccent }}
-                            >
-                                {stats.performanceStatus}
-                            </span>
-                        </div>
-                        <div className="space-y-2.5">
-                            {[
-                                { label: 'Attributed', value: stats.total, sub: 'Total orders', icon: Zap, accent: '#9ca3af' },
-                                { label: 'Confirmation', value: `${stats.confirmationRate}%`, sub: `${stats.confirmed} orders`, icon: Target, accent: '#3b5e5e' },
-                                { label: 'Delivery', value: `${stats.deliveryRate}%`, sub: `${stats.delivered} orders`, icon: CheckCircle2, accent: '#059669' },
-                            ].map((row) => (
-                                <div key={row.label} className="flex items-center gap-2.5">
-                                    <span className="w-[3px] h-8 rounded-full shrink-0" style={{ background: row.accent }} />
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{row.label}</p>
-                                        <p className="text-[13px] font-semibold text-brand-navy tabular-nums leading-tight">{row.value}</p>
-                                    </div>
-                                    <p className="text-[9px] text-gray-400 shrink-0">{row.sub}</p>
+                    <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                        <div className="h-[3px] w-full bg-ant-green" />
+                        <div className="p-5 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                    <span className="font-display text-ant-orange font-semibold">02</span>
+                                    Pouls de performance
                                 </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Financial Earnings */}
-                    <div className="rounded-xl border border-gray-100 bg-white p-3.5">
-                        <p className="text-[11px] font-semibold text-brand-navy mb-3">Financial Earnings</p>
-                        <div className="flex items-center gap-2.5">
-                            <span className="w-[3px] h-8 rounded-full shrink-0 bg-[#059669]" />
-                            <div className="flex-1 min-w-0">
-                                <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Commission Rate</p>
-                                <p className="text-[15px] font-semibold text-brand-navy tabular-nums">{profile?.commission_price || 0} MAD</p>
-                            </div>
-                        </div>
-                        <p className="text-[9px] text-gray-400 mt-2 pl-3.5">
-                            {normalizeCommissionBasis(profile?.commission_basis) === 'per_unit'
-                                ? 'Per unit (assigned products) on delivered orders'
-                                : 'Per delivered order'}
-                        </p>
-                    </div>
-
-                    {/* Account Details */}
-                    <div className="rounded-xl border border-gray-100 bg-white p-3.5">
-                        <p className="text-[11px] font-semibold text-brand-navy mb-3">Account Details</p>
-                        <div className="space-y-2">
-                            <div className="flex justify-between items-center">
-                                <span className="text-[11px] text-gray-500">Join Date</span>
-                                <span className="text-[11px] font-medium text-brand-navy">
-                                    {profile?.created_at ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'}
+                                <span className={cn(
+                                    'inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold',
+                                    statusTone.bg,
+                                    statusTone.border,
+                                    statusTone.text,
+                                )}>
+                                    <Award className="w-3 h-3" strokeWidth={1.75} />
+                                    {stats.performanceStatus}
                                 </span>
                             </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-[11px] text-gray-500">Role</span>
-                                <Badge variant="outline" className="rounded-md border-gray-200 text-gray-500 text-[10px] px-2 h-5 font-medium">Seller Partner</Badge>
+                            <div className="space-y-3">
+                                {[
+                                    { label: 'Attribuées', value: stats.total.toLocaleString(), sub: 'total', icon: Zap, dot: 'bg-ant-ink', text: 'text-ant-ink' },
+                                    { label: 'Confirmation', value: `${stats.confirmationRate}%`, sub: `${stats.confirmed} commandes`, icon: Target, dot: 'bg-ant-orange', text: 'text-ant-orange' },
+                                    { label: 'Livraison', value: `${stats.deliveryRate}%`, sub: `${stats.delivered} livrées`, icon: CheckCircle2, dot: 'bg-ant-green', text: 'text-ant-green' },
+                                ].map((row) => {
+                                    const Icon = row.icon;
+                                    return (
+                                        <div key={row.label} className="flex items-center gap-3">
+                                            <div className={cn('h-8 w-8 rounded-lg border flex items-center justify-center shrink-0',
+                                                row.dot === 'bg-ant-green' ? 'bg-ant-green/10 border-ant-green/25 text-ant-green'
+                                                    : row.dot === 'bg-ant-orange' ? 'bg-ant-orange/10 border-ant-orange/25 text-ant-orange'
+                                                        : 'bg-ant-ink/6 border-ant-ink/15 text-ant-ink',
+                                            )}>
+                                                <Icon className="w-4 h-4" strokeWidth={1.75} />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">{row.label}</p>
+                                                <p className={cn('font-display text-[15px] font-semibold tabular-nums leading-tight', row.text)}>{row.value}</p>
+                                            </div>
+                                            <p className="font-serif italic text-[11px] text-ant-mid shrink-0 tabular-nums">{row.sub}</p>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
-                    </div>
+                    </section>
+
+                    {/* Financial Earnings */}
+                    <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                        <div className="h-[3px] w-full bg-ant-orange" />
+                        <div className="p-5 space-y-3">
+                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                <span className="font-display text-ant-orange font-semibold">03</span>
+                                Rémunération
+                            </div>
+                            <div className="rounded-xl bg-ant-ink p-4">
+                                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/50">Taux de commission</p>
+                                <p className="font-display text-[26px] font-semibold tabular-nums text-white leading-none mt-1.5">
+                                    {profile?.commission_price || 0}
+                                    <span className="text-[12px] text-white/50 font-normal ml-1.5">MAD</span>
+                                </p>
+                                <p className="font-serif italic text-[11px] text-white/60 mt-2">
+                                    {normalizeCommissionBasis(profile?.commission_basis) === 'per_unit'
+                                        ? 'par unité livrée (produits assignés)'
+                                        : 'par commande livrée'}
+                                </p>
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* Account Details */}
+                    <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                        <div className="h-[3px] w-full bg-ant-ink" />
+                        <div className="p-5 space-y-3">
+                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                <span className="font-display text-ant-orange font-semibold">04</span>
+                                Détails du compte
+                            </div>
+                            <div className="space-y-px rounded-xl border border-ant-line overflow-hidden">
+                                <div className="bg-ant-paper px-3 py-2.5 flex items-center justify-between">
+                                    <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ant-mid">Date d'entrée</span>
+                                    <span className="font-display text-[12px] font-semibold text-ant-ink tabular-nums">
+                                        {profile?.created_at ? new Date(profile.created_at).toLocaleDateString('fr-FR', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                                    </span>
+                                </div>
+                                <div className="bg-ant-paper px-3 py-2.5 flex items-center justify-between border-t border-ant-line">
+                                    <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ant-mid">Rôle</span>
+                                    <span className="inline-flex items-center gap-1.5 rounded-full border border-ant-ink/15 bg-ant-ink/6 px-2 py-0.5 text-[10px] font-semibold text-ant-ink">
+                                        <span className="h-1.5 w-1.5 rounded-full bg-ant-ink" />
+                                        Commercial partenaire
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
                 </div>
 
-                {/* Inventory Performance — full width */}
-                <div className="lg:col-span-3 rounded-xl border border-gray-100 bg-white overflow-hidden">
-                    <div className="p-3.5 border-b border-gray-50">
+                {/* Inventory Performance */}
+                <section className="lg:col-span-3 rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                    <div className="h-[3px] w-full bg-ant-orange" />
+                    <div className="px-5 py-4 border-b border-ant-line space-y-3">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                             <div>
-                                <p className="text-[11px] font-semibold text-brand-navy">Inventory Performance</p>
-                                <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-0.5">
-                                    {filteredProducts.length} of {productStats.length} attributed product{productStats.length === 1 ? '' : 's'}
+                                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                    <span className="font-display text-ant-orange font-semibold">05</span>
+                                    Performance produit
+                                </div>
+                                <p className="font-serif italic text-[11px] text-ant-mid mt-0.5 tabular-nums">
+                                    {filteredProducts.length} sur {productStats.length} {productStats.length === 1 ? 'produit assigné' : 'produits assignés'}
                                 </p>
                             </div>
                             <div className="flex items-center gap-2">
-                                <div className="relative flex-1 md:w-56">
-                                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                                <div className="relative flex-1 md:w-60">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
                                     <Input
-                                        placeholder="Search by name, code..."
+                                        placeholder="Rechercher par nom, code…"
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="pl-8 h-8 text-[12px] rounded-md border-gray-100 bg-gray-50/50"
+                                        className="pl-9 pr-8 h-9 rounded-full border-ant-line bg-ant-paper text-[12px] focus-visible:ring-1 focus-visible:ring-ant-orange/40"
                                     />
                                     {searchQuery && (
                                         <button
                                             type="button"
                                             onClick={() => setSearchQuery('')}
-                                            className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded flex items-center justify-center text-gray-400 hover:bg-gray-100"
+                                            aria-label="Effacer"
+                                            className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-6 h-6 rounded-full text-ant-mid hover:bg-ant-light hover:text-ant-ink transition-colors"
                                         >
-                                            <X className="w-3 h-3" />
+                                            <X className="w-3 h-3" strokeWidth={1.75} />
                                         </button>
                                     )}
                                 </div>
                                 <Select value={sortBy} onValueChange={(v) => setSortBy(v as ProductSort)}>
-                                    <SelectTrigger className="h-8 rounded-md border-gray-100 bg-gray-50/50 w-40 text-[12px] gap-1.5">
-                                        <ArrowUpDown className="w-3 h-3 text-gray-400" />
+                                    <SelectTrigger className="h-9 rounded-full border-ant-line bg-ant-paper w-44 text-[12px] gap-1.5 focus:ring-1 focus:ring-ant-orange/40">
+                                        <ArrowUpDown className="w-3 h-3 text-ant-mid" strokeWidth={1.75} />
                                         <SelectValue />
                                     </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="attributed">Most attributed</SelectItem>
-                                        <SelectItem value="delivered">Most delivered</SelectItem>
-                                        <SelectItem value="performance">Best performance</SelectItem>
-                                        <SelectItem value="name">Name (A–Z)</SelectItem>
+                                    <SelectContent className="rounded-xl border-ant-line bg-ant-paper">
+                                        <SelectItem value="attributed">Plus attribuées</SelectItem>
+                                        <SelectItem value="delivered">Plus livrées</SelectItem>
+                                        <SelectItem value="performance">Meilleure performance</SelectItem>
+                                        <SelectItem value="name">Nom (A–Z)</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
                         </div>
 
                         {/* Performance bucket pills */}
-                        <div className="flex items-center gap-1.5 flex-wrap mt-3">
+                        <div className="inline-flex items-center gap-1 p-1 rounded-full border border-ant-line bg-ant-light overflow-x-auto max-w-full">
                             {([
-                                { id: 'all', label: 'All', count: bucketCounts.all },
-                                { id: 'high', label: 'High ≥60%', count: bucketCounts.high },
-                                { id: 'mid', label: 'Mid 30-60%', count: bucketCounts.mid },
-                                { id: 'low', label: 'Low <30%', count: bucketCounts.low },
-                                { id: 'none', label: 'No data', count: bucketCounts.none },
+                                { id: 'all', label: 'Tous', count: bucketCounts.all },
+                                { id: 'high', label: 'Haute ≥60%', count: bucketCounts.high },
+                                { id: 'mid', label: 'Moyenne 30-60%', count: bucketCounts.mid },
+                                { id: 'low', label: 'Basse <30%', count: bucketCounts.low },
+                                { id: 'none', label: 'Sans donnée', count: bucketCounts.none },
                             ] as const).map((b) => {
                                 const isActive = performanceBucket === b.id;
                                 return (
@@ -635,16 +718,18 @@ const SellerProfile = () => {
                                         key={b.id}
                                         type="button"
                                         onClick={() => setPerformanceBucket(b.id)}
-                                        className={`h-6 px-2.5 rounded-md text-[10px] font-semibold transition-colors flex items-center gap-1.5 ${
+                                        className={cn(
+                                            'inline-flex items-center gap-1.5 h-7 px-3 rounded-full text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap',
                                             isActive
-                                                ? 'bg-brand-navy text-white'
-                                                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                                        }`}
+                                                ? 'bg-ant-ink text-white'
+                                                : 'text-ant-mid hover:text-ant-ink',
+                                        )}
                                     >
                                         {b.label}
-                                        <span className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded text-[9px] font-bold ${
-                                            isActive ? 'bg-white/20 text-white' : 'bg-white text-gray-500'
-                                        }`}>
+                                        <span className={cn(
+                                            'inline-flex items-center justify-center min-w-[18px] h-4 px-1 rounded-full text-[9px] font-bold tabular-nums',
+                                            isActive ? 'bg-white/20 text-white' : 'bg-ant-paper text-ant-mid',
+                                        )}>
                                             {b.count}
                                         </span>
                                     </button>
@@ -653,77 +738,79 @@ const SellerProfile = () => {
                         </div>
                     </div>
 
-                    <div className="p-3.5">
+                    <div className="p-5">
                         {filteredProducts.length > 0 ? (
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                                 {filteredProducts.map((p) => {
                                     const rate = Math.round(getDeliveryRate(p));
-                                    const rateColor = p.total === 0
-                                        ? '#9ca3af'
+                                    const rateTone = p.total === 0
+                                        ? { bar: 'bg-ant-mid', text: 'text-ant-mid', dot: 'bg-ant-mid' }
                                         : rate >= 60
-                                            ? '#059669'
+                                            ? { bar: 'bg-ant-green', text: 'text-ant-green', dot: 'bg-ant-green' }
                                             : rate >= 30
-                                                ? '#d97706'
-                                                : '#ef4444';
+                                                ? { bar: 'bg-ant-orange', text: 'text-ant-orange', dot: 'bg-ant-orange' }
+                                                : { bar: 'bg-ant-rose', text: 'text-ant-rose', dot: 'bg-ant-rose' };
                                     return (
                                         <button
                                             key={p.id}
                                             type="button"
                                             onClick={() => setSelectedProduct(p)}
-                                            className="group text-left bg-white border border-gray-100 rounded-xl overflow-hidden hover:border-gray-200 hover:shadow-sm transition-all duration-200"
+                                            className="group text-left rounded-2xl border border-ant-line bg-ant-paper overflow-hidden hover:border-ant-ink/30 transition-colors"
                                         >
-                                            <div className="aspect-[4/3] bg-gray-50 overflow-hidden">
+                                            <div className="h-[3px] w-full bg-ant-orange" />
+                                            <div className="aspect-[4/3] bg-ant-light overflow-hidden">
                                                 {p.image_url ? (
                                                     <img
                                                         src={p.image_url}
                                                         alt={p.name}
-                                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                        className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
                                                     />
                                                 ) : (
                                                     <div className="w-full h-full flex items-center justify-center">
-                                                        <Package className="w-8 h-8 text-gray-200" />
+                                                        <Package className="w-8 h-8 text-ant-mid" strokeWidth={1.5} />
                                                     </div>
                                                 )}
                                             </div>
-                                            <div className="p-3 space-y-2">
-                                                <div>
-                                                    <p className="text-[11px] font-semibold text-brand-navy leading-snug line-clamp-2" title={p.name}>
+                                            <div className="p-4 space-y-3">
+                                                <div className="space-y-1">
+                                                    <p className="font-display text-[13px] font-semibold text-ant-ink leading-snug line-clamp-2" title={p.name}>
                                                         {p.name}
                                                     </p>
-                                                    <div className="flex items-center justify-between mt-0.5">
-                                                        <span className="text-[9px] uppercase tracking-wider text-gray-400 font-bold">{p.code || '—'}</span>
-                                                        <span className="text-[10px] font-semibold text-brand-navy tabular-nums">{p.selling_price.toLocaleString()} dh</span>
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">{p.code || '—'}</span>
+                                                        <span className="font-display text-[12px] font-semibold tabular-nums text-ant-ink">
+                                                            {p.selling_price.toLocaleString()}
+                                                            <span className="text-[10px] text-ant-mid font-normal ml-1">MAD</span>
+                                                        </span>
                                                     </div>
                                                 </div>
 
-                                                <div className="grid grid-cols-3 gap-1 pt-1.5 border-t border-gray-50">
-                                                    <div className="text-center">
-                                                        <p className="text-[9px] text-gray-400 uppercase font-bold">Attr</p>
-                                                        <p className="text-[12px] font-bold text-brand-navy">{p.total}</p>
+                                                <div className="grid grid-cols-3 gap-px bg-ant-line rounded-lg border border-ant-line overflow-hidden">
+                                                    <div className="bg-ant-paper px-2 py-1.5 text-center">
+                                                        <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-ant-mid">Attr</p>
+                                                        <p className="font-display text-[13px] font-semibold tabular-nums text-ant-ink mt-0.5">{p.total}</p>
                                                     </div>
-                                                    <div className="text-center">
-                                                        <p className="text-[9px] text-[#3b5e5e] uppercase font-bold">Conf</p>
-                                                        <p className="text-[12px] font-bold text-brand-navy">{p.confirmed}</p>
+                                                    <div className="bg-ant-paper px-2 py-1.5 text-center">
+                                                        <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-ant-orange">Conf</p>
+                                                        <p className="font-display text-[13px] font-semibold tabular-nums text-ant-ink mt-0.5">{p.confirmed}</p>
                                                     </div>
-                                                    <div className="text-center">
-                                                        <p className="text-[9px] text-[#059669] uppercase font-bold">Deliv</p>
-                                                        <p className="text-[12px] font-bold text-brand-navy">{p.delivered}</p>
+                                                    <div className="bg-ant-paper px-2 py-1.5 text-center">
+                                                        <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-ant-green">Liv</p>
+                                                        <p className="font-display text-[13px] font-semibold tabular-nums text-ant-green mt-0.5">{p.delivered}</p>
                                                     </div>
                                                 </div>
 
-                                                <div>
-                                                    <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-wider text-gray-400 mb-1">
-                                                        <span>Delivery</span>
-                                                        <span style={{ color: rateColor }}>{p.total === 0 ? '—' : `${rate}%`}</span>
+                                                <div className="space-y-1">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ant-mid">Taux livraison</span>
+                                                        <span className={cn('font-display text-[11px] font-semibold tabular-nums', rateTone.text)}>
+                                                            {p.total === 0 ? '—' : `${rate}%`}
+                                                        </span>
                                                     </div>
-                                                    <div className="h-1 w-full bg-gray-100 rounded-full overflow-hidden">
+                                                    <div className="h-1 w-full bg-ant-line rounded-full overflow-hidden">
                                                         <div
-                                                            className="h-full rounded-full transition-all duration-500 ease-out"
-                                                            style={{
-                                                                width: `${p.total === 0 ? 100 : rate}%`,
-                                                                background: rateColor,
-                                                                opacity: p.total === 0 ? 0.3 : 1
-                                                            }}
+                                                            className={cn('h-full rounded-full transition-all duration-500 ease-out', rateTone.bar, p.total === 0 && 'opacity-30')}
+                                                            style={{ width: `${p.total === 0 ? 100 : rate}%` }}
                                                         />
                                                     </div>
                                                 </div>
@@ -733,166 +820,201 @@ const SellerProfile = () => {
                                 })}
                             </div>
                         ) : (
-                            <div className="py-12 flex flex-col items-center justify-center text-gray-400">
-                                <Search className="w-7 h-7 text-gray-200 mb-2" />
-                                <p className="text-[11px] font-medium text-gray-500">No products match the current filters.</p>
+                            <div className="py-12 flex flex-col items-center gap-3 text-center">
+                                <div className="h-12 w-12 rounded-xl border border-ant-line bg-ant-light flex items-center justify-center">
+                                    <Search className="w-5 h-5 text-ant-mid" strokeWidth={1.5} />
+                                </div>
+                                <p className="font-serif italic text-[12px] text-ant-mid">Aucun produit ne correspond aux filtres.</p>
                                 <button
                                     type="button"
                                     onClick={() => { setSearchQuery(''); setPerformanceBucket('all'); }}
-                                    className="mt-2 text-[10px] font-semibold text-brand-navy hover:underline"
+                                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full border border-ant-line bg-ant-paper hover:bg-ant-light text-[11px] font-semibold text-ant-ink cursor-pointer transition-colors"
                                 >
-                                    Reset filters
+                                    Réinitialiser les filtres
                                 </button>
                             </div>
                         )}
                     </div>
-                </div>
+                </section>
             </div>
 
             {/* Product Detail Modal */}
             <Dialog open={!!selectedProduct} onOpenChange={(open) => !open && setSelectedProduct(null)}>
-                <DialogContent className="max-w-3xl p-0 border border-gray-100 bg-white rounded-xl shadow-lg overflow-hidden flex flex-col max-h-[90vh]">
+                <DialogContent className="max-w-3xl p-0 gap-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_32px_80px_-24px_rgba(20,20,19,0.4)] overflow-hidden flex flex-col max-h-[90vh]">
                     {selectedProduct && (() => {
                         const p = selectedProduct;
-                        const displayName = p.name || 'Unknown Product';
+                        const displayName = p.name || 'Produit inconnu';
                         const confirmRate = p.total > 0 ? Math.round((p.confirmed / p.total) * 100) : 0;
                         const deliveryRate = p.total > 0 ? Math.round((p.delivered / p.total) * 100) : 0;
-                        const stockTone = p.stock === 0 ? 'text-red-600' : p.stock < 10 ? 'text-amber-600' : 'text-emerald-600';
-                        const stockLabel = p.stock === 0 ? 'Out of stock' : p.stock < 10 ? 'Low stock' : 'In stock';
-                        const rateColor = (rate: number) =>
-                            rate >= 60 ? { text: 'text-[#059669]', bar: '#059669' }
-                                : rate >= 30 ? { text: 'text-[#d97706]', bar: '#d97706' }
-                                : { text: 'text-[#ef4444]', bar: '#ef4444' };
-                        const cr = rateColor(confirmRate);
-                        const dr = rateColor(deliveryRate);
+                        const stockTone = p.stock === 0
+                            ? { bg: 'bg-ant-rose/10', border: 'border-ant-rose/25', text: 'text-ant-rose', dot: 'bg-ant-rose' }
+                            : p.stock < 10
+                                ? { bg: 'bg-ant-orange/10', border: 'border-ant-orange/25', text: 'text-ant-orange', dot: 'bg-ant-orange' }
+                                : { bg: 'bg-ant-green/10', border: 'border-ant-green/25', text: 'text-ant-green', dot: 'bg-ant-green' };
+                        const stockLabel = p.stock === 0 ? 'Rupture' : p.stock < 10 ? 'Faible' : 'En stock';
+                        const rateTone = (rate: number) =>
+                            rate >= 60 ? { text: 'text-ant-green', bar: 'bg-ant-green' }
+                                : rate >= 30 ? { text: 'text-ant-orange', bar: 'bg-ant-orange' }
+                                    : { text: 'text-ant-rose', bar: 'bg-ant-rose' };
+                        const cr = rateTone(confirmRate);
+                        const dr = rateTone(deliveryRate);
 
                         return (
-                            <div className="grid grid-cols-1 md:grid-cols-5 flex-1 min-h-0">
-                                {/* Left: image */}
-                                <div className="md:col-span-2 relative bg-gray-50 min-h-[220px] md:min-h-full overflow-hidden">
-                                    {p.image_url ? (
-                                        <img src={p.image_url} alt={displayName} className="w-full h-full object-cover" />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center">
-                                            <Package className="w-14 h-14 text-gray-200" />
+                            <>
+                                <div className="h-[3px] w-full bg-ant-orange shrink-0" />
+                                <DialogHeader className="px-5 py-4 border-b border-ant-line text-left space-y-1.5">
+                                    <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid flex-wrap">
+                                        <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                                        Produit · Performance
+                                    </div>
+                                    <DialogTitle className="font-display text-[18px] font-semibold text-ant-ink leading-tight" title={displayName}>
+                                        {displayName}
+                                    </DialogTitle>
+                                </DialogHeader>
+
+                                <div className="grid grid-cols-1 md:grid-cols-5 flex-1 min-h-0">
+                                    {/* Image */}
+                                    <div className="md:col-span-2 relative bg-ant-light min-h-[220px] md:min-h-full overflow-hidden border-b md:border-b-0 md:border-r border-ant-line">
+                                        {p.image_url ? (
+                                            <img src={p.image_url} alt={displayName} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center">
+                                                <Package className="w-14 h-14 text-ant-mid" strokeWidth={1.5} />
+                                            </div>
+                                        )}
+                                        <div className="absolute bottom-3 left-3 right-3 flex flex-wrap gap-1.5">
+                                            {p.code && (
+                                                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/30 bg-ant-paper/90 backdrop-blur px-2 py-0.5 text-[10px] font-semibold text-ant-ink">
+                                                    {p.code}
+                                                </span>
+                                            )}
+                                            {p.label && (
+                                                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/30 bg-ant-paper/90 backdrop-blur px-2 py-0.5 text-[10px] font-semibold text-ant-ink">
+                                                    {p.label}
+                                                </span>
+                                            )}
+                                            <span className={cn(
+                                                'inline-flex items-center gap-1.5 rounded-full border bg-ant-paper/90 backdrop-blur px-2 py-0.5 text-[10px] font-semibold',
+                                                stockTone.border,
+                                                stockTone.text,
+                                            )}>
+                                                <span className={cn('h-1.5 w-1.5 rounded-full', stockTone.dot)} />
+                                                {stockLabel}
+                                            </span>
                                         </div>
-                                    )}
-                                    <div className="absolute bottom-3 left-3 right-3 flex flex-wrap gap-1">
-                                        {p.code && (
-                                            <Badge className="bg-white/80 backdrop-blur text-gray-700 border-0 text-[9px] font-bold">{p.code}</Badge>
-                                        )}
-                                        {p.label && (
-                                            <Badge className="bg-white/80 backdrop-blur text-gray-700 border-0 text-[9px] font-bold">{p.label}</Badge>
-                                        )}
-                                        <Badge className={`bg-white/80 backdrop-blur border-0 text-[9px] font-bold ${stockTone}`}>
-                                            {stockLabel}
-                                        </Badge>
+                                    </div>
+
+                                    {/* Details */}
+                                    <div className="md:col-span-3 flex flex-col min-h-0 overflow-y-auto ant-scroll">
+                                        <div className="px-5 py-4 space-y-4">
+                                            {p.description && (
+                                                <p className="font-serif italic text-[12px] text-ant-mid leading-relaxed line-clamp-3">{p.description}</p>
+                                            )}
+
+                                            {/* Price & stock */}
+                                            <div className="grid grid-cols-2 gap-px bg-ant-line rounded-xl border border-ant-line overflow-hidden">
+                                                <div className="bg-ant-paper p-3">
+                                                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Prix de vente</p>
+                                                    <p className="font-display text-[18px] font-semibold tabular-nums text-ant-ink mt-1">
+                                                        {p.selling_price.toLocaleString()}
+                                                        <span className="text-[10px] text-ant-mid font-normal ml-1">MAD</span>
+                                                    </p>
+                                                </div>
+                                                <div className="bg-ant-paper p-3">
+                                                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Stock</p>
+                                                    <p className="font-display text-[18px] font-semibold tabular-nums text-ant-ink mt-1">
+                                                        {p.stock.toLocaleString()}
+                                                        <span className="text-[10px] text-ant-mid font-normal ml-1">unités</span>
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            {/* Performance */}
+                                            <div className="space-y-3">
+                                                <div className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">
+                                                    <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                                                    Performance
+                                                </div>
+
+                                                <div className="grid grid-cols-3 gap-px bg-ant-line rounded-xl border border-ant-line overflow-hidden">
+                                                    <div className="bg-ant-paper p-3 text-center">
+                                                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ant-mid">Attribuées</p>
+                                                        <p className="font-display text-[16px] font-semibold tabular-nums text-ant-ink mt-1">{p.total}</p>
+                                                    </div>
+                                                    <div className="bg-ant-paper p-3 text-center">
+                                                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ant-orange">Confirmées</p>
+                                                        <p className="font-display text-[16px] font-semibold tabular-nums text-ant-ink mt-1">{p.confirmed}</p>
+                                                    </div>
+                                                    <div className="bg-ant-paper p-3 text-center">
+                                                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ant-green">Livrées</p>
+                                                        <p className="font-display text-[16px] font-semibold tabular-nums text-ant-green mt-1">{p.delivered}</p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-3 pt-1">
+                                                    <div className="space-y-1.5">
+                                                        <div className="flex justify-between items-baseline">
+                                                            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ant-mid">Taux de confirmation</span>
+                                                            <span className={cn('font-display text-[13px] font-semibold tabular-nums', cr.text)}>
+                                                                {p.total === 0 ? '—' : `${confirmRate}%`}
+                                                            </span>
+                                                        </div>
+                                                        <div className="h-1.5 w-full bg-ant-line rounded-full overflow-hidden">
+                                                            <div
+                                                                className={cn('h-full rounded-full transition-all duration-500', cr.bar)}
+                                                                style={{ width: `${p.total === 0 ? 0 : confirmRate}%` }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div className="space-y-1.5">
+                                                        <div className="flex justify-between items-baseline">
+                                                            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ant-mid">Taux de livraison</span>
+                                                            <span className={cn('font-display text-[13px] font-semibold tabular-nums', dr.text)}>
+                                                                {p.total === 0 ? '—' : `${deliveryRate}%`}
+                                                            </span>
+                                                        </div>
+                                                        <div className="h-1.5 w-full bg-ant-line rounded-full overflow-hidden">
+                                                            <div
+                                                                className={cn('h-full rounded-full transition-all duration-500', dr.bar)}
+                                                                style={{ width: `${p.total === 0 ? 0 : deliveryRate}%` }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Funnel summary */}
+                                                <div className="rounded-xl border border-ant-line bg-ant-light p-3">
+                                                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid mb-2">Entonnoir</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="flex-1 text-center">
+                                                            <div className="h-1 bg-ant-ink rounded-full mb-1" />
+                                                            <p className="font-display text-[13px] font-semibold tabular-nums text-ant-ink">{p.total}</p>
+                                                            <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-ant-mid">Attr</p>
+                                                        </div>
+                                                        <ChevronRight className="w-3 h-3 text-ant-mid" strokeWidth={1.75} />
+                                                        <div className="flex-1 text-center">
+                                                            <div className="h-1 bg-ant-orange rounded-full mb-1 mx-auto" style={{ width: `${p.total === 0 ? 100 : (p.confirmed / p.total) * 100}%` }} />
+                                                            <p className="font-display text-[13px] font-semibold tabular-nums text-ant-orange">{p.confirmed}</p>
+                                                            <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-ant-mid">Conf</p>
+                                                        </div>
+                                                        <ChevronRight className="w-3 h-3 text-ant-mid" strokeWidth={1.75} />
+                                                        <div className="flex-1 text-center">
+                                                            <div className="h-1 bg-ant-green rounded-full mb-1 mx-auto" style={{ width: `${p.total === 0 ? 100 : (p.delivered / p.total) * 100}%` }} />
+                                                            <p className="font-display text-[13px] font-semibold tabular-nums text-ant-green">{p.delivered}</p>
+                                                            <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-ant-mid">Liv</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-
-                                {/* Right: details */}
-                                <div className="md:col-span-3 flex flex-col min-h-0">
-                                    <div className="px-4 pt-4 pb-3 border-b border-gray-50 shrink-0">
-                                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400 mb-1">Product Details</p>
-                                        <h2 className="text-[15px] font-semibold text-brand-navy leading-tight" title={displayName}>
-                                            {displayName}
-                                        </h2>
-                                    </div>
-
-                                    <div className="px-4 py-4 space-y-4 overflow-y-auto flex-1">
-                                        {p.description && (
-                                            <p className="text-[11px] text-gray-400 leading-relaxed line-clamp-3">{p.description}</p>
-                                        )}
-
-                                        {/* Price & stock */}
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <div className="p-2.5 rounded-lg bg-gray-50 border border-gray-100">
-                                                <p className="text-[9px] text-gray-400 uppercase tracking-wider font-bold mb-0.5">Sell Price</p>
-                                                <p className="text-[15px] font-semibold text-brand-navy tabular-nums">{p.selling_price.toLocaleString()}<span className="text-[10px] text-gray-400 ml-0.5">DH</span></p>
-                                            </div>
-                                            <div className="p-2.5 rounded-lg bg-gray-50 border border-gray-100">
-                                                <p className="text-[9px] text-gray-400 uppercase tracking-wider font-bold mb-0.5">Stock</p>
-                                                <p className="text-[15px] font-semibold text-brand-navy tabular-nums">{p.stock.toLocaleString()}<span className="text-[10px] text-gray-400 ml-0.5">units</span></p>
-                                            </div>
-                                        </div>
-
-                                        {/* Performance */}
-                                        <div className="space-y-3">
-                                            <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Performance</p>
-
-                                            <div className="grid grid-cols-3 gap-2">
-                                                <div className="p-2.5 rounded-lg bg-gray-50 border border-gray-100 text-center">
-                                                    <p className="text-[9px] uppercase font-bold text-gray-400 mb-0.5">Attributed</p>
-                                                    <p className="text-[15px] font-semibold text-brand-navy tabular-nums">{p.total}</p>
-                                                </div>
-                                                <div className="p-2.5 rounded-lg bg-gray-50 border border-gray-100 text-center">
-                                                    <p className="text-[9px] uppercase font-bold text-[#3b5e5e] mb-0.5">Confirmed</p>
-                                                    <p className="text-[15px] font-semibold text-brand-navy tabular-nums">{p.confirmed}</p>
-                                                </div>
-                                                <div className="p-2.5 rounded-lg bg-gray-50 border border-gray-100 text-center">
-                                                    <p className="text-[9px] uppercase font-bold text-[#059669] mb-0.5">Delivered</p>
-                                                    <p className="text-[15px] font-semibold text-[#059669] tabular-nums">{p.delivered}</p>
-                                                </div>
-                                            </div>
-
-                                            <div className="space-y-2">
-                                                <div className="space-y-1">
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="text-[10px] font-semibold text-gray-500">Confirmation Rate</span>
-                                                        <span className={`text-[10px] font-bold tabular-nums ${cr.text}`}>{p.total === 0 ? '—' : `${confirmRate}%`}</span>
-                                                    </div>
-                                                    <div className="h-1 w-full bg-gray-100 rounded-full overflow-hidden">
-                                                        <div
-                                                            className="h-full rounded-full transition-all duration-500"
-                                                            style={{ width: `${p.total === 0 ? 0 : confirmRate}%`, background: cr.bar }}
-                                                        />
-                                                    </div>
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="text-[10px] font-semibold text-gray-500">Delivery Rate</span>
-                                                        <span className={`text-[10px] font-bold tabular-nums ${dr.text}`}>{p.total === 0 ? '—' : `${deliveryRate}%`}</span>
-                                                    </div>
-                                                    <div className="h-1 w-full bg-gray-100 rounded-full overflow-hidden">
-                                                        <div
-                                                            className="h-full rounded-full transition-all duration-500"
-                                                            style={{ width: `${p.total === 0 ? 0 : deliveryRate}%`, background: dr.bar }}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Funnel summary */}
-                                            <div className="p-3 rounded-lg bg-gray-50 border border-gray-100">
-                                                <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400 mb-2">Funnel</p>
-                                                <div className="flex items-center gap-2 text-[11px]">
-                                                    <div className="flex-1 text-center">
-                                                        <div className="h-1 bg-gray-300 rounded-full mb-1" />
-                                                        <p className="font-bold text-brand-navy">{p.total}</p>
-                                                        <p className="text-[9px] text-gray-400 uppercase font-bold">Attr</p>
-                                                    </div>
-                                                    <ChevronRight className="w-3 h-3 text-gray-300" />
-                                                    <div className="flex-1 text-center">
-                                                        <div className="h-1 bg-[#3b5e5e] rounded-full mb-1" style={{ width: `${p.total === 0 ? 100 : (p.confirmed / p.total) * 100}%`, marginLeft: 'auto', marginRight: 'auto' }} />
-                                                        <p className="font-bold text-[#3b5e5e]">{p.confirmed}</p>
-                                                        <p className="text-[9px] text-gray-400 uppercase font-bold">Conf</p>
-                                                    </div>
-                                                    <ChevronRight className="w-3 h-3 text-gray-300" />
-                                                    <div className="flex-1 text-center">
-                                                        <div className="h-1 bg-[#059669] rounded-full mb-1" style={{ width: `${p.total === 0 ? 100 : (p.delivered / p.total) * 100}%`, marginLeft: 'auto', marginRight: 'auto' }} />
-                                                        <p className="font-bold text-[#059669]">{p.delivered}</p>
-                                                        <p className="text-[9px] text-gray-400 uppercase font-bold">Deliv</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                            </>
                         );
                     })()}
                 </DialogContent>
             </Dialog>
+            </div>
         </div>
     );
 };

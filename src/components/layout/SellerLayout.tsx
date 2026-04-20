@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import SellerSidebar from './SellerSidebar';
 import SuspensionOverlay from './SuspensionOverlay';
 import { supabase } from '@/lib/supabase';
-import { Loader2 } from 'lucide-react';
+import { FullscreenLoader } from '@/components/ui/fullscreen-loader';
 
 interface SellerLayoutProps {
     children: React.ReactNode;
@@ -49,24 +49,16 @@ const SellerLayout: React.FC<SellerLayoutProps> = ({ children }) => {
     }, []);
 
     if (!isReady) {
-        return (
-            <div className="min-h-screen bg-brand-white flex items-center justify-center">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            </div>
-        );
+        return <FullscreenLoader sublabel="Chargement de votre espace commercial." />;
     }
 
     const isSuspended = businessStatus !== 'active';
 
     return (
-        <div className="min-h-screen bg-brand-white flex overflow-x-hidden">
+        <div className="ant-surface min-h-screen flex overflow-x-hidden">
             <SellerSidebar />
             <main className="flex-1 min-w-0 transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)]">
-                <div className="p-4 md:p-8">
-                    <div className="max-w-[1700px] mx-auto w-full">
-                        {children}
-                    </div>
-                </div>
+                {children}
             </main>
             {isSuspended && businessId && (
                 <SuspensionOverlay role="commercial" businessId={businessId} />

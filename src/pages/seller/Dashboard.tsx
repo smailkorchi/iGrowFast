@@ -10,10 +10,9 @@ import {
     type CommissionBasis,
 } from '@/lib/commercialCommission';
 import {
-    ShoppingCart, Eye, ChevronRight, Truck, Receipt
+    ShoppingCart, Eye, ChevronRight, Truck, Receipt,
+    Wallet as WalletIcon, Clock, PackageCheck, CalendarDays,
 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow, isToday, isYesterday, format } from 'date-fns';
 import { AnalyticsDateFilter, type DateFilter } from '@/components/analytics/AnalyticsDateFilter';
@@ -281,280 +280,392 @@ const SellerDashboard = () => {
         return acc;
     }, []);
 
+    const firstName = userProfile?.name?.split(' ')[0] ?? 'commercial';
+
     return (
-        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
-            {/* Header */}
-            <header className="space-y-2.5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">
-                            Dashboard
+        <div className="ant-surface min-h-screen">
+            <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 md:py-8 space-y-6">
+                {/* Editorial header */}
+                <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                    <div className="space-y-2">
+                        <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                            <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                            Commercial · Aperçu
+                        </div>
+                        <h1 className="font-display text-[30px] md:text-[34px] leading-[1.05] tracking-[-0.02em] text-ant-ink">
+                            Bon retour, <span className="font-serif italic font-light">{firstName}</span>
                         </h1>
-                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">
-                            Seller Overview
+                        <p className="font-serif italic text-[14px] leading-relaxed text-ant-mid max-w-xl">
+                            Ce qui s&apos;est passé aujourd&apos;hui, ce qui attend confirmation, et ce que votre commission doit encaisser.
                         </p>
                     </div>
-                    <Button
+                    <button
+                        type="button"
                         onClick={() => navigate('/seller/orders')}
-                        className="h-8 rounded-md text-[11px] font-semibold"
+                        className="inline-flex items-center gap-2 h-10 px-4 rounded-full bg-ant-ink hover:bg-ant-ink/90 text-white text-[12px] font-semibold cursor-pointer shrink-0 transition-colors"
                     >
-                        <Eye className="w-3.5 h-3.5 mr-1.5" />
-                        View Orders
-                    </Button>
-                </div>
-            </header>
+                        <Eye className="w-3.5 h-3.5" strokeWidth={1.75} />
+                        Voir les commandes
+                    </button>
+                </header>
 
-            {/* KPI Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-                {[
-                    {
-                        label: 'Orders today',
-                        value: stats.todayOrders,
-                        sub: 'By creation date',
-                        accent: '#3b5e5e',
-                        href: '/seller/orders',
-                    },
-                    {
-                        label: 'Pending',
-                        value: stats.pendingOrders,
-                        sub: 'Awaiting confirmation',
-                        accent: '#d97706',
-                        href: '/seller/orders',
-                    },
-                    {
-                        label: 'Delivered today',
-                        value: stats.deliveredToday,
-                        sub: `All-time: ${stats.deliveredOrders}/${stats.totalOrders}`,
-                        accent: '#059669',
-                        href: '/seller/orders',
-                    },
-                    {
-                        label: 'Live commission (unpaid)',
-                        value: `${stats.liveCommission.toLocaleString()} MAD`,
-                        sub: stats.commissionBasis === 'per_unit'
-                            ? `${stats.commissionRate} MAD × ${stats.unpaidDeliveries} units`
-                            : `${stats.commissionRate} MAD × ${stats.unpaidDeliveries} orders`,
-                        accent: '#d97706',
-                        href: '/seller/payments',
-                    },
-                ].map((kpi, i) => (
-                    <div
-                        key={i}
-                        role="link"
-                        tabIndex={0}
-                        className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5 cursor-pointer hover:border-gray-200 transition-colors"
-                        onClick={() => navigate(kpi.href)}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(kpi.href); } }}
-                    >
-                        <span className="w-[3px] self-stretch rounded-full" style={{ background: kpi.accent }} />
-                        <div className="flex-1 min-w-0">
-                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{kpi.label}</p>
-                            <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{kpi.value}</p>
-                            <p className="text-[9px] text-gray-400 mt-0.5">{kpi.sub}</p>
-                        </div>
-                    </div>
-                ))}
-            </div>
-
-            {/* Conversion Pipeline */}
-            <div className="rounded-xl border border-gray-100 bg-white p-3.5">
-                <div className="flex items-center justify-between mb-3">
-                    <div>
-                        <p className="text-[11px] font-semibold text-brand-navy">Conversion Pipeline</p>
-                        <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 mt-0.5">Live funnel</p>
-                    </div>
-                    <Button variant="outline" size="sm" className="h-8 rounded-md text-[11px] font-semibold" onClick={() => navigate('/seller/statistics')}>
-                        Deep Dive <ChevronRight className="w-3 h-3 ml-1" />
-                    </Button>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {/* KPI strip */}
+                <section className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
                     {[
-                        { label: 'Attributed', value: stats.totalOrders, pct: 100, color: '#9ca3af' },
-                        { label: 'Confirmed', value: stats.confirmedOrders, pct: stats.confirmRate, color: '#3b5e5e' },
-                        { label: 'Delivered', value: stats.deliveredOrders, pct: stats.successRate, color: '#059669' },
-                    ].map((step) => (
-                        <div key={step.label} className="space-y-1.5">
-                            <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">{step.label}</span>
-                                <span className="text-[10px] font-bold text-brand-navy tabular-nums">{step.value}</span>
-                            </div>
-                            <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                <div style={{ width: `${step.pct}%`, background: step.color }} className="h-full rounded-full transition-all duration-700" />
-                            </div>
-                            <p className="text-[9px] text-gray-400 tabular-nums">{step.pct.toFixed(0)}%</p>
-                        </div>
-                    ))}
-                </div>
-            </div>
-
-            {/* WhatsApp Card */}
-            <SellerWhatsAppUnreadCard businessId={userProfile?.['DigiCom Business'] || ''} />
-
-            {/* Performance Section */}
-            {userProfile?.id ? (
-                <div className="space-y-2.5">
-                    <div className="flex justify-end">
-                        <AnalyticsDateFilter dateFilter={perfDateFilter} onDateFilterChange={setPerfDateFilter} />
-                    </div>
-                    <SellerSelfPerformanceSection
-                        sellerId={userProfile.id}
-                        businessId={userProfile['DigiCom Business']}
-                        dateFilter={perfDateFilter}
-                    />
-                </div>
-            ) : null}
-
-            {/* Two column: Quick Links + Activity Feed */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-2.5">
-                {/* Quick Links */}
-                <div className="rounded-xl border border-gray-100 bg-white p-3.5 space-y-1.5">
-                    <p className="text-[11px] font-semibold text-brand-navy mb-2">Quick Access</p>
-                    {[
-                        { label: 'Process Orders', path: '/seller/orders', badge: stats.pendingOrders > 0 ? stats.pendingOrders : null },
-                        { label: 'View Statistics', path: '/seller/statistics', badge: null },
-                        { label: 'View Payments', path: '/seller/payments', badge: null },
-                        { label: 'Submit Demand', path: '/seller/demands', badge: null },
-                        { label: 'My Profile', path: '/seller/profile', badge: null },
-                    ].map((action) => (
-                        <button
-                            key={action.path}
-                            onClick={() => navigate(action.path)}
-                            className="w-full flex items-center justify-between h-8 px-3 rounded-lg border border-gray-100 hover:border-gray-200 hover:bg-gray-50 transition-colors text-left"
-                        >
-                            <span className="text-[11px] font-medium text-gray-700">{action.label}</span>
-                            {action.badge !== null ? (
-                                <Badge className="bg-brand-navy text-white border-0 text-[10px] h-4 px-1.5 rounded">{action.badge}</Badge>
-                            ) : (
-                                <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
-                            )}
-                        </button>
-                    ))}
-                </div>
-
-                {/* Activity Feed */}
-                <div className="lg:col-span-2 rounded-xl border border-gray-100 bg-white overflow-hidden">
-                    <div className="p-3.5 border-b border-gray-50">
-                        <p className="text-[11px] font-semibold text-brand-navy">Activity Feed</p>
-                        <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 mt-0.5">Recent orders</p>
-                    </div>
-                    <div className="max-h-[380px] overflow-y-auto">
-                        {loading ? (
-                            <div className="p-4 space-y-2.5">
-                                {[1, 2, 3].map(i => <div key={i} className="h-10 bg-gray-50 rounded-lg animate-pulse" />)}
-                            </div>
-                        ) : recentOrders.length === 0 ? (
-                            <div className="p-8 text-center">
-                                <ShoppingCart className="w-8 h-8 text-gray-200 mx-auto mb-2" />
-                                <p className="text-[11px] text-gray-400">No orders yet</p>
-                            </div>
-                        ) : (
-                            groupedOrders.map((group, gi) => (
-                                <div key={gi}>
-                                    <div className="px-3.5 py-1.5 bg-gray-50/80 sticky top-0 z-10">
-                                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{group.label}</p>
+                        {
+                            label: 'Commandes du jour',
+                            value: stats.todayOrders,
+                            sub: 'par date de création',
+                            icon: CalendarDays,
+                            dot: 'bg-ant-ink',
+                            iconBg: 'bg-ant-ink/6 border-ant-ink/15 text-ant-ink',
+                            text: 'text-ant-ink',
+                            href: '/seller/orders',
+                        },
+                        {
+                            label: 'En attente',
+                            value: stats.pendingOrders,
+                            sub: 'à confirmer',
+                            icon: Clock,
+                            dot: 'bg-ant-orange',
+                            iconBg: 'bg-ant-orange/10 border-ant-orange/25 text-ant-orange',
+                            text: stats.pendingOrders > 0 ? 'text-ant-orange' : 'text-ant-ink',
+                            href: '/seller/orders',
+                        },
+                        {
+                            label: 'Livrées aujourd\u2019hui',
+                            value: stats.deliveredToday,
+                            sub: `total : ${stats.deliveredOrders}/${stats.totalOrders}`,
+                            icon: PackageCheck,
+                            dot: 'bg-ant-green',
+                            iconBg: 'bg-ant-green/10 border-ant-green/25 text-ant-green',
+                            text: 'text-ant-ink',
+                            href: '/seller/orders',
+                        },
+                        {
+                            label: 'Commission en attente',
+                            value: `${stats.liveCommission.toLocaleString()}`,
+                            sub: stats.commissionBasis === 'per_unit'
+                                ? `${stats.commissionRate} MAD × ${stats.unpaidDeliveries} unités`
+                                : `${stats.commissionRate} MAD × ${stats.unpaidDeliveries} commandes`,
+                            icon: WalletIcon,
+                            dot: 'bg-ant-orange',
+                            iconBg: 'bg-ant-orange/10 border-ant-orange/25 text-ant-orange',
+                            text: 'text-ant-ink',
+                            unit: 'MAD',
+                            href: '/seller/payments',
+                        },
+                    ].map((kpi, i) => {
+                        const Icon = kpi.icon;
+                        return (
+                            <button
+                                type="button"
+                                key={i}
+                                onClick={() => navigate(kpi.href)}
+                                className="bg-ant-paper p-4 text-left hover:bg-ant-light/60 transition-colors cursor-pointer group"
+                            >
+                                <div className="flex items-start justify-between gap-2">
+                                    <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.24em] text-ant-mid">
+                                        <span className={`h-1.5 w-1.5 rounded-full ${kpi.dot}`} />
+                                        {kpi.label}
                                     </div>
-                                    <div className="divide-y divide-gray-50">
-                                        {group.orders.map((order) => (
-                                            <div
-                                                key={order.id}
-                                                className="flex items-center justify-between px-3.5 py-2.5 hover:bg-gray-50/50 transition-colors cursor-pointer"
-                                                onClick={() => navigate('/seller/orders')}
-                                            >
-                                                <div className="flex items-center gap-2.5">
-                                                    <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden shrink-0">
-                                                        {order.product_image ? (
-                                                            <img src={order.product_image} alt="" className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            <ShoppingCart className="w-3.5 h-3.5 text-gray-400" />
-                                                        )}
-                                                    </div>
-                                                    <div className="min-w-0">
-                                                        <p className="text-[11px] font-semibold text-brand-navy truncate">{order.customer_name}</p>
-                                                        <p className="text-[9px] text-gray-400 truncate">{order.product_name} · #{order.id.slice(0, 8)}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-2 shrink-0">
-                                                    <Badge
-                                                        className="border-0 text-[9px] rounded px-1.5 h-4"
-                                                        style={order.order_status_id ? getStatusStyle(order.order_status_id) : { backgroundColor: '#f3f4f6', color: '#6b7280' }}
-                                                    >
-                                                        {order.status.replace('_', ' ')}
-                                                    </Badge>
-                                                    <p className="text-[9px] text-gray-400">
-                                                        {formatDistanceToNow(new Date(order.created_at), { addSuffix: true })}
-                                                    </p>
-                                                </div>
+                                    <div className={`h-8 w-8 rounded-lg border flex items-center justify-center ${kpi.iconBg}`}>
+                                        <Icon className="w-4 h-4" strokeWidth={1.75} />
+                                    </div>
+                                </div>
+                                <p className={`font-display text-[22px] font-semibold tabular-nums mt-2 truncate ${kpi.text}`}>
+                                    {kpi.value}
+                                    {kpi.unit && <span className="text-[12px] text-ant-mid font-normal ml-1.5">{kpi.unit}</span>}
+                                </p>
+                                <p className="font-serif italic text-[11px] text-ant-mid mt-0.5">{kpi.sub}</p>
+                            </button>
+                        );
+                    })}
+                </section>
+
+                {/* Conversion pipeline */}
+                <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                    <div className="h-[3px] w-full bg-ant-orange" />
+                    <div className="p-5 space-y-4">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                <span className="font-display text-ant-orange font-semibold">01</span>
+                                Pipeline de conversion
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => navigate('/seller/statistics')}
+                                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full border border-ant-line bg-ant-paper hover:bg-ant-light text-[11px] font-semibold text-ant-ink cursor-pointer transition-colors"
+                            >
+                                Analyse détaillée
+                                <ChevronRight className="w-3 h-3" strokeWidth={1.75} />
+                            </button>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            {[
+                                { label: 'Attribuées', value: stats.totalOrders, pct: 100, tone: 'bar-ink' },
+                                { label: 'Confirmées', value: stats.confirmedOrders, pct: stats.confirmRate, tone: 'bar-orange' },
+                                { label: 'Livrées', value: stats.deliveredOrders, pct: stats.successRate, tone: 'bar-green' },
+                            ].map((step) => {
+                                const barColor = step.tone === 'bar-green' ? 'bg-ant-green' : step.tone === 'bar-orange' ? 'bg-ant-orange' : 'bg-ant-ink';
+                                const dotColor = step.tone === 'bar-green' ? 'bg-ant-green' : step.tone === 'bar-orange' ? 'bg-ant-orange' : 'bg-ant-ink';
+                                return (
+                                    <div key={step.label} className="space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <div className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">
+                                                <span className={`h-1.5 w-1.5 rounded-full ${dotColor}`} />
+                                                {step.label}
                                             </div>
-                                        ))}
+                                            <span className="font-display text-[14px] font-semibold tabular-nums text-ant-ink">
+                                                {step.value}
+                                            </span>
+                                        </div>
+                                        <div className="h-1.5 bg-ant-line rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full ${barColor} rounded-full transition-all duration-700`}
+                                                style={{ width: `${Math.min(100, step.pct)}%` }}
+                                            />
+                                        </div>
+                                        <p className="font-serif italic text-[11px] text-ant-mid tabular-nums">{step.pct.toFixed(0)}%</p>
                                     </div>
-                                </div>
-                            ))
-                        )}
+                                );
+                            })}
+                        </div>
                     </div>
-                </div>
-            </div>
+                </section>
 
-            {/* Top Product + Performance Stats */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
-                {/* Success Rate */}
-                <div className="rounded-xl border border-gray-100 bg-white p-3.5">
-                    <p className="text-[11px] font-semibold text-brand-navy mb-1">Delivery Performance</p>
-                    <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 mb-3">Success rate across all orders</p>
-                    <div className="space-y-2">
-                        {[
-                            { label: 'Delivery Rate', pct: stats.successRate, color: '#059669' },
-                            { label: 'Confirmation Rate', pct: stats.confirmRate, color: '#3b5e5e' },
-                        ].map((metric) => (
-                            <div key={metric.label} className="space-y-1">
-                                <div className="flex justify-between">
-                                    <span className="text-[10px] font-semibold text-gray-500">{metric.label}</span>
-                                    <span className="text-[10px] font-bold text-brand-navy tabular-nums">{metric.pct.toFixed(1)}%</span>
-                                </div>
-                                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                    <div style={{ width: `${metric.pct}%`, background: metric.color }} className="h-full rounded-full" />
-                                </div>
+                {/* WhatsApp */}
+                <SellerWhatsAppUnreadCard businessId={userProfile?.['DigiCom Business'] || ''} />
+
+                {/* Performance */}
+                {userProfile?.id ? (
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                <span className="font-display text-ant-orange font-semibold">02</span>
+                                Performance personnelle
                             </div>
-                        ))}
+                            <AnalyticsDateFilter dateFilter={perfDateFilter} onDateFilterChange={setPerfDateFilter} variant="ant" />
+                        </div>
+                        <SellerSelfPerformanceSection
+                            sellerId={userProfile.id}
+                            businessId={userProfile['DigiCom Business']}
+                            dateFilter={perfDateFilter}
+                        />
                     </div>
-                </div>
+                ) : null}
 
-                {/* Top Product */}
-                <div className="rounded-xl border border-gray-100 bg-white p-3.5">
-                    <p className="text-[11px] font-semibold text-brand-navy mb-1">Top Performer</p>
-                    <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 mb-3">Best-selling product</p>
-                    {topProduct ? (
-                        <div className="flex items-center gap-3">
-                            <div className="w-14 h-14 bg-gray-50 rounded-lg flex items-center justify-center overflow-hidden border border-gray-100 shrink-0">
-                                {topProduct.image ? (
-                                    <img src={topProduct.image} alt={topProduct.name} className="w-full h-full object-cover" />
-                                ) : (
-                                    <Truck className="w-6 h-6 text-gray-200" />
-                                )}
+                {/* Quick access + activity */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                    <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                        <div className="h-[3px] w-full bg-ant-ink" />
+                        <div className="p-5 space-y-3">
+                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                <span className="font-display text-ant-orange font-semibold">03</span>
+                                Accès rapides
                             </div>
-                            <div className="flex-1 min-w-0 space-y-1.5">
-                                <p className="text-[11px] font-semibold text-brand-navy truncate">{topProduct.name}</p>
-                                <div className="flex items-center gap-3">
-                                    <div>
-                                        <p className="text-[9px] text-gray-400 uppercase font-bold">Delivered</p>
-                                        <p className="text-[13px] font-semibold text-brand-navy tabular-nums">{topProduct.delivered}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-[9px] text-gray-400 uppercase font-bold">Success</p>
-                                        <p className="text-[13px] font-semibold text-emerald-600 tabular-nums">{topProduct.successRate.toFixed(0)}%</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-[9px] text-gray-400 uppercase font-bold">Revenue</p>
-                                        <p className="text-[13px] font-semibold text-brand-navy tabular-nums">{topProduct.revenue.toLocaleString()} MAD</p>
-                                    </div>
-                                </div>
+                            <div className="space-y-1.5">
+                                {[
+                                    { label: 'Traiter les commandes', path: '/seller/orders', badge: stats.pendingOrders > 0 ? stats.pendingOrders : null },
+                                    { label: 'Voir les statistiques', path: '/seller/statistics', badge: null },
+                                    { label: 'Voir les paiements', path: '/seller/payments', badge: null },
+                                    { label: 'Soumettre une demande', path: '/seller/demands', badge: null },
+                                    { label: 'Mon profil', path: '/seller/profile', badge: null },
+                                ].map((action) => (
+                                    <button
+                                        key={action.path}
+                                        type="button"
+                                        onClick={() => navigate(action.path)}
+                                        className="w-full flex items-center justify-between h-9 px-3 rounded-lg border border-ant-line bg-ant-paper hover:bg-ant-light text-left transition-colors cursor-pointer"
+                                    >
+                                        <span className="text-[12px] font-medium text-ant-ink">{action.label}</span>
+                                        {action.badge !== null ? (
+                                            <span className="inline-flex items-center gap-1.5 rounded-full border border-ant-orange/25 bg-ant-orange/10 px-2 py-0.5 text-[10px] font-semibold text-ant-orange tabular-nums">
+                                                <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                                                {action.badge}
+                                            </span>
+                                        ) : (
+                                            <ChevronRight className="w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
+                                        )}
+                                    </button>
+                                ))}
                             </div>
                         </div>
-                    ) : (
-                        <div className="text-center py-4">
-                            <Receipt className="w-8 h-8 text-gray-200 mx-auto mb-1.5" />
-                            <p className="text-[11px] text-gray-400">No product data yet</p>
+                    </section>
+
+                    <section className="lg:col-span-2 rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                        <div className="h-[3px] w-full bg-ant-green" />
+                        <div className="px-5 py-4 border-b border-ant-line flex items-center justify-between">
+                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                <span className="font-display text-ant-orange font-semibold">04</span>
+                                Flux d&apos;activité
+                            </div>
+                            <span className="font-serif italic text-[11px] text-ant-mid">commandes récentes</span>
                         </div>
-                    )}
+                        <div className="max-h-[420px] overflow-y-auto ant-scroll">
+                            {loading ? (
+                                <div className="p-5 space-y-2">
+                                    {[1, 2, 3].map((i) => (
+                                        <div key={i} className="h-12 bg-ant-light rounded-lg animate-pulse" />
+                                    ))}
+                                </div>
+                            ) : recentOrders.length === 0 ? (
+                                <div className="p-10 flex flex-col items-center gap-2 text-center">
+                                    <div className="h-10 w-10 rounded-xl border border-ant-line bg-ant-light flex items-center justify-center">
+                                        <ShoppingCart className="w-4 h-4 text-ant-mid" strokeWidth={1.5} />
+                                    </div>
+                                    <p className="font-serif italic text-[12px] text-ant-mid">Aucune commande pour l&apos;instant</p>
+                                </div>
+                            ) : (
+                                groupedOrders.map((group, gi) => (
+                                    <div key={gi}>
+                                        <div className="px-5 py-2 bg-ant-light/70 sticky top-0 z-10 border-b border-ant-line">
+                                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">
+                                                {group.label}
+                                            </p>
+                                        </div>
+                                        <div className="divide-y divide-ant-line">
+                                            {group.orders.map((order) => {
+                                                const statusStyle = order.order_status_id
+                                                    ? getStatusStyle(order.order_status_id)
+                                                    : { backgroundColor: 'rgba(107,106,99,0.15)', color: '#6B6A63' };
+                                                return (
+                                                    <button
+                                                        key={order.id}
+                                                        type="button"
+                                                        className="w-full flex items-center justify-between px-5 py-3 hover:bg-ant-light/50 transition-colors cursor-pointer text-left"
+                                                        onClick={() => navigate('/seller/orders')}
+                                                    >
+                                                        <div className="flex items-center gap-3 min-w-0">
+                                                            <div className="w-10 h-10 bg-ant-light border border-ant-line rounded-xl flex items-center justify-center overflow-hidden shrink-0">
+                                                                {order.product_image ? (
+                                                                    <img src={order.product_image} alt="" className="w-full h-full object-cover" />
+                                                                ) : (
+                                                                    <ShoppingCart className="w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
+                                                                )}
+                                                            </div>
+                                                            <div className="min-w-0">
+                                                                <p className="font-display text-[13px] font-semibold text-ant-ink truncate">{order.customer_name}</p>
+                                                                <p className="font-serif italic text-[11px] text-ant-mid truncate">
+                                                                    {order.product_name} · #{order.id.slice(0, 8)}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 shrink-0">
+                                                            <span
+                                                                className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize"
+                                                                style={{
+                                                                    backgroundColor: statusStyle.backgroundColor,
+                                                                    borderColor: `${statusStyle.color}40`,
+                                                                    color: statusStyle.color,
+                                                                }}
+                                                            >
+                                                                <span
+                                                                    className="h-1.5 w-1.5 rounded-full"
+                                                                    style={{ backgroundColor: statusStyle.color }}
+                                                                />
+                                                                {order.status.replace('_', ' ')}
+                                                            </span>
+                                                            <span className="font-serif italic text-[11px] text-ant-mid">
+                                                                {formatDistanceToNow(new Date(order.created_at), { addSuffix: true })}
+                                                            </span>
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </section>
+                </div>
+
+                {/* Delivery performance + top product */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                        <div className="h-[3px] w-full bg-ant-green" />
+                        <div className="p-5 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                    <span className="font-display text-ant-orange font-semibold">05</span>
+                                    Performance de livraison
+                                </div>
+                                <span className="font-serif italic text-[11px] text-ant-mid">toutes commandes confondues</span>
+                            </div>
+                            <div className="space-y-3 pt-1">
+                                {[
+                                    { label: 'Taux de livraison', pct: stats.successRate, bar: 'bg-ant-green', text: 'text-ant-green' },
+                                    { label: 'Taux de confirmation', pct: stats.confirmRate, bar: 'bg-ant-orange', text: 'text-ant-orange' },
+                                ].map((metric) => (
+                                    <div key={metric.label} className="space-y-1.5">
+                                        <div className="flex justify-between items-baseline">
+                                            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ant-mid">{metric.label}</span>
+                                            <span className={`font-display text-[14px] font-semibold tabular-nums ${metric.text}`}>
+                                                {metric.pct.toFixed(1)}%
+                                            </span>
+                                        </div>
+                                        <div className="h-1.5 bg-ant-line rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full ${metric.bar} rounded-full transition-all duration-700`}
+                                                style={{ width: `${Math.min(100, metric.pct)}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </section>
+
+                    <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                        <div className="h-[3px] w-full bg-ant-orange" />
+                        <div className="p-5 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                    <span className="font-display text-ant-orange font-semibold">06</span>
+                                    Top performer
+                                </div>
+                                <span className="font-serif italic text-[11px] text-ant-mid">meilleure référence</span>
+                            </div>
+                            {topProduct ? (
+                                <div className="flex items-start gap-4">
+                                    <div className="w-16 h-16 rounded-xl border border-ant-line bg-ant-light flex items-center justify-center overflow-hidden shrink-0">
+                                        {topProduct.image ? (
+                                            <img src={topProduct.image} alt={topProduct.name} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <Truck className="w-6 h-6 text-ant-mid" strokeWidth={1.5} />
+                                        )}
+                                    </div>
+                                    <div className="flex-1 min-w-0 space-y-2">
+                                        <p className="font-display text-[14px] font-semibold text-ant-ink truncate">{topProduct.name}</p>
+                                        <div className="grid grid-cols-3 gap-px bg-ant-line rounded-lg border border-ant-line overflow-hidden">
+                                            <div className="bg-ant-paper px-3 py-2">
+                                                <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Livré</p>
+                                                <p className="font-display text-[14px] font-semibold tabular-nums text-ant-ink mt-0.5">{topProduct.delivered}</p>
+                                            </div>
+                                            <div className="bg-ant-paper px-3 py-2">
+                                                <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Succès</p>
+                                                <p className="font-display text-[14px] font-semibold tabular-nums text-ant-green mt-0.5">{topProduct.successRate.toFixed(0)}%</p>
+                                            </div>
+                                            <div className="bg-ant-paper px-3 py-2">
+                                                <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-ant-mid">CA</p>
+                                                <p className="font-display text-[14px] font-semibold tabular-nums text-ant-ink mt-0.5">
+                                                    {topProduct.revenue.toLocaleString()} <span className="text-[10px] text-ant-mid font-normal">MAD</span>
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="p-6 flex flex-col items-center gap-2 text-center">
+                                    <div className="h-10 w-10 rounded-xl border border-ant-line bg-ant-light flex items-center justify-center">
+                                        <Receipt className="w-4 h-4 text-ant-mid" strokeWidth={1.5} />
+                                    </div>
+                                    <p className="font-serif italic text-[12px] text-ant-mid">Pas encore de données produit</p>
+                                </div>
+                            )}
+                        </div>
+                    </section>
                 </div>
             </div>
         </div>

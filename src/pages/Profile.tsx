@@ -2,10 +2,9 @@ import React, { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import {
-    User, Mail, Phone, AtSign, Shield, Lock, Building2,
-    Camera, Loader2, CheckCircle2, AlertCircle, Pen
+    User, Mail, Phone, AtSign, Lock, Building2,
+    Camera, Loader2, CheckCircle2, AlertCircle, Pen, ChevronRight, KeyRound, X,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useDropzone } from 'react-dropzone';
@@ -118,27 +117,27 @@ const Profile = () => {
             queryClient.invalidateQueries({ queryKey: ['current-profile'] });
             setIsEditing(false);
             setAvatarFile(null);
-            toast({ title: 'Profile updated', description: 'Your changes have been saved.' });
+            toast({ title: 'Profil mis à jour', description: 'Vos modifications ont été enregistrées.' });
         },
         onError: (err: any) => {
-            toast({ title: 'Update failed', description: err.message, variant: 'destructive' });
+            toast({ title: 'Échec de la mise à jour', description: err.message, variant: 'destructive' });
         },
     });
 
     const passwordMutation = useMutation({
         mutationFn: async () => {
-            if (passwordData.new_password !== passwordData.confirm) throw new Error('Passwords do not match');
-            if (passwordData.new_password.length < 6) throw new Error('Password must be at least 6 characters');
+            if (passwordData.new_password !== passwordData.confirm) throw new Error('Les mots de passe ne correspondent pas');
+            if (passwordData.new_password.length < 6) throw new Error('Le mot de passe doit contenir au moins 6 caractères');
             const { error } = await supabase.auth.updateUser({ password: passwordData.new_password });
             if (error) throw error;
         },
         onSuccess: () => {
             setPasswordData({ new_password: '', confirm: '' });
             setIsChangingPassword(false);
-            toast({ title: 'Password changed', description: 'Your password has been updated.' });
+            toast({ title: 'Mot de passe modifié', description: 'Votre mot de passe a été mis à jour.' });
         },
         onError: (err: any) => {
-            toast({ title: 'Password change failed', description: err.message, variant: 'destructive' });
+            toast({ title: 'Échec', description: err.message, variant: 'destructive' });
         },
     });
 
@@ -147,181 +146,297 @@ const Profile = () => {
 
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center h-[60vh]">
-                <Loader2 className="w-8 h-8 animate-spin text-brand-navy/20" />
+            <div className="ant-surface min-h-screen flex items-center justify-center">
+                <Loader2 className="w-8 h-8 animate-spin text-ant-mid" strokeWidth={1.5} />
             </div>
         );
     }
 
     const initials = (profile?.name || 'U').split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2);
+    const roleLabel = profile?.role || 'Admin';
 
     return (
-        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
-            {/* Header */}
-            <header className="space-y-2.5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Profile</h1>
-                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Account settings</p>
+        <div className="ant-surface min-h-screen">
+            <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 md:py-8 space-y-6">
+                {/* Editorial header */}
+                <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                    <div className="space-y-2">
+                        <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                            <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                            Compte · Profil
+                        </div>
+                        <h1 className="font-display text-[30px] md:text-[34px] leading-[1.05] tracking-[-0.02em] text-ant-ink">
+                            Profil
+                        </h1>
+                        <p className="font-serif italic text-[14px] leading-relaxed text-ant-mid max-w-xl">
+                            Votre fiche personnelle — nom, contact, mot de passe. Ce que les autres voient, ce qui vous identifie, ce qui protège l&apos;accès.
+                        </p>
                     </div>
-                    <Button
-                        variant={isEditing ? 'outline' : 'outline'}
+                    <button
+                        type="button"
                         onClick={() => {
                             if (isEditing) { setIsEditing(false); setAvatarFile(null); }
                             else setIsEditing(true);
                         }}
-                        className="h-8 rounded-md text-[11px] font-semibold gap-1.5"
-                    >
-                        <Pen className="w-3.5 h-3.5" />
-                        {isEditing ? 'Cancel' : 'Edit Profile'}
-                    </Button>
-                </div>
-            </header>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-                {/* Avatar + Identity card */}
-                <div className="rounded-xl border border-gray-100 bg-white p-3.5 flex flex-col items-center gap-3">
-                    <div
-                        {...getRootProps()}
                         className={cn(
-                            "relative h-14 w-14 rounded-full overflow-hidden border-2 border-gray-100",
-                            isEditing && "cursor-pointer group ring-2 ring-brand-navy/10"
+                            'inline-flex items-center gap-2 h-10 px-4 rounded-full text-[12px] font-semibold cursor-pointer shrink-0 transition-colors',
+                            isEditing
+                                ? 'border border-ant-line bg-ant-paper hover:bg-ant-light text-ant-ink'
+                                : 'bg-ant-ink hover:bg-ant-ink/90 text-white'
                         )}
                     >
-                        <input {...getInputProps()} />
-                        {avatarPreview ? (
-                            <img src={avatarPreview} className="w-full h-full object-cover" alt="" />
+                        {isEditing ? (
+                            <>
+                                <X className="w-3.5 h-3.5" strokeWidth={1.75} />
+                                Annuler
+                            </>
                         ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                                <span className="text-[15px] font-semibold text-brand-navy/40">{initials}</span>
-                            </div>
+                            <>
+                                <Pen className="w-3.5 h-3.5" strokeWidth={1.75} />
+                                Modifier le profil
+                            </>
                         )}
-                        {isEditing && (
-                            <div className="absolute inset-0 bg-brand-navy/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200">
-                                <Camera className="w-4 h-4 text-white" />
-                            </div>
-                        )}
-                    </div>
+                    </button>
+                </header>
 
-                    <div className="text-center">
-                        <p className="text-[13px] font-semibold text-brand-navy">{profile?.name}</p>
-                        <div className="flex items-center justify-center gap-2 mt-1">
-                            <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-white bg-brand-navy px-2 py-0.5 rounded">
-                                {profile?.role || 'Admin'}
-                            </span>
-                            <span className="text-[11px] text-gray-400">@{profile?.username}</span>
+                {/* Hero Identity Card */}
+                <section className="rounded-2xl border border-ant-ink bg-ant-ink overflow-hidden">
+                    <div className="h-[3px] w-full bg-ant-orange" />
+                    <div className="p-6 md:p-8 flex flex-col md:flex-row md:items-center gap-6">
+                        <div
+                            {...getRootProps()}
+                            className={cn(
+                                'relative h-20 w-20 md:h-24 md:w-24 rounded-2xl overflow-hidden border-2 border-white/10 shrink-0',
+                                isEditing && 'cursor-pointer group ring-2 ring-ant-orange/40'
+                            )}
+                        >
+                            <input {...getInputProps()} />
+                            {avatarPreview ? (
+                                <img src={avatarPreview} className="w-full h-full object-cover" alt="" />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center bg-white/5">
+                                    <span className="font-display text-[24px] font-semibold text-white/70">{initials}</span>
+                                </div>
+                            )}
+                            {isEditing && (
+                                <div className="absolute inset-0 bg-ant-ink/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <Camera className="w-5 h-5 text-white" strokeWidth={1.75} />
+                                </div>
+                            )}
                         </div>
-                    </div>
 
-                    {/* Business strip */}
-                    {business && (
-                        <div className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg bg-gray-50 border border-gray-100">
-                            <div className="w-7 h-7 rounded-md bg-white border border-gray-100 flex items-center justify-center overflow-hidden shrink-0 p-1">
-                                {business.logo ? (
-                                    <img src={business.logo} alt="" className="max-w-full max-h-full object-contain" />
-                                ) : (
-                                    <Building2 className="w-3.5 h-3.5 text-gray-300" />
+                        <div className="flex-1 min-w-0 space-y-2">
+                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-white/50">
+                                <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                                {roleLabel}
+                            </div>
+                            <h2 className="font-display text-[24px] md:text-[28px] font-semibold text-white leading-tight truncate">
+                                {profile?.name || 'Utilisateur'}
+                            </h2>
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 font-serif italic text-[12px] text-white/60">
+                                <span className="inline-flex items-center gap-1.5">
+                                    <AtSign className="w-3 h-3" strokeWidth={1.75} />
+                                    {profile?.username || 'sans pseudo'}
+                                </span>
+                                {profile?.email && (
+                                    <span className="inline-flex items-center gap-1.5">
+                                        <Mail className="w-3 h-3" strokeWidth={1.75} />
+                                        {profile.email}
+                                    </span>
+                                )}
+                                {profile?.phone && (
+                                    <span className="inline-flex items-center gap-1.5">
+                                        <Phone className="w-3 h-3" strokeWidth={1.75} />
+                                        {profile.phone}
+                                    </span>
                                 )}
                             </div>
-                            <span className="text-[11px] font-semibold text-brand-navy truncate flex-1">{business.name}</span>
-                            <div className="flex items-center gap-1 shrink-0">
-                                <div className={cn("w-1.5 h-1.5 rounded-full", business.active ? "bg-emerald-500" : "bg-gray-300")} />
-                                <span className={cn("text-[9px] font-bold uppercase tracking-wider", business.active ? "text-emerald-600" : "text-gray-400")}>
-                                    {business.active ? 'Active' : 'Inactive'}
-                                </span>
-                            </div>
                         </div>
-                    )}
-                </div>
 
-                {/* Fields card */}
-                <div className="lg:col-span-2 rounded-xl border border-gray-100 bg-white p-3.5 space-y-1">
-                    <p className="text-[11px] font-semibold text-brand-navy mb-3">Personal Information</p>
-                    <FieldRow icon={User} label="Full Name" value={formData.name} onChange={set('name')} editing={isEditing} />
-                    <FieldRow icon={AtSign} label="Username" value={formData.username} onChange={set('username')} editing={isEditing} />
-                    <FieldRow icon={Mail} label="Email" value={formData.email} editing={false} locked />
-                    <FieldRow icon={Phone} label="Phone" value={formData.phone} onChange={set('phone')} editing={isEditing} placeholder="Add phone number" last />
+                        {business && (
+                            <div className="shrink-0 rounded-xl border border-white/10 bg-white/5 p-3 flex items-center gap-3 max-w-[260px]">
+                                <div className="h-9 w-9 rounded-lg bg-white/10 border border-white/10 flex items-center justify-center overflow-hidden shrink-0 p-1">
+                                    {business.logo ? (
+                                        <img src={business.logo} alt="" className="max-w-full max-h-full object-contain" />
+                                    ) : (
+                                        <Building2 className="w-4 h-4 text-white/50" strokeWidth={1.75} />
+                                    )}
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-white/50">Entreprise active</p>
+                                    <p className="font-display text-[13px] font-semibold text-white truncate">{business.name}</p>
+                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                        <span className={cn('h-1.5 w-1.5 rounded-full', business.active ? 'bg-ant-green' : 'bg-white/40')} />
+                                        <span className="font-serif italic text-[10px] text-white/60">
+                                            {business.active ? 'Active' : 'Inactive'}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </section>
 
-                    {isEditing && (
-                        <div className="pt-3">
-                            <Button
-                                onClick={() => updateMutation.mutate()}
-                                disabled={updateMutation.isPending}
-                                className="h-8 rounded-md text-[11px] font-semibold"
-                            >
-                                {updateMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />}
-                                Save Changes
-                            </Button>
+                {/* Personal Information */}
+                <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                    <div className="h-[3px] w-full bg-ant-orange" />
+                    <div className="p-5 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                <span className="font-display text-ant-orange font-semibold">01</span>
+                                Identité personnelle
+                            </div>
+                            <span className="font-serif italic text-[11px] text-ant-mid">
+                                {isEditing ? 'Modification en cours' : 'Lecture seule'}
+                            </span>
                         </div>
-                    )}
-                </div>
 
-                {/* Security card */}
-                <div className="lg:col-span-3 rounded-xl border border-gray-100 bg-white p-3.5">
-                    <p className="text-[11px] font-semibold text-brand-navy mb-3">Security</p>
-                    {isChangingPassword ? (
-                        <div className="space-y-2.5 max-w-sm">
-                            <div className="relative">
-                                <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-300" />
-                                <Input
-                                    type="password" placeholder="New password"
-                                    value={passwordData.new_password}
-                                    onChange={e => setPasswordData(p => ({ ...p, new_password: e.target.value }))}
-                                    className="h-9 pl-8 text-[12px] rounded-md border-gray-100 bg-gray-50/50"
-                                />
-                            </div>
-                            <div className="relative">
-                                <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-300" />
-                                <Input
-                                    type="password" placeholder="Confirm password"
-                                    value={passwordData.confirm}
-                                    onChange={e => setPasswordData(p => ({ ...p, confirm: e.target.value }))}
-                                    className="h-9 pl-8 text-[12px] rounded-md border-gray-100 bg-gray-50/50"
-                                />
-                            </div>
-                            {passwordData.new_password && passwordData.confirm && passwordData.new_password !== passwordData.confirm && (
-                                <p className="text-[10px] font-semibold text-red-500 flex items-center gap-1.5">
-                                    <AlertCircle className="w-3 h-3" /> Passwords do not match
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-ant-line rounded-xl border border-ant-line overflow-hidden">
+                            <FieldCell
+                                icon={User}
+                                label="Nom complet"
+                                value={formData.name}
+                                onChange={set('name')}
+                                editing={isEditing}
+                                placeholder="Votre nom"
+                            />
+                            <FieldCell
+                                icon={AtSign}
+                                label="Pseudo"
+                                value={formData.username}
+                                onChange={set('username')}
+                                editing={isEditing}
+                                placeholder="identifiant"
+                            />
+                            <FieldCell
+                                icon={Mail}
+                                label="Email"
+                                value={formData.email}
+                                editing={false}
+                                locked
+                            />
+                            <FieldCell
+                                icon={Phone}
+                                label="Téléphone"
+                                value={formData.phone}
+                                onChange={set('phone')}
+                                editing={isEditing}
+                                placeholder="Ajouter un numéro"
+                            />
+                        </div>
+
+                        {isEditing && (
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-ant-line">
+                                <p className="font-serif italic text-[11px] text-ant-mid">
+                                    Glissez une image sur l&apos;avatar pour la remplacer.
                                 </p>
-                            )}
-                            <div className="flex gap-2 pt-1">
-                                <Button
-                                    variant="ghost"
-                                    onClick={() => { setIsChangingPassword(false); setPasswordData({ new_password: '', confirm: '' }); }}
-                                    className="h-8 rounded-md text-[11px] font-semibold text-gray-500"
+                                <button
+                                    type="button"
+                                    onClick={() => updateMutation.mutate()}
+                                    disabled={updateMutation.isPending}
+                                    className="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-full bg-ant-ink hover:bg-ant-ink/90 disabled:opacity-60 text-white text-[12px] font-semibold cursor-pointer transition-colors"
                                 >
-                                    Cancel
-                                </Button>
-                                <Button
-                                    onClick={() => passwordMutation.mutate()}
-                                    disabled={passwordMutation.isPending || !passwordData.new_password || passwordData.new_password !== passwordData.confirm}
-                                    className="h-8 rounded-md text-[11px] font-semibold"
-                                >
-                                    {passwordMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
-                                    Update Password
-                                </Button>
+                                    {updateMutation.isPending ? (
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.75} />
+                                    ) : (
+                                        <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={1.75} />
+                                    )}
+                                    Enregistrer les modifications
+                                </button>
                             </div>
+                        )}
+                    </div>
+                </section>
+
+                {/* Security */}
+                <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                    <div className="h-[3px] w-full bg-ant-rose" />
+                    <div className="p-5 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                <span className="font-display text-ant-orange font-semibold">02</span>
+                                Sécurité
+                            </div>
+                            <KeyRound className="w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
                         </div>
-                    ) : (
-                        <button
-                            onClick={() => setIsChangingPassword(true)}
-                            className="flex items-center gap-3 px-3 py-2 rounded-lg border border-gray-100 hover:border-gray-200 hover:bg-gray-50 transition-colors text-left"
-                        >
-                            <Shield className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                            <div>
-                                <p className="text-[11px] font-semibold text-brand-navy">Change Password</p>
-                                <p className="text-[9px] text-gray-400">Secure your account</p>
+
+                        {isChangingPassword ? (
+                            <div className="space-y-3 max-w-md">
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Nouveau mot de passe</label>
+                                    <div className="relative">
+                                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
+                                        <Input
+                                            type="password"
+                                            placeholder="Au moins 6 caractères"
+                                            value={passwordData.new_password}
+                                            onChange={e => setPasswordData(p => ({ ...p, new_password: e.target.value }))}
+                                            className="h-10 pl-9 rounded-xl border-ant-line bg-ant-paper text-[13px] text-ant-ink focus-visible:ring-1 focus-visible:ring-ant-orange/40"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Confirmation</label>
+                                    <div className="relative">
+                                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
+                                        <Input
+                                            type="password"
+                                            placeholder="Retapez le mot de passe"
+                                            value={passwordData.confirm}
+                                            onChange={e => setPasswordData(p => ({ ...p, confirm: e.target.value }))}
+                                            className="h-10 pl-9 rounded-xl border-ant-line bg-ant-paper text-[13px] text-ant-ink focus-visible:ring-1 focus-visible:ring-ant-orange/40"
+                                        />
+                                    </div>
+                                </div>
+                                {passwordData.new_password && passwordData.confirm && passwordData.new_password !== passwordData.confirm && (
+                                    <div className="inline-flex items-center gap-1.5 rounded-full border border-ant-rose/25 bg-ant-rose/10 px-2 py-0.5 text-[10px] font-semibold text-ant-rose">
+                                        <AlertCircle className="w-3 h-3" strokeWidth={1.75} />
+                                        Les mots de passe ne correspondent pas
+                                    </div>
+                                )}
+                                <div className="flex gap-2 pt-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => { setIsChangingPassword(false); setPasswordData({ new_password: '', confirm: '' }); }}
+                                        className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-full border border-ant-line bg-ant-paper hover:bg-ant-light text-[11px] font-semibold text-ant-ink cursor-pointer transition-colors"
+                                    >
+                                        Annuler
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => passwordMutation.mutate()}
+                                        disabled={passwordMutation.isPending || !passwordData.new_password || passwordData.new_password !== passwordData.confirm}
+                                        className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-full bg-ant-ink hover:bg-ant-ink/90 disabled:opacity-60 disabled:cursor-not-allowed text-white text-[11px] font-semibold cursor-pointer transition-colors"
+                                    >
+                                        {passwordMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.75} />}
+                                        Mettre à jour le mot de passe
+                                    </button>
+                                </div>
                             </div>
-                            <Lock className="w-3 h-3 text-gray-300 ml-4" />
-                        </button>
-                    )}
-                </div>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={() => setIsChangingPassword(true)}
+                                className="group w-full md:w-auto inline-flex items-center gap-3 rounded-xl border border-ant-line bg-ant-light hover:bg-ant-paper hover:border-ant-ink/20 px-4 py-3 text-left cursor-pointer transition-colors"
+                            >
+                                <div className="h-10 w-10 rounded-xl border border-ant-ink/15 bg-ant-ink/6 text-ant-ink flex items-center justify-center shrink-0">
+                                    <Lock className="w-4 h-4" strokeWidth={1.75} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-display text-[13px] font-semibold text-ant-ink">Changer le mot de passe</p>
+                                    <p className="font-serif italic text-[11px] text-ant-mid">Rotation recommandée tous les 90 jours.</p>
+                                </div>
+                                <ChevronRight className="w-4 h-4 text-ant-mid group-hover:text-ant-ink transition-colors shrink-0" strokeWidth={1.75} />
+                            </button>
+                        )}
+                    </div>
+                </section>
             </div>
         </div>
     );
 };
 
-function FieldRow({ icon: Icon, label, value, onChange, editing, locked, placeholder, last }: {
+function FieldCell({ icon: Icon, label, value, onChange, editing, locked, placeholder }: {
     icon: any;
     label: string;
     value: string;
@@ -329,29 +444,38 @@ function FieldRow({ icon: Icon, label, value, onChange, editing, locked, placeho
     editing: boolean;
     locked?: boolean;
     placeholder?: string;
-    last?: boolean;
 }) {
     return (
-        <div className={cn("flex items-center gap-3 py-2.5", !last && "border-b border-gray-50")}>
-            <Icon className="w-3.5 h-3.5 text-gray-300 shrink-0" />
-            <div className="flex-1 min-w-0">
-                <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-gray-400 mb-0.5">{label}</p>
+        <div className="bg-ant-paper p-4 flex items-start gap-3">
+            <div className="h-8 w-8 rounded-lg border border-ant-line bg-ant-light text-ant-mid flex items-center justify-center shrink-0 mt-px">
+                <Icon className="w-3.5 h-3.5" strokeWidth={1.75} />
+            </div>
+            <div className="flex-1 min-w-0 space-y-1">
+                <div className="flex items-center justify-between gap-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">{label}</p>
+                    {locked && (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-ant-line bg-ant-light px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-ant-mid">
+                            <Lock className="w-2.5 h-2.5" strokeWidth={1.75} />
+                            Verrouillé
+                        </span>
+                    )}
+                </div>
                 {editing && !locked ? (
                     <Input
                         value={value}
                         onChange={onChange}
                         placeholder={placeholder || label}
-                        className="h-7 px-0 py-0 border-0 shadow-none bg-transparent font-medium text-[12px] text-brand-navy focus-visible:ring-0 placeholder:text-gray-300"
+                        className="h-9 rounded-lg border-ant-line bg-ant-light text-[13px] font-medium text-ant-ink focus-visible:ring-1 focus-visible:ring-ant-orange/40 placeholder:font-serif placeholder:italic placeholder:text-ant-mid"
                     />
                 ) : (
-                    <p className={cn("text-[12px] font-medium truncate leading-snug", value ? "text-brand-navy" : "text-gray-300")}>
-                        {value || placeholder || 'Not set'}
+                    <p className={cn(
+                        'font-display text-[14px] font-semibold truncate leading-snug',
+                        value ? 'text-ant-ink' : 'font-serif italic font-normal text-ant-mid'
+                    )}>
+                        {value || placeholder || 'Non renseigné'}
                     </p>
                 )}
             </div>
-            {locked && (
-                <span className="text-[9px] font-bold uppercase tracking-wider text-gray-300 shrink-0">Fixed</span>
-            )}
         </div>
     );
 }

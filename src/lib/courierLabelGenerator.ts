@@ -67,10 +67,12 @@ type NoteRow = {
 
 export type CourierPrintFormat = 'sticker' | 'note';
 
-const BRAND_NAVY = '#2d6d6c';
-const BRAND_DANGER = '#7f1d1d';
-const BRAND_BORDER = '#1f3d3c';
-const BRAND_BORDER_LIGHT = '#e5e7eb';
+const BRAND_NAVY = '#141413';
+const BRAND_DANGER = '#c96356';
+const BRAND_BORDER = '#141413';
+const BRAND_BORDER_LIGHT = '#e8e6dc';
+const BRAND_ORANGE = '#D97706';
+const BRAND_PAPER = '#faf9f5';
 
 function escapeHtml(input: unknown): string {
     if (input == null) return '';
@@ -100,7 +102,7 @@ async function buildQrDataUrl(text: string, size = 220): Promise<string> {
             errorCorrectionLevel: 'H',
             margin: 0,
             width: size,
-            color: { dark: '#1f3d3c', light: '#ffffff' },
+            color: { dark: '#141413', light: '#ffffff' },
         });
     } catch (e) {
         console.warn('[courier-label] QR generation failed', { text, err: e });
@@ -431,7 +433,7 @@ function baseStyles(format: CourierPrintFormat): string {
   print-color-adjust: exact !important;
   color-adjust: exact !important;
 }
-html, body { margin: 0; padding: 0; background: #f5f5f5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif; color: #111827; }
+html, body { margin: 0; padding: 0; background: #faf9f5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif; color: #141413; }
 .sheet { display: flex; flex-direction: column; gap: 12px; padding: 12px; }
 .sticker {
   width: 100mm; height: 100mm; background: #ffffff; border: 2px solid ${BRAND_BORDER};
@@ -462,7 +464,7 @@ html, body { margin: 0; padding: 0; background: #f5f5f5; font-family: -apple-sys
 }
 .sticker__flags {
   display: grid; grid-template-columns: 1fr 1fr 110px; gap: 8px;
-  padding: 8px 10px; background: #eef2f7; border-bottom: 2px solid ${BRAND_BORDER};
+  padding: 8px 10px; background: #faf9f5; border-bottom: 2px solid ${BRAND_BORDER};
   align-items: center;
 }
 .flag-box { text-align: center; }
@@ -499,8 +501,8 @@ html, body { margin: 0; padding: 0; background: #f5f5f5; font-family: -apple-sys
   font-weight: 900; font-size: 11px; color: ${BRAND_NAVY};
   word-break: break-word; line-height: 1.2;
 }
-.party__line { font-size: 9px; color: #374151; line-height: 1.3; word-break: break-word; }
-.party__line.muted { color: #6b7280; }
+.party__line { font-size: 9px; color: #141413; line-height: 1.3; word-break: break-word; }
+.party__line.muted { color: #6B6760; }
 .party__qr {
   margin-top: 6px;
   display: flex;
@@ -528,7 +530,7 @@ html, body { margin: 0; padding: 0; background: #f5f5f5; font-family: -apple-sys
   text-transform: uppercase;
 }
 .party__row {
-  display: flex; gap: 6px; font-size: 9px; line-height: 1.3; color: #111827;
+  display: flex; gap: 6px; font-size: 9px; line-height: 1.3; color: #141413;
   align-items: baseline; padding: 1px 0;
 }
 .party__row .lbl {
@@ -542,7 +544,7 @@ html, body { margin: 0; padding: 0; background: #f5f5f5; font-family: -apple-sys
 .party__row.crbt { margin-top: 2px; }
 .party__row .val.big { font-weight: 900; font-size: 14px; color: ${BRAND_NAVY}; }
 .sticker__foot {
-  padding: 5px 10px 6px; font-size: 7px; color: #4b5563; background: #ffffff;
+  padding: 5px 10px 6px; font-size: 7px; color: #6B6760; background: #ffffff;
   text-align: center; line-height: 1.4;
 }
 .sticker__foot strong { color: ${BRAND_NAVY}; font-weight: 900; }
@@ -566,23 +568,23 @@ html, body { margin: 0; padding: 0; background: #f5f5f5; font-family: -apple-sys
   print-color-adjust: exact !important;
   color-adjust: exact !important;
 }
-html, body { margin: 0; padding: 0; background: #f5f5f5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif; color: #111827; }
+html, body { margin: 0; padding: 0; background: #faf9f5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif; color: #141413; }
 .sheet { padding: 18mm 14mm; max-width: 210mm; margin: 0 auto; background: #ffffff; }
 .note { display: flex; flex-direction: column; gap: 18px; }
 .note__head { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid ${BRAND_NAVY}; padding-bottom: 14px; }
 .note__brand { display: flex; gap: 12px; align-items: center; }
 .note__logo { height: 52px; width: auto; max-width: 140px; object-fit: contain; }
 .note__title { font-size: 22px; font-weight: 900; color: ${BRAND_NAVY}; letter-spacing: -0.02em; }
-.note__sub { font-size: 12px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.1em; }
+.note__sub { font-size: 12px; font-weight: 700; color: #6B6760; text-transform: uppercase; letter-spacing: 0.1em; }
 .note__meta { display: grid; grid-template-columns: auto auto; gap: 4px 18px; font-size: 11px; text-align: right; }
-.note__meta span { display: block; font-size: 8px; font-weight: 800; color: #6b7280; text-transform: uppercase; letter-spacing: 0.08em; }
+.note__meta span { display: block; font-size: 8px; font-weight: 800; color: #6B6760; text-transform: uppercase; letter-spacing: 0.08em; }
 .note__meta strong { color: ${BRAND_NAVY}; font-weight: 900; font-size: 12px; }
 
 .note__table { width: 100%; border-collapse: collapse; font-size: 11px; }
 .note__table th, .note__table td { padding: 8px 10px; border-bottom: 1px solid ${BRAND_BORDER_LIGHT}; }
 .note__table thead th { background: ${BRAND_NAVY}; color: #ffffff; font-weight: 900; text-align: left; text-transform: uppercase; font-size: 9px; letter-spacing: 0.08em; border-bottom: none; }
-.note__table tbody tr:nth-child(odd) { background: #f9fafb; }
-.note__table tfoot td { background: #eef2f7; font-weight: 900; color: ${BRAND_NAVY}; font-size: 12px; }
+.note__table tbody tr:nth-child(odd) { background: #faf9f5; }
+.note__table tfoot td { background: #faf9f5; font-weight: 900; color: ${BRAND_NAVY}; font-size: 12px; }
 .note__table .c { text-align: center; }
 .note__table .r { text-align: right; }
 .note__table .w-8 { width: 28px; }
@@ -599,11 +601,11 @@ html, body { margin: 0; padding: 0; background: #f5f5f5; font-family: -apple-sys
 }
 
 .note__sign { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 30px; font-size: 11px; }
-.sign-label { font-size: 9px; font-weight: 800; color: #6b7280; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
-.sign-box { height: 72px; border: 1.5px solid ${BRAND_BORDER_LIGHT}; border-radius: 10px; background: #f9fafb; }
-.sign-name { margin-top: 4px; font-weight: 700; color: #374151; }
+.sign-label { font-size: 9px; font-weight: 800; color: #6B6760; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+.sign-box { height: 72px; border: 1.5px solid ${BRAND_BORDER_LIGHT}; border-radius: 10px; background: #faf9f5; }
+.sign-name { margin-top: 4px; font-weight: 700; color: #141413; }
 
-.note__foot { margin-top: 16px; text-align: center; font-size: 9px; color: #9ca3af; }
+.note__foot { margin-top: 16px; text-align: center; font-size: 9px; color: #6B6760; }
 
 @media print {
   html, body { background: #ffffff; }
@@ -620,7 +622,7 @@ function loadingHtml(title: string): string {
 <meta charset="utf-8" />
 <title>${escapeHtml(title)}</title>
 <style>
-  html, body { margin: 0; padding: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; background: #f5f5f5; color: #6b7280; }
+  html, body { margin: 0; padding: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; background: #faf9f5; color: #6B6760; }
   .wrap { display: flex; align-items: center; justify-content: center; height: 100%; flex-direction: column; gap: 12px; }
   .spinner { width: 36px; height: 36px; border: 3px solid #d1d5db; border-top-color: ${BRAND_NAVY}; border-radius: 50%; animation: spin 0.8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }

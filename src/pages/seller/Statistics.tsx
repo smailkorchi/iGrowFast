@@ -5,7 +5,6 @@ import { computeUnpaidCommission, normalizeCommissionBasis, isDeliveredForCommis
 import {
     ShoppingBag,
     MapPin,
-    Receipt,
 } from 'lucide-react';
 import {
     AreaChart,
@@ -16,7 +15,6 @@ import {
     Tooltip,
     ResponsiveContainer,
 } from 'recharts';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { useToast } from "@/hooks/use-toast";
 import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'date-fns';
 import { AnalyticsDateFilter, type DateFilter } from '@/components/analytics/AnalyticsDateFilter';
@@ -296,280 +294,317 @@ const SellerStatistics = () => {
     const totalOrdersForDist = orderDistribution.reduce((s, d) => s + d.value, 0);
 
     return (
-        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
-            {/* Header */}
-            <header className="space-y-2.5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">
-                            Performance Intelligence
+        <div className="ant-surface min-h-screen">
+            <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 md:py-8 space-y-6">
+                {/* Editorial header */}
+                <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                    <div className="space-y-2">
+                        <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                            <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                            Commercial · Analytique
+                        </div>
+                        <h1 className="font-display text-[30px] md:text-[34px] leading-[1.05] tracking-[-0.02em] text-ant-ink">
+                            Performance
                         </h1>
-                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">
-                            Deep analytical insights
+                        <p className="font-serif italic text-[14px] leading-relaxed text-ant-mid max-w-xl">
+                            Les signaux qui comptent — taux de livraison, revenu réalisé, conversion, répartition régionale et produit.
                         </p>
                     </div>
-                    <AnalyticsDateFilter dateFilter={perfDateFilter} onDateFilterChange={setPerfDateFilter} />
-                </div>
-            </header>
+                    <AnalyticsDateFilter dateFilter={perfDateFilter} onDateFilterChange={setPerfDateFilter} variant="ant" />
+                </header>
 
-            {/* KPI Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5">
-                {[
-                    { label: 'Performance Score', value: `${stats.successRate.toFixed(1)}%`, sub: 'Delivery success rate', accent: '#d97706' },
-                    { label: 'Realized Wealth', value: `${stats.totalRealized.toLocaleString()} MAD`, sub: `${stats.growth.toFixed(0)}% vs last month`, accent: '#059669' },
-                    { label: 'Service Efficiency', value: `${stats.efficiency.toFixed(1)}`, sub: 'Delivered / presence day', accent: '#3b5e5e' },
-                    { label: 'Total Impact', value: `${stats.deliveredOrders}/${stats.totalOrders}`, sub: 'Attributed vs delivered', accent: '#3b5e5e' },
-                    { label: 'Live Commission', value: `${stats.liveCommission.toLocaleString()} MAD`, sub: stats.commissionBasis === 'per_unit' ? 'Unpaid units' : 'Unpaid orders', accent: '#d97706' },
-                ].map((kpi, i) => (
-                    <div key={i} className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
-                        <span className="w-[3px] self-stretch rounded-full" style={{ background: kpi.accent }} />
-                        <div className="flex-1 min-w-0">
-                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{kpi.label}</p>
-                            <p className="text-[15px] font-semibold tabular-nums text-brand-navy mt-1 leading-tight">{kpi.value}</p>
-                            <p className="text-[9px] text-gray-400 mt-0.5">{kpi.sub}</p>
+                {/* KPI strip */}
+                <section className="grid grid-cols-2 lg:grid-cols-5 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
+                    {[
+                        { label: 'Score performance', value: `${stats.successRate.toFixed(1)}%`, sub: 'taux de livraison', dot: 'bg-ant-orange', text: 'text-ant-orange' },
+                        { label: 'Revenu réalisé', value: `${stats.totalRealized.toLocaleString()}`, unit: 'MAD', sub: `${stats.growth >= 0 ? '+' : ''}${stats.growth.toFixed(0)}% vs mois dernier`, dot: 'bg-ant-green', text: 'text-ant-green' },
+                        { label: 'Efficacité', value: `${stats.efficiency.toFixed(1)}`, sub: 'livrées / jour de présence', dot: 'bg-ant-ink', text: 'text-ant-ink' },
+                        { label: 'Total impact', value: `${stats.deliveredOrders}/${stats.totalOrders}`, sub: 'livrées / attribuées', dot: 'bg-ant-ink', text: 'text-ant-ink' },
+                        { label: 'Commission en attente', value: `${stats.liveCommission.toLocaleString()}`, unit: 'MAD', sub: stats.commissionBasis === 'per_unit' ? 'unités non payées' : 'commandes non payées', dot: 'bg-ant-orange', text: 'text-ant-orange' },
+                    ].map((kpi, i) => (
+                        <div key={i} className="bg-ant-paper p-4">
+                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.24em] text-ant-mid">
+                                <span className={`h-1.5 w-1.5 rounded-full ${kpi.dot}`} />
+                                {kpi.label}
+                            </div>
+                            <p className={`font-display text-[18px] font-semibold tabular-nums mt-2 truncate ${kpi.text}`}>
+                                {kpi.value}
+                                {kpi.unit && <span className="text-[11px] text-ant-mid font-normal ml-1">{kpi.unit}</span>}
+                            </p>
+                            <p className="font-serif italic text-[11px] text-ant-mid mt-0.5">{kpi.sub}</p>
                         </div>
-                    </div>
-                ))}
-            </div>
+                    ))}
+                </section>
 
-            {sellerPerfContext ? (
-                <SellerSelfPerformanceSection
-                    sellerId={sellerPerfContext.id}
-                    businessId={sellerPerfContext.businessId}
-                    dateFilter={perfDateFilter}
-                />
-            ) : null}
+                {sellerPerfContext ? (
+                    <SellerSelfPerformanceSection
+                        sellerId={sellerPerfContext.id}
+                        businessId={sellerPerfContext.businessId}
+                        dateFilter={perfDateFilter}
+                    />
+                ) : null}
 
-            {/* Revenue Chart + Status Distribution */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-2.5">
-                {/* Revenue Engine */}
-                <Card className="lg:col-span-2 border border-gray-100 shadow-none rounded-xl">
-                    <CardHeader className="p-3.5 pb-2">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-[11px] font-semibold text-brand-navy">Revenue Engine</p>
-                                <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 mt-0.5">
-                                    <span className="inline-flex items-center gap-1">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-[#3b5e5e] inline-block" />
-                                        Monthly commission
-                                    </span>
-                                </p>
-                            </div>
-                        </div>
-                    </CardHeader>
-                    <CardContent className="px-3.5 pb-3.5">
-                        <div className="h-[160px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={revenueData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                                    <defs>
-                                        <linearGradient id="sellerCommGrad" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#3b5e5e" stopOpacity={0.12} />
-                                            <stop offset="95%" stopColor="#3b5e5e" stopOpacity={0} />
-                                        </linearGradient>
-                                    </defs>
-                                    <CartesianGrid stroke="#f3f4f6" strokeDasharray="3 3" />
-                                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#9ca3af' }} dy={4} />
-                                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#9ca3af' }} tickFormatter={(v) => `${v}`} width={40} />
-                                    <Tooltip
-                                        contentStyle={{ background: '#fff', border: '1px solid #f3f4f6', borderRadius: 8, boxShadow: 'none', fontSize: 11 }}
-                                        formatter={(v: number) => [`${v.toLocaleString()} MAD`, 'Commission']}
-                                    />
-                                    <Area type="monotone" dataKey="commission" stroke="#3b5e5e" strokeWidth={2} fill="url(#sellerCommGrad)" fillOpacity={1} />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Order Status Distribution — proportion list */}
-                <Card className="border border-gray-100 shadow-none rounded-xl">
-                    <CardHeader className="p-3.5 pb-2">
-                        <p className="text-[11px] font-semibold text-brand-navy">Lifecycle Pulse</p>
-                        <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 mt-0.5">Order status distribution</p>
-                    </CardHeader>
-                    <CardContent className="px-3.5 pb-3.5">
-                        {loading ? (
-                            <div className="space-y-2">
-                                {[1, 2, 3].map(i => <div key={i} className="h-5 bg-gray-50 rounded animate-pulse" />)}
-                            </div>
-                        ) : orderDistribution.length === 0 ? (
-                            <p className="text-[11px] text-gray-400 py-4 text-center">No data yet</p>
-                        ) : (
-                            <div className="space-y-1.5">
-                                {orderDistribution.slice(0, 6).map((item) => {
-                                    const pct = totalOrdersForDist > 0 ? (item.value / totalOrdersForDist) * 100 : 0;
-                                    return (
-                                        <div key={item.name} className="flex items-center gap-2 text-[11px]">
-                                            <span className="text-gray-600 w-20 truncate">{item.name}</span>
-                                            <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
-                                                <div style={{ width: `${pct}%`, background: item.color || '#3b5e5e' }} className="h-full rounded-full" />
-                                            </div>
-                                            <span className="tabular-nums text-brand-navy font-semibold w-10 text-right">{item.value}</span>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-            </div>
-
-            {/* Conversion Tunnel + Regional */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                {/* Yield Analysis */}
-                <Card className="border border-gray-100 shadow-none rounded-xl">
-                    <CardHeader className="p-3.5 pb-2">
-                        <p className="text-[11px] font-semibold text-brand-navy">Yield Analysis</p>
-                        <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 mt-0.5">Productivity ratios</p>
-                    </CardHeader>
-                    <CardContent className="px-3.5 pb-3.5 space-y-3">
-                        <div className="grid grid-cols-2 gap-2.5">
-                            <div className="p-2.5 rounded-lg bg-gray-50 border border-gray-100">
-                                <p className="text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400 mb-1">Revenue / Unit</p>
-                                <p className="text-[15px] font-semibold text-brand-navy tabular-nums">
-                                    {stats.deliveredOrders > 0 ? (stats.totalRealized / stats.deliveredOrders).toFixed(0) : 0} <span className="text-[10px] text-gray-400">MAD</span>
-                                </p>
-                            </div>
-                            <div className="p-2.5 rounded-lg bg-gray-50 border border-gray-100">
-                                <p className="text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400 mb-1">Success Rate</p>
-                                <p className="text-[15px] font-semibold text-[#059669] tabular-nums">{stats.successRate.toFixed(1)}%</p>
-                            </div>
-                        </div>
-                        <div className="space-y-2.5">
-                            <p className="text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400">Conversion Tunnel</p>
-                            {[
-                                { label: 'Confirmation', pct: stats.confirmRate, color: '#3b5e5e' },
-                                { label: 'Fulfilment', pct: stats.deliveryEff, color: '#059669' },
-                                { label: 'Pipeline Integrity', pct: stats.integrityScore, color: '#d97706' },
-                            ].map((metric) => (
-                                <div key={metric.label} className="space-y-1">
-                                    <div className="flex justify-between text-[10px]">
-                                        <span className="text-gray-500 font-semibold">{metric.label}</span>
-                                        <span className="font-bold text-brand-navy tabular-nums">{metric.pct.toFixed(1)}%</span>
-                                    </div>
-                                    <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
-                                        <div style={{ width: `${metric.pct}%`, background: metric.color }} className="h-full rounded-full" />
-                                    </div>
+                {/* Revenue + Distribution */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                    <section className="lg:col-span-2 rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                        <div className="h-[3px] w-full bg-ant-green" />
+                        <div className="p-5 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                    <span className="font-display text-ant-orange font-semibold">01</span>
+                                    Moteur de revenu
                                 </div>
-                            ))}
+                                <span className="font-serif italic text-[11px] text-ant-mid">commission mensuelle</span>
+                            </div>
+                            <div className="h-[200px]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={revenueData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                                        <defs>
+                                            <linearGradient id="sellerCommGrad" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#2D7A3E" stopOpacity={0.18} />
+                                                <stop offset="95%" stopColor="#2D7A3E" stopOpacity={0} />
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid stroke="#EDE9E0" strokeDasharray="3 3" vertical={false} />
+                                        <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#6B6760' }} dy={4} />
+                                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#6B6760' }} width={50} />
+                                        <Tooltip
+                                            contentStyle={{
+                                                background: '#FFFFFF',
+                                                border: '1px solid #E8E6DC',
+                                                borderRadius: 12,
+                                                boxShadow: '0 16px 48px -20px rgba(20,20,19,0.2)',
+                                                fontSize: 12,
+                                            }}
+                                            formatter={(v: number) => [`${v.toLocaleString()} MAD`, 'Commission']}
+                                        />
+                                        <Area type="monotone" dataKey="commission" stroke="#2D7A3E" strokeWidth={1.75} fill="url(#sellerCommGrad)" fillOpacity={1} />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            </div>
                         </div>
-                    </CardContent>
-                </Card>
+                    </section>
 
-                {/* Regional dominance — proportion list */}
-                <Card className="border border-gray-100 shadow-none rounded-xl">
-                    <CardHeader className="p-3.5 pb-2">
-                        <div className="flex items-center gap-2">
-                            <MapPin className="w-3.5 h-3.5 text-gray-400" />
-                            <div>
-                                <p className="text-[11px] font-semibold text-brand-navy">Regional Dominance</p>
-                                <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 mt-0.5">Top cities (delivered)</p>
+                    <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                        <div className="h-[3px] w-full bg-ant-orange" />
+                        <div className="p-5 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                    <span className="font-display text-ant-orange font-semibold">02</span>
+                                    Pouls du cycle
+                                </div>
+                                <span className="font-serif italic text-[11px] text-ant-mid">statuts</span>
                             </div>
-                        </div>
-                    </CardHeader>
-                    <CardContent className="px-3.5 pb-3.5">
-                        {regionalData.length === 0 ? (
-                            <p className="text-[11px] text-gray-400 py-4 text-center">No regional data yet</p>
-                        ) : (
-                            <div className="space-y-1.5">
-                                {regionalData.slice(0, 6).map((r) => {
-                                    const max = regionalData[0]?.delivered || 1;
-                                    const pct = (r.delivered / max) * 100;
-                                    return (
-                                        <div key={r.city} className="flex items-center gap-2 text-[11px]">
-                                            <span className="text-gray-600 w-20 truncate">{r.city}</span>
-                                            <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
-                                                <div style={{ width: `${pct}%`, background: '#3b5e5e' }} className="h-full rounded-full" />
-                                            </div>
-                                            <span className="tabular-nums text-brand-navy font-semibold w-10 text-right">{r.delivered}</span>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-            </div>
-
-            {/* Product Intelligence */}
-            <Card className="border border-gray-100 shadow-none rounded-xl">
-                <CardHeader className="p-3.5 pb-2">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <ShoppingBag className="w-3.5 h-3.5 text-gray-400" />
-                            <div>
-                                <p className="text-[11px] font-semibold text-brand-navy">Product Intelligence</p>
-                                <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 mt-0.5">Performance per attributed item</p>
-                            </div>
-                        </div>
-                        <div className="hidden md:flex items-center gap-4">
-                            <div className="text-right">
-                                <p className="text-[9px] uppercase font-bold text-gray-400">Most Profitable</p>
-                                <p className="text-[11px] text-brand-navy">{productPerformance[0]?.name || 'N/A'}</p>
-                            </div>
-                            <div className="w-px h-6 bg-gray-100" />
-                            <div className="text-right">
-                                <p className="text-[9px] uppercase font-bold text-gray-400">Top Success Rate</p>
-                                <p className="text-[11px] text-[#059669]">{Math.max(...productPerformance.map(p => p.successRate), 0).toFixed(1)}%</p>
-                            </div>
-                        </div>
-                    </div>
-                </CardHeader>
-                <CardContent className="px-3.5 pb-3.5">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left">
-                            <thead>
-                                <tr className="border-b border-gray-50">
-                                    <th className="pb-2 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400 pl-1">Product</th>
-                                    <th className="pb-2 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400 text-center">Attributed</th>
-                                    <th className="pb-2 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400 text-center">Delivered</th>
-                                    <th className="pb-2 text-[9px] uppercase tracking-[0.14em] font-bold text-gray-400 text-right pr-1">Success</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-50">
-                                {productPerformance.map((prod, idx) => (
-                                    <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
-                                        <td className="py-2.5 pl-1">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-8 h-8 bg-gray-50 rounded-lg flex items-center justify-center overflow-hidden border border-gray-100 shrink-0">
-                                                    {prod.image ? (
-                                                        <img src={prod.image} alt={prod.name} className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        <ShoppingBag className="w-3.5 h-3.5 text-gray-300" />
-                                                    )}
+                            {loading ? (
+                                <div className="space-y-2">
+                                    {[1, 2, 3, 4].map((i) => <div key={i} className="h-4 bg-ant-light rounded animate-pulse" />)}
+                                </div>
+                            ) : orderDistribution.length === 0 ? (
+                                <p className="font-serif italic text-[12px] text-ant-mid py-4 text-center">Aucune donnée</p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {orderDistribution.slice(0, 6).map((item) => {
+                                        const pct = totalOrdersForDist > 0 ? (item.value / totalOrdersForDist) * 100 : 0;
+                                        return (
+                                            <div key={item.name} className="space-y-1">
+                                                <div className="flex items-center justify-between text-[11px]">
+                                                    <span className="inline-flex items-center gap-2 text-ant-ink truncate max-w-[160px]">
+                                                        <span
+                                                            className="h-1.5 w-1.5 rounded-full"
+                                                            style={{ backgroundColor: item.color || '#141413' }}
+                                                        />
+                                                        {item.name}
+                                                    </span>
+                                                    <span className="font-display text-[12px] font-semibold tabular-nums text-ant-ink">{item.value}</span>
                                                 </div>
-                                                <div>
-                                                    <p className="text-[11px] font-semibold text-brand-navy">{prod.name}</p>
-                                                    <p className="text-[9px] text-gray-400">{prod.revenue.toLocaleString()} MAD</p>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="py-2.5 text-center">
-                                            <span className="text-[11px] text-gray-600 tabular-nums">{prod.attributed}</span>
-                                        </td>
-                                        <td className="py-2.5 text-center">
-                                            <span className="text-[11px] font-semibold text-[#059669] tabular-nums">{prod.delivered}</span>
-                                        </td>
-                                        <td className="py-2.5 text-right pr-1">
-                                            <div className="flex flex-col items-end gap-1">
-                                                <span className={`text-[11px] font-bold tabular-nums ${prod.successRate > 70 ? 'text-[#059669]' : 'text-[#d97706]'}`}>
-                                                    {prod.successRate.toFixed(1)}%
-                                                </span>
-                                                <div className="w-20 bg-gray-100 h-1 rounded-full overflow-hidden">
+                                                <div className="h-1 bg-ant-line rounded-full overflow-hidden">
                                                     <div
-                                                        style={{ width: `${prod.successRate}%`, background: prod.successRate > 70 ? '#059669' : '#d97706' }}
                                                         className="h-full rounded-full"
+                                                        style={{ width: `${pct}%`, backgroundColor: item.color || '#141413' }}
                                                     />
                                                 </div>
                                             </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    </section>
+                </div>
+
+                {/* Yield + Regional */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                        <div className="h-[3px] w-full bg-ant-ink" />
+                        <div className="p-5 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                    <span className="font-display text-ant-orange font-semibold">03</span>
+                                    Analyse du rendement
+                                </div>
+                                <span className="font-serif italic text-[11px] text-ant-mid">ratios clés</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-px bg-ant-line rounded-xl border border-ant-line overflow-hidden">
+                                <div className="bg-ant-paper p-3">
+                                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Revenu / unité</p>
+                                    <p className="font-display text-[16px] font-semibold tabular-nums text-ant-ink mt-1">
+                                        {stats.deliveredOrders > 0 ? (stats.totalRealized / stats.deliveredOrders).toFixed(0) : 0}
+                                        <span className="text-[10px] text-ant-mid font-normal ml-1">MAD</span>
+                                    </p>
+                                </div>
+                                <div className="bg-ant-paper p-3">
+                                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Taux de succès</p>
+                                    <p className="font-display text-[16px] font-semibold tabular-nums text-ant-green mt-1">
+                                        {stats.successRate.toFixed(1)}%
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="space-y-3 pt-1">
+                                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Tunnel de conversion</p>
+                                {[
+                                    { label: 'Confirmation', pct: stats.confirmRate, bar: 'bg-ant-ink', text: 'text-ant-ink' },
+                                    { label: 'Livraison', pct: stats.deliveryEff, bar: 'bg-ant-green', text: 'text-ant-green' },
+                                    { label: 'Intégrité pipeline', pct: stats.integrityScore, bar: 'bg-ant-orange', text: 'text-ant-orange' },
+                                ].map((metric) => (
+                                    <div key={metric.label} className="space-y-1.5">
+                                        <div className="flex justify-between items-baseline">
+                                            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ant-mid">{metric.label}</span>
+                                            <span className={`font-display text-[13px] font-semibold tabular-nums ${metric.text}`}>{metric.pct.toFixed(1)}%</span>
+                                        </div>
+                                        <div className="h-1.5 bg-ant-line rounded-full overflow-hidden">
+                                            <div className={`h-full ${metric.bar} rounded-full transition-all duration-700`} style={{ width: `${Math.min(100, metric.pct)}%` }} />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </section>
+
+                    <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                        <div className="h-[3px] w-full bg-ant-orange" />
+                        <div className="p-5 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                    <span className="font-display text-ant-orange font-semibold">04</span>
+                                    Villes dominantes
+                                </div>
+                                <MapPin className="w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
+                            </div>
+                            {regionalData.length === 0 ? (
+                                <p className="font-serif italic text-[12px] text-ant-mid py-4 text-center">Aucune donnée régionale</p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {regionalData.slice(0, 6).map((r) => {
+                                        const max = regionalData[0]?.delivered || 1;
+                                        const pct = (r.delivered / max) * 100;
+                                        return (
+                                            <div key={r.city} className="space-y-1">
+                                                <div className="flex items-center justify-between text-[11px]">
+                                                    <span className="inline-flex items-center gap-2 text-ant-ink truncate max-w-[140px]">
+                                                        <span className="h-1.5 w-1.5 rounded-full bg-ant-ink" />
+                                                        {r.city}
+                                                    </span>
+                                                    <span className="font-display text-[12px] font-semibold tabular-nums text-ant-ink">{r.delivered}</span>
+                                                </div>
+                                                <div className="h-1 bg-ant-line rounded-full overflow-hidden">
+                                                    <div className="h-full bg-ant-ink rounded-full" style={{ width: `${pct}%` }} />
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    </section>
+                </div>
+
+                {/* Product intelligence */}
+                <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                    <div className="h-[3px] w-full bg-ant-green" />
+                    <div className="px-5 py-4 border-b border-ant-line flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                            <span className="font-display text-ant-orange font-semibold">05</span>
+                            Intelligence produit
+                        </div>
+                        {productPerformance.length > 0 && (
+                            <div className="flex items-center gap-4">
+                                <div className="text-right">
+                                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Le plus rentable</p>
+                                    <p className="font-display text-[12px] font-semibold text-ant-ink truncate max-w-[180px]">{productPerformance[0]?.name || '—'}</p>
+                                </div>
+                                <div className="w-px h-8 bg-ant-line" />
+                                <div className="text-right">
+                                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Meilleur taux</p>
+                                    <p className="font-display text-[12px] font-semibold text-ant-green tabular-nums">
+                                        {Math.max(...productPerformance.map((p) => p.successRate), 0).toFixed(1)}%
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead>
+                                <tr className="border-b border-ant-line bg-ant-light">
+                                    <th className="px-5 py-2.5 text-left text-[10px] uppercase tracking-[0.18em] text-ant-mid font-semibold">Produit</th>
+                                    <th className="px-5 py-2.5 text-center text-[10px] uppercase tracking-[0.18em] text-ant-mid font-semibold">Attribuées</th>
+                                    <th className="px-5 py-2.5 text-center text-[10px] uppercase tracking-[0.18em] text-ant-mid font-semibold">Livrées</th>
+                                    <th className="px-5 py-2.5 pr-5 text-right text-[10px] uppercase tracking-[0.18em] text-ant-mid font-semibold">Succès</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {productPerformance.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={4} className="p-0">
+                                            <div className="mx-5 my-5 rounded-xl border border-dashed border-ant-line bg-ant-light/50 py-8 flex flex-col items-center gap-2 text-center">
+                                                <div className="h-10 w-10 rounded-xl border border-ant-line bg-ant-paper flex items-center justify-center">
+                                                    <ShoppingBag className="w-4 h-4 text-ant-mid" strokeWidth={1.5} />
+                                                </div>
+                                                <p className="font-serif italic text-[12px] text-ant-mid">Aucune donnée produit</p>
+                                            </div>
                                         </td>
                                     </tr>
-                                ))}
+                                ) : (
+                                    productPerformance.map((prod, idx) => (
+                                        <tr key={idx} className="border-b border-ant-line last:border-0 hover:bg-ant-light/50 transition-colors">
+                                            <td className="px-5 py-3">
+                                                <div className="flex items-center gap-3 min-w-0">
+                                                    <div className="w-10 h-10 rounded-xl border border-ant-line bg-ant-light flex items-center justify-center overflow-hidden shrink-0">
+                                                        {prod.image ? (
+                                                            <img src={prod.image} alt={prod.name} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <ShoppingBag className="w-4 h-4 text-ant-mid" strokeWidth={1.75} />
+                                                        )}
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="font-display text-[13px] font-semibold text-ant-ink truncate">{prod.name}</p>
+                                                        <p className="font-serif italic text-[11px] text-ant-mid tabular-nums">{prod.revenue.toLocaleString()} MAD</p>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-5 py-3 text-center font-display text-[13px] font-semibold tabular-nums text-ant-ink">{prod.attributed}</td>
+                                            <td className="px-5 py-3 text-center font-display text-[13px] font-semibold tabular-nums text-ant-green">{prod.delivered}</td>
+                                            <td className="px-5 py-3 pr-5 text-right">
+                                                <div className="flex flex-col items-end gap-1">
+                                                    <span className={`font-display text-[13px] font-semibold tabular-nums ${prod.successRate > 70 ? 'text-ant-green' : 'text-ant-orange'}`}>
+                                                        {prod.successRate.toFixed(1)}%
+                                                    </span>
+                                                    <div className="w-20 bg-ant-line h-1 rounded-full overflow-hidden">
+                                                        <div
+                                                            className={`h-full rounded-full ${prod.successRate > 70 ? 'bg-ant-green' : 'bg-ant-orange'}`}
+                                                            style={{ width: `${prod.successRate}%` }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
                             </tbody>
                         </table>
                     </div>
-                </CardContent>
-            </Card>
+                </section>
+            </div>
         </div>
     );
 };

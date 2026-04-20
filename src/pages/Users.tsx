@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import {
@@ -11,18 +11,8 @@ import {
     Mail,
     User as UserIcon,
     Check,
-    X,
     Loader2,
     Upload,
-    ChevronRight,
-    Package,
-    ArrowRightLeft,
-    Box,
-    UserPlus,
-    Wallet,
-    List,
-    Tag,
-    CheckCircle,
     Home,
     ShoppingBag,
     FileText,
@@ -31,7 +21,7 @@ import {
     CreditCard,
     BarChart2,
     Megaphone,
-    Users as UsersGroupIcon, // Renamed Users to UsersGroupIcon to avoid conflict with the component name 'Users'
+    Users as UsersGroupIcon,
     Zap,
     Target,
     Building2,
@@ -44,16 +34,19 @@ import {
     DollarSign,
     Store,
     Puzzle,
-    LayoutDashboard
+    LayoutDashboard,
+    List,
+    Tag,
+    ArrowRightLeft,
+    Box,
+    UserPlus,
+    Wallet,
+    Crown,
+    Headphones,
+    Bike,
+    Sparkles,
+    type LucideIcon,
 } from 'lucide-react';
-import {
-    Card,
-    CardContent,
-    CardHeader,
-    CardTitle,
-    CardDescription,
-    CardFooter
-} from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -87,7 +80,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
@@ -98,12 +90,10 @@ import { useDropzone } from 'react-dropzone';
 import { cn } from '@/lib/utils';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { FaWhatsapp } from 'react-icons/fa';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { normalizeCommissionBasis } from '@/lib/commercialCommission';
 
-// --- Types ---
 const userSchema = z.object({
     name: z.string().min(2, "Name must be at least 2 characters"),
     username: z.string().min(3, "Username must be at least 3 characters"),
@@ -128,7 +118,6 @@ const userSchema = z.object({
 
 type UserFormValues = z.infer<typeof userSchema>;
 
-/** Row shape from `users` when editing; keeps `avatar_url` typed for preview state. */
 type UserModalInitialData = Partial<UserFormValues> & {
     id?: string;
     avatar_url?: string | null;
@@ -181,15 +170,117 @@ const pages = [
     { label: 'Bon de livraison', path: '/bon-de-livraison', icon: PackageCheck },
 ];
 
+const KPI_ACCENTS = {
+    ink: { dot: 'bg-ant-ink', tile: 'bg-ant-ink/6 border-ant-ink/15 text-ant-ink' },
+    orange: { dot: 'bg-ant-orange', tile: 'bg-ant-orange/10 border-ant-orange/25 text-ant-orange' },
+    green: { dot: 'bg-ant-green', tile: 'bg-ant-green/10 border-ant-green/25 text-ant-green' },
+    rose: { dot: 'bg-ant-rose', tile: 'bg-ant-rose/10 border-ant-rose/25 text-ant-rose' },
+} as const;
+
+const UserKpi: React.FC<{
+    label: string;
+    value: number | string;
+    suffix?: string;
+    accent: keyof typeof KPI_ACCENTS;
+    icon: LucideIcon;
+}> = ({ label, value, suffix, accent, icon: Icon }) => {
+    const a = KPI_ACCENTS[accent];
+    return (
+        <div className="bg-ant-paper p-4">
+            <div className="flex items-start justify-between gap-3">
+                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.24em] text-ant-mid">
+                    <span className={cn('h-1.5 w-1.5 rounded-full', a.dot)} />
+                    {label}
+                </div>
+                <div className={cn('h-8 w-8 rounded-lg border flex items-center justify-center', a.tile)}>
+                    <Icon className="w-4 h-4" strokeWidth={1.75} />
+                </div>
+            </div>
+            <p className="font-display text-[22px] font-semibold text-ant-ink tabular-nums mt-2 truncate">
+                {value}
+                {suffix ? <span className="text-[12px] text-ant-mid font-normal ml-1.5">{suffix}</span> : null}
+            </p>
+        </div>
+    );
+};
+
+const ROLE_META: Record<string, {
+    label: string;
+    plural: string;
+    chapter: string;
+    description: string;
+    pill: { bg: string; border: string; text: string; dot: string };
+    stripe: string;
+    icon: LucideIcon;
+}> = {
+    'super admin': {
+        label: 'Super admin',
+        plural: 'Super admins',
+        chapter: '01',
+        description: 'Unrestricted access — the highest authority in the platform.',
+        pill: { bg: 'bg-ant-rose/10', border: 'border-ant-rose/25', text: 'text-ant-rose', dot: 'bg-ant-rose' },
+        stripe: 'bg-ant-rose',
+        icon: Crown,
+    },
+    'admin': {
+        label: 'Admin',
+        plural: 'Admins',
+        chapter: '02',
+        description: 'Operational owners with configurable page access.',
+        pill: { bg: 'bg-ant-ink/6', border: 'border-ant-ink/20', text: 'text-ant-ink', dot: 'bg-ant-ink' },
+        stripe: 'bg-ant-ink',
+        icon: Shield,
+    },
+    'commercial': {
+        label: 'Commercial',
+        plural: 'Commercials',
+        chapter: '03',
+        description: 'Close deals, talk to customers, earn commission.',
+        pill: { bg: 'bg-ant-orange/10', border: 'border-ant-orange/25', text: 'text-ant-orange', dot: 'bg-ant-orange' },
+        stripe: 'bg-ant-orange',
+        icon: Headphones,
+    },
+    'courier': {
+        label: 'Courier',
+        plural: 'Couriers',
+        chapter: '04',
+        description: 'Move the package from shelf to customer door.',
+        pill: { bg: 'bg-ant-green/10', border: 'border-ant-green/25', text: 'text-ant-green', dot: 'bg-ant-green' },
+        stripe: 'bg-ant-green',
+        icon: Bike,
+    },
+    'mediabuyer': {
+        label: 'Media buyer',
+        plural: 'Media buyers',
+        chapter: '05',
+        description: 'Buys attention on every platform — runs the ads.',
+        pill: { bg: 'bg-ant-orange/10', border: 'border-ant-orange/25', text: 'text-ant-orange', dot: 'bg-ant-orange' },
+        stripe: 'bg-ant-orange',
+        icon: Target,
+    },
+    'others': {
+        label: 'Other',
+        plural: 'Others',
+        chapter: '06',
+        description: 'Legacy or custom roles that fall outside the five archetypes.',
+        pill: { bg: 'bg-ant-light', border: 'border-ant-line', text: 'text-ant-mid', dot: 'bg-ant-mid' },
+        stripe: 'bg-ant-line',
+        icon: UserIcon,
+    },
+};
+
+const ROLE_ORDER = ['super admin', 'admin', 'commercial', 'courier', 'mediabuyer', 'others'] as const;
+
 const Users = () => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<any>(null);
+    const [userToDelete, setUserToDelete] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState("");
+    const [roleFilter, setRoleFilter] = useState<'all' | typeof ROLE_ORDER[number]>('all');
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const activeBusinessId = localStorage.getItem('activeBusinessId');
 
-    // --- Queries ---
     const { data: users, isLoading } = useQuery({
         queryKey: ['users', activeBusinessId],
         queryFn: async () => {
@@ -205,7 +296,6 @@ const Users = () => {
         },
     });
 
-    // Set of user_ids that have at least one WhatsApp instance assigned for this business.
     const { data: usersWithWhatsApp } = useQuery({
         queryKey: ['users-wa-access', activeBusinessId],
         queryFn: async () => {
@@ -290,12 +380,12 @@ const Users = () => {
             const { error } = await supabase.functions.invoke('manage-users', {
                 body: { action: 'delete', userId: id }
             });
-
             if (error) throw error;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['users'] });
             queryClient.invalidateQueries({ queryKey: ['users-wa-access'] });
+            setUserToDelete(null);
             toast({ title: "User deleted", description: "The user has been successfully removed from Auth and Database." });
         },
         onError: (error: any) => {
@@ -303,175 +393,357 @@ const Users = () => {
         }
     });
 
-    // --- Filter ---
-    const filteredUsers = users?.filter(user =>
-        user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const getRoleBucket = (rawRole: any): typeof ROLE_ORDER[number] => {
+        const r = String(rawRole || '').toLowerCase();
+        if (r === 'super admin') return 'super admin';
+        if (r === 'admin') return 'admin';
+        if (r === 'commercial') return 'commercial';
+        if (r === 'courier') return 'courier';
+        if (r === 'mediabuyer') return 'mediabuyer';
+        return 'others';
+    };
+
+    const filteredUsers = useMemo(() => {
+        const q = searchQuery.toLowerCase().trim();
+        return (users || []).filter((u) => {
+            const bucket = getRoleBucket(u.role);
+            if (roleFilter !== 'all' && bucket !== roleFilter) return false;
+            if (!q) return true;
+            return (
+                u.name?.toLowerCase().includes(q) ||
+                u.username?.toLowerCase().includes(q) ||
+                u.email?.toLowerCase().includes(q)
+            );
+        });
+    }, [users, searchQuery, roleFilter]);
+
+    const totals = useMemo(() => {
+        const list = users || [];
+        return {
+            total: list.length,
+            active: list.filter((u: any) => u.active).length,
+            admin: list.filter((u: any) => ['super admin', 'admin'].includes(String(u.role || '').toLowerCase())).length,
+            commercial: list.filter((u: any) => String(u.role || '').toLowerCase() === 'commercial').length,
+            courier: list.filter((u: any) => String(u.role || '').toLowerCase() === 'courier').length,
+        };
+    }, [users]);
+
+    const groupedUsers = useMemo(() => {
+        return ROLE_ORDER.map((bucket) => ({
+            bucket,
+            meta: ROLE_META[bucket],
+            users: filteredUsers.filter((u: any) => getRoleBucket(u.role) === bucket),
+        })).filter((g) => g.users.length > 0);
+    }, [filteredUsers]);
+
+    const roleCounts = useMemo(() => {
+        const base: Record<string, number> = { all: users?.length || 0 };
+        ROLE_ORDER.forEach((r) => {
+            base[r] = (users || []).filter((u: any) => getRoleBucket(u.role) === r).length;
+        });
+        return base;
+    }, [users]);
+
+    const visibleRoleTabs: Array<{ key: 'all' | typeof ROLE_ORDER[number]; label: string }> = [
+        { key: 'all', label: 'All' },
+        ...ROLE_ORDER.filter((r) => roleCounts[r] > 0).map((r) => ({
+            key: r,
+            label: ROLE_META[r].label,
+        })),
+    ];
 
     return (
-        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
-            {/* Header */}
-            <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div>
-                    <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Team Members</h1>
-                    <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Roles, permissions &amp; account access</p>
-                </div>
-                <Button
-                    onClick={() => setIsAddModalOpen(true)}
-                    className="bg-brand-navy hover:bg-brand-navy/90 text-white h-8 px-3 rounded-md text-[11px] font-semibold gap-1.5 shrink-0"
-                >
-                    <Plus className="w-3.5 h-3.5" />
-                    Add User
-                </Button>
-            </header>
+        <div className="ant-surface min-h-screen">
+            <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 md:py-8 space-y-6">
+                {/* Editorial header */}
+                <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                    <div className="space-y-2">
+                        <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                            <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                            Team · Access control
+                        </div>
+                        <h1 className="font-display text-[30px] md:text-[34px] leading-[1.05] tracking-[-0.02em] text-ant-ink">
+                            Users
+                        </h1>
+                        <p className="font-serif italic text-[14px] leading-relaxed text-ant-mid max-w-xl">
+                            Every person who touches the business — admins with the keys, commercials with the phones, couriers at the door.
+                        </p>
+                    </div>
+                    <Button
+                        onClick={() => setIsAddModalOpen(true)}
+                        className="bg-ant-ink hover:bg-ant-ink/90 text-white h-10 px-5 rounded-full text-[12px] font-semibold gap-2 shrink-0 cursor-pointer"
+                    >
+                        <UserPlus className="w-4 h-4" />
+                        New user
+                    </Button>
+                </header>
 
-            {/* Search */}
-            <div className="relative w-full sm:w-72">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
-                <Input
-                    placeholder="Search by name, username or email..."
-                    className="pl-7 h-8 rounded-md border-gray-200 bg-white text-[11px]"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                />
-            </div>
-
-            <div>
+                {/* KPI strip */}
                 {isLoading ? (
-                    <div className="space-y-2">{[1,2,3,4].map(i => <Skeleton key={i} className="h-10 rounded-lg" />)}</div>
-                ) : filteredUsers?.length === 0 ? (
-                    <div className="border border-dashed border-gray-200 rounded-xl py-8 text-center">
-                        <p className="text-[14px] font-semibold text-brand-navy">No users found</p>
-                        <p className="text-[11px] text-gray-400 mt-1">Try adjusting your search or add a new user.</p>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
+                        {Array.from({ length: 5 }).map((_, i) => (
+                            <div key={i} className="bg-ant-paper p-4"><Skeleton className="h-12 rounded-lg" /></div>
+                        ))}
                     </div>
                 ) : (
-                    <div className="space-y-4">
-                        {['super admin', 'admin', 'commercial', 'courier', 'mediabuyer', 'others'].map(roleGroup => {
-                            const groupUsers = filteredUsers?.filter(u => {
-                                const r = (u.role || '').toLowerCase();
-                                if (roleGroup === 'super admin') return r === 'super admin';
-                                if (roleGroup === 'admin') return r === 'admin';
-                                if (roleGroup === 'commercial') return r === 'commercial';
-                                if (roleGroup === 'courier') return r === 'courier';
-                                if (roleGroup === 'mediabuyer') return r === 'mediabuyer';
-                                if (roleGroup === 'others') return r !== 'super admin' && r !== 'admin' && r !== 'commercial' && r !== 'courier' && r !== 'mediabuyer';
-                                return false;
-                            });
+                    <section className="grid grid-cols-2 md:grid-cols-5 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
+                        <UserKpi label="Total" value={totals.total} suffix="users" accent="ink" icon={UsersGroupIcon} />
+                        <UserKpi label="Active" value={totals.active} suffix="live" accent="green" icon={Check} />
+                        <UserKpi label="Admins" value={totals.admin} suffix="" accent="rose" icon={Shield} />
+                        <UserKpi label="Commercials" value={totals.commercial} suffix="" accent="orange" icon={Headphones} />
+                        <UserKpi label="Couriers" value={totals.courier} suffix="" accent="green" icon={Bike} />
+                    </section>
+                )}
 
-                            if (!groupUsers || groupUsers.length === 0) return null;
-
-                            const title = roleGroup === 'super admin' ? 'Super Admins' :
-                                roleGroup === 'admin' ? 'Admins' :
-                                    roleGroup === 'commercial' ? 'Commercials' :
-                                        roleGroup === 'courier' ? 'Couriers' :
-                                            roleGroup === 'mediabuyer' ? 'Media Buyers' : 'Others';
-
+                {/* Toolbar */}
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div className="inline-flex items-center gap-1 p-1 rounded-full border border-ant-line bg-ant-paper overflow-x-auto">
+                        {visibleRoleTabs.map((t) => {
+                            const active = roleFilter === t.key;
+                            const count = t.key === 'all' ? roleCounts.all : roleCounts[t.key];
                             return (
-                                <div key={roleGroup} className="space-y-2">
-                                    <div className="flex items-center gap-2">
-                                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{title}</p>
-                                        <span className="h-5 px-1.5 bg-gray-100 rounded text-[9px] font-bold text-gray-500 inline-flex items-center">{groupUsers.length}</span>
-                                    </div>
-                                    <div className="rounded-xl border border-gray-100 bg-white overflow-hidden">
-                                        {groupUsers.map((user, idx) => (
-                                            <UserCard
-                                                key={user.id}
-                                                user={user}
-                                                hasWhatsApp={usersWithWhatsApp?.has(user.id) || false}
-                                                onEdit={() => setEditingUser(user)}
-                                                onDelete={() => {
-                                                    if (confirm("Are you sure you want to delete this user?")) {
-                                                        deleteUserMutation.mutate(user.id);
-                                                    }
-                                                }}
-                                                isLast={idx === groupUsers.length - 1}
-                                            />
-                                        ))}
-                                    </div>
-                                </div>
+                                <button
+                                    key={t.key}
+                                    onClick={() => setRoleFilter(t.key)}
+                                    className={cn(
+                                        'inline-flex items-center gap-2 rounded-full px-3.5 h-8 text-[12px] font-semibold transition cursor-pointer whitespace-nowrap',
+                                        active ? 'bg-ant-ink text-white' : 'text-ant-mid hover:text-ant-ink'
+                                    )}
+                                >
+                                    {t.label}
+                                    <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums', active ? 'bg-white/20 text-white' : 'bg-ant-light text-ant-mid')}>
+                                        {count}
+                                    </span>
+                                </button>
                             );
                         })}
                     </div>
+
+                    <div className="relative flex-1 md:max-w-[360px]">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid pointer-events-none" />
+                        <Input
+                            placeholder="Search name, username or email..."
+                            className="pl-9 h-9 rounded-full border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid focus-visible:ring-1 focus-visible:ring-ant-orange/40"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                    </div>
+                </div>
+
+                {/* Content */}
+                {isLoading ? (
+                    <div className="space-y-3">{[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-14 rounded-2xl" />)}</div>
+                ) : filteredUsers.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-ant-line bg-ant-paper px-8 py-16 text-center">
+                        <div className="mx-auto w-12 h-12 rounded-2xl bg-ant-orange/10 border border-ant-orange/25 flex items-center justify-center mb-4">
+                            <UsersGroupIcon className="w-5 h-5 text-ant-orange" strokeWidth={1.75} />
+                        </div>
+                        <h3 className="font-display text-[18px] text-ant-ink tracking-tight">
+                            {users?.length ? 'No users match those filters' : 'No users yet'}
+                        </h3>
+                        <p className="font-serif italic text-[13px] text-ant-mid mt-2 max-w-sm mx-auto">
+                            {users?.length
+                                ? 'Relax the search or switch role tabs to bring the roster back.'
+                                : 'Invite your first admin, commercial or courier — every access level has a different set of gates.'}
+                        </p>
+                        {!users?.length && (
+                            <Button
+                                onClick={() => setIsAddModalOpen(true)}
+                                className="mt-5 bg-ant-ink hover:bg-ant-ink/90 text-white h-9 px-5 rounded-full text-[12px] font-semibold gap-2 cursor-pointer"
+                            >
+                                <UserPlus className="w-4 h-4" />
+                                Invite your first user
+                            </Button>
+                        )}
+                    </div>
+                ) : (
+                    <div className="space-y-8">
+                        {groupedUsers.map((group) => (
+                            <section key={group.bucket} className="space-y-3">
+                                <div className="flex items-end justify-between gap-3 border-b border-ant-line pb-3">
+                                    <div className="space-y-1">
+                                        <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                            <span className="font-display text-ant-orange font-semibold">{group.meta.chapter}</span>
+                                            Chapter
+                                        </div>
+                                        <h2 className="font-display text-[22px] tracking-tight text-ant-ink">
+                                            {group.meta.plural}
+                                            <span className="ml-2 text-[13px] font-normal text-ant-mid tabular-nums">· {group.users.length}</span>
+                                        </h2>
+                                        <p className="font-serif italic text-[12px] text-ant-mid max-w-xl">{group.meta.description}</p>
+                                    </div>
+                                    <div className={cn('hidden md:flex h-12 w-12 rounded-2xl border items-center justify-center shrink-0', group.meta.pill.bg, group.meta.pill.border, group.meta.pill.text)}>
+                                        <group.meta.icon className="w-5 h-5" strokeWidth={1.5} />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                                    {group.users.map((user: any) => (
+                                        <UserCard
+                                            key={user.id}
+                                            user={user}
+                                            meta={group.meta}
+                                            hasWhatsApp={usersWithWhatsApp?.has(user.id) || false}
+                                            onEdit={() => setEditingUser(user)}
+                                            onDelete={() => setUserToDelete(user)}
+                                        />
+                                    ))}
+                                </div>
+                            </section>
+                        ))}
+                    </div>
                 )}
-            </div>
 
-            <UserModal
-                isOpen={isAddModalOpen}
-                onClose={() => setIsAddModalOpen(false)}
-                onSubmit={(values) => addUserMutation.mutate(values)}
-                loading={addUserMutation.isPending}
-                title="Create New User"
-                activeBusinessId={activeBusinessId}
-            />
+                {/* Delete confirmation */}
+                <Dialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
+                    <DialogContent className="max-w-md p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden">
+                        <DialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line space-y-1.5">
+                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-rose">
+                                <span className="h-1.5 w-1.5 rounded-full bg-ant-rose" />
+                                Destructive action
+                            </div>
+                            <DialogTitle className="font-display text-[20px] leading-tight tracking-tight text-ant-ink">Delete this user?</DialogTitle>
+                            <DialogDescription className="font-serif italic text-[13px] text-ant-mid">
+                                <span className="not-italic font-semibold text-ant-ink">&ldquo;{userToDelete?.name}&rdquo;</span> will be removed from Auth and the database. Past orders and activity stay.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter className="px-6 py-4 gap-2">
+                            <Button
+                                variant="ghost"
+                                onClick={() => setUserToDelete(null)}
+                                className="h-10 px-5 rounded-full text-[12px] font-semibold text-ant-mid hover:text-ant-ink hover:bg-ant-light cursor-pointer"
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={() => userToDelete && deleteUserMutation.mutate(userToDelete.id)}
+                                disabled={deleteUserMutation.isPending}
+                                className="h-10 px-5 rounded-full text-[12px] font-semibold bg-ant-rose hover:bg-ant-rose/90 text-white gap-2 cursor-pointer"
+                            >
+                                {deleteUserMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                                <Trash2 className="w-3.5 h-3.5" />
+                                Confirm delete
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
 
-            {editingUser && (
                 <UserModal
-                    isOpen={!!editingUser}
-                    onClose={() => setEditingUser(null)}
-                    onSubmit={(values) => updateUserMutation.mutate({ id: editingUser.id, values })}
-                    initialData={editingUser}
-                    loading={updateUserMutation.isPending}
-                    title="Edit User"
+                    isOpen={isAddModalOpen}
+                    onClose={() => setIsAddModalOpen(false)}
+                    onSubmit={(values) => addUserMutation.mutate(values)}
+                    loading={addUserMutation.isPending}
+                    title="Create a new user"
                     activeBusinessId={activeBusinessId}
                 />
-            )}
+
+                {editingUser && (
+                    <UserModal
+                        isOpen={!!editingUser}
+                        onClose={() => setEditingUser(null)}
+                        onSubmit={(values) => updateUserMutation.mutate({ id: editingUser.id, values })}
+                        initialData={editingUser}
+                        loading={updateUserMutation.isPending}
+                        title={`Editing ${editingUser?.name}`}
+                        activeBusinessId={activeBusinessId}
+                    />
+                )}
+            </div>
         </div>
     );
 };
 
-const UserCard = ({ user, hasWhatsApp, onEdit, onDelete, isLast }: { user: any, hasWhatsApp?: boolean, onEdit: () => void, onDelete: () => void, isLast?: boolean }) => {
-    const roleColor = user.role === 'super admin' ? 'bg-red-50 text-red-600' :
-        user.role === 'admin' ? 'bg-brand-navy/10 text-brand-navy' :
-        user.role === 'commercial' ? 'bg-amber-50 text-amber-600' :
-        user.role === 'courier' ? 'bg-emerald-50 text-emerald-600' :
-        'bg-gray-100 text-gray-500';
+const UserCard = ({
+    user,
+    meta,
+    hasWhatsApp,
+    onEdit,
+    onDelete,
+}: {
+    user: any;
+    meta: typeof ROLE_META[string];
+    hasWhatsApp?: boolean;
+    onEdit: () => void;
+    onDelete: () => void;
+}) => {
+    const isActive = user.active;
 
     return (
-        <div className={cn("flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 transition-colors group", !isLast && "border-b border-gray-100")}>
-            <Avatar className="h-7 w-7 shrink-0">
-                <AvatarImage src={user.avatar_url || ''} />
-                <AvatarFallback className="bg-brand-navy/10 text-brand-navy text-[10px] font-bold">
-                    {user.name.substring(0, 2).toUpperCase()}
-                </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-[12px] font-semibold text-brand-navy truncate">{user.name}</p>
-                    {hasWhatsApp && <FaWhatsapp className="w-3 h-3 text-[#25D366] shrink-0" title="WhatsApp access" />}
+        <div className="relative overflow-hidden rounded-2xl border border-ant-line bg-ant-paper hover:border-ant-ink/20 hover:shadow-[0_16px_48px_-20px_rgba(20,20,19,0.15)] transition-all">
+            <div className={cn('h-[3px] w-full', meta.stripe)} />
+            <div className="p-4 flex items-center gap-4">
+                <Avatar className="h-14 w-14 shrink-0 rounded-2xl border border-ant-line">
+                    <AvatarImage src={user.avatar_url || ''} className="object-cover" />
+                    <AvatarFallback className="rounded-2xl bg-ant-ink/5 text-ant-ink font-display font-semibold text-[15px]">
+                        {user.name?.substring(0, 2).toUpperCase() || '??'}
+                    </AvatarFallback>
+                </Avatar>
+
+                <div className="flex-1 min-w-0 space-y-1.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-display text-[15px] font-semibold text-ant-ink truncate">{user.name}</h3>
+                        <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize shrink-0', meta.pill.bg, meta.pill.border, meta.pill.text)}>
+                            <span className={cn('h-1.5 w-1.5 rounded-full', meta.pill.dot)} />
+                            {meta.label}
+                        </span>
+                        {hasWhatsApp && (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-ant-green/25 bg-ant-green/10 px-1.5 py-0.5 text-[9px] font-semibold text-ant-green">
+                                <FaWhatsapp className="w-2.5 h-2.5" />
+                                WA
+                            </span>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-3 flex-wrap text-[11px]">
+                        <span className="text-ant-mid tabular-nums">@{user.username}</span>
+                        <span className="text-ant-mid inline-flex items-center gap-1">
+                            <Mail className="w-3 h-3" />
+                            <span className="truncate max-w-[180px]">{user.email}</span>
+                        </span>
+                        {user.role === 'commercial' && (
+                            <span className="font-display font-semibold text-ant-ink tabular-nums">
+                                {user.commission_price || 0} <span className="text-ant-mid font-normal">DH/{normalizeCommissionBasis(user.commission_basis) === 'per_unit' ? 'unit' : 'order'}</span>
+                            </span>
+                        )}
+                        {user.role === 'mediabuyer' && user.payment_type === 'salary' && (
+                            <span className="font-display font-semibold text-ant-ink tabular-nums">
+                                {user.salary_amount || 0} <span className="text-ant-mid font-normal">DH/month</span>
+                            </span>
+                        )}
+                        {user.role === 'courier' && user.phone && (
+                            <span className="text-ant-mid tabular-nums">{user.phone}</span>
+                        )}
+                    </div>
                 </div>
-                <p className="text-[10px] text-gray-500 truncate">@{user.username} · {user.email}</p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-                <span className={cn("h-5 px-1.5 rounded text-[9px] font-bold uppercase tracking-[0.08em] inline-flex items-center", roleColor)}>
-                    {user.role}
-                </span>
-                {user.role === 'commercial' && (
-                    <span className="text-[10px] text-gray-400 tabular-nums">
-                        {user.commission_price || 0} DH/{normalizeCommissionBasis(user.commission_basis) === 'per_unit' ? 'unit' : 'order'}
+
+                <div className="shrink-0 flex items-center gap-1">
+                    <span
+                        className={cn(
+                            'inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold',
+                            isActive ? 'bg-ant-green/10 border-ant-green/25 text-ant-green' : 'bg-ant-light border-ant-line text-ant-mid'
+                        )}
+                        title={isActive ? 'Active' : 'Inactive'}
+                    >
+                        <span className={cn('h-1.5 w-1.5 rounded-full', isActive ? 'bg-ant-green' : 'bg-ant-mid')} />
+                        {isActive ? 'Live' : 'Off'}
                     </span>
-                )}
-                <div className={cn("w-1.5 h-1.5 rounded-full shrink-0", user.active ? "bg-emerald-500" : "bg-gray-300")} title={user.active ? 'Active' : 'Inactive'} />
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full hover:bg-ant-ink/5 text-ant-mid cursor-pointer">
+                                <MoreVertical className="h-3.5 w-3.5" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="rounded-xl border border-ant-line bg-ant-paper shadow-[0_16px_48px_-20px_rgba(20,20,19,0.2)] p-1 min-w-[160px]">
+                            <DropdownMenuItem onClick={onEdit} className="rounded-lg px-3 py-2 cursor-pointer text-[12px] font-medium text-ant-ink gap-2">
+                                <Edit2 className="w-3.5 h-3.5 text-ant-orange" /> Edit profile
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator className="my-1 bg-ant-line" />
+                            <DropdownMenuItem onClick={onDelete} className="rounded-lg px-3 py-2 cursor-pointer text-[12px] font-medium text-ant-rose focus:text-ant-rose focus:bg-ant-rose/10 gap-2">
+                                <Trash2 className="w-3.5 h-3.5" /> Delete user
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
             </div>
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="h-7 w-7 p-0 rounded-md opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                        <MoreVertical className="h-3.5 w-3.5 text-gray-400" />
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="rounded-xl border border-gray-100 shadow-md">
-                    <DropdownMenuItem onClick={onEdit} className="rounded-lg cursor-pointer text-[11px]">
-                        <Edit2 className="w-3.5 h-3.5 mr-2" />
-                        Edit Profile
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={onDelete} className="rounded-lg cursor-pointer text-[11px] text-red-500 focus:text-red-600">
-                        <Trash2 className="w-3.5 h-3.5 mr-2" />
-                        Delete User
-                    </DropdownMenuItem>
-                </DropdownMenuContent>
-            </DropdownMenu>
         </div>
     );
 };
@@ -487,9 +759,7 @@ const UserModal = ({
 }: UserModalProps) => {
     const { toast } = useToast();
     const [avatar, setAvatar] = useState<File | null>(null);
-    const [avatarPreview, setAvatarPreview] = useState<string | null>(
-        initialData?.avatar_url ?? null,
-    );
+    const [avatarPreview, setAvatarPreview] = useState<string | null>(initialData?.avatar_url ?? null);
 
     const form = useForm<UserFormValues>({
         resolver: zodResolver(userSchema),
@@ -512,7 +782,6 @@ const UserModal = ({
         }
     });
 
-    // ── Connected WhatsApp instances for the active business ──────────
     const { data: waInstances } = useQuery({
         queryKey: ['whatsapp-instances-user-modal', activeBusinessId],
         queryFn: async () => {
@@ -529,7 +798,6 @@ const UserModal = ({
         enabled: !!activeBusinessId && isOpen,
     });
 
-    // ── Existing assignments for the user being edited ────────────────
     const editingUserId = (initialData as any)?.id;
     const { data: existingAccess } = useQuery({
         queryKey: ['whatsapp-user-access', editingUserId],
@@ -579,9 +847,6 @@ const UserModal = ({
     useEffect(() => {
         if (isOpen) {
             if (initialData) {
-                // Normalize nullable DB fields back to schema-valid defaults before reset.
-                // zod rejects `null` for optional string fields, which would silently fail
-                // form.handleSubmit validation and leave the Update button doing nothing.
                 const raw = initialData as any;
                 form.reset({
                     ...initialData,
@@ -655,9 +920,14 @@ const UserModal = ({
         onSubmit(finalValues);
     };
 
+    const currentRole = form.watch('role');
+    const inputCls = 'h-10 rounded-xl border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid focus-visible:ring-1 focus-visible:ring-ant-orange/40';
+    const labelCls = 'text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid';
+    const tabClass = 'text-[11px] h-8 px-3.5 rounded-full gap-1.5 data-[state=active]:bg-ant-ink data-[state=active]:text-white text-ant-mid';
+
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="max-w-3xl p-0 border border-gray-100 rounded-xl shadow-none overflow-hidden max-h-[92vh] flex flex-col">
+            <DialogContent className="max-w-3xl p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden max-h-[92vh] flex flex-col">
                 <Form {...form}>
                     <form
                         onSubmit={form.handleSubmit(handleFormSubmit, (errors) => {
@@ -670,68 +940,72 @@ const UserModal = ({
                         })}
                         className="flex flex-col flex-1 min-h-0 overflow-hidden"
                     >
-                        {/* ── Header ───────────────────────────────────────── */}
-                        <DialogHeader className="px-4 pt-4 pb-3 border-b border-gray-100">
-                            <div className="flex items-center gap-3">
+                        {/* Editorial header */}
+                        <DialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line">
+                            <div className="flex items-center gap-4">
                                 <div
                                     {...getRootProps()}
                                     className={cn(
-                                        "relative group flex-shrink-0 flex items-center justify-center border-2 border-dashed rounded-xl transition-all cursor-pointer overflow-hidden w-14 h-14",
-                                        isDragActive ? "border-brand-navy/40 scale-95" : "border-gray-200 hover:border-brand-navy/30 bg-gray-50",
-                                        avatarPreview ? "border-solid border-gray-200" : ""
+                                        'relative group flex-shrink-0 flex items-center justify-center rounded-2xl transition-all cursor-pointer overflow-hidden w-16 h-16 border',
+                                        isDragActive ? 'border-ant-orange bg-ant-orange/5' : 'border-ant-line bg-ant-light hover:border-ant-ink/30',
+                                        avatarPreview && 'border-solid'
                                     )}
                                 >
                                     <input {...getInputProps()} />
                                     {avatarPreview ? (
                                         <>
                                             <img src={avatarPreview} alt="" className="w-full h-full object-cover" />
-                                            <div className="absolute inset-0 bg-brand-navy/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <Upload className="w-3.5 h-3.5 text-white" />
+                                            <div className="absolute inset-0 bg-ant-ink/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Upload className="w-4 h-4 text-white" />
                                             </div>
                                         </>
                                     ) : (
-                                        <Upload className="w-4 h-4 text-gray-400" />
+                                        <Upload className="w-5 h-5 text-ant-mid" strokeWidth={1.5} />
                                     )}
                                 </div>
-                                <div className="flex-1 min-w-0">
-                                    <DialogTitle className="text-[13px] font-semibold text-brand-navy">{title}</DialogTitle>
-                                    <DialogDescription className="text-[10px] text-gray-400 mt-0.5">
-                                        {form.watch('role') === 'super admin' ? 'Highest privilege account.'
-                                            : form.watch('role') === 'admin' ? 'Configure modules this admin can access.'
-                                            : form.watch('role') === 'mediabuyer' ? 'Configure media buyer payment structure.'
-                                            : 'Configure parameters, products, and inbox access.'}
+                                <div className="flex-1 min-w-0 space-y-1.5">
+                                    <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                        <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                                        {initialData ? 'Edit · Team' : 'New · Team'}
+                                    </div>
+                                    <DialogTitle className="font-display text-[20px] leading-tight tracking-tight text-ant-ink truncate">{title}</DialogTitle>
+                                    <DialogDescription className="font-serif italic text-[13px] text-ant-mid">
+                                        {currentRole === 'super admin' ? 'Highest privilege account — grant cautiously.'
+                                            : currentRole === 'admin' ? 'Choose which pages this admin can reach.'
+                                            : currentRole === 'mediabuyer' ? 'Configure how this media buyer gets paid.'
+                                            : 'Configure access, products, and inbox scope.'}
                                     </DialogDescription>
                                 </div>
                             </div>
                         </DialogHeader>
 
-                        {/* ── Tabs ──────────────────────────────────────────────────── */}
+                        {/* Tabs */}
                         <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                            <div className="px-4 pt-3">
-                                <TabsList className="h-8">
-                                    <TabsTrigger value="identity" className="text-[11px] h-6 px-3 gap-1.5">
+                            <div className="px-6 pt-4">
+                                <TabsList className="h-10 rounded-full p-1 bg-ant-light border border-ant-line inline-flex w-auto">
+                                    <TabsTrigger value="identity" className={tabClass}>
                                         <UserIcon className="w-3 h-3" />
                                         Identity
                                     </TabsTrigger>
-                                    {form.watch('role') === 'admin' && (
-                                        <TabsTrigger value="permissions" className="text-[11px] h-6 px-3 gap-1.5">
+                                    {currentRole === 'admin' && (
+                                        <TabsTrigger value="permissions" className={tabClass}>
                                             <Shield className="w-3 h-3" />
-                                            Page Access
+                                            Page access
                                         </TabsTrigger>
                                     )}
-                                    {form.watch('role') === 'mediabuyer' && (
-                                        <TabsTrigger value="payment" className="text-[11px] h-6 px-3 gap-1.5">
+                                    {currentRole === 'mediabuyer' && (
+                                        <TabsTrigger value="payment" className={tabClass}>
                                             <DollarSign className="w-3 h-3" />
                                             Payment
                                         </TabsTrigger>
                                     )}
-                                    {form.watch('role') === 'commercial' && (
+                                    {currentRole === 'commercial' && (
                                         <>
-                                            <TabsTrigger value="performance" className="text-[11px] h-6 px-3 gap-1.5">
+                                            <TabsTrigger value="performance" className={tabClass}>
                                                 <BarChart2 className="w-3 h-3" />
                                                 Performance
                                             </TabsTrigger>
-                                            <TabsTrigger value="whatsapp" className="text-[11px] h-6 px-3 gap-1.5">
+                                            <TabsTrigger value="whatsapp" className={tabClass}>
                                                 <FaWhatsapp className="w-3 h-3 text-[#25D366]" />
                                                 WhatsApp
                                             </TabsTrigger>
@@ -740,21 +1014,21 @@ const UserModal = ({
                                 </TabsList>
                             </div>
 
-                            {/* ── Body (scrollable) ───────────────────────────────── */}
-                            <div className="flex-1 min-h-0 overflow-y-auto px-8 py-6">
-                                {/* ── TAB: Identity ───────────────────────────────── */}
-                                <TabsContent value="identity" className="m-0 space-y-6 outline-none">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            {/* Body */}
+                            <div className="ant-scroll flex-1 min-h-0 overflow-y-auto px-6 py-6">
+                                {/* IDENTITY */}
+                                <TabsContent value="identity" className="m-0 space-y-5 outline-none">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <FormField
                                             control={form.control}
                                             name="name"
                                             render={({ field }) => (
-                                                <FormItem className="space-y-2">
-                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Full Name</FormLabel>
+                                                <FormItem className="space-y-1.5">
+                                                    <FormLabel className={labelCls}>Full name</FormLabel>
                                                     <FormControl>
-                                                        <Input placeholder="E.g. Alexander Pierce" {...field} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
+                                                        <Input placeholder="E.g. Alexander Pierce" {...field} className={cn(inputCls, 'h-11 text-[13px]')} />
                                                     </FormControl>
-                                                    <FormMessage />
+                                                    <FormMessage className="text-ant-rose" />
                                                 </FormItem>
                                             )}
                                         />
@@ -762,42 +1036,49 @@ const UserModal = ({
                                             control={form.control}
                                             name="role"
                                             render={({ field }) => (
-                                                <FormItem className="space-y-2">
-                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">System Role</FormLabel>
+                                                <FormItem className="space-y-1.5">
+                                                    <FormLabel className={labelCls}>System role</FormLabel>
                                                     <Select onValueChange={field.onChange} value={field.value}>
                                                         <FormControl>
-                                                            <SelectTrigger className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy focus:ring-2 focus:ring-brand-navy/10 transition-all shadow-inner">
+                                                            <SelectTrigger className={cn(inputCls, 'h-11 text-[13px]')}>
                                                                 <SelectValue placeholder="Assign a role" />
                                                             </SelectTrigger>
                                                         </FormControl>
-                                                        <SelectContent className="rounded-2xl border-none shadow-2xl p-2 bg-brand-white/95 backdrop-blur-xl">
-                                                            {['super admin', 'admin', 'commercial', 'courier', 'mediabuyer'].map((role) => (
-                                                                <SelectItem key={role} value={role} className="rounded-xl p-3 capitalize font-bold text-brand-navy focus:bg-brand-navy focus:text-brand-white transition-colors cursor-pointer">
-                                                                    {role === 'mediabuyer' ? 'Media Buyer' : role}
-                                                                </SelectItem>
-                                                            ))}
+                                                        <SelectContent className="rounded-xl border-ant-line">
+                                                            {(['super admin', 'admin', 'commercial', 'courier', 'mediabuyer'] as const).map((role) => {
+                                                                const m = ROLE_META[role];
+                                                                const RoleIcon = m.icon;
+                                                                return (
+                                                                    <SelectItem key={role} value={role} className="text-[12px] capitalize">
+                                                                        <span className="inline-flex items-center gap-2">
+                                                                            <RoleIcon className="w-3.5 h-3.5 text-ant-mid" />
+                                                                            {m.label}
+                                                                        </span>
+                                                                    </SelectItem>
+                                                                );
+                                                            })}
                                                         </SelectContent>
                                                     </Select>
-                                                    <FormMessage />
+                                                    <FormMessage className="text-ant-rose" />
                                                 </FormItem>
                                             )}
                                         />
                                     </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <FormField
                                             control={form.control}
                                             name="username"
                                             render={({ field }) => (
-                                                <FormItem className="space-y-2">
-                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Username</FormLabel>
+                                                <FormItem className="space-y-1.5">
+                                                    <FormLabel className={labelCls}>Username</FormLabel>
                                                     <FormControl>
                                                         <div className="relative">
-                                                            <span className="absolute left-5 top-1/2 -translate-y-1/2 text-brand-navy/30 font-black text-sm">@</span>
-                                                            <Input placeholder="p_alexander" {...field} className="h-12 pl-10 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
+                                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-ant-mid font-display font-semibold text-[13px]">@</span>
+                                                            <Input placeholder="p_alexander" {...field} className={cn(inputCls, 'pl-9 tabular-nums')} />
                                                         </div>
                                                     </FormControl>
-                                                    <FormMessage />
+                                                    <FormMessage className="text-ant-rose" />
                                                 </FormItem>
                                             )}
                                         />
@@ -805,37 +1086,41 @@ const UserModal = ({
                                             control={form.control}
                                             name="email"
                                             render={({ field }) => (
-                                                <FormItem className="space-y-2">
-                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Email Address</FormLabel>
+                                                <FormItem className="space-y-1.5">
+                                                    <FormLabel className={labelCls}>Email</FormLabel>
                                                     <FormControl>
                                                         <div className="relative">
-                                                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-navy/30" />
-                                                            <Input type="email" placeholder="alex@digicom.team" {...field} className="h-12 pl-12 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
+                                                            <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" />
+                                                            <Input type="email" placeholder="alex@digicom.team" {...field} className={cn(inputCls, 'pl-10')} />
                                                         </div>
                                                     </FormControl>
-                                                    <FormMessage />
+                                                    <FormMessage className="text-ant-rose" />
                                                 </FormItem>
                                             )}
                                         />
                                     </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <FormField
                                             control={form.control}
                                             name="password"
                                             render={({ field }) => (
-                                                <FormItem className="space-y-2">
-                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Password</FormLabel>
+                                                <FormItem className="space-y-1.5">
+                                                    <FormLabel className={labelCls}>Password</FormLabel>
                                                     <FormControl>
                                                         <Input
                                                             type="password"
-                                                            placeholder={initialData ? "••••••••" : "Minimum 6 characters"}
+                                                            placeholder={initialData ? '••••••••' : 'Minimum 6 characters'}
                                                             {...field}
-                                                            className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner"
+                                                            className={inputCls}
                                                         />
                                                     </FormControl>
-                                                    {initialData && <FormDescription className="text-[10px] uppercase font-bold text-brand-navy/30 px-2">Leave blank to keep current</FormDescription>}
-                                                    <FormMessage />
+                                                    {initialData && (
+                                                        <FormDescription className="font-serif italic text-[11px] text-ant-mid">
+                                                            Leave blank to keep the current password.
+                                                        </FormDescription>
+                                                    )}
+                                                    <FormMessage className="text-ant-rose" />
                                                 </FormItem>
                                             )}
                                         />
@@ -843,58 +1128,65 @@ const UserModal = ({
                                             control={form.control}
                                             name="active"
                                             render={({ field }) => (
-                                                <FormItem className="flex flex-col">
-                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 mb-2">Account Status</FormLabel>
-                                                    <div className="flex items-center gap-4 h-12 bg-brand-navy/[0.04] px-4 rounded-2xl shadow-inner">
+                                                <FormItem className="flex flex-col space-y-1.5">
+                                                    <FormLabel className={labelCls}>Account status</FormLabel>
+                                                    <div className="flex items-center justify-between gap-3 h-10 bg-ant-paper border border-ant-line px-4 rounded-xl">
+                                                        <div className="flex items-center gap-2 min-w-0">
+                                                            <span className={cn('h-1.5 w-1.5 rounded-full', field.value ? 'bg-ant-green' : 'bg-ant-mid')} />
+                                                            <span className="text-[12px] font-semibold text-ant-ink">
+                                                                {field.value ? 'Live across the app' : 'Account disabled'}
+                                                            </span>
+                                                        </div>
                                                         <Switch
                                                             checked={field.value}
                                                             onCheckedChange={field.onChange}
-                                                            className="data-[state=checked]:bg-green-500"
+                                                            className="data-[state=checked]:bg-ant-green"
                                                         />
-                                                        <span className="text-xs font-black uppercase text-brand-navy tracking-tight">{field.value ? 'Active' : 'Disabled'}</span>
                                                     </div>
                                                 </FormItem>
                                             )}
                                         />
                                     </div>
 
-                                    {form.watch('role') === 'courier' && (
+                                    {currentRole === 'courier' && (
                                         <FormField
                                             control={form.control}
                                             name="phone"
                                             render={({ field }) => (
-                                                <FormItem className="space-y-2">
-                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Phone number</FormLabel>
+                                                <FormItem className="space-y-1.5">
+                                                    <FormLabel className={labelCls}>Phone number</FormLabel>
                                                     <FormControl>
                                                         <Input
                                                             type="tel"
                                                             placeholder="+212 6 00 00 00 00"
                                                             {...field}
                                                             value={field.value || ''}
-                                                            className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner"
+                                                            className={cn(inputCls, 'tabular-nums')}
                                                         />
                                                     </FormControl>
-                                                    <FormDescription className="text-[10px] uppercase font-bold text-brand-navy/30 px-2">Reachable number for delivery coordination</FormDescription>
-                                                    <FormMessage />
+                                                    <FormDescription className="font-serif italic text-[11px] text-ant-mid">
+                                                        Reachable number for delivery coordination.
+                                                    </FormDescription>
+                                                    <FormMessage className="text-ant-rose" />
                                                 </FormItem>
                                             )}
                                         />
                                     )}
                                 </TabsContent>
 
-                                {/* ── TAB: Page Access (admin) ───────────────────── */}
+                                {/* PAGE ACCESS */}
                                 <TabsContent value="permissions" className="m-0 outline-none">
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                         {pages.map((page) => {
                                             const isChecked = form.watch('permissions.pages')?.[page.path];
                                             return (
                                                 <div
                                                     key={page.path}
                                                     className={cn(
-                                                        "flex items-center gap-3 p-3 rounded-2xl transition-all duration-200 cursor-pointer group border-2",
+                                                        'flex items-center gap-3 p-3 rounded-xl transition-all cursor-pointer group border',
                                                         isChecked
-                                                            ? "bg-brand-navy border-brand-navy text-brand-white"
-                                                            : "bg-brand-white border-brand-navy/5 hover:border-brand-navy/20"
+                                                            ? 'bg-ant-ink border-ant-ink text-white'
+                                                            : 'bg-ant-paper border-ant-line hover:border-ant-ink/30'
                                                     )}
                                                     onClick={(e) => {
                                                         e.preventDefault();
@@ -906,15 +1198,15 @@ const UserModal = ({
                                                     }}
                                                 >
                                                     <div className={cn(
-                                                        "w-9 h-9 rounded-xl flex items-center justify-center transition-all shrink-0",
-                                                        isChecked ? "bg-white/10" : "bg-brand-navy/5 text-brand-navy"
+                                                        'w-8 h-8 rounded-lg flex items-center justify-center transition-all shrink-0',
+                                                        isChecked ? 'bg-white/10' : 'bg-ant-light border border-ant-line text-ant-ink'
                                                     )}>
-                                                        <page.icon className="w-4 h-4" />
+                                                        <page.icon className="w-3.5 h-3.5" strokeWidth={1.75} />
                                                     </div>
-                                                    <span className="text-xs font-bold flex-1 truncate">{page.label}</span>
+                                                    <span className="text-[12px] font-semibold flex-1 truncate">{page.label}</span>
                                                     <div className={cn(
-                                                        "w-5 h-5 rounded-full flex items-center justify-center border-2 transition-all shrink-0",
-                                                        isChecked ? "bg-white border-white text-brand-navy" : "border-brand-navy/10 text-transparent"
+                                                        'w-5 h-5 rounded-full flex items-center justify-center border transition-all shrink-0',
+                                                        isChecked ? 'bg-white border-white text-ant-ink' : 'border-ant-line text-transparent'
                                                     )}>
                                                         <Check className="w-3 h-3" />
                                                     </div>
@@ -924,17 +1216,17 @@ const UserModal = ({
                                     </div>
                                 </TabsContent>
 
-                                {/* ── TAB: Performance (commercial) ──────────────── */}
+                                {/* PERFORMANCE (commercial) */}
                                 <TabsContent value="performance" className="m-0 space-y-5 outline-none">
                                     <div className="grid grid-cols-2 gap-4">
                                         <FormField
                                             control={form.control}
                                             name="assignment"
                                             render={({ field }) => (
-                                                <FormItem className="space-y-2">
-                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Order Attribution</FormLabel>
+                                                <FormItem className="space-y-1.5">
+                                                    <FormLabel className={labelCls}>Order attribution</FormLabel>
                                                     <FormControl>
-                                                        <Input type="number" placeholder="0" {...field} onChange={e => field.onChange(Number(e.target.value))} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
+                                                        <Input type="number" placeholder="0" {...field} onChange={(e) => field.onChange(Number(e.target.value))} className={cn(inputCls, 'tabular-nums')} />
                                                     </FormControl>
                                                 </FormItem>
                                             )}
@@ -943,12 +1235,12 @@ const UserModal = ({
                                             control={form.control}
                                             name="commission_price"
                                             render={({ field }) => (
-                                                <FormItem className="space-y-2">
-                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Comm. Price</FormLabel>
+                                                <FormItem className="space-y-1.5">
+                                                    <FormLabel className={labelCls}>Commission · DH</FormLabel>
                                                     <FormControl>
                                                         <div className="relative">
-                                                            <Input type="number" placeholder="0" {...field} onChange={e => field.onChange(Number(e.target.value))} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
-                                                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-brand-navy/30 text-xs font-bold">DH</span>
+                                                            <Input type="number" placeholder="0" {...field} onChange={(e) => field.onChange(Number(e.target.value))} className={cn(inputCls, 'tabular-nums pr-12')} />
+                                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-ant-mid text-[10px] font-semibold uppercase tracking-[0.18em]">DH</span>
                                                         </div>
                                                     </FormControl>
                                                 </FormItem>
@@ -960,76 +1252,78 @@ const UserModal = ({
                                         control={form.control}
                                         name="commission_basis"
                                         render={({ field }) => (
-                                            <FormItem className="space-y-3">
-                                                <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Commission Calculation</FormLabel>
+                                            <FormItem className="space-y-2">
+                                                <FormLabel className={labelCls}>Commission calculation</FormLabel>
                                                 <FormControl>
                                                     <RadioGroup onValueChange={field.onChange} value={field.value} className="grid grid-cols-2 gap-3">
-                                                        <label className="flex items-start gap-3 cursor-pointer rounded-2xl border-2 border-brand-navy/5 bg-brand-navy/[0.02] p-4 hover:border-brand-navy/20 transition-all has-[:checked]:border-brand-navy has-[:checked]:bg-brand-navy/[0.05]">
+                                                        <label className="flex items-start gap-3 cursor-pointer rounded-2xl border border-ant-line bg-ant-light p-4 hover:border-ant-orange/40 transition-all has-[:checked]:border-ant-orange has-[:checked]:bg-ant-orange/5">
                                                             <RadioGroupItem value="per_order" id="commission-per-order" className="mt-0.5" />
                                                             <div className="space-y-0.5">
-                                                                <span className="text-xs font-bold text-brand-navy block">Per order</span>
-                                                                <p className="text-[10px] text-muted-foreground leading-snug">Commission × each delivered order</p>
+                                                                <span className="font-display text-[13px] font-semibold text-ant-ink block">Per order</span>
+                                                                <p className="font-serif italic text-[11px] text-ant-mid leading-snug">Commission × each delivered order</p>
                                                             </div>
                                                         </label>
-                                                        <label className="flex items-start gap-3 cursor-pointer rounded-2xl border-2 border-brand-navy/5 bg-brand-navy/[0.02] p-4 hover:border-brand-navy/20 transition-all has-[:checked]:border-brand-navy has-[:checked]:bg-brand-navy/[0.05]">
+                                                        <label className="flex items-start gap-3 cursor-pointer rounded-2xl border border-ant-line bg-ant-light p-4 hover:border-ant-orange/40 transition-all has-[:checked]:border-ant-orange has-[:checked]:bg-ant-orange/5">
                                                             <RadioGroupItem value="per_unit" id="commission-per-unit" className="mt-0.5" />
                                                             <div className="space-y-0.5">
-                                                                <span className="text-xs font-bold text-brand-navy block">Per unit</span>
-                                                                <p className="text-[10px] text-muted-foreground leading-snug">Commission × total units delivered</p>
+                                                                <span className="font-display text-[13px] font-semibold text-ant-ink block">Per unit</span>
+                                                                <p className="font-serif italic text-[11px] text-ant-mid leading-snug">Commission × total units delivered</p>
                                                             </div>
                                                         </label>
                                                     </RadioGroup>
                                                 </FormControl>
-                                                <FormMessage />
+                                                <FormMessage className="text-ant-rose" />
                                             </FormItem>
                                         )}
                                     />
 
                                     <div className="space-y-3 pt-1">
                                         <div className="flex items-center justify-between">
-                                            <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Available Products</FormLabel>
+                                            <FormLabel className={labelCls}>Available products</FormLabel>
                                             <div className="flex items-center gap-2">
-                                                <Badge variant="outline" className="text-[10px] font-bold rounded-full">{form.watch('products')?.length || 0} / {products?.length || 0}</Badge>
+                                                <span className="inline-flex items-center rounded-full border border-ant-line bg-ant-light px-2 py-0.5 text-[10px] font-semibold text-ant-ink tabular-nums">
+                                                    {form.watch('products')?.length || 0} / {products?.length || 0}
+                                                </span>
                                                 <Button
                                                     type="button"
                                                     variant="ghost"
                                                     size="sm"
-                                                    className="h-7 px-2.5 text-[10px] font-bold uppercase tracking-wider text-brand-navy/60 hover:text-brand-navy hover:bg-brand-navy/5 rounded-lg"
+                                                    className="h-7 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-ant-mid hover:text-ant-ink hover:bg-ant-light rounded-full cursor-pointer"
                                                     onClick={() => {
-                                                        const allIds = products?.map(p => p.id) || [];
+                                                        const allIds = products?.map((p) => p.id) || [];
                                                         const current = form.getValues('products') || [];
-                                                        const allSelected = allIds.length > 0 && allIds.every(id => current.includes(id));
+                                                        const allSelected = allIds.length > 0 && allIds.every((id) => current.includes(id));
                                                         form.setValue('products', allSelected ? [] : allIds, { shouldDirty: true });
                                                     }}
                                                 >
                                                     {(() => {
-                                                        const allIds = products?.map(p => p.id) || [];
+                                                        const allIds = products?.map((p) => p.id) || [];
                                                         const current = form.watch('products') || [];
-                                                        return allIds.length > 0 && allIds.every(id => current.includes(id)) ? 'Deselect all' : 'Select all';
+                                                        return allIds.length > 0 && allIds.every((id) => current.includes(id)) ? 'Deselect all' : 'Select all';
                                                     })()}
                                                 </Button>
                                             </div>
                                         </div>
                                         <div className="relative">
-                                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" />
                                             <Input
                                                 placeholder="Search products..."
                                                 value={productSearch}
                                                 onChange={(e) => setProductSearch(e.target.value)}
-                                                className="h-11 pl-11 rounded-2xl border-none bg-brand-navy/[0.04] shadow-inner text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium"
+                                                className={cn(inputCls, 'pl-9')}
                                             />
                                         </div>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[280px] overflow-y-auto pr-1">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[280px] overflow-y-auto pr-1 ant-scroll">
                                             {!activeBusinessId ? (
-                                                <p className="col-span-full text-xs text-muted-foreground text-center py-8 px-2">
+                                                <p className="col-span-full font-serif italic text-[12px] text-ant-mid text-center py-8">
                                                     No business selected. Open the app with an active business before assigning products.
                                                 </p>
                                             ) : isProductsLoading ? (
                                                 <div className="col-span-full flex justify-center py-12">
-                                                    <Loader2 className="w-6 h-6 animate-spin text-brand-navy/40" />
+                                                    <Loader2 className="w-6 h-6 animate-spin text-ant-mid" />
                                                 </div>
                                             ) : !filteredProducts?.length ? (
-                                                <p className="col-span-full text-xs text-muted-foreground text-center py-8">
+                                                <p className="col-span-full font-serif italic text-[12px] text-ant-mid text-center py-8">
                                                     No active products for this business.
                                                 </p>
                                             ) : (
@@ -1041,26 +1335,28 @@ const UserModal = ({
                                                             onClick={() => {
                                                                 const current = form.getValues('products') || [];
                                                                 const next = isSelected
-                                                                    ? current.filter(id => id !== product.id)
+                                                                    ? current.filter((id) => id !== product.id)
                                                                     : [...current, product.id];
                                                                 form.setValue('products', next, { shouldDirty: true });
                                                             }}
                                                             className={cn(
-                                                                "flex items-center gap-3 p-2.5 rounded-2xl transition-all cursor-pointer border-2 group min-w-0 overflow-hidden",
-                                                                isSelected ? "bg-brand-navy border-brand-navy text-white" : "bg-white border-brand-navy/5 hover:border-brand-navy/20"
+                                                                'flex items-center gap-3 p-2.5 rounded-xl transition-all cursor-pointer border',
+                                                                isSelected ? 'bg-ant-orange/10 border-ant-orange/30' : 'bg-ant-paper border-ant-line hover:border-ant-ink/30'
                                                             )}
                                                         >
-                                                            <Avatar className="h-9 w-9 rounded-xl border border-muted shrink-0">
+                                                            <Avatar className="h-9 w-9 rounded-lg border border-ant-line shrink-0">
                                                                 <AvatarImage src={product.image_url || ''} className="object-cover" />
-                                                                <AvatarFallback className="text-[10px] font-bold">PR</AvatarFallback>
+                                                                <AvatarFallback className="rounded-lg text-[10px] font-semibold bg-ant-ink/5 text-ant-ink">
+                                                                    PR
+                                                                </AvatarFallback>
                                                             </Avatar>
-                                                            <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
-                                                                <span className="text-xs font-bold truncate block">{product.name}</span>
-                                                                <span className={cn("text-[10px] font-medium truncate block", isSelected ? "text-white/60" : "text-muted-foreground")}>{product.code}</span>
+                                                            <div className="flex flex-col min-w-0 flex-1">
+                                                                <span className="text-[12px] font-semibold text-ant-ink truncate">{product.name}</span>
+                                                                <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ant-mid truncate">{product.code}</span>
                                                             </div>
                                                             <div className={cn(
-                                                                "w-5 h-5 rounded-full flex items-center justify-center border-2 transition-all shrink-0",
-                                                                isSelected ? "bg-white border-white text-brand-navy" : "border-brand-navy/10 text-transparent"
+                                                                'w-5 h-5 rounded-full flex items-center justify-center border transition-all shrink-0',
+                                                                isSelected ? 'bg-ant-orange border-ant-orange text-white' : 'border-ant-line text-transparent'
                                                             )}>
                                                                 <Check className="w-3 h-3" />
                                                             </div>
@@ -1072,7 +1368,7 @@ const UserModal = ({
                                     </div>
                                 </TabsContent>
 
-                                {/* ── TAB: WhatsApp (commercial) ─────────────────── */}
+                                {/* WHATSAPP (commercial) */}
                                 <TabsContent value="whatsapp" className="m-0 outline-none">
                                     <FormField
                                         control={form.control}
@@ -1085,67 +1381,64 @@ const UserModal = ({
                                             };
                                             const toggleInstance = (id: string) => {
                                                 const current = access.instance_ids || [];
-                                                const next = current.includes(id) ? current.filter(x => x !== id) : [...current, id];
+                                                const next = current.includes(id) ? current.filter((x) => x !== id) : [...current, id];
                                                 field.onChange({ ...access, mode: 'specific', instance_ids: next });
                                             };
                                             return (
-                                                <FormItem className="space-y-5">
-                                                    {/* Top toggle card */}
-                                                    <div className="flex items-center justify-between gap-4 rounded-2xl border-2 border-brand-navy/5 bg-brand-navy/[0.02] p-5">
+                                                <FormItem className="space-y-4">
+                                                    <div className="flex items-center justify-between gap-4 rounded-2xl border border-ant-line bg-ant-paper p-5">
                                                         <div className="flex items-start gap-3 flex-1 min-w-0">
-                                                            <div className="w-11 h-11 rounded-2xl bg-[#25D366]/10 flex items-center justify-center shrink-0">
-                                                                <FaWhatsapp className="w-5 h-5 text-[#25D366]" />
+                                                            <div className="w-11 h-11 rounded-2xl bg-ant-green/10 border border-ant-green/25 flex items-center justify-center shrink-0">
+                                                                <FaWhatsapp className="w-5 h-5 text-ant-green" />
                                                             </div>
                                                             <div className="space-y-0.5 min-w-0">
-                                                                <FormLabel className="text-xs font-bold text-brand-navy block">Enable inbox access</FormLabel>
-                                                                <p className="text-[11px] text-muted-foreground leading-snug">
-                                                                    Let this seller open the WhatsApp inbox for selected devices.
+                                                                <FormLabel className="font-display text-[14px] font-semibold text-ant-ink block">Enable inbox access</FormLabel>
+                                                                <p className="font-serif italic text-[12px] text-ant-mid leading-snug">
+                                                                    Let this commercial open the WhatsApp inbox for selected devices.
                                                                 </p>
                                                             </div>
                                                         </div>
                                                         <Switch
                                                             checked={enabled}
                                                             onCheckedChange={(v) => setMode(v ? 'all' : 'none')}
-                                                            className="data-[state=checked]:bg-[#25D366]"
+                                                            className="data-[state=checked]:bg-ant-green"
                                                         />
                                                     </div>
 
                                                     {enabled && (
                                                         <>
-                                                            {/* Mode selector */}
                                                             <RadioGroup
                                                                 value={access.mode}
                                                                 onValueChange={(v) => setMode(v as 'all' | 'specific')}
                                                                 className="grid grid-cols-2 gap-3"
                                                             >
-                                                                <label className="flex items-start gap-3 cursor-pointer rounded-2xl border-2 border-brand-navy/5 bg-brand-white p-4 hover:border-brand-navy/20 transition-all has-[:checked]:border-brand-navy has-[:checked]:bg-brand-navy/[0.04]">
+                                                                <label className="flex items-start gap-3 cursor-pointer rounded-2xl border border-ant-line bg-ant-light p-4 hover:border-ant-orange/40 transition-all has-[:checked]:border-ant-orange has-[:checked]:bg-ant-orange/5">
                                                                     <RadioGroupItem value="all" id="wa-all-tab" className="mt-0.5" />
                                                                     <div className="space-y-0.5">
-                                                                        <span className="text-xs font-bold text-brand-navy block">All devices</span>
-                                                                        <p className="text-[10px] text-muted-foreground leading-snug">Includes future ones automatically</p>
+                                                                        <span className="font-display text-[13px] font-semibold text-ant-ink block">All devices</span>
+                                                                        <p className="font-serif italic text-[11px] text-ant-mid leading-snug">Includes future devices automatically</p>
                                                                     </div>
                                                                 </label>
-                                                                <label className="flex items-start gap-3 cursor-pointer rounded-2xl border-2 border-brand-navy/5 bg-brand-white p-4 hover:border-brand-navy/20 transition-all has-[:checked]:border-brand-navy has-[:checked]:bg-brand-navy/[0.04]">
+                                                                <label className="flex items-start gap-3 cursor-pointer rounded-2xl border border-ant-line bg-ant-light p-4 hover:border-ant-orange/40 transition-all has-[:checked]:border-ant-orange has-[:checked]:bg-ant-orange/5">
                                                                     <RadioGroupItem value="specific" id="wa-specific-tab" className="mt-0.5" />
                                                                     <div className="space-y-0.5">
-                                                                        <span className="text-xs font-bold text-brand-navy block">Specific</span>
-                                                                        <p className="text-[10px] text-muted-foreground leading-snug">Pick devices below</p>
+                                                                        <span className="font-display text-[13px] font-semibold text-ant-ink block">Specific</span>
+                                                                        <p className="font-serif italic text-[11px] text-ant-mid leading-snug">Pick the devices below</p>
                                                                     </div>
                                                                 </label>
                                                             </RadioGroup>
 
-                                                            {/* Specific picker */}
                                                             {access.mode === 'specific' && (
                                                                 <div className="space-y-2">
                                                                     <div className="flex items-center justify-between">
-                                                                        <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Connected Devices</FormLabel>
-                                                                        <Badge variant="outline" className="text-[10px] font-bold rounded-full">
+                                                                        <FormLabel className={labelCls}>Connected devices</FormLabel>
+                                                                        <span className="inline-flex items-center rounded-full border border-ant-line bg-ant-light px-2 py-0.5 text-[10px] font-semibold text-ant-ink tabular-nums">
                                                                             {(access.instance_ids || []).length} / {waInstances?.length || 0}
-                                                                        </Badge>
+                                                                        </span>
                                                                     </div>
-                                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[260px] overflow-y-auto pr-1">
+                                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[260px] overflow-y-auto pr-1 ant-scroll">
                                                                         {!waInstances?.length ? (
-                                                                            <p className="col-span-full text-[11px] text-muted-foreground text-center py-8">
+                                                                            <p className="col-span-full font-serif italic text-[12px] text-ant-mid text-center py-8">
                                                                                 No connected WhatsApp devices for this business yet.
                                                                             </p>
                                                                         ) : (
@@ -1156,30 +1449,27 @@ const UserModal = ({
                                                                                         key={inst.id}
                                                                                         onClick={() => toggleInstance(inst.id)}
                                                                                         className={cn(
-                                                                                            "flex items-center gap-3 p-3 rounded-2xl border-2 cursor-pointer transition-all min-w-0",
+                                                                                            'flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all',
                                                                                             checked
-                                                                                                ? "bg-brand-navy border-brand-navy text-white"
-                                                                                                : "bg-white border-brand-navy/5 hover:border-brand-navy/20"
+                                                                                                ? 'bg-ant-orange/10 border-ant-orange/30'
+                                                                                                : 'bg-ant-paper border-ant-line hover:border-ant-ink/30'
                                                                                         )}
                                                                                     >
-                                                                                        <Avatar className="h-9 w-9 rounded-full border border-muted shrink-0">
+                                                                                        <Avatar className="h-9 w-9 rounded-full border border-ant-line shrink-0">
                                                                                             <AvatarImage src={inst.profile_pic || ''} className="object-cover" />
-                                                                                            <AvatarFallback className="text-[10px] font-bold bg-brand-navy/10 text-brand-navy">
+                                                                                            <AvatarFallback className="text-[10px] font-semibold bg-ant-ink/5 text-ant-ink">
                                                                                                 {inst.instance_name.substring(0, 2).toUpperCase()}
                                                                                             </AvatarFallback>
                                                                                         </Avatar>
                                                                                         <div className="flex-1 min-w-0">
-                                                                                            <p className="text-xs font-bold truncate">{inst.instance_name}</p>
+                                                                                            <p className="text-[12px] font-semibold text-ant-ink truncate">{inst.instance_name}</p>
                                                                                             {inst.phone_number && (
-                                                                                                <p className={cn(
-                                                                                                    "text-[10px] truncate",
-                                                                                                    checked ? "text-white/60" : "text-muted-foreground"
-                                                                                                )}>+{inst.phone_number}</p>
+                                                                                                <p className="text-[11px] text-ant-mid truncate tabular-nums">+{inst.phone_number}</p>
                                                                                             )}
                                                                                         </div>
                                                                                         <div className={cn(
-                                                                                            "w-5 h-5 rounded-full flex items-center justify-center border-2 transition-all shrink-0",
-                                                                                            checked ? "bg-white border-white text-brand-navy" : "border-brand-navy/10 text-transparent"
+                                                                                            'w-5 h-5 rounded-full flex items-center justify-center border transition-all shrink-0',
+                                                                                            checked ? 'bg-ant-orange border-ant-orange text-white' : 'border-ant-line text-transparent'
                                                                                         )}>
                                                                                             <Check className="w-3 h-3" />
                                                                                         </div>
@@ -1198,33 +1488,33 @@ const UserModal = ({
                                     />
                                 </TabsContent>
 
-                                {/* ── TAB: Payment (mediabuyer) ──────────────────── */}
+                                {/* PAYMENT (mediabuyer) */}
                                 <TabsContent value="payment" className="m-0 space-y-5 outline-none">
                                     <FormField
                                         control={form.control}
                                         name="payment_type"
                                         render={({ field }) => (
-                                            <FormItem className="space-y-3">
-                                                <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Payment Structure</FormLabel>
+                                            <FormItem className="space-y-2">
+                                                <FormLabel className={labelCls}>Payment structure</FormLabel>
                                                 <FormControl>
                                                     <RadioGroup onValueChange={field.onChange} value={field.value} className="grid grid-cols-2 gap-3">
-                                                        <label className="flex items-start gap-3 cursor-pointer rounded-2xl border-2 border-brand-navy/5 bg-brand-navy/[0.02] p-4 hover:border-brand-navy/20 transition-all has-[:checked]:border-brand-navy has-[:checked]:bg-brand-navy/[0.05]">
+                                                        <label className="flex items-start gap-3 cursor-pointer rounded-2xl border border-ant-line bg-ant-light p-4 hover:border-ant-orange/40 transition-all has-[:checked]:border-ant-orange has-[:checked]:bg-ant-orange/5">
                                                             <RadioGroupItem value="commission" id="mb-pay-commission" className="mt-0.5" />
                                                             <div className="space-y-0.5">
-                                                                <span className="text-xs font-bold text-brand-navy block">Commission per delivered</span>
-                                                                <p className="text-[10px] text-muted-foreground leading-snug">Fixed amount × each delivered order</p>
+                                                                <span className="font-display text-[13px] font-semibold text-ant-ink block">Commission</span>
+                                                                <p className="font-serif italic text-[11px] text-ant-mid leading-snug">Fixed amount × each delivered order</p>
                                                             </div>
                                                         </label>
-                                                        <label className="flex items-start gap-3 cursor-pointer rounded-2xl border-2 border-brand-navy/5 bg-brand-navy/[0.02] p-4 hover:border-brand-navy/20 transition-all has-[:checked]:border-brand-navy has-[:checked]:bg-brand-navy/[0.05]">
+                                                        <label className="flex items-start gap-3 cursor-pointer rounded-2xl border border-ant-line bg-ant-light p-4 hover:border-ant-orange/40 transition-all has-[:checked]:border-ant-orange has-[:checked]:bg-ant-orange/5">
                                                             <RadioGroupItem value="salary" id="mb-pay-salary" className="mt-0.5" />
                                                             <div className="space-y-0.5">
-                                                                <span className="text-xs font-bold text-brand-navy block">Fixed salary</span>
-                                                                <p className="text-[10px] text-muted-foreground leading-snug">Monthly fixed amount</p>
+                                                                <span className="font-display text-[13px] font-semibold text-ant-ink block">Fixed salary</span>
+                                                                <p className="font-serif italic text-[11px] text-ant-mid leading-snug">Monthly fixed amount</p>
                                                             </div>
                                                         </label>
                                                     </RadioGroup>
                                                 </FormControl>
-                                                <FormMessage />
+                                                <FormMessage className="text-ant-rose" />
                                             </FormItem>
                                         )}
                                     />
@@ -1234,12 +1524,12 @@ const UserModal = ({
                                             control={form.control}
                                             name="commission_price"
                                             render={({ field }) => (
-                                                <FormItem className="space-y-2">
-                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Commission / delivered order</FormLabel>
+                                                <FormItem className="space-y-1.5">
+                                                    <FormLabel className={labelCls}>Commission per delivered order</FormLabel>
                                                     <FormControl>
                                                         <div className="relative">
-                                                            <Input type="number" placeholder="0" {...field} onChange={e => field.onChange(Number(e.target.value))} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
-                                                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-brand-navy/30 text-xs font-bold">DH</span>
+                                                            <Input type="number" placeholder="0" {...field} onChange={(e) => field.onChange(Number(e.target.value))} className={cn(inputCls, 'tabular-nums pr-12')} />
+                                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-ant-mid text-[10px] font-semibold uppercase tracking-[0.18em]">DH</span>
                                                         </div>
                                                     </FormControl>
                                                 </FormItem>
@@ -1250,12 +1540,12 @@ const UserModal = ({
                                             control={form.control}
                                             name="salary_amount"
                                             render={({ field }) => (
-                                                <FormItem className="space-y-2">
-                                                    <FormLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Monthly salary</FormLabel>
+                                                <FormItem className="space-y-1.5">
+                                                    <FormLabel className={labelCls}>Monthly salary</FormLabel>
                                                     <FormControl>
                                                         <div className="relative">
-                                                            <Input type="number" placeholder="0" {...field} onChange={e => field.onChange(Number(e.target.value))} className="h-12 rounded-2xl border-none bg-brand-navy/[0.04] text-sm font-bold text-brand-navy placeholder:text-brand-navy/30 placeholder:font-medium shadow-inner" />
-                                                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-brand-navy/30 text-xs font-bold">DH</span>
+                                                            <Input type="number" placeholder="0" {...field} onChange={(e) => field.onChange(Number(e.target.value))} className={cn(inputCls, 'tabular-nums pr-12')} />
+                                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-ant-mid text-[10px] font-semibold uppercase tracking-[0.18em]">DH</span>
                                                         </div>
                                                     </FormControl>
                                                 </FormItem>
@@ -1266,22 +1556,22 @@ const UserModal = ({
                             </div>
                         </Tabs>
 
-                        <DialogFooter className="px-4 py-3 border-t border-gray-100 gap-2">
+                        <DialogFooter className="px-6 py-4 border-t border-ant-line gap-2">
                             <Button
                                 type="button"
                                 variant="ghost"
                                 onClick={onClose}
-                                className="h-8 px-3 rounded-md text-[11px] font-semibold text-brand-navy hover:bg-gray-100"
+                                className="h-10 px-5 rounded-full text-[12px] font-semibold text-ant-mid hover:text-ant-ink hover:bg-ant-light cursor-pointer"
                             >
                                 Discard
                             </Button>
                             <Button
                                 type="submit"
                                 disabled={loading}
-                                className="h-8 px-4 rounded-md bg-brand-navy hover:bg-brand-navy/90 text-white text-[11px] font-semibold gap-1.5"
+                                className="h-10 px-5 rounded-full bg-ant-ink hover:bg-ant-ink/90 text-white text-[12px] font-semibold gap-2 cursor-pointer"
                             >
-                                {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                                {initialData ? 'Update Account' : 'Create User'}
+                                {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                                {initialData ? 'Save changes' : 'Create user'}
                             </Button>
                         </DialogFooter>
                     </form>

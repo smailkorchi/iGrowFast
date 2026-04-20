@@ -63,6 +63,7 @@
     "lucide-react": "^0.462.0",
     "maplibre-gl": "^5.18.0",
     "next-themes": "^0.3.0",
+    "postprocessing": "^6.39.1",
     "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
@@ -78,6 +79,7 @@
     "sonner": "^1.7.4",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
+    "three": "^0.167.1",
     "vaul": "^0.9.9",
     "xlsx": "https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz",
     "zod": "^3.25.76"

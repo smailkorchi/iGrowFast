@@ -21,15 +21,16 @@ import { format } from 'date-fns';
 import { fetchUrlAsDataUri } from './documentPdf/embedRemoteImages';
 import { saveBlob, type SaveBlobResult } from './saveBlob';
 
-// ─── Brand palette ───────────────────────────────────────────────────────────
-const NAVY = '#3b5e5e';
-const NAVY_DARK = '#2d4747';
-const EMERALD = '#059669';
-const EMERALD_LIGHT = '#a7f3d0';
-const MUTED = '#9aa6a0';
-const BG_CREAM = '#f9faf7';
-const BORDER = '#eef1ee';
-const ROW_BORDER = '#f4f6f2';
+// ─── Brand palette (Anthropic editorial tokens) ──────────────────────────────
+const NAVY = '#141413';         // ant-ink — primary text / dark surfaces
+const NAVY_DARK = '#0d0d0c';    // deepest ink for gradient/header
+const EMERALD = '#2D7A3E';      // ant-green — success accents
+const EMERALD_LIGHT = '#D97706';// ant-orange — net-amount highlight
+const MUTED = '#6B6760';        // ant-mid — secondary text
+const BG_CREAM = '#faf9f5';     // ant-light — page bg
+const BORDER = '#e8e6dc';       // ant-line — hairlines
+const ROW_BORDER = '#f1efe8';   // ant-line-soft — row dividers
+const ORANGE = '#D97706';       // ant-orange — accent stripe
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 export type CourierPayoutPdfLineItem = {

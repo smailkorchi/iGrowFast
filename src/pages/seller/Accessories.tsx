@@ -10,10 +10,8 @@ import {
     Eye,
 } from 'lucide-react';
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Button } from '@/components/ui/button';
 import { TruncatedText } from '@/components/ui/truncated-text';
 import { Input } from '@/components/ui/input';
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -135,274 +133,325 @@ const Accessories = () => {
     }, [accessories]);
 
     return (
-        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
-            {/* Page Header */}
-            <header className="space-y-2.5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Accessories</h1>
-                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Linked to your assigned products — read-only</p>
+        <div className="ant-surface min-h-screen">
+            <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 md:py-8 space-y-6">
+                {/* Editorial header */}
+                <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                    <div className="space-y-2">
+                        <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                            <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                            Commercial · Catalogue
+                        </div>
+                        <h1 className="font-display text-[30px] md:text-[34px] leading-[1.05] tracking-[-0.02em] text-ant-ink">
+                            Accessoires
+                        </h1>
+                        <p className="font-serif italic text-[14px] leading-relaxed text-ant-mid max-w-xl">
+                            Les accessoires liés à vos produits assignés — lecture seule, stock vérifiable d&apos;un coup d&apos;œil.
+                        </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && setViewMode(v as 'grid' | 'list')} variant="outline" size="sm">
-                            <ToggleGroupItem value="grid" className="h-8 w-8 p-0 rounded-r-none">
+                    <div className="flex items-center gap-2 shrink-0">
+                        <ToggleGroup
+                            type="single"
+                            value={viewMode}
+                            onValueChange={(v) => v && setViewMode(v as 'grid' | 'list')}
+                            variant="outline"
+                            size="sm"
+                            className="bg-ant-paper border border-ant-line rounded-full p-1"
+                        >
+                            <ToggleGroupItem value="grid" className="h-8 w-8 p-0 rounded-full data-[state=on]:bg-ant-ink data-[state=on]:text-white border-0">
                                 <LayoutGrid className="w-3.5 h-3.5" />
                             </ToggleGroupItem>
-                            <ToggleGroupItem value="list" className="h-8 w-8 p-0 rounded-l-none border-l-0">
+                            <ToggleGroupItem value="list" className="h-8 w-8 p-0 rounded-full data-[state=on]:bg-ant-ink data-[state=on]:text-white border-0">
                                 <List className="w-3.5 h-3.5" />
                             </ToggleGroupItem>
                         </ToggleGroup>
                         <div className="relative">
-                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
                             <Input
-                                placeholder="Search name or code..."
+                                placeholder="Rechercher nom ou code…"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="pl-8 h-8 rounded-md text-[11px] w-56 border-gray-200"
+                                className="pl-9 h-9 w-60 rounded-full border-ant-line bg-ant-paper text-[12px] focus-visible:ring-1 focus-visible:ring-ant-orange/40"
                             />
                         </div>
                     </div>
-                </div>
-            </header>
+                </header>
 
-            {/* KPI Tiles */}
-            {isLoading ? (
-                <div className="grid grid-cols-2 gap-2">
-                    {Array.from({ length: 2 }).map((_, i) => (
-                        <Skeleton key={i} className="h-16 rounded-xl" />
-                    ))}
-                </div>
-            ) : (
-                <div className="grid grid-cols-2 gap-2">
-                    <div className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
-                        <span className="w-[3px] self-stretch rounded-full" style={{ background: '#3b5e5e' }} />
-                        <div className="flex-1 min-w-0">
-                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Accessories</p>
-                            <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{accessories?.length ?? 0}</p>
-                        </div>
-                    </div>
-                    <div className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
-                        <span className="w-[3px] self-stretch rounded-full" style={{ background: '#3b5e5e' }} />
-                        <div className="flex-1 min-w-0">
-                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Units in stock</p>
-                            <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{new Intl.NumberFormat('fr-FR').format(catalogTotals.totalQuantity)}</p>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Low Stock Banner */}
-            {lowStockAccessories.length > 0 && (
-                <div className="bg-white border border-red-100 rounded-xl px-3.5 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                        <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
-                        <span className="text-[11px] font-semibold text-red-600">
-                            Low stock — {lowStockAccessories.length} {lowStockAccessories.length === 1 ? 'accessory' : 'accessories'}
-                        </span>
-                        <span className="text-[10px] text-gray-400 tabular-nums">
-                            {lowStockAccessoriesTotalUnits} unit{lowStockAccessoriesTotalUnits === 1 ? '' : 's'} remaining
-                        </span>
-                    </div>
-                    <div className="flex items-center -space-x-2 shrink-0">
-                        {lowStockAccessories.slice(0, 5).map((a) => (
-                            <div
-                                key={a.id}
-                                className="relative w-8 h-8 rounded-md border border-red-100 bg-white overflow-hidden shrink-0"
-                                title={`${a.name}: ${Number(a.stock ?? 0)} units`}
-                            >
-                                {a.image_url ? (
-                                    <img src={a.image_url} alt={a.name} className="w-full h-full object-cover" />
-                                ) : (
-                                    <div className="w-full h-full bg-brand-navy/5 flex items-center justify-center">
-                                        <Puzzle className="w-3.5 h-3.5 text-brand-navy/20" />
-                                    </div>
-                                )}
-                                <span className="absolute bottom-0 inset-x-0 bg-red-600/95 text-white text-[8px] font-semibold leading-none py-0.5 text-center tabular-nums">
-                                    {Number(a.stock ?? 0)}
-                                </span>
+                {/* KPI Tiles */}
+                {isLoading ? (
+                    <div className="grid grid-cols-2 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
+                        {Array.from({ length: 2 }).map((_, i) => (
+                            <div key={i} className="bg-ant-paper p-4 animate-pulse">
+                                <div className="h-3 w-20 bg-ant-line rounded" />
+                                <div className="mt-3 h-6 w-16 bg-ant-line rounded" />
                             </div>
                         ))}
-                        {lowStockAccessories.length > 5 && (
-                            <div className="w-8 h-8 rounded-md border border-red-100 bg-white flex items-center justify-center text-[10px] font-semibold text-red-500 shrink-0">
-                                +{lowStockAccessories.length - 5}
-                            </div>
-                        )}
                     </div>
-                </div>
-            )}
-
-            {/* Content Section */}
-            {isLoading ? (
-                <div className={cn(
-                    "grid gap-2.5",
-                    viewMode === 'grid' ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1"
-                )}>
-                    {Array.from({ length: 8 }).map((_, i) => (
-                        viewMode === 'grid' ? (
-                            <Skeleton key={i} className="h-36 rounded-xl" />
-                        ) : (
-                            <div key={i} className="rounded-xl border border-gray-100 bg-white p-3 flex gap-3 items-center">
-                                <Skeleton className="h-14 w-14 rounded-md shrink-0" />
-                                <div className="flex-1 space-y-2">
-                                    <Skeleton className="h-4 w-24" />
-                                    <Skeleton className="h-3 w-16" />
+                ) : (
+                    <section className="grid grid-cols-2 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
+                        <div className="bg-ant-paper p-4">
+                            <div className="flex items-start justify-between gap-2">
+                                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.24em] text-ant-mid">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-ant-ink" />
+                                    Accessoires
+                                </div>
+                                <div className="h-8 w-8 rounded-lg border bg-ant-ink/6 border-ant-ink/15 text-ant-ink flex items-center justify-center">
+                                    <Puzzle className="w-4 h-4" strokeWidth={1.75} />
                                 </div>
                             </div>
-                        )
-                    ))}
-                </div>
-            ) : filteredAccessories?.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-gray-200 bg-white flex flex-col items-center justify-center py-8 gap-2">
-                    <Puzzle className="w-6 h-6 text-gray-400" />
-                    <p className="text-[14px] font-semibold text-brand-navy">
-                        {sellerProductIds.length === 0
-                            ? 'No products assigned'
-                            : accessoryList.length === 0
-                                ? 'No linked accessories'
-                                : 'No accessories found'}
-                    </p>
-                    <p className="text-[11px] text-gray-500 max-w-xs text-center">
-                        {sellerProductIds.length === 0
-                            ? 'Your account has no products linked yet. Ask an admin to assign products to you.'
-                            : accessoryList.length === 0
-                                ? 'None of your assigned products have accessories attached in the catalog.'
-                                : 'Nothing matches your search.'}
-                    </p>
-                </div>
-            ) : (
-                <div className={cn(
-                    "grid gap-2.5",
-                    viewMode === 'grid' ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1"
-                )}>
-                    {filteredAccessories.map((accessory) => {
-                        const isInactive = accessory.active === false;
-                        return viewMode === 'grid' ? (
-                            <div
-                                key={accessory.id}
-                                className="rounded-xl border border-gray-100 bg-white overflow-hidden group relative"
-                            >
-                                <ImageHoverPreview imageUrl={accessory.image_url} name={accessory.name} code={accessory.code}>
-                                <div className="relative aspect-square overflow-hidden bg-brand-navy/[0.02]">
-                                    {accessory.image_url ? (
-                                        <img
-                                            src={accessory.image_url}
-                                            alt={accessory.name}
-                                            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                        />
-                                    ) : (
-                                        <div className="flex items-center justify-center h-full w-full text-brand-navy/10">
-                                            <Puzzle className="w-10 h-10" />
-                                        </div>
-                                    )}
-                                    <div className="absolute top-2 left-2 z-20">
-                                        <Button
-                                            type="button"
-                                            variant="secondary"
-                                            size="icon"
-                                            title="Preview"
-                                            onClick={() => setPreviewAccessory(accessory)}
-                                            className="h-7 w-7 rounded-md bg-white/90 border-none shadow text-brand-navy hover:bg-white transition-all"
-                                        >
-                                            <Eye className="h-3.5 w-3.5" />
-                                        </Button>
-                                    </div>
-                                    {isInactive && (
-                                        <div className="absolute inset-0 bg-brand-navy/40 backdrop-blur-[2px] flex items-center justify-center z-[1] pointer-events-none">
-                                            <Badge variant="secondary" className="text-[9px] px-2 py-0.5">INACTIVE</Badge>
-                                        </div>
-                                    )}
+                            <p className="font-display text-[22px] font-semibold text-ant-ink tabular-nums mt-2">
+                                {accessories?.length ?? 0}
+                                <span className="text-[12px] text-ant-mid font-normal ml-1.5">références</span>
+                            </p>
+                        </div>
+                        <div className="bg-ant-paper p-4">
+                            <div className="flex items-start justify-between gap-2">
+                                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.24em] text-ant-mid">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-ant-green" />
+                                    Unités en stock
                                 </div>
-                                </ImageHoverPreview>
-
-                                <div className="p-3 space-y-2">
-                                    <div>
-                                        <TruncatedText as="p" text={accessory.code} className="text-[9px] font-semibold uppercase tracking-widest text-brand-navy/40 truncate" />
-                                        <TruncatedText as="h3" text={accessory.name} className="text-[12px] font-semibold text-brand-navy leading-snug line-clamp-2 break-words" />
-                                        {isInactive && (
-                                            <span className="inline-block rounded-full bg-brand-navy/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-brand-navy mt-0.5">Inactive</span>
-                                        )}
-                                    </div>
-
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-[9px] text-gray-400 uppercase tracking-[0.14em]">{isInactive ? 'Hidden' : 'Active'}</span>
-                                        <Badge
-                                            className={cn(
-                                                "h-5 px-1.5 text-[9px] border-none",
-                                                (accessory.stock || 0) > 10
-                                                    ? "bg-emerald-50 text-emerald-700"
-                                                    : (accessory.stock || 0) > 0
-                                                    ? "bg-amber-50 text-amber-700"
-                                                    : "bg-red-50 text-red-600"
-                                            )}
-                                        >
-                                            {accessory.stock || 0} in stock
-                                        </Badge>
-                                    </div>
+                                <div className="h-8 w-8 rounded-lg border bg-ant-green/10 border-ant-green/25 text-ant-green flex items-center justify-center">
+                                    <Puzzle className="w-4 h-4" strokeWidth={1.75} />
                                 </div>
                             </div>
-                        ) : (
-                            <div key={accessory.id} className="rounded-xl border border-gray-100 bg-white flex flex-col sm:flex-row items-center p-3 gap-3 hover:bg-gray-50 transition-colors group">
-                                <ImageHoverPreview imageUrl={accessory.image_url} name={accessory.name} code={accessory.code}>
-                                <div className="relative h-14 w-14 shrink-0 rounded-md overflow-hidden bg-brand-navy/[0.02]">
-                                    {accessory.image_url ? (
-                                        <img src={accessory.image_url} alt={accessory.name} className="h-full w-full object-cover" />
-                                    ) : (
-                                        <div className="flex items-center justify-center h-full w-full text-brand-navy/10">
-                                            <Puzzle className="w-6 h-6" />
-                                        </div>
-                                    )}
-                                    {isInactive && (
-                                        <div className="absolute inset-0 bg-brand-navy/40 backdrop-blur-[2px] flex items-center justify-center pointer-events-none">
-                                            <span className="text-[8px] font-semibold text-white">OFF</span>
-                                        </div>
-                                    )}
-                                </div>
-                                </ImageHoverPreview>
+                            <p className="font-display text-[22px] font-semibold text-ant-ink tabular-nums mt-2 truncate">
+                                {new Intl.NumberFormat('fr-FR').format(catalogTotals.totalQuantity)}
+                                <span className="text-[12px] text-ant-mid font-normal ml-1.5">pièces</span>
+                            </p>
+                        </div>
+                    </section>
+                )}
 
-                                <div className="flex-1 min-w-0 space-y-0.5 w-full">
-                                    <div className="flex items-start gap-2 flex-wrap">
-                                        <TruncatedText as="h3" text={accessory.name} className="text-[12px] font-semibold text-brand-navy leading-snug min-w-0 flex-1" />
-                                        <Badge
-                                            className={cn(
-                                                "h-5 px-1.5 text-[9px] border-none shrink-0",
-                                                (accessory.stock || 0) > 10
-                                                    ? "bg-emerald-50 text-emerald-700"
-                                                    : (accessory.stock || 0) > 0
-                                                    ? "bg-amber-50 text-amber-700"
-                                                    : "bg-red-50 text-red-600"
-                                            )}
-                                        >
-                                            {accessory.stock || 0} in stock
-                                        </Badge>
-                                        {isInactive && <Badge variant="secondary" className="h-5 px-1.5 text-[9px]">Inactive</Badge>}
-                                    </div>
-                                    <span className="text-[10px] text-gray-400 font-mono">{accessory.code}</span>
+                {/* Low Stock Banner */}
+                {lowStockAccessories.length > 0 && (
+                    <section className="rounded-2xl border border-ant-rose/25 bg-ant-rose/10 overflow-hidden">
+                        <div className="h-[3px] w-full bg-ant-rose" />
+                        <div className="px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="flex items-center gap-2.5 flex-wrap">
+                                <div className="h-8 w-8 rounded-lg border border-ant-rose/25 bg-ant-rose/10 text-ant-rose flex items-center justify-center shrink-0">
+                                    <AlertTriangle className="w-4 h-4" strokeWidth={1.75} />
                                 </div>
-
-                                <div className="shrink-0 flex items-center gap-1 mt-2 sm:mt-0 w-full sm:w-auto justify-end">
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        title="Preview"
-                                        onClick={() => setPreviewAccessory(accessory)}
-                                        className="h-8 w-8 rounded-md text-brand-navy hover:bg-brand-navy/[0.06]"
+                                <div>
+                                    <p className="font-display text-[13px] font-semibold text-ant-rose">
+                                        Stock faible — {lowStockAccessories.length} {lowStockAccessories.length === 1 ? 'accessoire' : 'accessoires'}
+                                    </p>
+                                    <p className="font-serif italic text-[11px] text-ant-rose/80 tabular-nums">
+                                        {lowStockAccessoriesTotalUnits} unité{lowStockAccessoriesTotalUnits === 1 ? '' : 's'} restante{lowStockAccessoriesTotalUnits === 1 ? '' : 's'}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex items-center -space-x-2 shrink-0">
+                                {lowStockAccessories.slice(0, 5).map((a) => (
+                                    <div
+                                        key={a.id}
+                                        className="relative w-9 h-9 rounded-lg border border-ant-rose/25 bg-ant-paper overflow-hidden shrink-0"
+                                        title={`${a.name}: ${Number(a.stock ?? 0)} units`}
                                     >
-                                        <Eye className="w-3.5 h-3.5" />
-                                    </Button>
-                                </div>
+                                        {a.image_url ? (
+                                            <img src={a.image_url} alt={a.name} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="w-full h-full bg-ant-light flex items-center justify-center">
+                                                <Puzzle className="w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
+                                            </div>
+                                        )}
+                                        <span className="absolute bottom-0 inset-x-0 bg-ant-rose text-white text-[8px] font-semibold leading-none py-0.5 text-center tabular-nums">
+                                            {Number(a.stock ?? 0)}
+                                        </span>
+                                    </div>
+                                ))}
+                                {lowStockAccessories.length > 5 && (
+                                    <div className="w-9 h-9 rounded-lg border border-ant-rose/25 bg-ant-paper flex items-center justify-center text-[10px] font-semibold text-ant-rose shrink-0">
+                                        +{lowStockAccessories.length - 5}
+                                    </div>
+                                )}
                             </div>
-                        );
-                    })}
-                </div>
-            )}
+                        </div>
+                    </section>
+                )}
 
-            <AccessoryPreviewDialog
-                open={!!previewAccessory}
-                onOpenChange={(open) => !open && setPreviewAccessory(null)}
-                accessory={previewAccessory}
-                variant="commercial"
-            />
+                {/* Content */}
+                {isLoading ? (
+                    <div className={cn(
+                        'grid gap-3',
+                        viewMode === 'grid' ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'grid-cols-1',
+                    )}>
+                        {Array.from({ length: 8 }).map((_, i) => (
+                            viewMode === 'grid' ? (
+                                <Skeleton key={i} className="h-48 rounded-2xl" />
+                            ) : (
+                                <div key={i} className="rounded-2xl border border-ant-line bg-ant-paper p-3 flex gap-3 items-center">
+                                    <Skeleton className="h-14 w-14 rounded-xl shrink-0" />
+                                    <div className="flex-1 space-y-2">
+                                        <Skeleton className="h-4 w-24" />
+                                        <Skeleton className="h-3 w-16" />
+                                    </div>
+                                </div>
+                            )
+                        ))}
+                    </div>
+                ) : filteredAccessories?.length === 0 ? (
+                    <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                        <div className="h-[3px] w-full bg-ant-orange" />
+                        <div className="p-10 flex flex-col items-center justify-center gap-3 text-center">
+                            <div className="h-12 w-12 rounded-xl border border-ant-line bg-ant-light flex items-center justify-center">
+                                <Puzzle className="w-5 h-5 text-ant-mid" strokeWidth={1.5} />
+                            </div>
+                            <div className="space-y-1 max-w-sm">
+                                <h3 className="font-display text-[16px] font-semibold text-ant-ink">
+                                    {sellerProductIds.length === 0
+                                        ? 'Aucun produit assigné'
+                                        : accessoryList.length === 0
+                                            ? 'Aucun accessoire lié'
+                                            : 'Aucun résultat'}
+                                </h3>
+                                <p className="font-serif italic text-[12px] text-ant-mid">
+                                    {sellerProductIds.length === 0
+                                        ? 'Votre compte n\u2019a pas encore de produits rattachés. Demandez à un administrateur de vous en assigner.'
+                                        : accessoryList.length === 0
+                                            ? 'Aucun de vos produits assignés n\u2019a d\u2019accessoire rattaché dans le catalogue.'
+                                            : 'Rien ne correspond à votre recherche.'}
+                                </p>
+                            </div>
+                        </div>
+                    </section>
+                ) : (
+                    <div className={cn(
+                        'grid gap-3',
+                        viewMode === 'grid' ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'grid-cols-1',
+                    )}>
+                        {filteredAccessories.map((accessory) => {
+                            const isInactive = accessory.active === false;
+                            const stockTone = (accessory.stock || 0) > 10
+                                ? { bg: 'bg-ant-green/10', border: 'border-ant-green/25', text: 'text-ant-green', dot: 'bg-ant-green' }
+                                : (accessory.stock || 0) > 0
+                                    ? { bg: 'bg-ant-orange/10', border: 'border-ant-orange/25', text: 'text-ant-orange', dot: 'bg-ant-orange' }
+                                    : { bg: 'bg-ant-rose/10', border: 'border-ant-rose/25', text: 'text-ant-rose', dot: 'bg-ant-rose' };
+
+                            return viewMode === 'grid' ? (
+                                <div
+                                    key={accessory.id}
+                                    className="group rounded-2xl border border-ant-line bg-ant-paper overflow-hidden hover:border-ant-ink/30 transition-colors"
+                                >
+                                    <div className="h-[3px] w-full bg-ant-orange" />
+                                    <ImageHoverPreview imageUrl={accessory.image_url} name={accessory.name} code={accessory.code}>
+                                        <div className="relative aspect-square overflow-hidden bg-ant-light">
+                                            {accessory.image_url ? (
+                                                <img
+                                                    src={accessory.image_url}
+                                                    alt={accessory.name}
+                                                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                                                />
+                                            ) : (
+                                                <div className="flex items-center justify-center h-full w-full text-ant-mid">
+                                                    <Puzzle className="w-10 h-10" strokeWidth={1.5} />
+                                                </div>
+                                            )}
+                                            <div className="absolute top-2 left-2 z-20">
+                                                <button
+                                                    type="button"
+                                                    title="Aperçu"
+                                                    onClick={() => setPreviewAccessory(accessory)}
+                                                    className="inline-flex items-center justify-center h-7 w-7 rounded-lg border border-ant-line bg-ant-paper/95 text-ant-ink hover:bg-ant-paper transition-colors shadow-sm"
+                                                >
+                                                    <Eye className="h-3.5 w-3.5" strokeWidth={1.75} />
+                                                </button>
+                                            </div>
+                                            {isInactive && (
+                                                <div className="absolute inset-0 bg-ant-ink/55 backdrop-blur-[2px] flex items-center justify-center z-[1] pointer-events-none">
+                                                    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white uppercase tracking-[0.14em]">
+                                                        <span className="h-1.5 w-1.5 rounded-full bg-white/70" />
+                                                        Désactivé
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </ImageHoverPreview>
+
+                                    <div className="p-4 space-y-2">
+                                        <div className="space-y-1">
+                                            <TruncatedText as="p" text={accessory.code} className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid truncate" />
+                                            <TruncatedText as="h3" text={accessory.name} className="font-display text-[13px] font-semibold text-ant-ink leading-snug line-clamp-2 break-words" />
+                                        </div>
+
+                                        <div className="flex items-center justify-between pt-1 border-t border-ant-line">
+                                            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ant-mid">
+                                                {isInactive ? 'Masqué' : 'Actif'}
+                                            </span>
+                                            <span className={cn(
+                                                'inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold tabular-nums',
+                                                stockTone.bg,
+                                                stockTone.border,
+                                                stockTone.text,
+                                            )}>
+                                                <span className={cn('h-1.5 w-1.5 rounded-full', stockTone.dot)} />
+                                                {accessory.stock || 0} en stock
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div key={accessory.id} className="group rounded-2xl border border-ant-line bg-ant-paper hover:border-ant-ink/30 flex flex-col sm:flex-row items-start sm:items-center p-3 gap-3 transition-colors">
+                                    <ImageHoverPreview imageUrl={accessory.image_url} name={accessory.name} code={accessory.code}>
+                                        <div className="relative h-14 w-14 shrink-0 rounded-xl overflow-hidden border border-ant-line bg-ant-light">
+                                            {accessory.image_url ? (
+                                                <img src={accessory.image_url} alt={accessory.name} className="h-full w-full object-cover" />
+                                            ) : (
+                                                <div className="flex items-center justify-center h-full w-full text-ant-mid">
+                                                    <Puzzle className="w-5 h-5" strokeWidth={1.75} />
+                                                </div>
+                                            )}
+                                            {isInactive && (
+                                                <div className="absolute inset-0 bg-ant-ink/55 backdrop-blur-[1px] flex items-center justify-center pointer-events-none">
+                                                    <span className="text-[8px] font-semibold text-white uppercase tracking-[0.14em]">Off</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </ImageHoverPreview>
+
+                                    <div className="flex-1 min-w-0 space-y-1 w-full">
+                                        <div className="flex items-start gap-2 flex-wrap">
+                                            <TruncatedText as="h3" text={accessory.name} className="font-display text-[13px] font-semibold text-ant-ink leading-snug min-w-0 flex-1" />
+                                            <span className={cn(
+                                                'inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold tabular-nums shrink-0',
+                                                stockTone.bg,
+                                                stockTone.border,
+                                                stockTone.text,
+                                            )}>
+                                                <span className={cn('h-1.5 w-1.5 rounded-full', stockTone.dot)} />
+                                                {accessory.stock || 0} en stock
+                                            </span>
+                                            {isInactive && (
+                                                <span className="inline-flex items-center gap-1.5 rounded-full border border-ant-line bg-ant-light px-2 py-0.5 text-[10px] font-semibold text-ant-mid">
+                                                    Désactivé
+                                                </span>
+                                            )}
+                                        </div>
+                                        <span className="font-mono text-[11px] text-ant-mid">{accessory.code}</span>
+                                    </div>
+
+                                    <div className="shrink-0 flex items-center gap-1 mt-2 sm:mt-0 w-full sm:w-auto justify-end">
+                                        <button
+                                            type="button"
+                                            title="Aperçu"
+                                            onClick={() => setPreviewAccessory(accessory)}
+                                            className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-ant-line bg-ant-paper hover:bg-ant-light text-ant-ink cursor-pointer transition-colors"
+                                        >
+                                            <Eye className="w-3.5 h-3.5" strokeWidth={1.75} />
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+
+                <AccessoryPreviewDialog
+                    open={!!previewAccessory}
+                    onOpenChange={(open) => !open && setPreviewAccessory(null)}
+                    accessory={previewAccessory}
+                    variant="commercial"
+                />
+            </div>
         </div>
     );
 };

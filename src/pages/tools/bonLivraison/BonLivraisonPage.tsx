@@ -5,21 +5,25 @@ import { fr } from 'date-fns/locale';
 import { pdf } from '@react-pdf/renderer';
 import {
   Download,
-  Loader2,
-  Pencil,
-  Plus,
-  Trash2,
   Eye,
+  FileText,
+  Loader2,
+  Package,
   PackageCheck,
+  Pencil,
+  PenLine,
+  Plus,
+  ShoppingCart,
+  Trash2,
+  Truck,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { Json } from '@/lib/database.types';
 import { embedRemoteImagesForPdf } from '@/lib/bonLivraison/embedImagesForPdf';
 import { registerPdfFonts } from '@/lib/documentPdf/registerFonts';
 import { hydrateBonLivraisonFromAnyNote, hydrateBonLivraisonFromOrder } from '@/lib/bonLivraison/hydrate';
-import type { BonLivraisonSnapshot } from '@/lib/bonLivraison/types';
+import type { BonLivraisonSnapshot, BonLivraisonSource } from '@/lib/bonLivraison/types';
 import type { OrderDerivedClient } from '@/lib/devis/types';
-import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -71,6 +75,8 @@ type BusinessRow = {
   signature_url?: string | null;
 };
 
+type SourceFilter = 'all' | BonLivraisonSource;
+
 async function uniqueBlNumber(businessId: string): Promise<string> {
   for (let i = 0; i < 12; i++) {
     const n = `BL-${format(new Date(), 'yyyyMMdd')}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
@@ -90,11 +96,51 @@ function parseSnapshot(json: unknown): BonLivraisonSnapshot | null {
   return json as BonLivraisonSnapshot;
 }
 
-function sourceLabel(s: BonLivraisonSnapshot['source']) {
-  if (s === 'manual') return 'Manuel';
-  if (s === 'order') return 'Commande';
-  return 'Note soc.';
-}
+const SOURCE_META: Record<BonLivraisonSource, {
+  label: string;
+  short: string;
+  bg: string;
+  border: string;
+  text: string;
+  dot: string;
+  stripe: string;
+  iconBg: string;
+  icon: JSX.Element;
+}> = {
+  manual: {
+    label: 'Manuel',
+    short: 'Manuel',
+    bg: 'bg-ant-ink/6',
+    border: 'border-ant-ink/15',
+    text: 'text-ant-ink',
+    dot: 'bg-ant-ink',
+    stripe: 'bg-ant-ink',
+    iconBg: 'bg-ant-ink/6 border-ant-ink/15 text-ant-ink',
+    icon: <PenLine className="w-3 h-3" strokeWidth={1.75} />,
+  },
+  order: {
+    label: 'Commande',
+    short: 'Commande',
+    bg: 'bg-ant-green/10',
+    border: 'border-ant-green/25',
+    text: 'text-ant-green',
+    dot: 'bg-ant-green',
+    stripe: 'bg-ant-green',
+    iconBg: 'bg-ant-green/10 border-ant-green/25 text-ant-green',
+    icon: <ShoppingCart className="w-3 h-3" strokeWidth={1.75} />,
+  },
+  company_delivery_note: {
+    label: 'Note transporteur',
+    short: 'Note soc.',
+    bg: 'bg-ant-orange/10',
+    border: 'border-ant-orange/25',
+    text: 'text-ant-orange',
+    dot: 'bg-ant-orange',
+    stripe: 'bg-ant-orange',
+    iconBg: 'bg-ant-orange/10 border-ant-orange/25 text-ant-orange',
+    icon: <Truck className="w-3 h-3" strokeWidth={1.75} />,
+  },
+};
 
 export default function BonLivraisonPage() {
   const { toast } = useToast();
@@ -106,6 +152,7 @@ export default function BonLivraisonPage() {
   const [initialSnapshot, setInitialSnapshot] = useState<BonLivraisonSnapshot | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
 
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewRow, setPreviewRow] = useState<BonLivraisonRow | null>(null);
@@ -320,7 +367,7 @@ export default function BonLivraisonPage() {
       } catch (e) {
         console.error(e);
         toast({
-          title: 'Apercu indisponible',
+          title: 'Aperçu indisponible',
           description: 'Impossible de charger le PDF.',
           variant: 'destructive',
         });
@@ -503,13 +550,47 @@ export default function BonLivraisonPage() {
 
   const counterpartLabel = useCallback((row: BonLivraisonRow) => {
     const s = parseSnapshot(row.snapshot_json);
-    return s?.client?.name || '-';
+    return s?.client?.name || '—';
   }, []);
 
+  const filteredList = useMemo(() => {
+    if (sourceFilter === 'all') return list;
+    return list.filter(r => {
+      const s = parseSnapshot(r.snapshot_json);
+      return s?.source === sourceFilter;
+    });
+  }, [list, sourceFilter]);
+
   const emptyState = useMemo(
-    () => !listLoading && list.length === 0,
-    [listLoading, list.length],
+    () => !listLoading && filteredList.length === 0,
+    [listLoading, filteredList.length],
   );
+
+  const kpis = useMemo(() => {
+    const totalCount = list.length;
+    let manualCount = 0;
+    let orderCount = 0;
+    let noteCount = 0;
+    let parcelCount = 0;
+    list.forEach(r => {
+      const s = parseSnapshot(r.snapshot_json);
+      if (!s) return;
+      if (s.source === 'manual') manualCount++;
+      else if (s.source === 'order') orderCount++;
+      else if (s.source === 'company_delivery_note') noteCount++;
+      parcelCount += Array.isArray(s.parcels) ? s.parcels.length : 0;
+    });
+    const now = new Date();
+    const thisMonth = list.filter(r => {
+      try {
+        const d = parseISO(r.issued_at);
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      } catch {
+        return false;
+      }
+    }).length;
+    return { totalCount, manualCount, orderCount, noteCount, parcelCount, thisMonth };
+  }, [list]);
 
   useEffect(() => {
     return () => {
@@ -519,207 +600,437 @@ export default function BonLivraisonPage() {
 
   if (!activeBusinessId) {
     return (
-      <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
-        <header className="space-y-2.5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <div>
-              <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Bon de livraison</h1>
-              <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Outils · PDF</p>
+      <div className="ant-surface min-h-screen">
+        <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 md:py-8 space-y-6">
+          <header className="space-y-2">
+            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+              <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+              Outils · Documents
             </div>
-          </div>
-          <p className="text-[11px] text-gray-500">Selectionnez une entreprise active.</p>
-        </header>
+            <h1 className="font-display text-[30px] md:text-[34px] leading-[1.05] tracking-[-0.02em] text-ant-ink">
+              Bons de livraison
+            </h1>
+            <p className="font-serif italic text-[14px] leading-relaxed text-ant-mid max-w-xl">
+              Sélectionnez une entreprise active pour générer vos bons de livraison.
+            </p>
+          </header>
+        </div>
       </div>
     );
   }
 
-  return (
-    <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
-      <header className="space-y-2.5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Bon de livraison</h1>
-            <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Outils · PDF</p>
-          </div>
-          <Button onClick={openCreate} className="h-8 rounded-md text-[11px] font-semibold gap-1.5">
-            <Plus className="w-3.5 h-3.5" /> Nouveau BL
-          </Button>
-        </div>
-      </header>
+  const filterPills: { key: SourceFilter; label: string; count: number }[] = [
+    { key: 'all', label: 'Tous', count: kpis.totalCount },
+    { key: 'manual', label: 'Manuels', count: kpis.manualCount },
+    { key: 'order', label: 'Commandes', count: kpis.orderCount },
+    { key: 'company_delivery_note', label: 'Notes', count: kpis.noteCount },
+  ];
 
-      {listLoading ? (
-        <div className="rounded-xl border border-gray-100 bg-white p-10 flex items-center justify-center">
-          <Loader2 className="w-5 h-5 animate-spin text-gray-300" />
-        </div>
-      ) : emptyState ? (
-        <div className="rounded-xl border border-gray-100 bg-white p-10 flex flex-col items-center justify-center gap-2.5 text-center">
-          <PackageCheck className="w-8 h-8 text-gray-300" />
-          <p className="text-[11px] text-gray-500 max-w-xs">
-            Aucun bon de livraison. Creez-en un : donnees manuelles, import depuis commande, ou depuis une note transporteur.
-          </p>
-          <Button onClick={openCreate} className="h-8 rounded-md text-[11px] font-semibold gap-1.5">
-            <Plus className="w-3.5 h-3.5" /> Nouveau BL
-          </Button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
-          {list.map((row) => {
-            const snap = parseSnapshot(row.snapshot_json);
-            return (
-              <div
-                key={row.id}
-                className="rounded-xl border border-gray-100 bg-white p-3 hover:border-gray-200 transition-colors cursor-pointer"
-                onClick={() => void openPreview(row)}
+  return (
+    <div className="ant-surface min-h-screen">
+      <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 md:py-8 space-y-6">
+        {/* Editorial header */}
+        <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+              <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+              Outils · Documents PDF
+            </div>
+            <h1 className="font-display text-[30px] md:text-[34px] leading-[1.05] tracking-[-0.02em] text-ant-ink">
+              Bons de livraison
+            </h1>
+            <p className="font-serif italic text-[14px] leading-relaxed text-ant-mid max-w-xl">
+              Colis chargés, BL signés. Trois sources, un registre unique — saisie manuelle, import commande, ou reprise d&apos;une note transporteur.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={openCreate}
+            className="inline-flex items-center gap-2 h-10 px-4 rounded-full bg-ant-ink hover:bg-ant-ink/90 text-white text-[12px] font-semibold cursor-pointer shrink-0 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" strokeWidth={2} />
+            Nouveau BL
+          </button>
+        </header>
+
+        {/* KPI Strip */}
+        <section className="grid grid-cols-2 lg:grid-cols-5 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
+          <div className="bg-ant-paper p-4">
+            <div className="flex items-start justify-between gap-2">
+              <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.24em] text-ant-mid">
+                <span className="h-1.5 w-1.5 rounded-full bg-ant-ink" />
+                Bons émis
+              </div>
+              <div className="h-8 w-8 rounded-lg border bg-ant-ink/6 border-ant-ink/15 text-ant-ink flex items-center justify-center">
+                <FileText className="w-4 h-4" strokeWidth={1.75} />
+              </div>
+            </div>
+            <p className="font-display text-[22px] font-semibold text-ant-ink tabular-nums mt-2">
+              {kpis.totalCount}
+              <span className="text-[12px] text-ant-mid font-normal ml-1.5">documents</span>
+            </p>
+          </div>
+          <div className="bg-ant-paper p-4">
+            <div className="flex items-start justify-between gap-2">
+              <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.24em] text-ant-mid">
+                <span className="h-1.5 w-1.5 rounded-full bg-ant-ink" />
+                Manuels
+              </div>
+              <div className="h-8 w-8 rounded-lg border bg-ant-ink/6 border-ant-ink/15 text-ant-ink flex items-center justify-center">
+                <PenLine className="w-4 h-4" strokeWidth={1.75} />
+              </div>
+            </div>
+            <p className="font-display text-[22px] font-semibold text-ant-ink tabular-nums mt-2">
+              {kpis.manualCount}
+              <span className="text-[12px] text-ant-mid font-normal ml-1.5">saisis</span>
+            </p>
+          </div>
+          <div className="bg-ant-paper p-4">
+            <div className="flex items-start justify-between gap-2">
+              <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.24em] text-ant-mid">
+                <span className="h-1.5 w-1.5 rounded-full bg-ant-green" />
+                Commandes
+              </div>
+              <div className="h-8 w-8 rounded-lg border bg-ant-green/10 border-ant-green/25 text-ant-green flex items-center justify-center">
+                <ShoppingCart className="w-4 h-4" strokeWidth={1.75} />
+              </div>
+            </div>
+            <p className="font-display text-[22px] font-semibold text-ant-ink tabular-nums mt-2">
+              {kpis.orderCount}
+              <span className="text-[12px] text-ant-mid font-normal ml-1.5">importées</span>
+            </p>
+          </div>
+          <div className="bg-ant-paper p-4">
+            <div className="flex items-start justify-between gap-2">
+              <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.24em] text-ant-mid">
+                <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                Notes
+              </div>
+              <div className="h-8 w-8 rounded-lg border bg-ant-orange/10 border-ant-orange/25 text-ant-orange flex items-center justify-center">
+                <Truck className="w-4 h-4" strokeWidth={1.75} />
+              </div>
+            </div>
+            <p className="font-display text-[22px] font-semibold text-ant-ink tabular-nums mt-2">
+              {kpis.noteCount}
+              <span className="text-[12px] text-ant-mid font-normal ml-1.5">transporteur</span>
+            </p>
+          </div>
+          <div className="bg-ant-paper p-4">
+            <div className="flex items-start justify-between gap-2">
+              <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.24em] text-ant-mid">
+                <span className="h-1.5 w-1.5 rounded-full bg-ant-mid" />
+                Colis tracés
+              </div>
+              <div className="h-8 w-8 rounded-lg border bg-ant-light border-ant-line text-ant-mid flex items-center justify-center">
+                <Package className="w-4 h-4" strokeWidth={1.75} />
+              </div>
+            </div>
+            <p className="font-display text-[22px] font-semibold text-ant-ink tabular-nums mt-2">
+              {kpis.parcelCount}
+              <span className="text-[12px] text-ant-mid font-normal ml-1.5">suivis</span>
+            </p>
+          </div>
+        </section>
+
+        {/* Filter & list header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+            <span className="font-display text-ant-orange font-semibold">01</span>
+            Registre des BL
+            <span className="font-serif italic tracking-normal normal-case text-[11px] text-ant-mid">
+              · {kpis.thisMonth} ce mois
+            </span>
+          </div>
+          <div className="inline-flex items-center gap-1 p-1 rounded-full border border-ant-line bg-ant-paper overflow-x-auto">
+            {filterPills.map(p => (
+              <button
+                key={p.key}
+                type="button"
+                onClick={() => setSourceFilter(p.key)}
+                className={`inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full text-[11px] font-semibold tabular-nums transition-colors cursor-pointer whitespace-nowrap ${
+                  sourceFilter === p.key
+                    ? 'bg-ant-ink text-white'
+                    : 'text-ant-mid hover:text-ant-ink'
+                }`}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-[12px] font-semibold text-brand-navy tabular-nums">{row.bl_number}</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">
-                      {format(parseISO(row.issued_at), 'd MMM yyyy', { locale: fr })}
-                    </p>
+                {p.label}
+                <span className={`text-[10px] font-normal ${sourceFilter === p.key ? 'text-white/60' : 'text-ant-mid/70'}`}>
+                  {p.count}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* List */}
+        {listLoading ? (
+          <section className="rounded-2xl border border-ant-line bg-ant-paper p-12 flex flex-col items-center justify-center gap-3 text-center">
+            <Loader2 className="w-8 h-8 animate-spin text-ant-mid" strokeWidth={1.5} />
+            <p className="font-serif italic text-[12px] text-ant-mid">Chargement des bons…</p>
+          </section>
+        ) : emptyState ? (
+          <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+            <div className="h-[3px] w-full bg-ant-orange" />
+            <div className="p-12 flex flex-col items-center justify-center gap-3 text-center">
+              <div className="h-12 w-12 rounded-xl border border-ant-line bg-ant-light flex items-center justify-center">
+                <PackageCheck className="w-5 h-5 text-ant-mid" strokeWidth={1.5} />
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-display text-[16px] font-semibold text-ant-ink">
+                  {sourceFilter === 'all'
+                    ? 'Aucun bon de livraison enregistré'
+                    : 'Aucun bon pour ce filtre'}
+                </h3>
+                <p className="font-serif italic text-[12px] text-ant-mid max-w-sm">
+                  Créez un premier BL — données manuelles, import depuis une commande, ou reprise d&apos;une note transporteur.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={openCreate}
+                className="inline-flex items-center gap-2 h-10 px-4 rounded-full bg-ant-ink hover:bg-ant-ink/90 text-white text-[12px] font-semibold cursor-pointer transition-colors mt-1"
+              >
+                <Plus className="w-3.5 h-3.5" strokeWidth={2} />
+                Nouveau BL
+              </button>
+            </div>
+          </section>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {filteredList.map((row) => {
+              const snap = parseSnapshot(row.snapshot_json);
+              const src = snap?.source ?? 'manual';
+              const meta = SOURCE_META[src];
+              const itemCount = snap?.lines?.items?.length || 0;
+              const parcelCount = snap?.parcels?.length || 0;
+              const transportName = snap?.transport?.provider_name;
+              const deliveryDate = snap?.delivery_date;
+              return (
+                <div
+                  key={row.id}
+                  onClick={() => void openPreview(row)}
+                  className="group rounded-2xl border border-ant-line bg-ant-paper overflow-hidden cursor-pointer hover:border-ant-ink/30 transition-colors"
+                >
+                  <div className={`h-[3px] w-full ${meta.stripe}`} />
+                  <div className="p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 space-y-1">
+                        <div className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">
+                          <span className="h-1.5 w-1.5 rounded-full bg-ant-ink" />
+                          {format(parseISO(row.issued_at), 'd MMM yyyy', { locale: fr })}
+                        </div>
+                        <p className="font-display text-[14px] font-semibold text-ant-ink tabular-nums truncate">
+                          {row.bl_number}
+                        </p>
+                      </div>
+                      <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold shrink-0 ${meta.bg} ${meta.border} ${meta.text}`}>
+                        {meta.icon}
+                        {meta.short}
+                      </span>
+                    </div>
+
+                    <div className="pt-2 border-t border-ant-line space-y-1">
+                      <p className="font-serif italic text-[11px] text-ant-mid truncate">
+                        {counterpartLabel(row)}
+                      </p>
+                      {deliveryDate ? (
+                        <div className="flex items-center justify-between text-[10px] font-medium uppercase tracking-[0.14em]">
+                          <span className="text-ant-mid">Livraison</span>
+                          <span className="font-semibold tabular-nums text-ant-ink">
+                            {format(parseISO(deliveryDate), 'd MMM yyyy', { locale: fr })}
+                          </span>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-px bg-ant-line rounded-xl border border-ant-line overflow-hidden">
+                      <div className="bg-ant-paper px-3 py-2">
+                        <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-ant-mid">
+                          <Package className="w-2.5 h-2.5" strokeWidth={2} />
+                          Lignes
+                        </div>
+                        <p className="font-display text-[14px] font-semibold tabular-nums text-ant-ink mt-0.5">{itemCount}</p>
+                      </div>
+                      <div className="bg-ant-paper px-3 py-2">
+                        <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-ant-mid">
+                          <Truck className="w-2.5 h-2.5" strokeWidth={2} />
+                          Colis
+                        </div>
+                        <p className="font-display text-[14px] font-semibold tabular-nums text-ant-ink mt-0.5">{parcelCount}</p>
+                      </div>
+                    </div>
+
+                    {transportName ? (
+                      <div className="flex items-center justify-between text-[10px] font-medium uppercase tracking-[0.14em]">
+                        <span className="text-ant-mid">Transporteur</span>
+                        <span className="font-semibold text-ant-orange truncate max-w-[60%]">{transportName}</span>
+                      </div>
+                    ) : null}
+
+                    <div className="flex items-center gap-1 pt-2 border-t border-ant-line" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => void openPreview(row)}
+                        className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-ant-line bg-ant-paper hover:bg-ant-light text-[11px] font-semibold text-ant-ink cursor-pointer transition-colors"
+                      >
+                        <Eye className="w-3 h-3" strokeWidth={1.75} />
+                        Aperçu
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openEdit(row)}
+                        aria-label="Modifier"
+                        className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-ant-line bg-ant-paper hover:bg-ant-light text-ant-ink cursor-pointer transition-colors"
+                      >
+                        <Pencil className="w-3 h-3" strokeWidth={1.75} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleDownload(row)}
+                        aria-label="Télécharger"
+                        className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-ant-line bg-ant-paper hover:bg-ant-light text-ant-ink cursor-pointer transition-colors"
+                      >
+                        <Download className="w-3 h-3" strokeWidth={1.75} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteTarget(row)}
+                        aria-label="Supprimer"
+                        className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-ant-line bg-ant-paper hover:bg-ant-rose/10 hover:border-ant-rose/25 text-ant-rose cursor-pointer transition-colors ml-auto"
+                      >
+                        <Trash2 className="w-3 h-3" strokeWidth={1.75} />
+                      </button>
+                    </div>
                   </div>
-                  {snap ? (
-                    <span className="inline-flex items-center h-5 px-1.5 text-[9px] font-semibold rounded-md bg-gray-100 text-gray-600 shrink-0">
-                      {sourceLabel(snap.source)}
-                    </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <BonLivraisonWizard
+          key={wizardKey}
+          open={wizardOpen}
+          onOpenChange={setWizardOpen}
+          business={business}
+          products={products}
+          orderClients={orderClients}
+          ordersForPicker={ordersForPicker}
+          notesForPicker={notesForPicker}
+          hydrateOrder={hydrateOrder}
+          hydrateCompanyNote={hydrateCompanyNote}
+          initialSnapshot={initialSnapshot}
+          isSubmitting={isSubmitting}
+          onSubmit={(s) => persist(s)}
+        />
+
+        <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+          <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0 gap-0 rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+            <DialogHeader className="px-5 py-3.5 border-b border-ant-line shrink-0 bg-ant-paper">
+              <div className="flex items-center justify-between gap-2">
+                <div className="space-y-1">
+                  <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                    <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                    Aperçu du BL
+                    {previewRow ? (() => {
+                      const snap = parseSnapshot(previewRow.snapshot_json);
+                      const src = snap?.source ?? 'manual';
+                      const meta = SOURCE_META[src];
+                      return (
+                        <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-normal normal-case ${meta.bg} ${meta.border} ${meta.text}`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${meta.dot}`} />
+                          {meta.label}
+                        </span>
+                      );
+                    })() : null}
+                  </div>
+                  <DialogTitle className="font-display text-[18px] font-semibold text-ant-ink leading-tight tabular-nums">
+                    {previewRow?.bl_number || 'Nouveau BL'}
+                  </DialogTitle>
+                  {previewRow ? (
+                    <p className="font-serif italic text-[12px] text-ant-mid">{counterpartLabel(previewRow)}</p>
                   ) : null}
                 </div>
-                <p className="text-[11px] text-gray-600 line-clamp-1 mt-2">{counterpartLabel(row)}</p>
-                <div className="flex gap-1 mt-2.5 pt-2 border-t border-gray-100" onClick={(e) => e.stopPropagation()}>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 px-2 text-[10px] font-semibold gap-1 rounded-md"
-                    onClick={() => void openPreview(row)}
-                  >
-                    <Eye className="w-3 h-3" />
-                    Apercu
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 px-2 text-[10px] font-semibold gap-1 rounded-md"
-                    onClick={() => openEdit(row)}
-                  >
-                    <Pencil className="w-3 h-3" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 px-2 text-[10px] font-semibold gap-1 rounded-md"
-                    onClick={() => void handleDownload(row)}
-                  >
-                    <Download className="w-3 h-3" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 px-2 text-[10px] font-semibold gap-1 rounded-md ml-auto text-red-500 hover:text-red-600"
-                    onClick={() => setDeleteTarget(row)}
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
+                <div className="flex gap-1.5">
+                  {previewRow ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => void handleDownload(previewRow)}
+                        className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full border border-ant-line bg-ant-paper hover:bg-ant-light text-[11px] font-semibold text-ant-ink cursor-pointer transition-colors"
+                      >
+                        <Download className="w-3 h-3" strokeWidth={1.75} />
+                        Télécharger
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!previewRow) return;
+                          setPreviewOpen(false);
+                          openEdit(previewRow);
+                        }}
+                        className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full bg-ant-ink hover:bg-ant-ink/90 text-white text-[11px] font-semibold cursor-pointer transition-colors"
+                      >
+                        <Pencil className="w-3 h-3" strokeWidth={1.75} />
+                        Modifier
+                      </button>
+                    </>
+                  ) : inlinePdfUrl ? (
+                    <a
+                      href={inlinePdfUrl}
+                      download="bon-livraison.pdf"
+                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full border border-ant-line bg-ant-paper hover:bg-ant-light text-[11px] font-semibold text-ant-ink cursor-pointer transition-colors"
+                    >
+                      <Download className="w-3 h-3" strokeWidth={1.75} />
+                      Télécharger
+                    </a>
+                  ) : null}
                 </div>
               </div>
-            );
-          })}
-        </div>
-      )}
-
-      <BonLivraisonWizard
-        key={wizardKey}
-        open={wizardOpen}
-        onOpenChange={setWizardOpen}
-        business={business}
-        products={products}
-        orderClients={orderClients}
-        ordersForPicker={ordersForPicker}
-        notesForPicker={notesForPicker}
-        hydrateOrder={hydrateOrder}
-        hydrateCompanyNote={hydrateCompanyNote}
-        initialSnapshot={initialSnapshot}
-        isSubmitting={isSubmitting}
-        onSubmit={(s) => persist(s)}
-      />
-
-      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0 gap-0 rounded-xl border border-gray-100">
-          <DialogHeader className="p-4 border-b shrink-0">
-            <DialogTitle className="text-[14px] font-semibold text-brand-navy">
-              {previewRow?.bl_number || 'Apercu du bon de livraison'}
-              {previewRow ? (
-                <span className="text-[11px] font-normal text-gray-400 ml-2">{counterpartLabel(previewRow)}</span>
-              ) : null}
-            </DialogTitle>
-            <div className="flex gap-1.5 pt-2">
-              {previewRow ? (
-                <>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 px-2 text-[10px] font-semibold gap-1 rounded-md"
-                    onClick={() => void handleDownload(previewRow)}
-                  >
-                    <Download className="w-3 h-3" />
-                    Telecharger
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="h-7 px-2 text-[10px] font-semibold gap-1 rounded-md"
-                    onClick={() => {
-                      if (!previewRow) return;
-                      setPreviewOpen(false);
-                      openEdit(previewRow);
-                    }}
-                  >
-                    <Pencil className="w-3 h-3" />
-                    Modifier
-                  </Button>
-                </>
-              ) : inlinePdfUrl ? (
-                <Button size="sm" variant="outline" className="h-7 px-2 text-[10px] font-semibold gap-1 rounded-md" asChild>
-                  <a href={inlinePdfUrl} download="bon-livraison.pdf">
-                    <Download className="w-3 h-3" />
-                    Telecharger
-                  </a>
-                </Button>
-              ) : null}
+            </DialogHeader>
+            <div className="flex-1 min-h-0 bg-ant-light relative">
+              {previewLoading ? (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <Loader2 className="w-8 h-8 animate-spin text-ant-mid" strokeWidth={1.5} />
+                </div>
+              ) : previewUrl ? (
+                <iframe title="Aperçu BL" src={`${previewUrl}#toolbar=0&navpanes=0`} className="w-full h-full border-0" />
+              ) : (
+                <p className="p-8 font-serif italic text-[12px] text-ant-mid">Aucun PDF disponible.</p>
+              )}
             </div>
-          </DialogHeader>
-          <div className="flex-1 min-h-0 bg-gray-50 relative">
-            {previewLoading ? (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <Loader2 className="w-5 h-5 animate-spin text-gray-300" />
-              </div>
-            ) : previewUrl ? (
-              <iframe title="Apercu BL" src={`${previewUrl}#toolbar=0&navpanes=0`} className="w-full h-full border-0" />
-            ) : (
-              <p className="p-8 text-[11px] text-gray-500">Aucun PDF.</p>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
 
-      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
-        <AlertDialogContent className="rounded-xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-[14px]">Supprimer ce bon de livraison ?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Le fichier PDF et l&apos;entree seront supprimes definitivement.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="h-8 rounded-md text-[11px]">Annuler</AlertDialogCancel>
-            <AlertDialogAction
-              className="h-8 rounded-md text-[11px] bg-red-600 hover:bg-red-700"
-              disabled={deleting}
-              onClick={() => void confirmDelete()}
-            >
-              {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Supprimer'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+          <AlertDialogContent className="rounded-2xl border border-ant-line bg-ant-paper">
+            <AlertDialogHeader>
+              <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                <span className="h-1.5 w-1.5 rounded-full bg-ant-rose" />
+                Suppression définitive
+              </div>
+              <AlertDialogTitle className="font-display text-[18px] font-semibold text-ant-ink">
+                Supprimer ce bon de livraison ?
+              </AlertDialogTitle>
+              <AlertDialogDescription className="font-serif italic text-[12px] text-ant-mid">
+                Le fichier PDF et l&apos;entrée seront supprimés définitivement. L&apos;action est irréversible.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="h-9 rounded-full border-ant-line bg-ant-paper hover:bg-ant-light text-[12px] font-semibold text-ant-ink">
+                Annuler
+              </AlertDialogCancel>
+              <AlertDialogAction
+                className="h-9 rounded-full bg-ant-rose hover:bg-ant-rose/90 text-white text-[12px] font-semibold"
+                disabled={deleting}
+                onClick={() => void confirmDelete()}
+              >
+                {deleting ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.5} /> : 'Supprimer'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
     </div>
   );
 }

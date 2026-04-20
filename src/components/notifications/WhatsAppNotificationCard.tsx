@@ -11,7 +11,6 @@ import {
 
 const AUTO_DISMISS_MS = 6000;
 
-// ── Single card ────────────────────────────────────────────────────────────
 function NotificationCard({ n, index }: { n: WhatsAppNotification; index: number }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -21,7 +20,6 @@ function NotificationCard({ n, index }: { n: WhatsAppNotification; index: number
   const remainingRef = useRef(AUTO_DISMISS_MS);
   const startedAtRef = useRef(Date.now());
 
-  // Auto-dismiss countdown (pauses on hover)
   const start = (ms: number) => {
     clearTimeout(timerRef.current!);
     startedAtRef.current = Date.now();
@@ -53,12 +51,13 @@ function NotificationCard({ n, index }: { n: WhatsAppNotification; index: number
     setLeaving(true);
     setTimeout(() => {
       whatsappNotificationStore.dismiss(n.id);
-      // Route to the correct inbox depending on the user's current scope.
       const isSeller = location.pathname.startsWith('/seller');
       const base = isSeller ? '/seller/whatsapp/inbox' : '/business/whatsapp/inbox';
       navigate(`${base}?instance=${encodeURIComponent(n.instanceName)}&jid=${encodeURIComponent(n.remoteJid)}`);
     }, 220);
   };
+
+  const initials = (n.senderName || '?').trim().slice(0, 2).toUpperCase();
 
   return (
     <div
@@ -70,74 +69,78 @@ function NotificationCard({ n, index }: { n: WhatsAppNotification; index: number
           ? 'translateX(120%) scale(0.96)'
           : `translateY(${index * 6}px) scale(${1 - index * 0.015})`,
         opacity: leaving ? 0 : 1 - index * 0.05,
-        transitionProperty: 'transform, opacity, box-shadow',
+        transitionProperty: 'transform, opacity, box-shadow, border-color',
         transitionDuration: leaving ? '260ms' : '420ms',
         transitionTimingFunction: 'cubic-bezier(0.22, 1, 0.36, 1)',
       }}
-      className="group relative w-[380px] cursor-pointer rounded-[22px] bg-white/80 backdrop-blur-2xl shadow-[0_2px_8px_-2px_rgba(0,0,0,0.06),0_20px_60px_-20px_rgba(0,0,0,0.25)] hover:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.08),0_28px_80px_-24px_rgba(0,0,0,0.3)] ring-1 ring-black/[0.04] mb-2.5 select-none overflow-hidden hover:-translate-y-px transition-all"
+      className="group relative w-[380px] cursor-pointer rounded-2xl bg-ant-paper border border-ant-line hover:border-ant-ink/30 shadow-[0_24px_60px_-24px_rgba(20,20,19,0.2)] hover:shadow-[0_28px_72px_-24px_rgba(20,20,19,0.28)] mb-2.5 select-none overflow-hidden hover:-translate-y-px"
     >
-      {/* Subtle WhatsApp accent strip */}
-      <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#25D366]/40 to-transparent" />
+      {/* WhatsApp stripe — ant-green for consistency with brand */}
+      <div className="absolute top-0 inset-x-0 h-[3px] bg-ant-green" />
 
-      <div className="flex items-start gap-3.5 p-4">
-        {/* Sender avatar with instance avatar badge */}
+      <div className="flex items-start gap-3 p-4 pr-10">
+        {/* Sender avatar + instance badge */}
         <div className="relative shrink-0">
-          <div className="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center ring-1 ring-black/5 shadow-sm">
+          <div className="w-11 h-11 rounded-xl overflow-hidden border border-ant-line bg-ant-light flex items-center justify-center">
             {n.senderAvatarUrl ? (
               <img src={n.senderAvatarUrl} alt="" className="w-full h-full object-cover" />
             ) : (
-              <span className="text-gray-500 text-[13px] font-semibold tracking-tight">
-                {(n.senderName || '?').substring(0, 2).toUpperCase()}
+              <span className="font-display text-[13px] font-semibold text-ant-mid tabular-nums">
+                {initials}
               </span>
             )}
           </div>
-          {/* Instance avatar badge — overlapping bottom-right */}
-          <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full overflow-hidden ring-2 ring-white shadow-sm bg-white flex items-center justify-center">
+          <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-lg overflow-hidden border border-ant-paper bg-ant-paper flex items-center justify-center shadow-sm">
             {n.instanceAvatarUrl ? (
               <img src={n.instanceAvatarUrl} alt="" className="w-full h-full object-cover" />
             ) : (
-              <FaWhatsapp className="w-2.5 h-2.5 text-[#25D366]" />
+              <div className="w-full h-full rounded-[5px] bg-ant-green/10 flex items-center justify-center">
+                <FaWhatsapp className="w-2.5 h-2.5 text-ant-green" />
+              </div>
             )}
           </div>
         </div>
 
         {/* Body */}
-        <div className="flex-1 min-w-0 pt-px">
-          <div className="flex items-baseline justify-between gap-2">
-            <p className="text-[14.5px] font-semibold text-gray-900 truncate leading-tight tracking-[-0.01em]">
-              {n.senderName || 'Unknown'}
-            </p>
-            <span className="text-[10px] font-medium text-gray-400 tracking-wide shrink-0">now</span>
+        <div className="flex-1 min-w-0 space-y-1">
+          <div className="inline-flex items-center gap-1.5 text-[9px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+            <span className="h-1.5 w-1.5 rounded-full bg-ant-green" />
+            WhatsApp · nouveau message
           </div>
-          <p className="text-[13px] text-gray-600 leading-[1.45] mt-1 line-clamp-2 break-words">
+          <div className="flex items-baseline justify-between gap-2">
+            <p className="font-display text-[14px] font-semibold text-ant-ink truncate leading-tight">
+              {n.senderName || 'Inconnu'}
+            </p>
+            <span className="font-serif italic text-[11px] text-ant-mid shrink-0">à l&apos;instant</span>
+          </div>
+          <p className="text-[12px] leading-relaxed text-ant-ink/80 line-clamp-2 break-words">
             {n.preview}
           </p>
-          <div className="flex items-center gap-1.5 mt-2">
-            <FaWhatsapp className="w-2.5 h-2.5 text-[#25D366]/80 shrink-0" />
-            <span className="text-[10.5px] font-medium text-gray-400 tracking-tight truncate">
+          <div className="pt-1.5 border-t border-ant-line flex items-center gap-1.5">
+            <FaWhatsapp className="w-2.5 h-2.5 text-ant-green shrink-0" />
+            <span className="font-serif italic text-[11px] text-ant-mid truncate">
               {n.instanceName}
             </span>
           </div>
         </div>
 
-        {/* Dismiss — only on hover */}
+        {/* Dismiss */}
         <button
           onClick={(e) => {
             e.stopPropagation();
             setLeaving(true);
             setTimeout(() => whatsappNotificationStore.dismiss(n.id), 220);
           }}
-          className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-all duration-200 w-6 h-6 rounded-full bg-black/[0.04] hover:bg-black/[0.08] backdrop-blur-sm flex items-center justify-center shrink-0"
-          aria-label="Dismiss"
+          aria-label="Ignorer"
+          className="absolute right-2.5 top-2.5 inline-flex items-center justify-center h-6 w-6 rounded-lg border border-ant-line bg-ant-paper text-ant-mid opacity-0 group-hover:opacity-100 hover:bg-ant-light hover:text-ant-ink transition-all duration-200"
         >
-          <X className="w-3 h-3 text-gray-600" strokeWidth={2.5} />
+          <X className="w-3 h-3" strokeWidth={1.75} />
         </button>
       </div>
     </div>
   );
 }
 
-// ── Stack (portal) ─────────────────────────────────────────────────────────
 export function WhatsAppNotificationStack() {
   const { notifications } = useWhatsAppNotificationsState();
   if (typeof document === 'undefined') return null;

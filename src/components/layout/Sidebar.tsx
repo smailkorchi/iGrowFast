@@ -33,7 +33,6 @@ import {
     Store,
     MessageSquare,
     Puzzle,
-    Key,
     Briefcase,
     LayoutDashboard,
     FileSpreadsheet,
@@ -149,7 +148,7 @@ const navigation: NavSection[] = [
         icon: Briefcase,
         items: [
             { icon: LayoutDashboard, label: 'Overview', path: '/business' },
-            { icon: Wallet, label: 'Payments', path: '/business/payments' },
+            { icon: Wallet, label: 'Billing', path: '/business/payments' },
         ],
     },
     {
@@ -178,10 +177,35 @@ const navigation: NavSection[] = [
             { icon: Upload, label: 'Import Orders', path: '/import-orders' },
             { icon: Upload, label: 'Import Products', path: '/import-products' },
             { icon: Upload, label: 'Import Accessories', path: '/import-accessories' },
-            { icon: Key, label: 'AI Keys', path: '/ai-keys' },
         ],
     },
 ];
+
+const ALL_NAV_PATHS = navigation.flatMap((s) => s.items.map((i) => i.path));
+
+function isParentPath(path: string): boolean {
+    return ALL_NAV_PATHS.some((other) => other !== path && other.startsWith(path + '/'));
+}
+
+function findActiveSection(pathname: string): string | null {
+    let best: { label: string; length: number } | null = null;
+    for (const section of navigation) {
+        if (!section.label) continue;
+        for (const item of section.items) {
+            const match = pathname === item.path || pathname.startsWith(item.path + '/');
+            if (!match) continue;
+            const len = item.path.length;
+            if (!best || len > best.length) {
+                best = { label: section.label, length: len };
+            }
+        }
+    }
+    return best?.label ?? null;
+}
+
+function isSectionActive(pathname: string, sectionLabel: string): boolean {
+    return findActiveSection(pathname) === sectionLabel;
+}
 
 const Sidebar = () => {
     const navigate = useNavigate();
@@ -199,41 +223,19 @@ const Sidebar = () => {
         });
     };
 
-    const [expandedSection, setExpandedSection] = React.useState<string | null>(() => {
-        let activeSection: string | null = null;
-        navigation.forEach((section) => {
-            if (
-                section.label &&
-                section.items.some(
-                    (item) =>
-                        location.pathname === item.path ||
-                        location.pathname.startsWith(item.path + '/'),
-                )
-            ) {
-                activeSection = section.label;
-            }
-        });
-        return activeSection;
-    });
+    const [expandedSection, setExpandedSection] = React.useState<string | null>(
+        () => findActiveSection(location.pathname),
+    );
 
     const toggleSection = (label: string) => {
         setExpandedSection((prev) => (prev === label ? null : label));
     };
 
     React.useEffect(() => {
-        navigation.forEach((section) => {
-            if (
-                section.label &&
-                section.items.some(
-                    (item) =>
-                        location.pathname === item.path ||
-                        location.pathname.startsWith(item.path + '/'),
-                )
-            ) {
-                const label = section.label;
-                setExpandedSection((prev) => (prev !== label ? label : prev));
-            }
-        });
+        const label = findActiveSection(location.pathname);
+        if (label) {
+            setExpandedSection((prev) => (prev !== label ? label : prev));
+        }
     }, [location.pathname]);
 
     const { data: profile, isLoading: isProfileLoading } = useQuery({
@@ -316,9 +318,7 @@ const Sidebar = () => {
                                                 'flex items-center w-full h-9 rounded-lg transition-all duration-300 group/item relative',
                                                 'hover:bg-white/[0.04]',
                                                 expandedSection === section.label ||
-                                                    section.items.some(
-                                                        (item) => location.pathname === item.path,
-                                                    )
+                                                    isSectionActive(location.pathname, section.label!)
                                                     ? 'text-ant-light'
                                                     : 'text-ant-light/50 hover:text-ant-light',
                                             )}
@@ -355,6 +355,7 @@ const Sidebar = () => {
                                                     <NavLink
                                                         key={item.path}
                                                         to={item.path}
+                                                        end={isParentPath(item.path)}
                                                         className={({ isActive }) =>
                                                             cn(
                                                                 'flex items-center h-8 rounded-md transition-all duration-300 group/subitem relative',
@@ -398,6 +399,7 @@ const Sidebar = () => {
                                             <NavLink
                                                 key={item.path}
                                                 to={item.path}
+                                                end={isParentPath(item.path)}
                                                 className={({ isActive }) =>
                                                     cn(
                                                         'flex items-center h-9 rounded-lg transition-all duration-300 group/item relative',
@@ -440,6 +442,7 @@ const Sidebar = () => {
                         <div className="mt-1 pt-1 border-t border-white/[0.05]">
                             <NavLink
                                 to="/trash"
+                                end={isParentPath('/trash')}
                                 className={({ isActive }) =>
                                     cn(
                                         'flex items-center h-9 rounded-lg transition-all duration-300 group/item relative',
@@ -451,6 +454,12 @@ const Sidebar = () => {
                             >
                                 {({ isActive }) => (
                                     <>
+                                        {isActive && (
+                                            <span
+                                                aria-hidden
+                                                className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-ant-orange"
+                                            />
+                                        )}
                                         <div className="w-[44px] h-9 flex items-center justify-center shrink-0">
                                             <Trash2
                                                 className={cn(
@@ -474,6 +483,7 @@ const Sidebar = () => {
                     <div className="px-2 pt-2 pb-1.5 border-t border-white/[0.06]">
                         <NavLink
                             to="/profile"
+                            end={isParentPath('/profile')}
                             className={({ isActive }) =>
                                 cn(
                                     'flex items-center h-11 rounded-lg transition-all duration-300 group/profile relative',
@@ -483,32 +493,57 @@ const Sidebar = () => {
                                 )
                             }
                         >
-                            <div className="w-[44px] h-11 flex items-center justify-center shrink-0">
-                                <div className="w-8 h-8 rounded-full overflow-hidden bg-ant-ink-soft ring-1 ring-white/10 flex items-center justify-center transition-transform duration-500 group-hover/profile:scale-105">
-                                    {isProfileLoading ? (
-                                        <Loader2 className="w-3.5 h-3.5 animate-spin text-ant-light" />
-                                    ) : profile?.avatar_url ? (
-                                        <img
-                                            src={profile.avatar_url}
-                                            className="w-full h-full object-cover"
-                                            alt=""
+                            {({ isActive }) => (
+                                <>
+                                    {isActive && (
+                                        <span
+                                            aria-hidden
+                                            className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-ant-orange"
                                         />
-                                    ) : (
-                                        <UserIcon className="w-3.5 h-3.5 text-ant-light/70" />
                                     )}
-                                </div>
-                            </div>
-                            <div className="ml-1.5 opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100 transition-all duration-500 delay-150 whitespace-nowrap overflow-hidden">
-                                <span className="block text-[11.5px] font-medium text-ant-light tracking-tight truncate max-w-[140px]">
-                                    {profile?.name || 'User'}
-                                </span>
-                                <span className="flex items-center gap-1 mt-0.5">
-                                    <span className="w-1 h-1 rounded-full bg-ant-green" />
-                                    <span className="text-[9px] font-medium uppercase tracking-[0.18em] text-ant-mid">
-                                        {profile?.role || 'Admin'}
-                                    </span>
-                                </span>
-                            </div>
+                                    <div className="w-[44px] h-11 flex items-center justify-center shrink-0">
+                                        <div
+                                            className={cn(
+                                                'w-8 h-8 rounded-full overflow-hidden bg-ant-ink-soft flex items-center justify-center transition-all duration-500 group-hover/profile:scale-105',
+                                                isActive ? 'ring-2 ring-ant-orange' : 'ring-1 ring-white/10',
+                                            )}
+                                        >
+                                            {isProfileLoading ? (
+                                                <Loader2 className="w-3.5 h-3.5 animate-spin text-ant-light" />
+                                            ) : profile?.avatar_url ? (
+                                                <img
+                                                    src={profile.avatar_url}
+                                                    className="w-full h-full object-cover"
+                                                    alt=""
+                                                />
+                                            ) : (
+                                                <UserIcon
+                                                    className={cn(
+                                                        'w-3.5 h-3.5',
+                                                        isActive ? 'text-ant-orange' : 'text-ant-light/70',
+                                                    )}
+                                                />
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="ml-1.5 opacity-0 group-hover/sidebar-inner:opacity-100 group-data-[pinned=true]/sidebar-inner:opacity-100 transition-all duration-500 delay-150 whitespace-nowrap overflow-hidden">
+                                        <span className="block text-[11.5px] font-medium text-ant-light tracking-tight truncate max-w-[140px]">
+                                            {profile?.name || 'User'}
+                                        </span>
+                                        <span className="flex items-center gap-1 mt-0.5">
+                                            <span className="w-1 h-1 rounded-full bg-ant-green" />
+                                            <span
+                                                className={cn(
+                                                    'text-[9px] font-medium uppercase tracking-[0.18em]',
+                                                    isActive ? 'text-ant-orange' : 'text-ant-mid',
+                                                )}
+                                            >
+                                                {profile?.role || 'Admin'}
+                                            </span>
+                                        </span>
+                                    </div>
+                                </>
+                            )}
                         </NavLink>
                     </div>
 

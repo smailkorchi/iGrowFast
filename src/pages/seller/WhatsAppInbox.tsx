@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, MessageSquare } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import BusinessWhatsAppInbox from '@/pages/business/WhatsAppInbox';
 
@@ -65,30 +65,50 @@ export default function SellerWhatsAppInbox() {
 
   if (loading) {
     return (
-      <div className="h-[calc(100vh-100px)] flex items-center justify-center">
-        <Loader2 className="w-5 h-5 text-brand-navy animate-spin" />
+      <div className="ant-surface min-h-screen flex items-center justify-center">
+        <Loader2 className="w-6 h-6 text-ant-mid animate-spin" strokeWidth={1.5} />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="h-[calc(100vh-100px)] flex items-center justify-center">
-        <p className="text-[11px] font-semibold text-red-600">{error}</p>
+      <div className="ant-surface min-h-screen flex items-center justify-center px-4">
+        <div className="inline-flex items-center gap-2 rounded-full border border-ant-rose/25 bg-ant-rose/10 px-3 py-1.5 text-[12px] font-semibold text-ant-rose">
+          <span className="h-1.5 w-1.5 rounded-full bg-ant-rose" />
+          {error}
+        </div>
       </div>
     );
   }
 
   if (allowedIds && allowedIds.length === 0) {
     return (
-      <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5">
-        <div className="rounded-xl border border-gray-100 bg-white p-3.5 flex flex-col items-center justify-center py-16 gap-3">
-          <div className="text-center">
-            <p className="text-[13px] font-semibold text-brand-navy">No WhatsApp Access</p>
-            <p className="text-[11px] text-gray-400 mt-1 max-w-xs">
-              You haven't been assigned any WhatsApp devices yet. Ask your administrator to grant access.
-            </p>
-          </div>
+      <div className="ant-surface min-h-screen">
+        <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 md:py-8 space-y-6">
+          <header className="space-y-2">
+            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+              <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+              Commercial · WhatsApp
+            </div>
+            <h1 className="font-display text-[30px] md:text-[34px] leading-[1.05] tracking-[-0.02em] text-ant-ink">
+              Boîte de réception
+            </h1>
+          </header>
+          <section className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+            <div className="h-[3px] w-full bg-ant-orange" />
+            <div className="p-10 flex flex-col items-center gap-3 text-center">
+              <div className="h-12 w-12 rounded-xl border border-ant-line bg-ant-light flex items-center justify-center">
+                <MessageSquare className="w-5 h-5 text-ant-mid" strokeWidth={1.5} />
+              </div>
+              <div className="space-y-1 max-w-md">
+                <h2 className="font-display text-[16px] font-semibold text-ant-ink">Aucun accès WhatsApp</h2>
+                <p className="font-serif italic text-[12px] text-ant-mid">
+                  Aucune instance WhatsApp ne vous a été attribuée. Contactez un administrateur pour obtenir l&apos;accès.
+                </p>
+              </div>
+            </div>
+          </section>
         </div>
       </div>
     );

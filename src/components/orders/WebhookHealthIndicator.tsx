@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Activity, Wifi, WifiOff, ExternalLink, CheckCircle2, AlertTriangle, Clock } from 'lucide-react';
+import { Activity, Wifi, WifiOff, CheckCircle2, AlertTriangle, Clock } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useWebhookHealth, type WebhookHealthState } from '@/hooks/useWebhookHealth';
 import { cn } from '@/lib/utils';
@@ -170,13 +170,6 @@ export function WebhookHealthIndicator({
                         </div>
                     )}
 
-                    {/* Link to Webhooks page */}
-                    <a
-                        href="/webhooks"
-                        className="flex items-center gap-1.5 text-[11px] font-medium text-ant-blue hover:text-ant-blue pt-1"
-                    >
-                        Manage Webhooks <ExternalLink className="w-3 h-3" />
-                    </a>
                 </div>
             </PopoverContent>
         </Popover>

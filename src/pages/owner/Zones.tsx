@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Input } from '@/components/ui/input';
 import {
     Select,
@@ -84,6 +85,7 @@ const Zones = () => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [editingZone, setEditingZone] = useState<ZoneRow | null>(null);
     const [selectedZoneCities, setSelectedZoneCities] = useState<ZoneRow | null>(null);
+    const [zoneToDelete, setZoneToDelete] = useState<ZoneRow | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
     const [filterCities, setFilterCities] = useState<string>('all');
@@ -384,7 +386,7 @@ const Zones = () => {
                                                             variant="ghost"
                                                             size="icon"
                                                             type="button"
-                                                            onClick={() => { if (confirm('Delete this zone?')) deleteZoneMutation.mutate(zone.id); }}
+                                                            onClick={() => setZoneToDelete(zone)}
                                                             className="h-7 w-7 p-0 rounded text-gray-400 hover:text-red-600 hover:bg-red-50"
                                                         >
                                                             <Trash2 className="h-3 w-3" />
@@ -428,7 +430,7 @@ const Zones = () => {
                                 isOwner={isOwner}
                                 onClick={() => setSelectedZoneCities(zone)}
                                 onEdit={() => setEditingZone(zone)}
-                                onDelete={() => { if (confirm('Delete this zone?')) deleteZoneMutation.mutate(zone.id); }}
+                                onDelete={() => setZoneToDelete(zone)}
                             />
                         ))}
                     </div>
@@ -467,6 +469,24 @@ const Zones = () => {
                     title="Edit Zone"
                 />
             )}
+
+            <ConfirmDialog
+                open={!!zoneToDelete}
+                onOpenChange={(o) => { if (!o) setZoneToDelete(null); }}
+                kicker="Zone · Suppression"
+                title="Supprimer cette zone ?"
+                description={zoneToDelete
+                    ? `La zone « ${zoneToDelete.name} » sera retirée. Les villes qui lui sont rattachées seront détachées.`
+                    : undefined}
+                confirmLabel="Supprimer la zone"
+                loading={deleteZoneMutation.isPending}
+                onConfirm={() => {
+                    if (!zoneToDelete) return;
+                    deleteZoneMutation.mutate(zoneToDelete.id, {
+                        onSettled: () => setZoneToDelete(null),
+                    });
+                }}
+            />
         </div>
     );
 };

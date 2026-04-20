@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { logAction } from '@/lib/auditLog';
-import { Loader2 } from 'lucide-react';
+import { FullscreenLoader } from '@/components/ui/fullscreen-loader';
 
 interface ProtectedRouteProps {
     children: React.ReactNode;
@@ -98,11 +98,7 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
     }, [navigate, allowedRoles]);
 
     if (loading) {
-        return (
-            <div className="min-h-screen w-full flex items-center justify-center bg-brand-white">
-                <Loader2 className="w-12 h-12 text-brand-navy animate-spin" />
-            </div>
-        );
+        return <FullscreenLoader sublabel="Nous vérifions vos autorisations." />;
     }
 
     return authenticated ? <>{children}</> : null;

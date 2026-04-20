@@ -21,6 +21,7 @@ import {
     CardFooter,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Input } from '@/components/ui/input';
 import {
     Dialog,
@@ -86,6 +87,7 @@ const OwnerUsers = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<OwnerUserRow | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [userToDelete, setUserToDelete] = useState<OwnerUserRow | null>(null);
     const { toast } = useToast();
     const queryClient = useQueryClient();
 
@@ -220,11 +222,7 @@ const OwnerUsers = () => {
                             key={user.id}
                             user={user}
                             onEdit={() => setEditingUser(user)}
-                            onDelete={() => {
-                                if (confirm('Are you sure you want to delete this owner account?')) {
-                                    deleteMutation.mutate(user.id);
-                                }
-                            }}
+                            onDelete={() => setUserToDelete(user)}
                         />
                     ))}
                 </div>
@@ -250,6 +248,24 @@ const OwnerUsers = () => {
                     title="Edit Owner Account"
                 />
             )}
+
+            <ConfirmDialog
+                open={!!userToDelete}
+                onOpenChange={(o) => { if (!o) setUserToDelete(null); }}
+                kicker="Propriétaire · Suppression"
+                title="Supprimer ce compte propriétaire ?"
+                description={userToDelete
+                    ? `« ${userToDelete.name} » perdra son accès et sera retiré de la plateforme. L'action est irréversible.`
+                    : undefined}
+                confirmLabel="Supprimer le compte"
+                loading={deleteMutation.isPending}
+                onConfirm={() => {
+                    if (!userToDelete) return;
+                    deleteMutation.mutate(userToDelete.id, {
+                        onSettled: () => setUserToDelete(null),
+                    });
+                }}
+            />
         </div>
     );
 };

@@ -5,27 +5,27 @@ import { format, startOfMonth, subMonths, eachMonthOfInterval } from 'date-fns';
 import {
     Plus,
     Search,
-    CheckCircle2,
-    Clock,
-    DollarSign,
-    Wallet,
     Loader2,
     Sparkles,
     Info,
-    AlertTriangle,
     Check,
     ChevronLeft,
     ChevronRight,
+    Wallet,
+    Coins,
+    CalendarDays,
+    Layers,
+    Headphones,
+    Target,
+    DollarSign,
+    type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
     Select,
     SelectContent,
@@ -47,46 +47,99 @@ import { fmtCur, fmtCurFull, fmtNum } from '@/lib/formatNumbers';
 
 type Role = 'seller' | 'mediabuyer';
 
+const KPI_ACCENTS = {
+    ink: { dot: 'bg-ant-ink', tile: 'bg-ant-ink/6 border-ant-ink/15 text-ant-ink' },
+    orange: { dot: 'bg-ant-orange', tile: 'bg-ant-orange/10 border-ant-orange/25 text-ant-orange' },
+    green: { dot: 'bg-ant-green', tile: 'bg-ant-green/10 border-ant-green/25 text-ant-green' },
+    rose: { dot: 'bg-ant-rose', tile: 'bg-ant-rose/10 border-ant-rose/25 text-ant-rose' },
+} as const;
+
+const PayoutKpi: React.FC<{
+    label: string;
+    value: string;
+    suffix?: string;
+    accent: keyof typeof KPI_ACCENTS;
+    icon: LucideIcon;
+}> = ({ label, value, suffix, accent, icon: Icon }) => {
+    const a = KPI_ACCENTS[accent];
+    return (
+        <div className="bg-ant-paper p-4">
+            <div className="flex items-start justify-between gap-3">
+                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.24em] text-ant-mid">
+                    <span className={cn('h-1.5 w-1.5 rounded-full', a.dot)} />
+                    {label}
+                </div>
+                <div className={cn('h-8 w-8 rounded-lg border flex items-center justify-center', a.tile)}>
+                    <Icon className="w-4 h-4" strokeWidth={1.75} />
+                </div>
+            </div>
+            <p className="font-display text-[22px] font-semibold text-ant-ink tabular-nums mt-2 truncate">
+                {value}
+                {suffix ? <span className="text-[12px] text-ant-mid font-normal ml-1.5">{suffix}</span> : null}
+            </p>
+        </div>
+    );
+};
+
 // ═════════════════════════ Main Page ═════════════════════════
 const Salaries = () => {
     const [tab, setTab] = useState<Role>('seller');
     const [bulkOpen, setBulkOpen] = useState(false);
 
     return (
-        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
-            {/* Header */}
-            <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div>
-                    <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Salaries</h1>
-                    <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Bulk payouts for sellers and media buyers</p>
+        <div className="ant-surface min-h-screen">
+            <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 md:py-8 space-y-6">
+                {/* Editorial header */}
+                <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                    <div className="space-y-2">
+                        <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                            <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                            Finance · Payroll
+                        </div>
+                        <h1 className="font-display text-[30px] md:text-[34px] leading-[1.05] tracking-[-0.02em] text-ant-ink">
+                            Salaries
+                        </h1>
+                        <p className="font-serif italic text-[14px] leading-relaxed text-ant-mid max-w-xl">
+                            The monthly ritual — commission accrued, deliveries counted, bank details snapshotted. Generate payouts, mark them paid, keep the ledger honest.
+                        </p>
+                    </div>
+                    <Button
+                        onClick={() => setBulkOpen(true)}
+                        className="bg-ant-ink hover:bg-ant-ink/90 text-white h-10 px-5 rounded-full text-[12px] font-semibold gap-2 shrink-0 cursor-pointer"
+                    >
+                        <Sparkles className="w-4 h-4" />
+                        Generate payouts
+                    </Button>
+                </header>
+
+                {/* Role tabs */}
+                <div className="inline-flex items-center gap-1 p-1 rounded-full border border-ant-line bg-ant-paper">
+                    {([
+                        { key: 'seller' as Role, label: 'Sellers', icon: Headphones },
+                        { key: 'mediabuyer' as Role, label: 'Media buyers', icon: Target },
+                    ]).map((t) => {
+                        const active = tab === t.key;
+                        const Icon = t.icon;
+                        return (
+                            <button
+                                key={t.key}
+                                onClick={() => setTab(t.key)}
+                                className={cn(
+                                    'inline-flex items-center gap-2 rounded-full px-4 h-8 text-[12px] font-semibold transition cursor-pointer whitespace-nowrap',
+                                    active ? 'bg-ant-ink text-white' : 'text-ant-mid hover:text-ant-ink'
+                                )}
+                            >
+                                <Icon className="w-3.5 h-3.5" />
+                                {t.label}
+                            </button>
+                        );
+                    })}
                 </div>
-                <Button
-                    onClick={() => setBulkOpen(true)}
-                    className="bg-brand-navy hover:bg-brand-navy/90 text-white h-8 px-3 rounded-md text-[11px] font-semibold gap-1.5 shrink-0"
-                >
-                    <Plus className="w-3.5 h-3.5" />
-                    Generate Payouts
-                </Button>
-            </header>
 
-            <Tabs value={tab} onValueChange={(v) => setTab(v as Role)}>
-                <TabsList className="h-8">
-                    <TabsTrigger value="seller" className="text-[11px] h-6 px-3 gap-1.5">
-                        Sellers
-                    </TabsTrigger>
-                    <TabsTrigger value="mediabuyer" className="text-[11px] h-6 px-3 gap-1.5">
-                        Media Buyers
-                    </TabsTrigger>
-                </TabsList>
-                <TabsContent value="seller" className="mt-3 outline-none">
-                    <SellerPayoutsList />
-                </TabsContent>
-                <TabsContent value="mediabuyer" className="mt-3 outline-none">
-                    <MediaBuyerPayoutsList />
-                </TabsContent>
-            </Tabs>
+                {tab === 'seller' ? <SellerPayoutsList /> : <MediaBuyerPayoutsList />}
 
-            <BulkGenerateDialog open={bulkOpen} onOpenChange={setBulkOpen} initialRole={tab} />
+                <BulkGenerateDialog open={bulkOpen} onOpenChange={setBulkOpen} initialRole={tab} />
+            </div>
         </div>
     );
 };
@@ -179,60 +232,66 @@ const SellerPayoutsList: React.FC = () => {
         return { totalPaid, totalPending, thisMonth };
     }, [payouts]);
 
-    return (
-        <div className="space-y-3">
-            {/* KPI tiles */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {[
-                    { label: 'Total paid', value: fmtCur(stats.totalPaid), accent: '#059669' },
-                    { label: 'Total pending', value: fmtCur(stats.totalPending), accent: '#d97706' },
-                    { label: 'This month', value: String(stats.thisMonth), accent: '#3b5e5e' },
-                    { label: 'Payouts total', value: String(payouts.length), accent: '#9ca3af' },
-                ].map((s) => (
-                    <div key={s.label} className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
-                        <span className="w-[3px] self-stretch rounded-full" style={{ background: s.accent }} />
-                        <div className="flex-1 min-w-0">
-                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{s.label}</p>
-                            <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1 truncate">{s.value}</p>
-                        </div>
-                    </div>
-                ))}
-            </div>
+    const counts = {
+        all: payouts.length,
+        pending: payouts.filter((p) => p.status === 'pending').length,
+        paid: payouts.filter((p) => p.status === 'paid').length,
+    };
 
-            {/* Filters */}
-            <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
-                <div className="relative flex-1 min-w-0 max-w-sm">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
-                    <Input
-                        placeholder="Search seller..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="pl-7 h-8 rounded-md border-gray-200 bg-white text-[11px]"
-                    />
-                </div>
-                <div className="flex items-center gap-2">
-                    <div className="flex gap-0.5 bg-white p-0.5 rounded-md border border-gray-200 shrink-0">
-                        {(['all', 'pending', 'paid'] as const).map(s => (
+    return (
+        <div className="space-y-5">
+            {/* KPI strip */}
+            <section className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
+                <PayoutKpi label="Total paid" value={fmtCur(stats.totalPaid)} suffix="MAD" accent="green" icon={Wallet} />
+                <PayoutKpi label="Total pending" value={fmtCur(stats.totalPending)} suffix="MAD" accent="orange" icon={Coins} />
+                <PayoutKpi label="This month" value={String(stats.thisMonth)} suffix="payouts" accent="ink" icon={CalendarDays} />
+                <PayoutKpi label="Payouts total" value={String(payouts.length)} suffix="records" accent="ink" icon={Layers} />
+            </section>
+
+            {/* Toolbar */}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div className="inline-flex items-center gap-1 p-1 rounded-full border border-ant-line bg-ant-paper">
+                    {([
+                        { key: 'all', label: 'All' },
+                        { key: 'pending', label: 'Pending' },
+                        { key: 'paid', label: 'Paid' },
+                    ] as const).map((t) => {
+                        const active = statusFilter === t.key;
+                        return (
                             <button
-                                key={s}
-                                onClick={() => setStatusFilter(s)}
+                                key={t.key}
+                                onClick={() => setStatusFilter(t.key)}
                                 className={cn(
-                                    "px-2.5 h-7 rounded-[4px] text-[10px] font-semibold transition capitalize",
-                                    statusFilter === s ? "bg-brand-navy text-white" : "text-gray-500 hover:text-brand-navy hover:bg-gray-50"
+                                    'inline-flex items-center gap-2 rounded-full px-3.5 h-8 text-[12px] font-semibold transition cursor-pointer whitespace-nowrap',
+                                    active ? 'bg-ant-ink text-white' : 'text-ant-mid hover:text-ant-ink'
                                 )}
                             >
-                                {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
+                                {t.label}
+                                <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums', active ? 'bg-white/20 text-white' : 'bg-ant-light text-ant-mid')}>
+                                    {counts[t.key]}
+                                </span>
                             </button>
-                        ))}
+                        );
+                    })}
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <div className="relative w-full md:w-[280px]">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid pointer-events-none" />
+                        <Input
+                            placeholder="Search seller..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="pl-9 h-10 rounded-full border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid focus-visible:ring-1 focus-visible:ring-ant-orange/40"
+                        />
                     </div>
                     {selected.length > 0 && (
                         <Button
                             onClick={() => markMutation.mutate({ ids: selected, status: 'paid' })}
                             disabled={markMutation.isPending}
-                            className="h-8 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold gap-1.5"
+                            className="h-10 px-5 rounded-full bg-ant-green hover:bg-ant-green/90 text-white text-[12px] font-semibold gap-2 cursor-pointer"
                         >
-                            {markMutation.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
-                            <Check className="w-3 h-3" />
+                            {markMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                             Mark {selected.length} paid
                         </Button>
                     )}
@@ -241,78 +300,115 @@ const SellerPayoutsList: React.FC = () => {
 
             {/* Table */}
             {isLoading ? (
-                <div className="space-y-2">{[1,2,3,4,5].map(i => <div key={i} className="h-10 rounded-lg bg-gray-100 animate-pulse" />)}</div>
+                <div className="space-y-2">
+                    {[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-14 rounded-2xl bg-ant-light animate-pulse" />)}
+                </div>
             ) : paginated.length === 0 ? (
-                <div className="border border-dashed border-gray-200 rounded-xl py-8 text-center">
-                    <p className="text-[14px] font-semibold text-brand-navy">No payouts yet</p>
-                    <p className="text-[11px] text-gray-400 mt-1">Click "Generate Payouts" to create.</p>
+                <div className="rounded-2xl border border-dashed border-ant-line bg-ant-paper px-8 py-16 text-center">
+                    <div className="mx-auto w-12 h-12 rounded-2xl bg-ant-orange/10 border border-ant-orange/25 flex items-center justify-center mb-4">
+                        <Wallet className="w-5 h-5 text-ant-orange" strokeWidth={1.75} />
+                    </div>
+                    <h3 className="font-display text-[18px] text-ant-ink tracking-tight">
+                        {payouts.length ? 'No payouts match those filters' : 'No payouts yet'}
+                    </h3>
+                    <p className="font-serif italic text-[13px] text-ant-mid mt-2 max-w-sm mx-auto">
+                        {payouts.length
+                            ? 'Loosen the filters to bring payouts back into view.'
+                            : 'Click "Generate payouts" above to create this month\u2019s batch.'}
+                    </p>
                 </div>
             ) : (
-                <div className="rounded-xl border border-gray-100 bg-white overflow-hidden">
+                <div className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
                     <div className="overflow-x-auto">
                         <table className="w-full">
                             <thead>
-                                <tr className="border-b border-gray-100">
-                                    <th className="px-3 py-2 w-8">
+                                <tr className="border-b border-ant-line bg-ant-light/50">
+                                    <th className="px-4 py-3 w-10">
                                         <Checkbox
                                             checked={paginated.length > 0 && paginated.every((p) => selected.includes(p.id))}
                                             onCheckedChange={(v) => {
                                                 if (v) setSelected(Array.from(new Set([...selected, ...paginated.map((p) => p.id)])));
                                                 else setSelected(selected.filter((id) => !paginated.some((p) => p.id === id)));
                                             }}
+                                            className="border-ant-line data-[state=checked]:bg-ant-ink data-[state=checked]:border-ant-ink"
                                         />
                                     </th>
-                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Seller</th>
-                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Month</th>
-                                    <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Delivered</th>
-                                    <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Days</th>
-                                    <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Commission</th>
-                                    <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Total</th>
-                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Status</th>
-                                    <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Actions</th>
+                                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Seller</th>
+                                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Month</th>
+                                    <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Delivered</th>
+                                    <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Days</th>
+                                    <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Commission</th>
+                                    <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Total</th>
+                                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Status</th>
+                                    <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {paginated.map((p) => (
-                                    <tr key={p.id} className="hover:bg-gray-50 transition-colors border-b border-gray-50 tabular-nums">
-                                        <td className="px-3 py-2">
-                                            <Checkbox checked={selected.includes(p.id)} onCheckedChange={(v) => setSelected(v ? [...selected, p.id] : selected.filter((id) => id !== p.id))} />
-                                        </td>
-                                        <td className="px-3 py-2">
-                                            <div className="flex items-center gap-2">
-                                                <Avatar className="h-6 w-6 shrink-0">
-                                                    <AvatarImage src={p.seller?.avatar_url || ''} />
-                                                    <AvatarFallback className="text-[9px] bg-brand-navy/10 text-brand-navy">{(p.seller?.name || '??').substring(0, 2).toUpperCase()}</AvatarFallback>
-                                                </Avatar>
-                                                <div className="min-w-0">
-                                                    <p className="text-[11px] font-semibold text-brand-navy truncate">{p.seller?.name || '—'}</p>
-                                                    <p className="text-[9px] text-gray-400 truncate">{p.seller?.email}</p>
+                                {paginated.map((p) => {
+                                    const paid = p.status === 'paid';
+                                    return (
+                                        <tr key={p.id} className="hover:bg-ant-light/60 transition-colors border-b border-ant-line last:border-0 tabular-nums">
+                                            <td className="px-4 py-3">
+                                                <Checkbox
+                                                    checked={selected.includes(p.id)}
+                                                    onCheckedChange={(v) => setSelected(v ? [...selected, p.id] : selected.filter((id) => id !== p.id))}
+                                                    className="border-ant-line data-[state=checked]:bg-ant-ink data-[state=checked]:border-ant-ink"
+                                                />
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <div className="flex items-center gap-2.5">
+                                                    <Avatar className="h-8 w-8 shrink-0 rounded-xl border border-ant-line">
+                                                        <AvatarImage src={p.seller?.avatar_url || ''} className="object-cover" />
+                                                        <AvatarFallback className="rounded-xl text-[10px] bg-ant-ink/5 text-ant-ink font-display font-semibold">
+                                                            {(p.seller?.name || '??').substring(0, 2).toUpperCase()}
+                                                        </AvatarFallback>
+                                                    </Avatar>
+                                                    <div className="min-w-0">
+                                                        <p className="font-display text-[12px] font-semibold text-ant-ink truncate">{p.seller?.name || '—'}</p>
+                                                        <p className="text-[11px] text-ant-mid truncate">{p.seller?.email}</p>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-3 py-2 text-[11px] text-brand-navy/80">{format(new Date(p.payout_month), 'MMM yyyy')}</td>
-                                        <td className="px-3 py-2 text-right text-[11px] font-semibold text-emerald-600 tabular-nums">{fmtNum(p.delivered_orders)}</td>
-                                        <td className="px-3 py-2 text-right text-[11px] text-brand-navy/70 tabular-nums">{fmtNum(p.days_present)}</td>
-                                        <td className="px-3 py-2 text-right text-[11px] font-semibold text-brand-navy tabular-nums" title={fmtCurFull(Number(p.commission_earned))}>{fmtCur(Number(p.commission_earned))}</td>
-                                        <td className="px-3 py-2 text-right text-[11px] font-semibold text-brand-navy tabular-nums" title={fmtCurFull(Number(p.total_amount))}>{fmtCur(Number(p.total_amount))}</td>
-                                        <td className="px-3 py-2">
-                                            <span className={cn('h-5 px-1.5 text-[9px] font-semibold rounded inline-flex items-center uppercase tracking-[0.08em]', p.status === 'paid' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600')}>
-                                                {p.status}
-                                            </span>
-                                        </td>
-                                        <td className="px-3 py-2 text-right">
-                                            {p.status === 'pending' ? (
-                                                <Button size="sm" variant="ghost" onClick={() => markMutation.mutate({ ids: [p.id], status: 'paid' })} className="h-7 rounded-md text-[10px] font-semibold text-emerald-600 hover:bg-emerald-50">
-                                                    Mark paid
-                                                </Button>
-                                            ) : (
-                                                <Button size="sm" variant="ghost" onClick={() => markMutation.mutate({ ids: [p.id], status: 'pending' })} className="h-7 rounded-md text-[10px] font-semibold text-amber-600 hover:bg-amber-50">
-                                                    Unmark
-                                                </Button>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
+                                            </td>
+                                            <td className="px-4 py-3 text-[11px] text-ant-ink">{format(new Date(p.payout_month), 'MMM yyyy')}</td>
+                                            <td className="px-4 py-3 text-right text-[12px] font-semibold text-ant-green tabular-nums">{fmtNum(p.delivered_orders)}</td>
+                                            <td className="px-4 py-3 text-right text-[11px] text-ant-mid tabular-nums">{fmtNum(p.days_present)}</td>
+                                            <td className="px-4 py-3 text-right text-[12px] font-semibold text-ant-ink tabular-nums" title={fmtCurFull(Number(p.commission_earned))}>
+                                                {fmtCur(Number(p.commission_earned))}
+                                            </td>
+                                            <td className="px-4 py-3 text-right font-display text-[13px] font-semibold text-ant-ink tabular-nums" title={fmtCurFull(Number(p.total_amount))}>
+                                                {fmtCur(Number(p.total_amount))}
+                                                <span className="text-[10px] text-ant-mid font-normal ml-1">MAD</span>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize', paid ? 'bg-ant-green/10 border-ant-green/25 text-ant-green' : 'bg-ant-orange/10 border-ant-orange/25 text-ant-orange')}>
+                                                    <span className={cn('h-1.5 w-1.5 rounded-full', paid ? 'bg-ant-green' : 'bg-ant-orange')} />
+                                                    {p.status}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3 text-right">
+                                                {paid ? (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        onClick={() => markMutation.mutate({ ids: [p.id], status: 'pending' })}
+                                                        className="h-8 rounded-full px-3 text-[11px] font-semibold text-ant-orange hover:bg-ant-orange/10 cursor-pointer"
+                                                    >
+                                                        Unmark
+                                                    </Button>
+                                                ) : (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        onClick={() => markMutation.mutate({ ids: [p.id], status: 'paid' })}
+                                                        className="h-8 rounded-full px-3 text-[11px] font-semibold text-ant-green hover:bg-ant-green/10 cursor-pointer"
+                                                    >
+                                                        Mark paid
+                                                    </Button>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
@@ -321,13 +417,13 @@ const SellerPayoutsList: React.FC = () => {
 
             {totalPages > 1 && (
                 <div className="flex items-center justify-center gap-2">
-                    <Button variant="outline" size="icon" disabled={page <= 1} onClick={() => setPage(page - 1)} className="h-8 w-8 rounded-md border-gray-200">
+                    <Button variant="outline" size="icon" disabled={page <= 1} onClick={() => setPage(page - 1)} className="h-9 w-9 rounded-full border-ant-line bg-ant-paper text-ant-ink hover:bg-ant-light cursor-pointer">
                         <ChevronLeft className="w-3.5 h-3.5" />
                     </Button>
-                    <span className="text-[11px] font-semibold text-brand-navy px-2">
-                        {page} / {totalPages}
+                    <span className="text-[12px] font-semibold text-ant-ink px-3 tabular-nums">
+                        {page} <span className="text-ant-mid">/ {totalPages}</span>
                     </span>
-                    <Button variant="outline" size="icon" disabled={page >= totalPages} onClick={() => setPage(page + 1)} className="h-8 w-8 rounded-md border-gray-200">
+                    <Button variant="outline" size="icon" disabled={page >= totalPages} onClick={() => setPage(page + 1)} className="h-9 w-9 rounded-full border-ant-line bg-ant-paper text-ant-ink hover:bg-ant-light cursor-pointer">
                         <ChevronRight className="w-3.5 h-3.5" />
                     </Button>
                 </div>
@@ -426,60 +522,66 @@ const MediaBuyerPayoutsList: React.FC = () => {
         return { totalPaid, totalPending, thisMonth };
     }, [payouts]);
 
-    return (
-        <div className="space-y-3">
-            {/* KPI tiles */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {[
-                    { label: 'Total paid', value: fmtCur(stats.totalPaid), accent: '#059669' },
-                    { label: 'Total pending', value: fmtCur(stats.totalPending), accent: '#d97706' },
-                    { label: 'This month', value: String(stats.thisMonth), accent: '#3b5e5e' },
-                    { label: 'Payouts total', value: String(payouts.length), accent: '#9ca3af' },
-                ].map((s) => (
-                    <div key={s.label} className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
-                        <span className="w-[3px] self-stretch rounded-full" style={{ background: s.accent }} />
-                        <div className="flex-1 min-w-0">
-                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{s.label}</p>
-                            <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1 truncate">{s.value}</p>
-                        </div>
-                    </div>
-                ))}
-            </div>
+    const counts = {
+        all: payouts.length,
+        pending: payouts.filter((p) => p.status === 'pending').length,
+        paid: payouts.filter((p) => p.status === 'paid').length,
+    };
 
-            {/* Filters */}
-            <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
-                <div className="relative flex-1 min-w-0 max-w-sm">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
-                    <Input
-                        placeholder="Search media buyer..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="pl-7 h-8 rounded-md border-gray-200 bg-white text-[11px]"
-                    />
-                </div>
-                <div className="flex items-center gap-2">
-                    <div className="flex gap-0.5 bg-white p-0.5 rounded-md border border-gray-200 shrink-0">
-                        {(['all', 'pending', 'paid'] as const).map(s => (
+    return (
+        <div className="space-y-5">
+            {/* KPI strip */}
+            <section className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
+                <PayoutKpi label="Total paid" value={fmtCur(stats.totalPaid)} suffix="MAD" accent="green" icon={Wallet} />
+                <PayoutKpi label="Total pending" value={fmtCur(stats.totalPending)} suffix="MAD" accent="orange" icon={Coins} />
+                <PayoutKpi label="This month" value={String(stats.thisMonth)} suffix="payouts" accent="ink" icon={CalendarDays} />
+                <PayoutKpi label="Payouts total" value={String(payouts.length)} suffix="records" accent="ink" icon={Layers} />
+            </section>
+
+            {/* Toolbar */}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div className="inline-flex items-center gap-1 p-1 rounded-full border border-ant-line bg-ant-paper">
+                    {([
+                        { key: 'all', label: 'All' },
+                        { key: 'pending', label: 'Pending' },
+                        { key: 'paid', label: 'Paid' },
+                    ] as const).map((t) => {
+                        const active = statusFilter === t.key;
+                        return (
                             <button
-                                key={s}
-                                onClick={() => setStatusFilter(s)}
+                                key={t.key}
+                                onClick={() => setStatusFilter(t.key)}
                                 className={cn(
-                                    "px-2.5 h-7 rounded-[4px] text-[10px] font-semibold transition capitalize",
-                                    statusFilter === s ? "bg-brand-navy text-white" : "text-gray-500 hover:text-brand-navy hover:bg-gray-50"
+                                    'inline-flex items-center gap-2 rounded-full px-3.5 h-8 text-[12px] font-semibold transition cursor-pointer whitespace-nowrap',
+                                    active ? 'bg-ant-ink text-white' : 'text-ant-mid hover:text-ant-ink'
                                 )}
                             >
-                                {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
+                                {t.label}
+                                <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums', active ? 'bg-white/20 text-white' : 'bg-ant-light text-ant-mid')}>
+                                    {counts[t.key]}
+                                </span>
                             </button>
-                        ))}
+                        );
+                    })}
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <div className="relative w-full md:w-[280px]">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid pointer-events-none" />
+                        <Input
+                            placeholder="Search media buyer..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="pl-9 h-10 rounded-full border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid focus-visible:ring-1 focus-visible:ring-ant-orange/40"
+                        />
                     </div>
                     {selected.length > 0 && (
                         <Button
                             onClick={() => markMutation.mutate({ ids: selected, status: 'paid' })}
                             disabled={markMutation.isPending}
-                            className="h-8 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold gap-1.5"
+                            className="h-10 px-5 rounded-full bg-ant-green hover:bg-ant-green/90 text-white text-[12px] font-semibold gap-2 cursor-pointer"
                         >
-                            {markMutation.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
-                            <Check className="w-3 h-3" />
+                            {markMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                             Mark {selected.length} paid
                         </Button>
                     )}
@@ -488,82 +590,121 @@ const MediaBuyerPayoutsList: React.FC = () => {
 
             {/* Table */}
             {isLoading ? (
-                <div className="space-y-2">{[1,2,3,4,5].map(i => <div key={i} className="h-10 rounded-lg bg-gray-100 animate-pulse" />)}</div>
+                <div className="space-y-2">
+                    {[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-14 rounded-2xl bg-ant-light animate-pulse" />)}
+                </div>
             ) : paginated.length === 0 ? (
-                <div className="border border-dashed border-gray-200 rounded-xl py-8 text-center">
-                    <p className="text-[14px] font-semibold text-brand-navy">No payouts yet</p>
-                    <p className="text-[11px] text-gray-400 mt-1">Click "Generate Payouts" to create.</p>
+                <div className="rounded-2xl border border-dashed border-ant-line bg-ant-paper px-8 py-16 text-center">
+                    <div className="mx-auto w-12 h-12 rounded-2xl bg-ant-orange/10 border border-ant-orange/25 flex items-center justify-center mb-4">
+                        <Wallet className="w-5 h-5 text-ant-orange" strokeWidth={1.75} />
+                    </div>
+                    <h3 className="font-display text-[18px] text-ant-ink tracking-tight">
+                        {payouts.length ? 'No payouts match those filters' : 'No payouts yet'}
+                    </h3>
+                    <p className="font-serif italic text-[13px] text-ant-mid mt-2 max-w-sm mx-auto">
+                        {payouts.length
+                            ? 'Loosen the filters to bring payouts back into view.'
+                            : 'Click "Generate payouts" above to create this month\u2019s batch.'}
+                    </p>
                 </div>
             ) : (
-                <div className="rounded-xl border border-gray-100 bg-white overflow-hidden">
+                <div className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
                     <div className="overflow-x-auto">
                         <table className="w-full">
                             <thead>
-                                <tr className="border-b border-gray-100">
-                                    <th className="px-3 py-2 w-8">
+                                <tr className="border-b border-ant-line bg-ant-light/50">
+                                    <th className="px-4 py-3 w-10">
                                         <Checkbox
                                             checked={paginated.length > 0 && paginated.every((p) => selected.includes(p.id))}
                                             onCheckedChange={(v) => {
                                                 if (v) setSelected(Array.from(new Set([...selected, ...paginated.map((p) => p.id)])));
                                                 else setSelected(selected.filter((id) => !paginated.some((p) => p.id === id)));
                                             }}
+                                            className="border-ant-line data-[state=checked]:bg-ant-ink data-[state=checked]:border-ant-ink"
                                         />
                                     </th>
-                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Media buyer</th>
-                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Month</th>
-                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Type</th>
-                                    <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Delivered</th>
-                                    <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Spend</th>
-                                    <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Total</th>
-                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Status</th>
-                                    <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Actions</th>
+                                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Media buyer</th>
+                                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Month</th>
+                                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Type</th>
+                                    <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Delivered</th>
+                                    <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Spend</th>
+                                    <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Total</th>
+                                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Status</th>
+                                    <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {paginated.map((p) => (
-                                    <tr key={p.id} className="hover:bg-gray-50 transition-colors border-b border-gray-50 tabular-nums">
-                                        <td className="px-3 py-2">
-                                            <Checkbox checked={selected.includes(p.id)} onCheckedChange={(v) => setSelected(v ? [...selected, p.id] : selected.filter((id) => id !== p.id))} />
-                                        </td>
-                                        <td className="px-3 py-2">
-                                            <div className="flex items-center gap-2">
-                                                <Avatar className="h-6 w-6 shrink-0">
-                                                    <AvatarImage src={p.mediabuyer?.avatar_url || ''} />
-                                                    <AvatarFallback className="text-[9px] bg-brand-navy/10 text-brand-navy">{(p.mediabuyer?.name || '??').substring(0, 2).toUpperCase()}</AvatarFallback>
-                                                </Avatar>
-                                                <div className="min-w-0">
-                                                    <p className="text-[11px] font-semibold text-brand-navy truncate">{p.mediabuyer?.name || '—'}</p>
-                                                    <p className="text-[9px] text-gray-400 truncate">{p.mediabuyer?.email}</p>
+                                {paginated.map((p) => {
+                                    const paid = p.status === 'paid';
+                                    const isCommission = p.payment_type === 'commission';
+                                    return (
+                                        <tr key={p.id} className="hover:bg-ant-light/60 transition-colors border-b border-ant-line last:border-0 tabular-nums">
+                                            <td className="px-4 py-3">
+                                                <Checkbox
+                                                    checked={selected.includes(p.id)}
+                                                    onCheckedChange={(v) => setSelected(v ? [...selected, p.id] : selected.filter((id) => id !== p.id))}
+                                                    className="border-ant-line data-[state=checked]:bg-ant-ink data-[state=checked]:border-ant-ink"
+                                                />
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <div className="flex items-center gap-2.5">
+                                                    <Avatar className="h-8 w-8 shrink-0 rounded-xl border border-ant-line">
+                                                        <AvatarImage src={p.mediabuyer?.avatar_url || ''} className="object-cover" />
+                                                        <AvatarFallback className="rounded-xl text-[10px] bg-ant-ink/5 text-ant-ink font-display font-semibold">
+                                                            {(p.mediabuyer?.name || '??').substring(0, 2).toUpperCase()}
+                                                        </AvatarFallback>
+                                                    </Avatar>
+                                                    <div className="min-w-0">
+                                                        <p className="font-display text-[12px] font-semibold text-ant-ink truncate">{p.mediabuyer?.name || '—'}</p>
+                                                        <p className="text-[11px] text-ant-mid truncate">{p.mediabuyer?.email}</p>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-3 py-2 text-[11px] text-brand-navy/80">{format(new Date(p.payout_month + '-01'), 'MMM yyyy')}</td>
-                                        <td className="px-3 py-2">
-                                            <span className={cn('h-5 px-1.5 text-[9px] font-semibold rounded inline-flex items-center uppercase tracking-[0.08em]', p.payment_type === 'commission' ? 'bg-brand-navy/10 text-brand-navy' : 'bg-gray-100 text-gray-600')}>
-                                                {p.payment_type}
-                                            </span>
-                                        </td>
-                                        <td className="px-3 py-2 text-right text-[11px] font-semibold text-emerald-600 tabular-nums">{fmtNum(p.delivered_orders)}</td>
-                                        <td className="px-3 py-2 text-right text-[11px] text-brand-navy/70 tabular-nums" title={fmtCurFull(Number(p.total_spend))}>{fmtCur(Number(p.total_spend))}</td>
-                                        <td className="px-3 py-2 text-right text-[11px] font-semibold text-brand-navy tabular-nums" title={fmtCurFull(Number(p.total_amount))}>{fmtCur(Number(p.total_amount))}</td>
-                                        <td className="px-3 py-2">
-                                            <span className={cn('h-5 px-1.5 text-[9px] font-semibold rounded inline-flex items-center uppercase tracking-[0.08em]', p.status === 'paid' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600')}>
-                                                {p.status}
-                                            </span>
-                                        </td>
-                                        <td className="px-3 py-2 text-right">
-                                            {p.status === 'pending' ? (
-                                                <Button size="sm" variant="ghost" onClick={() => markMutation.mutate({ ids: [p.id], status: 'paid' })} className="h-7 rounded-md text-[10px] font-semibold text-emerald-600 hover:bg-emerald-50">
-                                                    Mark paid
-                                                </Button>
-                                            ) : (
-                                                <Button size="sm" variant="ghost" onClick={() => markMutation.mutate({ ids: [p.id], status: 'pending' })} className="h-7 rounded-md text-[10px] font-semibold text-amber-600 hover:bg-amber-50">
-                                                    Unmark
-                                                </Button>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
+                                            </td>
+                                            <td className="px-4 py-3 text-[11px] text-ant-ink">{format(new Date(p.payout_month + '-01'), 'MMM yyyy')}</td>
+                                            <td className="px-4 py-3">
+                                                <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize', isCommission ? 'bg-ant-orange/10 border-ant-orange/25 text-ant-orange' : 'bg-ant-green/10 border-ant-green/25 text-ant-green')}>
+                                                    <span className={cn('h-1.5 w-1.5 rounded-full', isCommission ? 'bg-ant-orange' : 'bg-ant-green')} />
+                                                    {p.payment_type}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3 text-right text-[12px] font-semibold text-ant-green tabular-nums">{fmtNum(p.delivered_orders)}</td>
+                                            <td className="px-4 py-3 text-right text-[11px] text-ant-rose tabular-nums" title={fmtCurFull(Number(p.total_spend))}>
+                                                {fmtCur(Number(p.total_spend))}
+                                            </td>
+                                            <td className="px-4 py-3 text-right font-display text-[13px] font-semibold text-ant-ink tabular-nums" title={fmtCurFull(Number(p.total_amount))}>
+                                                {fmtCur(Number(p.total_amount))}
+                                                <span className="text-[10px] text-ant-mid font-normal ml-1">MAD</span>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize', paid ? 'bg-ant-green/10 border-ant-green/25 text-ant-green' : 'bg-ant-orange/10 border-ant-orange/25 text-ant-orange')}>
+                                                    <span className={cn('h-1.5 w-1.5 rounded-full', paid ? 'bg-ant-green' : 'bg-ant-orange')} />
+                                                    {p.status}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3 text-right">
+                                                {paid ? (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        onClick={() => markMutation.mutate({ ids: [p.id], status: 'pending' })}
+                                                        className="h-8 rounded-full px-3 text-[11px] font-semibold text-ant-orange hover:bg-ant-orange/10 cursor-pointer"
+                                                    >
+                                                        Unmark
+                                                    </Button>
+                                                ) : (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        onClick={() => markMutation.mutate({ ids: [p.id], status: 'paid' })}
+                                                        className="h-8 rounded-full px-3 text-[11px] font-semibold text-ant-green hover:bg-ant-green/10 cursor-pointer"
+                                                    >
+                                                        Mark paid
+                                                    </Button>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
@@ -572,13 +713,13 @@ const MediaBuyerPayoutsList: React.FC = () => {
 
             {totalPages > 1 && (
                 <div className="flex items-center justify-center gap-2">
-                    <Button variant="outline" size="icon" disabled={page <= 1} onClick={() => setPage(page - 1)} className="h-8 w-8 rounded-md border-gray-200">
+                    <Button variant="outline" size="icon" disabled={page <= 1} onClick={() => setPage(page - 1)} className="h-9 w-9 rounded-full border-ant-line bg-ant-paper text-ant-ink hover:bg-ant-light cursor-pointer">
                         <ChevronLeft className="w-3.5 h-3.5" />
                     </Button>
-                    <span className="text-[11px] font-semibold text-brand-navy px-2">
-                        {page} / {totalPages}
+                    <span className="text-[12px] font-semibold text-ant-ink px-3 tabular-nums">
+                        {page} <span className="text-ant-mid">/ {totalPages}</span>
                     </span>
-                    <Button variant="outline" size="icon" disabled={page >= totalPages} onClick={() => setPage(page + 1)} className="h-8 w-8 rounded-md border-gray-200">
+                    <Button variant="outline" size="icon" disabled={page >= totalPages} onClick={() => setPage(page + 1)} className="h-9 w-9 rounded-full border-ant-line bg-ant-paper text-ant-ink hover:bg-ant-light cursor-pointer">
                         <ChevronRight className="w-3.5 h-3.5" />
                     </Button>
                 </div>
@@ -727,180 +868,257 @@ const BulkGenerateDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-4xl p-4 border border-gray-100 rounded-xl shadow-none overflow-hidden max-h-[90vh] flex flex-col">
-                <DialogHeader className="pb-3 border-b border-gray-100">
-                    <DialogTitle className="text-[13px] font-semibold text-brand-navy">Generate payouts</DialogTitle>
-                    <DialogDescription className="text-[10px] text-gray-400">Select role and month. Review the breakdown, then generate all selected payouts as pending.</DialogDescription>
+            <DialogContent className="max-w-4xl p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden max-h-[92vh] flex flex-col">
+                <DialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line space-y-1.5">
+                    <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                        <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                        Payroll · Bulk generate
+                    </div>
+                    <DialogTitle className="font-display text-[22px] leading-tight tracking-tight text-ant-ink">Generate payouts</DialogTitle>
+                    <DialogDescription className="font-serif italic text-[13px] text-ant-mid">
+                        Pick a role and a month, review the breakdown, then generate every owed payout as pending.
+                    </DialogDescription>
                 </DialogHeader>
 
-                <div className="py-3 flex items-center gap-3 border-b border-gray-100">
-                    <div className="flex gap-0.5 bg-white p-0.5 rounded-md border border-gray-200">
+                <div className="px-6 py-4 flex items-center gap-3 border-b border-ant-line">
+                    <div className="inline-flex items-center gap-1 p-1 rounded-full border border-ant-line bg-ant-paper">
                         <button
                             onClick={() => setRole('seller')}
-                            className={cn('px-2.5 h-7 rounded-[4px] text-[10px] font-semibold transition', role === 'seller' ? 'bg-brand-navy text-white' : 'text-gray-500 hover:text-brand-navy hover:bg-gray-50')}
+                            className={cn(
+                                'inline-flex items-center gap-1.5 rounded-full px-3.5 h-8 text-[11px] font-semibold transition cursor-pointer',
+                                role === 'seller' ? 'bg-ant-ink text-white' : 'text-ant-mid hover:text-ant-ink'
+                            )}
                         >
+                            <Headphones className="w-3 h-3" />
                             Sellers
                         </button>
                         <button
                             onClick={() => setRole('mediabuyer')}
-                            className={cn('px-2.5 h-7 rounded-[4px] text-[10px] font-semibold transition', role === 'mediabuyer' ? 'bg-brand-navy text-white' : 'text-gray-500 hover:text-brand-navy hover:bg-gray-50')}
+                            className={cn(
+                                'inline-flex items-center gap-1.5 rounded-full px-3.5 h-8 text-[11px] font-semibold transition cursor-pointer',
+                                role === 'mediabuyer' ? 'bg-ant-ink text-white' : 'text-ant-mid hover:text-ant-ink'
+                            )}
                         >
-                            Media Buyers
+                            <Target className="w-3 h-3" />
+                            Media buyers
                         </button>
                     </div>
                     <Select value={monthKey} onValueChange={setMonthKey}>
-                        <SelectTrigger className="w-[180px] h-8 rounded-md border-gray-200 text-[11px]">
+                        <SelectTrigger className="w-[200px] h-10 rounded-full border-ant-line bg-ant-paper text-[12px] text-ant-ink">
                             <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="rounded-xl border-ant-line">
                             {monthOptions.map((m) => (
-                                <SelectItem key={m.value} value={m.value} className="text-[11px]">{m.label}</SelectItem>
+                                <SelectItem key={m.value} value={m.value} className="text-[12px]">
+                                    {m.label}
+                                </SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
                 </div>
 
-                <div className="flex-1 overflow-y-auto py-3">
+                <div className="flex-1 overflow-y-auto ant-scroll px-6 py-4 space-y-3">
                     {activeLoading ? (
                         <div className="flex justify-center py-10">
-                            <Loader2 className="w-6 h-6 animate-spin text-brand-navy/40" />
+                            <Loader2 className="w-6 h-6 animate-spin text-ant-mid" />
                         </div>
                     ) : activeRows.length === 0 ? (
-                        <div className="text-center py-10 text-[11px] text-gray-400">
-                            No {role === 'seller' ? 'sellers' : 'media buyers'} in this business.
+                        <div className="rounded-2xl border border-dashed border-ant-line bg-ant-paper px-8 py-12 text-center">
+                            <p className="font-serif italic text-[13px] text-ant-mid">
+                                No {role === 'seller' ? 'sellers' : 'media buyers'} in this business.
+                            </p>
                         </div>
                     ) : (
-                        <div className="rounded-xl border border-gray-100 overflow-hidden">
-                            <table className="w-full">
-                                <thead>
-                                    <tr className="border-b border-gray-100 bg-gray-50/60">
-                                        <th className="px-3 py-2 w-8">
-                                            <Checkbox checked={selectedIds.length > 0 && selectedIds.length === activeRows.length} onCheckedChange={toggleAll} />
-                                        </th>
-                                        <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">{role === 'seller' ? 'Seller' : 'Media buyer'}</th>
-                                        {role === 'mediabuyer' && <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Type</th>}
-                                        <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Delivered</th>
-                                        {role === 'seller' ? <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Days</th> : <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Spend</th>}
-                                        {role === 'mediabuyer' && <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Already paid</th>}
-                                        <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">To pay</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {role === 'seller'
-                                        ? (sellerEarnings.rows as SellerEarnings[]).map((r) => {
-                                              const hasRemainder = r.total_amount > 0;
-                                              const sel = selectedIds.includes(r.seller_id);
-                                              return (
-                                                  <tr key={r.seller_id} className={cn('border-b border-gray-50 hover:bg-gray-50 transition-colors tabular-nums', sel && 'bg-brand-navy/[0.02]', !hasRemainder && 'opacity-40')}>
-                                                      <td className="px-3 py-2">
-                                                          <Checkbox checked={sel} disabled={!hasRemainder} onCheckedChange={() => toggleRow(r.seller_id)} />
-                                                      </td>
-                                                      <td className="px-3 py-2">
-                                                          <div className="flex items-center gap-2 min-w-0">
-                                                              <Avatar className="h-6 w-6 shrink-0">
-                                                                  <AvatarImage src={r.avatar_url || ''} />
-                                                                  <AvatarFallback className="text-[9px] bg-brand-navy/10 text-brand-navy">{r.name.substring(0, 2).toUpperCase()}</AvatarFallback>
-                                                              </Avatar>
-                                                              <div className="min-w-0">
-                                                                  <p className="text-[11px] font-semibold text-brand-navy truncate">{r.name}</p>
-                                                                  <p className="text-[9px] text-gray-400 truncate">{r.email}</p>
+                        <div className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead>
+                                        <tr className="border-b border-ant-line bg-ant-light/50">
+                                            <th className="px-4 py-3 w-10">
+                                                <Checkbox
+                                                    checked={selectedIds.length > 0 && selectedIds.length === activeRows.length}
+                                                    onCheckedChange={toggleAll}
+                                                    className="border-ant-line data-[state=checked]:bg-ant-ink data-[state=checked]:border-ant-ink"
+                                                />
+                                            </th>
+                                            <th className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">
+                                                {role === 'seller' ? 'Seller' : 'Media buyer'}
+                                            </th>
+                                            {role === 'mediabuyer' && (
+                                                <th className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Type</th>
+                                            )}
+                                            <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Delivered</th>
+                                            {role === 'seller' ? (
+                                                <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Days</th>
+                                            ) : (
+                                                <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Spend</th>
+                                            )}
+                                            {role === 'mediabuyer' && (
+                                                <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Already paid</th>
+                                            )}
+                                            <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">To pay</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {role === 'seller'
+                                            ? (sellerEarnings.rows as SellerEarnings[]).map((r) => {
+                                                  const hasRemainder = r.total_amount > 0;
+                                                  const sel = selectedIds.includes(r.seller_id);
+                                                  return (
+                                                      <tr key={r.seller_id} className={cn('border-b border-ant-line last:border-0 hover:bg-ant-light/60 transition-colors tabular-nums', sel && 'bg-ant-orange/5', !hasRemainder && 'opacity-40')}>
+                                                          <td className="px-4 py-3">
+                                                              <Checkbox
+                                                                  checked={sel}
+                                                                  disabled={!hasRemainder}
+                                                                  onCheckedChange={() => toggleRow(r.seller_id)}
+                                                                  className="border-ant-line data-[state=checked]:bg-ant-ink data-[state=checked]:border-ant-ink"
+                                                              />
+                                                          </td>
+                                                          <td className="px-4 py-3">
+                                                              <div className="flex items-center gap-2.5 min-w-0">
+                                                                  <Avatar className="h-8 w-8 shrink-0 rounded-xl border border-ant-line">
+                                                                      <AvatarImage src={r.avatar_url || ''} className="object-cover" />
+                                                                      <AvatarFallback className="rounded-xl text-[10px] bg-ant-ink/5 text-ant-ink font-display font-semibold">
+                                                                          {r.name.substring(0, 2).toUpperCase()}
+                                                                      </AvatarFallback>
+                                                                  </Avatar>
+                                                                  <div className="min-w-0">
+                                                                      <p className="font-display text-[12px] font-semibold text-ant-ink truncate">{r.name}</p>
+                                                                      <p className="text-[11px] text-ant-mid truncate">{r.email}</p>
+                                                                  </div>
                                                               </div>
-                                                          </div>
-                                                      </td>
-                                                      <td className="px-3 py-2 text-right text-[11px] font-semibold text-emerald-600 tabular-nums">{fmtNum(r.delivered_orders)}</td>
-                                                      <td className="px-3 py-2 text-right text-[11px] text-brand-navy/70 tabular-nums">{r.days_present}</td>
-                                                      <td className="px-3 py-2 text-right text-[11px] font-semibold text-brand-navy tabular-nums" title={fmtCurFull(r.total_amount)}>
-                                                          {fmtCur(r.total_amount)}
-                                                      </td>
-                                                  </tr>
-                                              );
-                                          })
-                                        : (mbEarnings.rows as MediaBuyerEarnings[]).map((r) => {
-                                              const hasRemainder = r.remaining_amount > 0;
-                                              const sel = selectedIds.includes(r.mediabuyer_id);
-                                              return (
-                                                  <tr key={r.mediabuyer_id} className={cn('border-b border-gray-50 hover:bg-gray-50 transition-colors tabular-nums', sel && 'bg-brand-navy/[0.02]', !hasRemainder && 'opacity-40')}>
-                                                      <td className="px-3 py-2">
-                                                          <Checkbox checked={sel} disabled={!hasRemainder} onCheckedChange={() => toggleRow(r.mediabuyer_id)} />
-                                                      </td>
-                                                      <td className="px-3 py-2">
-                                                          <div className="flex items-center gap-2 min-w-0">
-                                                              <Avatar className="h-6 w-6 shrink-0">
-                                                                  <AvatarImage src={r.avatar_url || ''} />
-                                                                  <AvatarFallback className="text-[9px] bg-brand-navy/10 text-brand-navy">{r.name.substring(0, 2).toUpperCase()}</AvatarFallback>
-                                                              </Avatar>
-                                                              <div className="min-w-0">
-                                                                  <p className="text-[11px] font-semibold text-brand-navy truncate">{r.name}</p>
-                                                                  <p className="text-[9px] text-gray-400 truncate">{r.email}</p>
+                                                          </td>
+                                                          <td className="px-4 py-3 text-right text-[12px] font-semibold text-ant-green tabular-nums">{fmtNum(r.delivered_orders)}</td>
+                                                          <td className="px-4 py-3 text-right text-[11px] text-ant-mid tabular-nums">{r.days_present}</td>
+                                                          <td className="px-4 py-3 text-right font-display text-[13px] font-semibold text-ant-ink tabular-nums" title={fmtCurFull(r.total_amount)}>
+                                                              {fmtCur(r.total_amount)}
+                                                              <span className="text-[10px] text-ant-mid font-normal ml-1">MAD</span>
+                                                          </td>
+                                                      </tr>
+                                                  );
+                                              })
+                                            : (mbEarnings.rows as MediaBuyerEarnings[]).map((r) => {
+                                                  const hasRemainder = r.remaining_amount > 0;
+                                                  const sel = selectedIds.includes(r.mediabuyer_id);
+                                                  const isCommission = r.payment_type === 'commission';
+                                                  return (
+                                                      <tr key={r.mediabuyer_id} className={cn('border-b border-ant-line last:border-0 hover:bg-ant-light/60 transition-colors tabular-nums', sel && 'bg-ant-orange/5', !hasRemainder && 'opacity-40')}>
+                                                          <td className="px-4 py-3">
+                                                              <Checkbox
+                                                                  checked={sel}
+                                                                  disabled={!hasRemainder}
+                                                                  onCheckedChange={() => toggleRow(r.mediabuyer_id)}
+                                                                  className="border-ant-line data-[state=checked]:bg-ant-ink data-[state=checked]:border-ant-ink"
+                                                              />
+                                                          </td>
+                                                          <td className="px-4 py-3">
+                                                              <div className="flex items-center gap-2.5 min-w-0">
+                                                                  <Avatar className="h-8 w-8 shrink-0 rounded-xl border border-ant-line">
+                                                                      <AvatarImage src={r.avatar_url || ''} className="object-cover" />
+                                                                      <AvatarFallback className="rounded-xl text-[10px] bg-ant-ink/5 text-ant-ink font-display font-semibold">
+                                                                          {r.name.substring(0, 2).toUpperCase()}
+                                                                      </AvatarFallback>
+                                                                  </Avatar>
+                                                                  <div className="min-w-0">
+                                                                      <p className="font-display text-[12px] font-semibold text-ant-ink truncate">{r.name}</p>
+                                                                      <p className="text-[11px] text-ant-mid truncate">{r.email}</p>
+                                                                  </div>
                                                               </div>
-                                                          </div>
-                                                      </td>
-                                                      <td className="px-3 py-2">
-                                                          <span className={cn('h-5 px-1.5 text-[9px] font-semibold rounded inline-flex items-center uppercase tracking-[0.08em]', r.payment_type === 'commission' ? 'bg-brand-navy/10 text-brand-navy' : 'bg-gray-100 text-gray-600')}>
-                                                              {r.payment_type || 'n/a'}
-                                                          </span>
-                                                      </td>
-                                                      <td className="px-3 py-2 text-right text-[11px] font-semibold text-emerald-600 tabular-nums">{fmtNum(r.delivered_orders)}</td>
-                                                      <td className="px-3 py-2 text-right text-[11px] text-brand-navy/70 tabular-nums" title={fmtCurFull(r.total_spend)}>
-                                                          {fmtCur(r.total_spend)}
-                                                      </td>
-                                                      <td className="px-3 py-2 text-right text-[11px] text-brand-navy/50 tabular-nums" title={fmtCurFull(r.prior_paid_amount)}>
-                                                          {r.prior_paid_amount > 0 ? fmtCur(r.prior_paid_amount) : '—'}
-                                                      </td>
-                                                      <td className="px-3 py-2 text-right text-[11px] font-semibold text-brand-navy tabular-nums" title={fmtCurFull(r.remaining_amount)}>
-                                                          {fmtCur(r.remaining_amount)}
-                                                      </td>
-                                                  </tr>
-                                              );
-                                          })}
-                                </tbody>
-                            </table>
+                                                          </td>
+                                                          <td className="px-4 py-3">
+                                                              <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize', isCommission ? 'bg-ant-orange/10 border-ant-orange/25 text-ant-orange' : 'bg-ant-green/10 border-ant-green/25 text-ant-green')}>
+                                                                  <span className={cn('h-1.5 w-1.5 rounded-full', isCommission ? 'bg-ant-orange' : 'bg-ant-green')} />
+                                                                  {r.payment_type || 'n/a'}
+                                                              </span>
+                                                          </td>
+                                                          <td className="px-4 py-3 text-right text-[12px] font-semibold text-ant-green tabular-nums">{fmtNum(r.delivered_orders)}</td>
+                                                          <td className="px-4 py-3 text-right text-[11px] text-ant-rose tabular-nums" title={fmtCurFull(r.total_spend)}>
+                                                              {fmtCur(r.total_spend)}
+                                                          </td>
+                                                          <td className="px-4 py-3 text-right text-[11px] text-ant-mid tabular-nums" title={fmtCurFull(r.prior_paid_amount)}>
+                                                              {r.prior_paid_amount > 0 ? fmtCur(r.prior_paid_amount) : '—'}
+                                                          </td>
+                                                          <td className="px-4 py-3 text-right font-display text-[13px] font-semibold text-ant-ink tabular-nums" title={fmtCurFull(r.remaining_amount)}>
+                                                              {fmtCur(r.remaining_amount)}
+                                                              <span className="text-[10px] text-ant-mid font-normal ml-1">MAD</span>
+                                                          </td>
+                                                      </tr>
+                                                  );
+                                              })}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     )}
 
                     {!activeLoading && activeRows.length > 0 && (
-                        <div className="mt-3 rounded-xl bg-gray-50 border border-gray-100 p-3 flex items-start gap-2">
-                            <Info className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
-                            <div className="text-[10px] text-brand-navy/70 space-y-0.5">
+                        <div className="rounded-2xl border border-ant-line bg-ant-light/40 p-4 flex items-start gap-3">
+                            <div className="h-8 w-8 rounded-lg bg-ant-orange/10 border border-ant-orange/25 flex items-center justify-center shrink-0">
+                                <Info className="w-3.5 h-3.5 text-ant-orange" />
+                            </div>
+                            <div className="space-y-1 text-[12px] text-ant-ink leading-relaxed">
                                 <p>
-                                    <span className="font-bold">{role === 'seller' ? 'Sellers' : 'Media buyers'}:</span>{' '}
+                                    <span className="font-semibold">{role === 'seller' ? 'Sellers' : 'Media buyers'}:</span>{' '}
                                     {role === 'seller'
                                         ? 'Commission accrual from delivery days, minus prior payouts for the same month.'
                                         : 'Salary type → full monthly salary. Commission type → delivered orders × commission price, minus prior payouts for the same month.'}
                                 </p>
-                                <p className="text-brand-navy/50">Rows with 0 remainder are disabled. Generated payouts are created as pending and must be marked paid manually.</p>
+                                <p className="font-serif italic text-[11px] text-ant-mid">
+                                    Rows with 0 remainder are disabled. Generated payouts are created as pending and must be marked paid manually.
+                                </p>
                             </div>
                         </div>
                     )}
                 </div>
 
-                <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                        {[
-                            { label: 'Selected', value: String(totals.users), color: 'text-brand-navy' },
-                            { label: 'Delivered', value: fmtNum(totals.delivered), color: 'text-emerald-600' },
-                            { label: 'Total', value: fmtCur(totals.amount), color: 'text-brand-navy' },
-                        ].map((s) => (
-                            <div key={s.label}>
-                                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">{s.label}</p>
-                                <p className={cn("text-[13px] font-semibold tabular-nums", s.color)} title={s.label === 'Total' ? fmtCurFull(totals.amount) : undefined}>{s.value}</p>
+                {/* Ink summary + footer actions */}
+                <DialogFooter className="p-0 border-t border-ant-line">
+                    <div className="w-full flex flex-col lg:flex-row lg:items-center justify-between gap-3 p-4 bg-ant-ink text-white">
+                        <div className="grid grid-cols-3 gap-6">
+                            <div>
+                                <p className="text-[9px] uppercase tracking-[0.24em] font-semibold text-white/55 inline-flex items-center gap-1.5">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                                    Selected
+                                </p>
+                                <p className="font-display text-[20px] font-semibold text-white mt-0.5 tabular-nums">{totals.users}</p>
                             </div>
-                        ))}
+                            <div>
+                                <p className="text-[9px] uppercase tracking-[0.24em] font-semibold text-white/55 inline-flex items-center gap-1.5">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-ant-green" />
+                                    Delivered
+                                </p>
+                                <p className="font-display text-[20px] font-semibold text-ant-green mt-0.5 tabular-nums">{fmtNum(totals.delivered)}</p>
+                            </div>
+                            <div>
+                                <p className="text-[9px] uppercase tracking-[0.24em] font-semibold text-white/55 inline-flex items-center gap-1.5">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                                    Total
+                                </p>
+                                <p className="font-display text-[20px] font-semibold text-ant-orange mt-0.5 tabular-nums" title={fmtCurFull(totals.amount)}>
+                                    {fmtCur(totals.amount)}
+                                    <span className="text-[11px] text-white/55 font-normal ml-1">MAD</span>
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="ghost"
+                                onClick={() => onOpenChange(false)}
+                                className="h-10 px-5 rounded-full text-[12px] font-semibold text-white/70 hover:text-white hover:bg-white/10 cursor-pointer"
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={() => generateMutation.mutate()}
+                                disabled={generateMutation.isPending || totals.users === 0 || totals.amount === 0}
+                                className="h-10 px-5 rounded-full bg-ant-orange hover:bg-ant-orange/90 text-white text-[12px] font-semibold gap-2 cursor-pointer"
+                            >
+                                {generateMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                                Generate {totals.users} payout{totals.users !== 1 ? 's' : ''}
+                            </Button>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <Button variant="ghost" onClick={() => onOpenChange(false)} className="h-8 rounded-md text-[11px] font-semibold">
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={() => generateMutation.mutate()}
-                            disabled={generateMutation.isPending || totals.users === 0 || totals.amount === 0}
-                            className="h-8 rounded-md bg-brand-navy hover:bg-brand-navy/90 text-white text-[11px] font-semibold gap-1.5"
-                        >
-                            {generateMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-                            Generate {totals.users} payout{totals.users !== 1 ? 's' : ''}
-                        </Button>
-                    </div>
-                </div>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
     );

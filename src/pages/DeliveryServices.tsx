@@ -34,6 +34,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Switch } from '@/components/ui/switch';
 import {
     Dialog,
@@ -321,6 +322,7 @@ const DeliveryServices = () => {
     const [activeTab, setActiveTab] = useState<'person' | 'company'>('company');
     const [isPersonModalOpen, setIsPersonModalOpen] = useState(false);
     const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
+    const [pendingDelete, setPendingDelete] = useState<{ id: string; type: 'company' | 'person'; label: string } | null>(null);
     const [isPickerOpen, setIsPickerOpen] = useState(false);
     const [selectedProviderTemplate, setSelectedProviderTemplate] = useState<typeof KNOWN_PROVIDERS[number] | null>(null);
     const [isZonesModalOpen, setIsZonesModalOpen] = useState(false);
@@ -624,9 +626,7 @@ const DeliveryServices = () => {
                                         setSelectedCompany(company);
                                         setIsProviderPermissionsOpen(true);
                                     }}
-                                    onDelete={() => {
-                                        if (confirm('Delete provider connection?')) deleteMutation.mutate({ id: company.id, type: 'company' });
-                                    }}
+                                    onDelete={() => setPendingDelete({ id: company.id, type: 'company', label: company.name || 'Provider' })}
                                 />
                             ))}
                         </div>
@@ -658,9 +658,7 @@ const DeliveryServices = () => {
                                         setSelectedCourier(person);
                                         setIsCourierPermissionsOpen(true);
                                     }}
-                                    onDelete={() => {
-                                        if (confirm('Delete courier account?')) deleteMutation.mutate({ id: person.id, type: 'person' });
-                                    }}
+                                    onDelete={() => setPendingDelete({ id: person.id, type: 'person', label: person.name || 'Courier' })}
                                 />
                             ))}
                         </div>
@@ -669,6 +667,25 @@ const DeliveryServices = () => {
             </Tabs>
 
             {/* Modals */}
+            <ConfirmDialog
+                open={!!pendingDelete}
+                onOpenChange={(o) => { if (!o) setPendingDelete(null); }}
+                kicker={pendingDelete?.type === 'company' ? 'Prestataire · Déconnexion' : 'Coursier · Suppression'}
+                title={pendingDelete?.type === 'company' ? 'Déconnecter ce prestataire ?' : 'Supprimer ce coursier ?'}
+                description={pendingDelete
+                    ? `« ${pendingDelete.label} » sera retiré de votre réseau. Les frais, zones et permissions associés seront effacés. L'action est irréversible.`
+                    : undefined}
+                confirmLabel="Supprimer"
+                loading={deleteMutation.isPending}
+                onConfirm={() => {
+                    if (!pendingDelete) return;
+                    deleteMutation.mutate(
+                        { id: pendingDelete.id, type: pendingDelete.type },
+                        { onSettled: () => setPendingDelete(null) },
+                    );
+                }}
+            />
+
             <PersonModal
                 isOpen={isPersonModalOpen}
                 onClose={() => setIsPersonModalOpen(false)}

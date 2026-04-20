@@ -372,14 +372,14 @@ const ReturnNote = () => {
         const textSize = { sm: 'text-[10px]', md: 'text-[11px]', lg: 'text-[11px]' };
         if (logoUrl) {
             return (
-                <div className={cn(sizeClasses[size], "bg-gray-50 border border-gray-100 p-1 flex items-center justify-center overflow-hidden")}>
+                <div className={cn(sizeClasses[size], "bg-ant-light border border-ant-line p-1 flex items-center justify-center overflow-hidden")}>
                     <img src={logoUrl} alt={name} className="max-w-full max-h-full object-contain" />
                 </div>
             );
         }
         return (
-            <div className={cn(sizeClasses[size], "bg-gray-100 flex items-center justify-center")}>
-                <span className={cn("font-semibold text-gray-500", textSize[size])}>{name?.substring(0, 2).toUpperCase()}</span>
+            <div className={cn(sizeClasses[size], "bg-ant-line flex items-center justify-center")}>
+                <span className={cn("font-semibold text-ant-mid", textSize[size])}>{name?.substring(0, 2).toUpperCase()}</span>
             </div>
         );
     };
@@ -402,20 +402,20 @@ const ReturnNote = () => {
         const textSize = { sm: 'text-[10px]', md: 'text-[11px]', lg: 'text-[11px]' };
         if (kind === 'company' && logoUrl) {
             return (
-                <div className={cn(sizeClasses[size], "bg-gray-50 border border-gray-100 p-1 flex items-center justify-center overflow-hidden")}>
+                <div className={cn(sizeClasses[size], "bg-ant-light border border-ant-line p-1 flex items-center justify-center overflow-hidden")}>
                     <img src={logoUrl} alt={name} className="max-w-full max-h-full object-contain" />
                 </div>
             );
         }
         if (kind === 'courier' && avatarUrl) {
             return (
-                <div className={cn(sizeClasses[size], "overflow-hidden border border-gray-100")}>
+                <div className={cn(sizeClasses[size], "overflow-hidden border border-ant-line")}>
                     <img src={avatarUrl} alt={name} className="w-full h-full object-cover" />
                 </div>
             );
         }
         return (
-            <div className={cn(sizeClasses[size], kind === 'courier' ? 'bg-brand-navy/10 text-brand-navy' : 'bg-gray-100 text-gray-500', 'flex items-center justify-center')}>
+            <div className={cn(sizeClasses[size], kind === 'courier' ? 'bg-ant-ink/10 text-ant-ink' : 'bg-ant-line text-ant-mid', 'flex items-center justify-center')}>
                 <span className={cn("font-semibold", textSize[size])}>{name?.substring(0, 2).toUpperCase()}</span>
             </div>
         );
@@ -450,66 +450,85 @@ const ReturnNote = () => {
             </tr>`).join('');
 
         const html = `<!doctype html><html><head><meta charset="utf-8"/><title>${note.reference}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Lora:ital,wght@1,400;1,500&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
 <style>
   @page { size: A4; margin: 0; }
   * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-  html, body { margin: 0; padding: 0; background: #fff; color: #3b5e5e; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; font-feature-settings: "ss01","cv11"; }
-  .sheet { padding: 22mm 18mm; min-height: 297mm; display: flex; flex-direction: column; }
-  .hdr { display: flex; align-items: flex-start; justify-content: space-between; padding-bottom: 28px; border-bottom: 1px solid #eef1ee; }
-  .brand { display: flex; align-items: center; gap: 16px; }
-  .brand .logo { width: 56px; height: 56px; border-radius: 16px; background: #f6f7f3; border: 1px solid #eef1ee; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  html, body { margin: 0; padding: 0; background: #faf9f5; color: #141413; font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-feature-settings: "ss01","cv11"; }
+  .sheet { padding: 20mm 16mm; min-height: 297mm; display: flex; flex-direction: column; background: #faf9f5; }
+  .stripe { height: 3px; background: #D97706; margin: -20mm -16mm 22px; }
+  .hdr { display: flex; align-items: flex-start; justify-content: space-between; padding-bottom: 22px; border-bottom: 1px solid #e8e6dc; }
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .brand .logo { width: 52px; height: 52px; border-radius: 14px; background: #ffffff; border: 1px solid #e8e6dc; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 4px; }
   .brand .logo img { max-width: 100%; max-height: 100%; object-fit: contain; }
-  .brand .logo.fallback { background: #3b5e5e; color: #daddcc; font-weight: 900; font-size: 18px; letter-spacing: 0.5px; }
-  .brand .name { font-size: 18px; font-weight: 800; color: #3b5e5e; letter-spacing: -0.3px; line-height: 1; }
-  .brand .sub { font-size: 9px; font-weight: 700; color: #9aa6a0; text-transform: uppercase; letter-spacing: 2.5px; margin-top: 6px; }
+  .brand .logo.fallback { background: #141413; color: #faf9f5; font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 17px; letter-spacing: -0.02em; padding: 0; }
+  .brand .name { font-family: 'Poppins', sans-serif; font-size: 18px; font-weight: 600; color: #141413; letter-spacing: -0.02em; line-height: 1.1; }
+  .brand .sub { display: inline-flex; align-items: center; gap: 6px; font-size: 9px; font-weight: 500; color: #6B6760; text-transform: uppercase; letter-spacing: 0.28em; margin-top: 6px; }
+  .brand .sub::before { content: ''; width: 5px; height: 5px; border-radius: 999px; background: #D97706; }
   .meta { text-align: right; }
-  .meta .kicker { font-size: 9px; font-weight: 800; color: #c93942; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 6px; }
-  .meta h1 { margin: 0; font-size: 26px; font-weight: 900; color: #3b5e5e; font-family: "SF Mono", Menlo, monospace; letter-spacing: -0.5px; }
-  .meta .date { font-size: 11px; color: #9aa6a0; margin-top: 6px; font-weight: 500; }
-  .entity { margin-top: 32px; display: flex; align-items: center; gap: 18px; padding: 20px 22px; background: #f9faf7; border: 1px solid #eef1ee; border-radius: 20px; }
-  .entity .ava { width: 60px; height: 60px; border-radius: 18px; overflow: hidden; background: #fff; border: 1px solid #eef1ee; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
-  .entity .ava img { width: 100%; height: 100%; object-fit: ${note.kind === 'courier' ? 'cover' : 'contain'}; padding: ${note.kind === 'courier' ? '0' : '6px'}; }
-  .entity .ava.fallback { background: ${note.kind === 'courier' ? '#3b5e5e' : '#fef2f2'}; color: ${note.kind === 'courier' ? '#daddcc' : '#c93942'}; font-weight: 900; font-size: 18px; }
-  .entity .info .label { font-size: 9px; font-weight: 800; color: #9aa6a0; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 4px; }
-  .entity .info .val { font-size: 20px; font-weight: 800; color: #3b5e5e; letter-spacing: -0.3px; }
-  .entity .badge { margin-left: auto; padding: 8px 16px; border-radius: 999px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; }
-  .entity .badge.pending { background: #fef3c7; color: #92400e; }
-  .entity .badge.received { background: #d1fae5; color: #065f46; }
-  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 22px; }
-  .stat { padding: 18px 20px; background: #fff; border: 1px solid #eef1ee; border-radius: 18px; }
-  .stat .k { font-size: 9px; font-weight: 800; color: #9aa6a0; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 6px; }
-  .stat .v { font-size: 18px; font-weight: 900; color: #3b5e5e; font-variant-numeric: tabular-nums; }
-  .stat .v.red { color: #c93942; }
-  table { width: 100%; border-collapse: collapse; margin-top: 28px; font-variant-numeric: tabular-nums; }
-  thead th { text-align: left; padding: 12px 14px; font-size: 9px; font-weight: 800; color: #9aa6a0; text-transform: uppercase; letter-spacing: 1.5px; border-bottom: 1px solid #eef1ee; }
+  .meta .kicker { display: inline-flex; align-items: center; gap: 6px; font-size: 9px; font-weight: 500; color: #6B6760; text-transform: uppercase; letter-spacing: 0.28em; margin-bottom: 6px; }
+  .meta .kicker::before { content: ''; width: 5px; height: 5px; border-radius: 999px; background: #D97706; }
+  .meta h1 { margin: 0; font-family: 'Poppins', sans-serif; font-size: 26px; font-weight: 600; color: #141413; letter-spacing: -0.03em; }
+  .meta .date { font-family: 'Lora', Georgia, serif; font-style: italic; font-size: 12px; color: #6B6760; margin-top: 6px; }
+  .entity { margin-top: 24px; display: flex; align-items: center; gap: 16px; padding: 18px 20px; background: #ffffff; border: 1px solid #e8e6dc; border-radius: 16px; position: relative; overflow: hidden; }
+  .entity::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: #141413; }
+  .entity .ava { width: 52px; height: 52px; border-radius: 14px; overflow: hidden; background: #faf9f5; border: 1px solid #e8e6dc; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+  .entity .ava img { width: 100%; height: 100%; object-fit: ${note.kind === 'courier' ? 'cover' : 'contain'}; padding: ${note.kind === 'courier' ? '0' : '5px'}; }
+  .entity .ava.fallback { background: ${note.kind === 'courier' ? '#141413' : '#f4d9c9'}; color: ${note.kind === 'courier' ? '#faf9f5' : '#D97706'}; font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 18px; padding: 0; }
+  .entity .info .label { display: inline-flex; align-items: center; gap: 6px; font-size: 9px; font-weight: 500; color: #6B6760; text-transform: uppercase; letter-spacing: 0.22em; margin-bottom: 5px; }
+  .entity .info .label::before { content: ''; width: 5px; height: 5px; border-radius: 999px; background: #141413; }
+  .entity .info .val { font-family: 'Poppins', sans-serif; font-size: 19px; font-weight: 600; color: #141413; letter-spacing: -0.02em; }
+  .entity .badge { margin-left: auto; padding: 6px 12px; border-radius: 999px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; display: inline-flex; align-items: center; gap: 6px; border: 1px solid; }
+  .entity .badge::before { content: ''; width: 5px; height: 5px; border-radius: 999px; }
+  .entity .badge.pending { background: rgba(217,119,6,0.10); color: #D97706; border-color: rgba(217,119,6,0.25); }
+  .entity .badge.pending::before { background: #D97706; }
+  .entity .badge.received { background: rgba(45,122,62,0.10); color: #2D7A3E; border-color: rgba(45,122,62,0.25); }
+  .entity .badge.received::before { background: #2D7A3E; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin-top: 18px; background: #e8e6dc; border: 1px solid #e8e6dc; border-radius: 16px; overflow: hidden; }
+  .stat { padding: 16px 18px; background: #ffffff; }
+  .stat .k { display: inline-flex; align-items: center; gap: 6px; font-size: 9px; font-weight: 500; color: #6B6760; text-transform: uppercase; letter-spacing: 0.22em; margin-bottom: 8px; }
+  .stat .k::before { content: ''; width: 5px; height: 5px; border-radius: 999px; background: #141413; }
+  .stat.warn .k::before { background: #D97706; }
+  .stat.danger .k::before { background: #c96356; }
+  .stat .v { font-family: 'Poppins', sans-serif; font-size: 20px; font-weight: 600; color: #141413; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  .stat .v.red { color: #c96356; }
+  .stat .v .unit { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 400; color: #6B6760; margin-left: 4px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 22px; font-variant-numeric: tabular-nums; background: #ffffff; border: 1px solid #e8e6dc; border-radius: 16px; overflow: hidden; }
+  thead th { text-align: left; padding: 11px 16px; font-size: 9px; font-weight: 500; color: #6B6760; text-transform: uppercase; letter-spacing: 0.18em; border-bottom: 1px solid #e8e6dc; background: #faf9f5; }
   thead th.right { text-align: right; }
-  tbody td { padding: 14px; font-size: 12px; border-bottom: 1px solid #f4f6f2; color: #3b5e5e; }
+  tbody td { padding: 12px 16px; font-size: 12px; border-bottom: 1px solid #e8e6dc; color: #141413; }
   tbody tr:last-child td { border-bottom: none; }
-  td.num { font-family: "SF Mono", Menlo, monospace; font-size: 10px; color: #9aa6a0; font-weight: 700; width: 40px; }
-  td.track { font-family: "SF Mono", Menlo, monospace; font-size: 11px; font-weight: 700; letter-spacing: -0.3px; }
-  td.right { text-align: right; }
-  td.red { color: #c93942; font-weight: 600; }
-  td.bold { font-weight: 800; }
-  .totals { margin-top: 24px; padding: 24px; background: #3b5e5e; color: #fff; border-radius: 20px; display: flex; justify-content: space-between; align-items: center; }
-  .totals .col { }
-  .totals .col .lbl { font-size: 9px; font-weight: 800; color: rgba(255,255,255,0.55); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 6px; }
-  .totals .col .val { font-size: 18px; font-weight: 900; font-variant-numeric: tabular-nums; }
-  .totals .col.net .lbl { color: rgba(255, 217, 102, 0.7); }
-  .totals .col.net .val { font-size: 28px; color: #ffd966; }
-  .totals .divider { width: 1px; height: 48px; background: rgba(255,255,255,0.12); }
-  .foot { margin-top: auto; padding-top: 24px; border-top: 1px solid #eef1ee; display: flex; justify-content: space-between; font-size: 9px; color: #9aa6a0; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; }
+  td.num { font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace; font-size: 10px; color: #6B6760; font-weight: 500; width: 48px; }
+  td.track { font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace; font-size: 11px; font-weight: 500; letter-spacing: -0.02em; color: #141413; }
+  td.right { text-align: right; font-family: 'Poppins', sans-serif; font-weight: 600; }
+  td.red { color: #c96356; }
+  td.bold { font-family: 'Poppins', sans-serif; font-weight: 600; color: #141413; }
+  .totals { margin-top: 20px; padding: 22px 24px; background: #141413; color: #ffffff; border-radius: 16px; display: flex; justify-content: space-between; align-items: center; position: relative; overflow: hidden; }
+  .totals::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: #D97706; }
+  .totals .col .lbl { display: inline-flex; align-items: center; gap: 6px; font-size: 9px; font-weight: 500; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.22em; margin-bottom: 8px; }
+  .totals .col .lbl::before { content: ''; width: 5px; height: 5px; border-radius: 999px; background: rgba(255,255,255,0.5); }
+  .totals .col .val { font-family: 'Poppins', sans-serif; font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  .totals .col .val .unit { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 400; color: rgba(255,255,255,0.55); margin-left: 4px; }
+  .totals .col.net .lbl { color: rgba(217,119,6,0.9); }
+  .totals .col.net .lbl::before { background: #D97706; }
+  .totals .col.net .val { font-size: 28px; color: #D97706; }
+  .totals .divider { width: 1px; height: 52px; background: rgba(255,255,255,0.12); }
+  .foot { margin-top: auto; padding-top: 22px; border-top: 1px solid #e8e6dc; display: flex; justify-content: space-between; align-items: center; font-size: 9px; color: #6B6760; font-weight: 500; text-transform: uppercase; letter-spacing: 0.18em; }
+  .foot .italic { font-family: 'Lora', Georgia, serif; font-style: italic; text-transform: none; letter-spacing: 0; font-size: 11px; font-weight: 400; }
 </style></head><body>
 <div class="sheet">
+  <div class="stripe"></div>
   <div class="hdr">
     <div class="brand">
       ${businessLogo ? `<div class="logo"><img src="${businessLogo}" alt=""/></div>` : `<div class="logo fallback">${businessName.substring(0,2).toUpperCase()}</div>`}
       <div>
         <div class="name">${businessName}</div>
-        <div class="sub">Return Note</div>
+        <div class="sub">Bon de retour · Document</div>
       </div>
     </div>
     <div class="meta">
-      <div class="kicker">Document</div>
+      <div class="kicker">Référence</div>
       <h1>${note.reference}</h1>
       <div class="date">${createdAt}</div>
     </div>
@@ -523,34 +542,34 @@ const ReturnNote = () => {
       <div class="label">${entityLabel}</div>
       <div class="val">${entityName}</div>
     </div>
-    <span class="badge ${note.status}">${note.status}</span>
+    <span class="badge ${note.status}">${note.status === 'received' ? 'Reçu' : 'En attente'}</span>
   </div>
 
   <div class="stats">
-    <div class="stat"><div class="k">Orders</div><div class="v">${note.order_count}</div></div>
-    <div class="stat"><div class="k">Gross Amount</div><div class="v">${Number(note.total_amount).toFixed(2)} MAD</div></div>
-    <div class="stat"><div class="k">Return Fees</div><div class="v red">-${Number(note.total_shipping_fees).toFixed(2)} MAD</div></div>
+    <div class="stat"><div class="k">Commandes</div><div class="v">${note.order_count}</div></div>
+    <div class="stat warn"><div class="k">Montant brut</div><div class="v">${Number(note.total_amount).toFixed(2)}<span class="unit">MAD</span></div></div>
+    <div class="stat danger"><div class="k">Frais de retour</div><div class="v red">-${Number(note.total_shipping_fees).toFixed(2)}<span class="unit">MAD</span></div></div>
   </div>
 
   <table>
-    <thead><tr><th>#</th><th>Tracking</th><th class="right">Amount</th><th class="right">Fee</th><th class="right">Net</th></tr></thead>
+    <thead><tr><th>#</th><th>Tracking</th><th class="right">Montant</th><th class="right">Frais</th><th class="right">Net</th></tr></thead>
     <tbody>${rows}</tbody>
   </table>
 
   <div class="totals">
-    <div class="col"><div class="lbl">Gross</div><div class="val">${Number(note.total_amount).toFixed(2)} MAD</div></div>
+    <div class="col"><div class="lbl">Brut</div><div class="val">${Number(note.total_amount).toFixed(2)}<span class="unit">MAD</span></div></div>
     <div class="divider"></div>
-    <div class="col"><div class="lbl">Return Fees</div><div class="val">-${Number(note.total_shipping_fees).toFixed(2)} MAD</div></div>
+    <div class="col"><div class="lbl">Frais de retour</div><div class="val">-${Number(note.total_shipping_fees).toFixed(2)}<span class="unit">MAD</span></div></div>
     <div class="divider"></div>
-    <div class="col net"><div class="lbl">Net Value</div><div class="val">${Number(note.net_amount).toFixed(2)} MAD</div></div>
+    <div class="col net"><div class="lbl">Valeur nette</div><div class="val">${Number(note.net_amount).toFixed(2)}<span class="unit">MAD</span></div></div>
   </div>
 
   <div class="foot">
-    <span>${businessName} • Return Note</span>
-    <span>${note.reference}</span>
+    <span>${businessName} · Bon de retour</span>
+    <span class="italic">${note.reference}</span>
   </div>
 </div>
-<script>window.onload=function(){setTimeout(function(){window.print();},120);};</script>
+<script>window.onload=function(){setTimeout(function(){window.print();},160);};</script>
 </body></html>`;
 
         w.document.open();
@@ -559,87 +578,121 @@ const ReturnNote = () => {
     };
 
     return (
-        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
-            {/* Header */}
-            <header className="space-y-2.5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Return Notes</h1>
-                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Track &amp; reconcile returned parcels</p>
-                    </div>
-                    <Button onClick={() => { setIsWizardOpen(true); setWizardStep(0); setSelectedProvider(null); }}
-                        disabled={!activeGroups.length}
-                        className="bg-brand-navy hover:bg-brand-navy/90 text-white h-8 px-3 rounded-md text-[11px] font-semibold gap-1.5 shrink-0">
-                        <Plus className="w-3.5 h-3.5" />
-                        {activeTab === 'courier' ? 'Generate courier return' : 'Generate return note'}
-                    </Button>
-                </div>
-                {sellerShippingCtx && sellerShippingCtx.productIds.length === 0 && (
-                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-100 text-amber-900 text-[11px] font-semibold">
-                        No products are assigned to your account. Assign products in your profile to generate return notes for your orders.
-                    </div>
-                )}
-            </header>
-
-            {/* Tabs (Company / Courier) */}
-            <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as 'company' | 'courier'); setSelectedProvider(null); }} className="space-y-3">
-                <TabsList className="h-8 w-fit">
-                    <TabsTrigger value="company" className="text-[11px] h-6 px-3 gap-1.5">
-                        <Building2 className="w-3 h-3" /> Company Notes
-                    </TabsTrigger>
-                    <TabsTrigger value="courier" className="text-[11px] h-6 px-3 gap-1.5">
-                        <Truck className="w-3 h-3" /> Courier Notes
-                    </TabsTrigger>
-                </TabsList>
-
-            {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {[
-                    { label: 'Returned orders', value: stats.totalReturnOrders, accent: '#ef4444' },
-                    { label: 'Pending notes', value: stats.pendingNotes, accent: '#d97706' },
-                    { label: 'Received notes', value: stats.receivedNotes, accent: '#059669' },
-                    { label: 'Pending value', value: `${stats.pendingAmount.toFixed(2)} MAD`, accent: '#3b5e5e' },
-                ].map((s, i) => (
-                    <div key={i} className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
-                        <span className="w-[3px] self-stretch rounded-full" style={{ background: s.accent }} />
-                        <div className="flex-1 min-w-0">
-                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400 truncate">{s.label}</p>
-                            <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1 truncate">{s.value}</p>
+        <div className="ant-surface min-h-screen">
+            <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 md:py-8 space-y-6">
+                {/* Editorial header */}
+                <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                    <div className="space-y-2">
+                        <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                            <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                            Commercial · Retours
                         </div>
+                        <h1 className="font-display text-[30px] md:text-[34px] leading-[1.05] tracking-[-0.02em] text-ant-ink">
+                            Bons de retour
+                        </h1>
+                        <p className="font-serif italic text-[14px] leading-relaxed text-ant-mid max-w-xl">
+                            Suivez et réconciliez les colis retournés — ce qui attend réception, ce qui est revenu en stock, la valeur encore en suspens.
+                        </p>
                     </div>
-                ))}
-            </div>
+                    <button
+                        type="button"
+                        onClick={() => { setIsWizardOpen(true); setWizardStep(0); setSelectedProvider(null); }}
+                        disabled={!activeGroups.length}
+                        className="inline-flex items-center gap-2 h-10 px-4 rounded-full bg-ant-ink hover:bg-ant-ink/90 disabled:opacity-50 disabled:cursor-not-allowed text-white text-[12px] font-semibold cursor-pointer shrink-0 transition-colors"
+                    >
+                        <Plus className="w-3.5 h-3.5" strokeWidth={1.75} />
+                        {activeTab === 'courier' ? 'Retour coursier' : 'Bon de retour'}
+                    </button>
+                </header>
 
-            {/* Filters */}
-            <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
-                <div className="relative w-full sm:w-72">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
-                    <Input placeholder="Search by reference or provider…"
-                        value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                        className="pl-7 h-8 rounded-md border-gray-200 bg-white text-[11px]" />
-                </div>
-                <div className="flex gap-0.5 bg-white p-0.5 rounded-md border border-gray-200 shrink-0">
-                    {(['all', 'pending', 'received'] as const).map(s => (
-                        <button key={s} onClick={() => setFilterStatus(s)}
-                            className={cn("px-2.5 h-7 rounded-[4px] text-[10px] font-semibold transition",
-                                filterStatus === s ? "bg-brand-navy text-white" : "text-gray-500 hover:text-brand-navy hover:bg-gray-50")}>
-                            {s === 'all' ? 'All' : s === 'pending' ? 'Pending' : 'Received'}
-                        </button>
+                {sellerShippingCtx && sellerShippingCtx.productIds.length === 0 && (
+                    <section className="rounded-2xl border border-ant-orange/25 bg-ant-orange/10 overflow-hidden">
+                        <div className="h-[3px] w-full bg-ant-orange" />
+                        <div className="px-4 py-3 flex items-center gap-3">
+                            <div className="h-8 w-8 rounded-lg border border-ant-orange/25 bg-ant-orange/10 text-ant-orange flex items-center justify-center shrink-0">
+                                <SearchX className="w-4 h-4" strokeWidth={1.75} />
+                            </div>
+                            <p className="font-serif italic text-[12px] text-ant-orange">
+                                Aucun produit n&apos;est assigné à votre compte. Demandez à un administrateur d&apos;en rattacher pour générer des bons de retour.
+                            </p>
+                        </div>
+                    </section>
+                )}
+
+                {/* Tabs */}
+                <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as 'company' | 'courier'); setSelectedProvider(null); }} className="space-y-5">
+                    <TabsList className="h-10 rounded-full p-1 bg-ant-paper border border-ant-line inline-flex w-auto">
+                        <TabsTrigger value="company" className="text-[12px] h-8 px-3.5 rounded-full gap-1.5 font-semibold data-[state=active]:bg-ant-ink data-[state=active]:text-white text-ant-mid">
+                            <Building2 className="w-3.5 h-3.5" />
+                            Bons transporteur
+                        </TabsTrigger>
+                        <TabsTrigger value="courier" className="text-[12px] h-8 px-3.5 rounded-full gap-1.5 font-semibold data-[state=active]:bg-ant-ink data-[state=active]:text-white text-ant-mid">
+                            <Truck className="w-3.5 h-3.5" />
+                            Bons coursier
+                        </TabsTrigger>
+                    </TabsList>
+
+                {/* KPI strip */}
+                <section className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
+                    {[
+                        { label: 'Commandes retournées', value: stats.totalReturnOrders, dot: 'bg-ant-rose', text: 'text-ant-rose' },
+                        { label: 'Bons en attente', value: stats.pendingNotes, dot: 'bg-ant-orange', text: 'text-ant-orange' },
+                        { label: 'Bons réceptionnés', value: stats.receivedNotes, dot: 'bg-ant-green', text: 'text-ant-green' },
+                        { label: 'Valeur en attente', value: `${stats.pendingAmount.toFixed(2)}`, unit: 'MAD', dot: 'bg-ant-ink', text: 'text-ant-ink' },
+                    ].map((s, i) => (
+                        <div key={i} className="bg-ant-paper p-4">
+                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.24em] text-ant-mid">
+                                <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
+                                {s.label}
+                            </div>
+                            <p className={`font-display text-[20px] font-semibold tabular-nums mt-2 truncate ${s.text}`}>
+                                {s.value}
+                                {s.unit && <span className="text-[11px] text-ant-mid font-normal ml-1">{s.unit}</span>}
+                            </p>
+                        </div>
                     ))}
+                </section>
+
+                {/* Filters */}
+                <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+                    <div className="relative w-full sm:w-72">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" strokeWidth={1.75} />
+                        <Input
+                            placeholder="Rechercher par référence ou prestataire…"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="pl-9 h-9 rounded-full border-ant-line bg-ant-paper text-[12px] focus-visible:ring-1 focus-visible:ring-ant-orange/40"
+                        />
+                    </div>
+                    <div className="inline-flex items-center gap-1 p-1 rounded-full border border-ant-line bg-ant-paper shrink-0">
+                        {(['all', 'pending', 'received'] as const).map((s) => (
+                            <button
+                                key={s}
+                                onClick={() => setFilterStatus(s)}
+                                className={cn(
+                                    'h-7 px-3 rounded-full text-[11px] font-semibold transition-colors cursor-pointer',
+                                    filterStatus === s
+                                        ? 'bg-ant-ink text-white'
+                                        : 'text-ant-mid hover:text-ant-ink',
+                                )}
+                            >
+                                {s === 'all' ? 'Tous' : s === 'pending' ? 'En attente' : 'Reçus'}
+                            </button>
+                        ))}
+                    </div>
                 </div>
-            </div>
 
             {/* Return Notes List */}
             {isLoading ? (
                 <div className="space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}</div>
             ) : filteredNotes.length === 0 ? (
-                <Card className="border border-gray-100 shadow-none rounded-xl">
+                <Card className="border border-ant-line shadow-none rounded-xl">
                     <CardContent className="p-6 text-center">
-                        <div className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-red-50 mb-2.5">
-                            <SearchX className="w-4 h-4 text-red-400" />
+                        <div className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-ant-rose/10 mb-2.5">
+                            <SearchX className="w-4 h-4 text-ant-rose" />
                         </div>
-                        <h3 className="text-[14px] font-semibold text-brand-navy">No return notes</h3>
-                        <p className="text-[11px] text-gray-500 mt-0.5">Generate your first return note from returned parcels.</p>
+                        <h3 className="text-[14px] font-semibold text-ant-ink">No return notes</h3>
+                        <p className="text-[11px] text-ant-mid mt-0.5">Generate your first return note from returned parcels.</p>
                     </CardContent>
                 </Card>
             ) : (
@@ -648,50 +701,50 @@ const ReturnNote = () => {
                         const isExpanded = expandedCards.has(note.id);
                         const isReceived = note.status === 'received';
                         return (
-                            <Card key={note.id} className="group relative overflow-hidden border border-gray-100 shadow-none rounded-xl">
+                            <Card key={note.id} className="group relative overflow-hidden border border-ant-line shadow-none rounded-xl">
                                 <div className={cn("absolute top-0 left-0 w-full h-1 transition-colors",
-                                    isReceived ? "bg-emerald-500" : "bg-red-500")} />
+                                    isReceived ? "bg-ant-green" : "bg-ant-rose/100")} />
 
                                 <CardContent className="p-0">
                                     <div className="px-3.5 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2">
-                                                <span className="text-[12px] font-semibold text-brand-navy tracking-tight truncate">{note.reference}</span>
+                                                <span className="text-[12px] font-semibold text-ant-ink tracking-tight truncate">{note.reference}</span>
                                                 <Badge className={cn("border-none font-bold text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded",
-                                                    isReceived ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700")}>
+                                                    isReceived ? "bg-ant-green/20 text-ant-green" : "bg-ant-rose/20 text-ant-rose")}>
                                                     {isReceived ? 'Received' : 'Pending'}
                                                 </Badge>
                                             </div>
-                                            <div className="flex items-center gap-3 text-gray-400 mt-1 flex-wrap">
+                                            <div className="flex items-center gap-3 text-ant-mid mt-1 flex-wrap">
                                                 <span className="flex items-center gap-1 text-[10px]">
                                                     {note.kind === 'courier' ? <Truck className="w-3 h-3" /> : <Building2 className="w-3 h-3" />}
                                                     {note.kind === 'courier' ? (note.courier?.name || '—') : (note.provider?.name || '—')}
                                                 </span>
                                                 <span className="flex items-center gap-1 text-[10px]"><Package className="w-3 h-3" />{note.order_count} orders</span>
                                                 <span className="flex items-center gap-1 text-[10px]"><Clock className="w-3 h-3" />{format(new Date(note.created_at), 'dd MMM yyyy')}</span>
-                                                {isReceived && note.received_at && <span className="flex items-center gap-1 text-[10px] text-emerald-600"><CheckCircle2 className="w-3 h-3" />Received {format(new Date(note.received_at), 'dd MMM')}</span>}
+                                                {isReceived && note.received_at && <span className="flex items-center gap-1 text-[10px] text-ant-green"><CheckCircle2 className="w-3 h-3" />Received {format(new Date(note.received_at), 'dd MMM')}</span>}
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2 shrink-0">
                                             <div className="text-right mr-1">
-                                                <p className="text-[9px] text-gray-400 uppercase tracking-wider">Total</p>
-                                                <p className={cn("text-[13px] font-semibold tabular-nums", isReceived ? "text-emerald-600" : "text-brand-navy")}>
+                                                <p className="text-[9px] text-ant-mid uppercase tracking-wider">Total</p>
+                                                <p className={cn("text-[13px] font-semibold tabular-nums", isReceived ? "text-ant-green" : "text-ant-ink")}>
                                                     {Number(note.total_amount).toFixed(2)} MAD
                                                 </p>
                                             </div>
-                                            <Button size="icon" variant="ghost" onClick={() => toggleExpand(note.id)} className="h-8 w-8 rounded-md hover:bg-gray-100">
-                                                {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-brand-navy/40" /> : <ChevronRight className="w-3.5 h-3.5 text-brand-navy/40" />}
+                                            <Button size="icon" variant="ghost" onClick={() => toggleExpand(note.id)} className="h-8 w-8 rounded-md hover:bg-ant-line">
+                                                {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-ant-ink/40" /> : <ChevronRight className="w-3.5 h-3.5 text-ant-ink/40" />}
                                             </Button>
-                                            <Button size="icon" variant="ghost" onClick={() => handlePrint(note)} className="h-8 w-8 rounded-md hover:bg-gray-100">
-                                                <Printer className="w-3.5 h-3.5 text-brand-navy/40" />
+                                            <Button size="icon" variant="ghost" onClick={() => handlePrint(note)} className="h-8 w-8 rounded-md hover:bg-ant-line">
+                                                <Printer className="w-3.5 h-3.5 text-ant-ink/40" />
                                             </Button>
-                                            <Button size="icon" variant="ghost" onClick={() => { setSelectedNote(note); setIsViewNoteOpen(true); }} className="h-8 w-8 rounded-md hover:bg-gray-100">
-                                                <Eye className="w-3.5 h-3.5 text-brand-navy/40" />
+                                            <Button size="icon" variant="ghost" onClick={() => { setSelectedNote(note); setIsViewNoteOpen(true); }} className="h-8 w-8 rounded-md hover:bg-ant-line">
+                                                <Eye className="w-3.5 h-3.5 text-ant-ink/40" />
                                             </Button>
                                             {!isReceived && (
                                                 <Button size="sm" onClick={() => markReceivedMutation.mutate(note)}
                                                     disabled={markReceivedMutation.isPending}
-                                                    className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 rounded-md px-2.5 text-[11px] font-semibold gap-1">
+                                                    className="bg-ant-green hover:bg-ant-green/90 text-white h-8 rounded-md px-2.5 text-[11px] font-semibold gap-1">
                                                     {markReceivedMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <><PackageCheck className="w-3 h-3" />Mark Received</>}
                                                 </Button>
                                             )}
@@ -699,9 +752,9 @@ const ReturnNote = () => {
                                     </div>
 
                                     {isExpanded && (
-                                        <div className="border-t border-gray-100 bg-gray-50/50 px-3.5 py-3">
+                                        <div className="border-t border-ant-line bg-ant-light/50 px-3.5 py-3">
                                             <table className="w-full">
-                                                <thead><tr className="text-[9px] uppercase tracking-[0.18em] text-gray-400 border-b border-gray-100">
+                                                <thead><tr className="text-[9px] uppercase tracking-[0.18em] text-ant-mid border-b border-ant-line">
                                                     <th className="pb-2 text-left font-bold">#</th>
                                                     <th className="pb-2 text-left font-bold">Tracking</th>
                                                     <th className="pb-2 text-right font-bold">Amount</th>
@@ -709,12 +762,12 @@ const ReturnNote = () => {
                                                     <th className="pb-2 text-right font-bold">Net</th>
                                                 </tr></thead>
                                                 <tbody>{note.line_items.map((li, i) => (
-                                                    <tr key={li.id} className="hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0">
-                                                        <td className="px-0 py-2 text-[11px] text-brand-navy/80 tabular-nums">{i + 1}</td>
-                                                        <td className="py-2 font-mono text-[11px] text-brand-navy/80 tabular-nums">{li.tracking_code || 'N/A'}</td>
-                                                        <td className="py-2 text-right text-[11px] text-brand-navy/80 tabular-nums">{Number(li.amount).toFixed(2)}</td>
-                                                        <td className="py-2 text-right text-[11px] text-red-500 tabular-nums">-{Number(li.shipping_fee).toFixed(2)}</td>
-                                                        <td className="py-2 text-right text-[11px] font-semibold text-brand-navy tabular-nums">{(Number(li.amount) - Number(li.shipping_fee)).toFixed(2)}</td>
+                                                    <tr key={li.id} className="hover:bg-ant-light transition-colors border-b border-ant-line last:border-0">
+                                                        <td className="px-0 py-2 text-[11px] text-ant-ink/80 tabular-nums">{i + 1}</td>
+                                                        <td className="py-2 font-mono text-[11px] text-ant-ink/80 tabular-nums">{li.tracking_code || 'N/A'}</td>
+                                                        <td className="py-2 text-right text-[11px] text-ant-ink/80 tabular-nums">{Number(li.amount).toFixed(2)}</td>
+                                                        <td className="py-2 text-right text-[11px] text-ant-rose tabular-nums">-{Number(li.shipping_fee).toFixed(2)}</td>
+                                                        <td className="py-2 text-right text-[11px] font-semibold text-ant-ink tabular-nums">{(Number(li.amount) - Number(li.shipping_fee)).toFixed(2)}</td>
                                                     </tr>
                                                 ))}</tbody>
                                             </table>
@@ -731,12 +784,12 @@ const ReturnNote = () => {
 
             {/* ─── WIZARD MODAL ─── */}
             <Dialog open={isWizardOpen} onOpenChange={v => { if (!v) { setIsWizardOpen(false); setWizardStep(0); setSelectedProvider(null); } }}>
-                <DialogContent className="max-w-3xl p-0 border border-gray-100 rounded-xl overflow-hidden max-h-[90vh] overflow-y-auto">
+                <DialogContent className="max-w-3xl p-0 border border-ant-line rounded-xl overflow-hidden max-h-[90vh] overflow-y-auto">
                     <DialogHeader className="p-5 pb-4">
-                        <DialogTitle className="text-[15px] font-semibold text-brand-navy">
+                        <DialogTitle className="text-[15px] font-semibold text-ant-ink">
                             {wizardStep === 0 ? 'Select Provider' : 'Review & Generate'}
                         </DialogTitle>
-                        <DialogDescription className="text-[11px] text-gray-400">
+                        <DialogDescription className="text-[11px] text-ant-mid">
                             {wizardStep === 0 ? 'Choose a delivery provider to generate a return note for.' : 'Review the returned orders and confirm generation.'}
                         </DialogDescription>
                     </DialogHeader>
@@ -746,10 +799,10 @@ const ReturnNote = () => {
                         {[0, 1].map(s => (
                             <React.Fragment key={s}>
                                 <div className={cn("w-7 h-7 rounded-md flex items-center justify-center text-[11px] font-semibold transition-all",
-                                    wizardStep >= s ? "bg-brand-navy text-white" : "bg-gray-100 text-gray-400")}>
+                                    wizardStep >= s ? "bg-ant-ink text-white" : "bg-ant-line text-ant-mid")}>
                                     {s + 1}
                                 </div>
-                                {s < 1 && <div className={cn("flex-1 h-0.5 rounded-full transition-colors", wizardStep > s ? "bg-brand-navy" : "bg-gray-100")} />}
+                                {s < 1 && <div className={cn("flex-1 h-0.5 rounded-full transition-colors", wizardStep > s ? "bg-ant-ink" : "bg-ant-line")} />}
                             </React.Fragment>
                         ))}
                     </div>
@@ -760,33 +813,33 @@ const ReturnNote = () => {
                                 {activeGroups.length === 0 ? (
                                     <div className="text-center py-8">
                                         <AlertTriangle className="w-5 h-5 text-amber-400 mx-auto mb-2" />
-                                        <p className="text-[13px] font-semibold text-brand-navy/40">No returned orders available</p>
-                                        <p className="text-[11px] text-gray-400 mt-1">All returned orders have been accounted for.</p>
+                                        <p className="text-[13px] font-semibold text-ant-ink/40">No returned orders available</p>
+                                        <p className="text-[11px] text-ant-mid mt-1">All returned orders have been accounted for.</p>
                                     </div>
                                 ) : activeGroups.map(g => (
                                     <div key={g.target_id} onClick={() => setSelectedProvider(g.target_id)}
                                         className={cn("p-3 rounded-xl flex items-center justify-between cursor-pointer transition-all",
                                             selectedProvider === g.target_id
-                                                ? "bg-brand-navy/5 ring-1 ring-brand-navy"
-                                                : "bg-white hover:bg-gray-50 border border-gray-100")}>
+                                                ? "bg-ant-ink/5 ring-1 ring-brand-navy"
+                                                : "bg-white hover:bg-ant-light border border-ant-line")}>
                                         <div className="flex items-center gap-3">
                                             <EntityLogo kind={g.kind} logoUrl={g.logo_url} avatarUrl={g.avatar_url} name={g.target_name} size="sm" />
                                             <div>
-                                                <h4 className="text-[12px] font-semibold text-brand-navy">{g.target_name}</h4>
-                                                <p className="text-[10px] text-gray-400">{g.orders.length} returned orders · {g.total_amount.toFixed(2)} MAD total</p>
+                                                <h4 className="text-[12px] font-semibold text-ant-ink">{g.target_name}</h4>
+                                                <p className="text-[10px] text-ant-mid">{g.orders.length} returned orders · {g.total_amount.toFixed(2)} MAD total</p>
                                             </div>
                                         </div>
                                         <div className="text-right">
-                                            <p className="text-[13px] font-semibold text-brand-navy tabular-nums">{g.total_amount.toFixed(2)} MAD</p>
-                                            <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400">total value</p>
+                                            <p className="text-[13px] font-semibold text-ant-ink tabular-nums">{g.total_amount.toFixed(2)} MAD</p>
+                                            <p className="text-[9px] uppercase tracking-[0.18em] text-ant-mid">total value</p>
                                         </div>
                                     </div>
                                 ))}
                                 <div className="flex justify-end gap-2 pt-3">
                                     <Button variant="outline" onClick={() => setIsWizardOpen(false)}
-                                        className="rounded-md h-8 px-3 text-[11px] font-semibold border-gray-200">Cancel</Button>
+                                        className="rounded-md h-8 px-3 text-[11px] font-semibold border-ant-line">Cancel</Button>
                                     <Button disabled={!selectedProvider} onClick={() => setWizardStep(1)}
-                                        className="bg-brand-navy hover:bg-brand-navy/90 text-white rounded-md h-8 px-3 text-[11px] font-semibold">
+                                        className="bg-ant-ink hover:bg-ant-ink/90 text-white rounded-md h-8 px-3 text-[11px] font-semibold">
                                         Next <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
                                     </Button>
                                 </div>
@@ -795,60 +848,60 @@ const ReturnNote = () => {
 
                         {wizardStep === 1 && selectedGroup && (
                             <div className="space-y-3">
-                                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
+                                <div className="flex items-center gap-3 p-3 bg-ant-light rounded-xl border border-ant-line">
                                     <EntityLogo kind={selectedGroup.kind} logoUrl={selectedGroup.logo_url} avatarUrl={selectedGroup.avatar_url} name={selectedGroup.target_name} size="sm" />
                                     <div>
-                                        <p className="text-[12px] font-semibold text-brand-navy">{selectedGroup.target_name}</p>
-                                        <p className="text-[10px] text-gray-400">{selectedGroup.orders.length} returned orders to include</p>
+                                        <p className="text-[12px] font-semibold text-ant-ink">{selectedGroup.target_name}</p>
+                                        <p className="text-[10px] text-ant-mid">{selectedGroup.orders.length} returned orders to include</p>
                                     </div>
                                 </div>
 
-                                <div className="overflow-x-auto border border-gray-100 rounded-xl">
+                                <div className="overflow-x-auto border border-ant-line rounded-xl">
                                     <table className="w-full">
-                                        <thead><tr className="border-b border-gray-100">
-                                            <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">#</th>
-                                            <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Customer</th>
-                                            <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Tracking</th>
-                                            <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Amount</th>
-                                            <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Shipping</th>
-                                            <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Net</th>
+                                        <thead><tr className="border-b border-ant-line">
+                                            <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] font-bold text-ant-mid">#</th>
+                                            <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] font-bold text-ant-mid">Customer</th>
+                                            <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] font-bold text-ant-mid">Tracking</th>
+                                            <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] font-bold text-ant-mid">Amount</th>
+                                            <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] font-bold text-ant-mid">Shipping</th>
+                                            <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] font-bold text-ant-mid">Net</th>
                                         </tr></thead>
                                         <tbody>{selectedGroup.orders.map((o, i) => (
-                                            <tr key={o.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
-                                                <td className="px-3 py-2 text-[11px] text-gray-400 tabular-nums">{i + 1}</td>
-                                                <td className="px-3 py-2 text-[11px] font-semibold text-brand-navy">{o.name}</td>
-                                                <td className="px-3 py-2 font-mono text-[11px] text-brand-navy/70">{o.courier_parcels?.[0]?.tracking_code || o.parcels?.[0]?.tracking_code || o.tracking_number || 'N/A'}</td>
+                                            <tr key={o.id} className="border-b border-ant-line last:border-0 hover:bg-ant-light transition-colors">
+                                                <td className="px-3 py-2 text-[11px] text-ant-mid tabular-nums">{i + 1}</td>
+                                                <td className="px-3 py-2 text-[11px] font-semibold text-ant-ink">{o.name}</td>
+                                                <td className="px-3 py-2 font-mono text-[11px] text-ant-ink/70">{o.courier_parcels?.[0]?.tracking_code || o.parcels?.[0]?.tracking_code || o.tracking_number || 'N/A'}</td>
                                                 <td className="px-3 py-2 text-right text-[11px] tabular-nums">{Number(o.price || 0).toFixed(2)}</td>
-                                                <td className="px-3 py-2 text-right text-[11px] text-red-500 tabular-nums">-{getReturnFeeForOrder(o).toFixed(2)}</td>
-                                                <td className="px-3 py-2 text-right text-[11px] font-semibold text-brand-navy tabular-nums">{(Number(o.price || 0) - getReturnFeeForOrder(o)).toFixed(2)}</td>
+                                                <td className="px-3 py-2 text-right text-[11px] text-ant-rose tabular-nums">-{getReturnFeeForOrder(o).toFixed(2)}</td>
+                                                <td className="px-3 py-2 text-right text-[11px] font-semibold text-ant-ink tabular-nums">{(Number(o.price || 0) - getReturnFeeForOrder(o)).toFixed(2)}</td>
                                             </tr>
                                         ))}</tbody>
                                     </table>
                                 </div>
 
-                                <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                                <div className="rounded-xl border border-ant-line bg-ant-light p-3">
                                     <div className="grid grid-cols-3 gap-3 text-center">
                                         <div>
-                                            <span className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400 block mb-1">Total Amount</span>
-                                            <span className="text-[15px] font-semibold text-brand-navy tabular-nums">{selectedGroup.total_amount.toFixed(2)}</span>
+                                            <span className="text-[9px] uppercase tracking-[0.18em] font-bold text-ant-mid block mb-1">Total Amount</span>
+                                            <span className="text-[15px] font-semibold text-ant-ink tabular-nums">{selectedGroup.total_amount.toFixed(2)}</span>
                                         </div>
                                         <div>
-                                            <span className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400 block mb-1">Shipping Fees</span>
-                                            <span className="text-[15px] font-semibold text-red-500 tabular-nums">-{selectedGroup.total_shipping.toFixed(2)}</span>
+                                            <span className="text-[9px] uppercase tracking-[0.18em] font-bold text-ant-mid block mb-1">Shipping Fees</span>
+                                            <span className="text-[15px] font-semibold text-ant-rose tabular-nums">-{selectedGroup.total_shipping.toFixed(2)}</span>
                                         </div>
                                         <div>
-                                            <span className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400 block mb-1">Net Value</span>
-                                            <span className="text-[15px] font-semibold text-emerald-600 tabular-nums">{selectedGroup.net_amount.toFixed(2)}</span>
+                                            <span className="text-[9px] uppercase tracking-[0.18em] font-bold text-ant-mid block mb-1">Net Value</span>
+                                            <span className="text-[15px] font-semibold text-ant-green tabular-nums">{selectedGroup.net_amount.toFixed(2)}</span>
                                         </div>
                                     </div>
                                 </div>
 
                                 <div className="flex justify-end gap-2">
                                     <Button variant="outline" onClick={() => setWizardStep(0)}
-                                        className="rounded-md h-8 px-3 text-[11px] font-semibold border-gray-200">Back</Button>
+                                        className="rounded-md h-8 px-3 text-[11px] font-semibold border-ant-line">Back</Button>
                                     <Button onClick={() => generateNoteMutation.mutate(selectedGroup)}
                                         disabled={generateNoteMutation.isPending}
-                                        className="bg-brand-navy hover:bg-brand-navy/90 text-white rounded-md h-8 px-3 text-[11px] font-semibold">
+                                        className="bg-ant-ink hover:bg-ant-ink/90 text-white rounded-md h-8 px-3 text-[11px] font-semibold">
                                         {generateNoteMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <FileText className="w-3.5 h-3.5 mr-1.5" />}
                                         Generate Return Note
                                     </Button>
@@ -861,7 +914,7 @@ const ReturnNote = () => {
 
             {/* ─── VIEW NOTE MODAL ─── */}
             <Dialog open={isViewNoteOpen} onOpenChange={v => { if (!v) { setIsViewNoteOpen(false); setSelectedNote(null); } }}>
-                <DialogContent className="max-w-2xl p-0 border border-gray-100 rounded-xl overflow-hidden max-h-[90vh] overflow-y-auto">
+                <DialogContent className="max-w-2xl p-0 border border-ant-line rounded-xl overflow-hidden max-h-[90vh] overflow-y-auto">
                     {selectedNote && (
                         <>
                             <DialogHeader className="p-5 pb-4">
@@ -874,13 +927,13 @@ const ReturnNote = () => {
                                         size="sm"
                                     />
                                     <div>
-                                        <DialogTitle className="text-[15px] font-semibold text-brand-navy">{selectedNote.reference}</DialogTitle>
+                                        <DialogTitle className="text-[15px] font-semibold text-ant-ink">{selectedNote.reference}</DialogTitle>
                                         <div className="flex items-center gap-2 mt-0.5">
                                             <Badge className={cn("border-none font-bold text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded",
-                                                selectedNote.status === 'received' ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700")}>
+                                                selectedNote.status === 'received' ? "bg-ant-green/20 text-ant-green" : "bg-ant-rose/20 text-ant-rose")}>
                                                 {selectedNote.status.toUpperCase()}
                                             </Badge>
-                                            <span className="text-[11px] text-gray-400">{selectedNote.provider?.name}</span>
+                                            <span className="text-[11px] text-ant-mid">{selectedNote.provider?.name}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -888,63 +941,63 @@ const ReturnNote = () => {
 
                             <div className="px-5 pb-5 space-y-3">
                                 <div className="grid grid-cols-2 gap-2">
-                                    <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
-                                        <span className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Created</span>
-                                        <p className="text-[11px] font-semibold text-brand-navy mt-1">{format(new Date(selectedNote.created_at), 'dd MMM yyyy, HH:mm')}</p>
+                                    <div className="p-3 rounded-xl bg-ant-light border border-ant-line">
+                                        <span className="text-[9px] uppercase tracking-[0.18em] font-bold text-ant-mid">Created</span>
+                                        <p className="text-[11px] font-semibold text-ant-ink mt-1">{format(new Date(selectedNote.created_at), 'dd MMM yyyy, HH:mm')}</p>
                                     </div>
                                     {selectedNote.received_at && (
-                                        <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100">
-                                            <span className="text-[9px] uppercase tracking-[0.18em] font-bold text-emerald-600/60">Received</span>
-                                            <p className="text-[11px] font-semibold text-emerald-700 mt-1">{format(new Date(selectedNote.received_at), 'dd MMM yyyy, HH:mm')}</p>
+                                        <div className="p-3 rounded-xl bg-ant-green/10 border border-emerald-100">
+                                            <span className="text-[9px] uppercase tracking-[0.18em] font-bold text-ant-green/60">Received</span>
+                                            <p className="text-[11px] font-semibold text-ant-green mt-1">{format(new Date(selectedNote.received_at), 'dd MMM yyyy, HH:mm')}</p>
                                         </div>
                                     )}
                                 </div>
 
-                                <div className="overflow-x-auto border border-gray-100 rounded-xl">
+                                <div className="overflow-x-auto border border-ant-line rounded-xl">
                                     <table className="w-full">
-                                        <thead><tr className="border-b border-gray-100">
-                                            <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">#</th>
-                                            <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Tracking</th>
-                                            <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Amount</th>
-                                            <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Shipping</th>
-                                            <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Net</th>
+                                        <thead><tr className="border-b border-ant-line">
+                                            <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] font-bold text-ant-mid">#</th>
+                                            <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] font-bold text-ant-mid">Tracking</th>
+                                            <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] font-bold text-ant-mid">Amount</th>
+                                            <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] font-bold text-ant-mid">Shipping</th>
+                                            <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] font-bold text-ant-mid">Net</th>
                                         </tr></thead>
                                         <tbody>{selectedNote.line_items.map((li, i) => (
-                                            <tr key={li.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
-                                                <td className="px-3 py-2 text-[11px] text-gray-400 tabular-nums">{i + 1}</td>
-                                                <td className="px-3 py-2 font-mono text-[11px] text-brand-navy/70">{li.tracking_code || 'N/A'}</td>
+                                            <tr key={li.id} className="border-b border-ant-line last:border-0 hover:bg-ant-light">
+                                                <td className="px-3 py-2 text-[11px] text-ant-mid tabular-nums">{i + 1}</td>
+                                                <td className="px-3 py-2 font-mono text-[11px] text-ant-ink/70">{li.tracking_code || 'N/A'}</td>
                                                 <td className="px-3 py-2 text-right text-[11px] tabular-nums">{Number(li.amount).toFixed(2)}</td>
-                                                <td className="px-3 py-2 text-right text-[11px] text-red-500 tabular-nums">-{Number(li.shipping_fee).toFixed(2)}</td>
-                                                <td className="px-3 py-2 text-right text-[11px] font-semibold text-brand-navy tabular-nums">{(Number(li.amount) - Number(li.shipping_fee)).toFixed(2)}</td>
+                                                <td className="px-3 py-2 text-right text-[11px] text-ant-rose tabular-nums">-{Number(li.shipping_fee).toFixed(2)}</td>
+                                                <td className="px-3 py-2 text-right text-[11px] font-semibold text-ant-ink tabular-nums">{(Number(li.amount) - Number(li.shipping_fee)).toFixed(2)}</td>
                                             </tr>
                                         ))}</tbody>
                                     </table>
                                 </div>
 
-                                <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 grid grid-cols-3 gap-3 text-center">
+                                <div className="rounded-xl border border-ant-line bg-ant-light p-3 grid grid-cols-3 gap-3 text-center">
                                     <div>
-                                        <span className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400 block mb-1">Total</span>
-                                        <span className="text-[15px] font-semibold text-brand-navy tabular-nums">{Number(selectedNote.total_amount).toFixed(2)}</span>
+                                        <span className="text-[9px] uppercase tracking-[0.18em] font-bold text-ant-mid block mb-1">Total</span>
+                                        <span className="text-[15px] font-semibold text-ant-ink tabular-nums">{Number(selectedNote.total_amount).toFixed(2)}</span>
                                     </div>
                                     <div>
-                                        <span className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400 block mb-1">Shipping</span>
-                                        <span className="text-[15px] font-semibold text-red-500 tabular-nums">-{Number(selectedNote.total_shipping_fees).toFixed(2)}</span>
+                                        <span className="text-[9px] uppercase tracking-[0.18em] font-bold text-ant-mid block mb-1">Shipping</span>
+                                        <span className="text-[15px] font-semibold text-ant-rose tabular-nums">-{Number(selectedNote.total_shipping_fees).toFixed(2)}</span>
                                     </div>
                                     <div>
-                                        <span className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400 block mb-1">Net</span>
-                                        <span className="text-[15px] font-semibold text-emerald-600 tabular-nums">{Number(selectedNote.net_amount).toFixed(2)}</span>
+                                        <span className="text-[9px] uppercase tracking-[0.18em] font-bold text-ant-mid block mb-1">Net</span>
+                                        <span className="text-[15px] font-semibold text-ant-green tabular-nums">{Number(selectedNote.net_amount).toFixed(2)}</span>
                                     </div>
                                 </div>
 
                                 <div className="flex justify-end gap-2">
                                     <Button variant="outline" onClick={() => handlePrint(selectedNote)}
-                                        className="rounded-md h-8 px-3 text-[11px] font-semibold border-gray-200">
+                                        className="rounded-md h-8 px-3 text-[11px] font-semibold border-ant-line">
                                         <Printer className="w-3.5 h-3.5 mr-1.5" />Print
                                     </Button>
                                     {selectedNote.status === 'pending' && (
                                         <Button onClick={() => markReceivedMutation.mutate(selectedNote)}
                                             disabled={markReceivedMutation.isPending}
-                                            className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-md h-8 px-3 text-[11px] font-semibold">
+                                            className="bg-ant-green hover:bg-ant-green/90 text-white rounded-md h-8 px-3 text-[11px] font-semibold">
                                             {markReceivedMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <PackageCheck className="w-3.5 h-3.5 mr-1.5" />}
                                             Mark as Received
                                         </Button>
@@ -955,6 +1008,7 @@ const ReturnNote = () => {
                     )}
                 </DialogContent>
             </Dialog>
+            </div>
         </div>
     );
 };
