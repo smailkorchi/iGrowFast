@@ -2,20 +2,13 @@ import React, { useMemo, useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import {
-    Plus,
     Search,
-    History,
     Wallet,
     Trash2,
     Loader2,
     User,
     Phone,
-    MapPin,
     Calendar,
-    Receipt,
-    CheckCircle2,
-    Clock,
-    DollarSign,
     Package,
     PlusCircle,
     X,
@@ -26,6 +19,11 @@ import {
     LayoutGrid,
     LayoutList,
     Pencil,
+    BookOpen,
+    Receipt,
+    BadgeDollarSign,
+    Sparkles,
+    type LucideIcon,
 } from 'lucide-react';
 import {
     Card,
@@ -148,6 +146,42 @@ function mapPurchaseRowToFormItem(row: any): TransactionFormValues['items'][numb
     }
     return null;
 }
+
+const TX_KPI_ACCENTS = {
+    ink: { dot: 'bg-ant-ink', tile: 'bg-ant-ink/6 border-ant-ink/15 text-ant-ink' },
+    orange: { dot: 'bg-ant-orange', tile: 'bg-ant-orange/10 border-ant-orange/25 text-ant-orange' },
+    green: { dot: 'bg-ant-green', tile: 'bg-ant-green/10 border-ant-green/25 text-ant-green' },
+    rose: { dot: 'bg-ant-rose', tile: 'bg-ant-rose/10 border-ant-rose/25 text-ant-rose' },
+} as const;
+
+interface TxKpiProps {
+    label: string;
+    value: string;
+    suffix: string;
+    accent: keyof typeof TX_KPI_ACCENTS;
+    icon: LucideIcon;
+}
+
+const TxKpi: React.FC<TxKpiProps> = ({ label, value, suffix, accent, icon: Icon }) => {
+    const a = TX_KPI_ACCENTS[accent];
+    return (
+        <div className="bg-ant-paper p-4">
+            <div className="flex items-start justify-between gap-3">
+                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.24em] text-ant-mid">
+                    <span className={cn('h-1.5 w-1.5 rounded-full', a.dot)} />
+                    {label}
+                </div>
+                <div className={cn('h-8 w-8 rounded-lg border flex items-center justify-center', a.tile)}>
+                    <Icon className="w-4 h-4" strokeWidth={1.75} />
+                </div>
+            </div>
+            <p className="font-display text-[22px] font-semibold text-ant-ink tabular-nums mt-2">
+                {value}
+                <span className="text-[12px] text-ant-mid font-normal ml-1.5">{suffix}</span>
+            </p>
+        </div>
+    );
+};
 
 function mapTransactionToFormValues(tx: any): TransactionFormValues {
     const raw = (tx.items || [])
@@ -433,194 +467,294 @@ const Transactions = () => {
     }, [transactions, searchQuery, statusFilter, sortOrder]);
 
     const getStatusBadge = (tx: any) => {
-        const balance = (tx.total_price || 0) - (tx.paid_price || 0);
-        if (balance <= 0 && tx.total_price > 0) return <Badge className="bg-emerald-50 text-emerald-600 border-none font-bold">PAID</Badge>;
-        if (tx.paid_price > 0) return <Badge className="bg-amber-50 text-amber-600 border-none font-bold">PARTIAL</Badge>;
-        return <Badge className="bg-red-50 text-red-600 border-none font-bold">UNPAID</Badge>;
+        const status = getPaymentStatus(tx);
+        const map = {
+            paid: { dot: 'bg-ant-green', text: 'text-ant-green', bg: 'bg-ant-green/10', border: 'border-ant-green/25', label: 'Paid' },
+            partial: { dot: 'bg-ant-orange', text: 'text-ant-orange', bg: 'bg-ant-orange/10', border: 'border-ant-orange/25', label: 'Partial' },
+            unpaid: { dot: 'bg-ant-rose', text: 'text-ant-rose', bg: 'bg-ant-rose/10', border: 'border-ant-rose/25', label: 'Unpaid' },
+        } as const;
+        const s = map[status];
+        return (
+            <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold', s.bg, s.border, s.text)}>
+                <span className={cn('h-1.5 w-1.5 rounded-full', s.dot)} />
+                {s.label}
+            </span>
+        );
     };
 
+    const totals = useMemo(() => {
+        const list = transactions || [];
+        return list.reduce(
+            (acc, tx: any) => {
+                const total = Number(tx.total_price || 0);
+                const paid = Number(tx.paid_price || 0);
+                acc.invoiced += total;
+                acc.paid += paid;
+                acc.outstanding += Math.max(0, total - paid);
+                return acc;
+            },
+            { invoiced: 0, paid: 0, outstanding: 0 }
+        );
+    }, [transactions]);
+
+    const tabCounts = useMemo(() => {
+        const list = transactions || [];
+        return {
+            all: list.length,
+            paid: list.filter((t: any) => getPaymentStatus(t) === 'paid').length,
+            partial: list.filter((t: any) => getPaymentStatus(t) === 'partial').length,
+            unpaid: list.filter((t: any) => getPaymentStatus(t) === 'unpaid').length,
+        };
+    }, [transactions]);
+
     return (
-        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
-            {/* Header */}
-            <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div>
-                    <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Supplier Transactions</h1>
-                    <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Inventory purchases &amp; payments ledger</p>
-                </div>
-                <Button
-                    onClick={() => {
-                        setEditingTransactionId(null);
-                        transactionForm.reset(defaultTransactionFormValues);
-                        setTransactionModalOpen(true);
-                    }}
-                    className="bg-brand-navy hover:bg-brand-navy/90 text-white h-8 px-3 rounded-md text-[11px] font-semibold gap-1.5 shrink-0"
-                >
-                    <PlusCircle className="w-3.5 h-3.5" />
-                    New Purchase
-                </Button>
-            </header>
+        <div className="ant-surface min-h-screen">
+            <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 md:py-8 space-y-6">
+                {/* Editorial header */}
+                <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                    <div className="space-y-2">
+                        <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                            <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                            Ledger · Suppliers
+                        </div>
+                        <h1 className="font-display text-[30px] md:text-[34px] leading-[1.05] tracking-[-0.02em] text-ant-ink">
+                            Supplier transactions
+                        </h1>
+                        <p className="font-serif italic text-[14px] leading-relaxed text-ant-mid max-w-xl">
+                            Every invoice, every payment, every outstanding balance — recorded as a ledger, not a task list.
+                        </p>
+                    </div>
+                    <Button
+                        onClick={() => {
+                            setEditingTransactionId(null);
+                            transactionForm.reset(defaultTransactionFormValues);
+                            setTransactionModalOpen(true);
+                        }}
+                        className="bg-ant-ink hover:bg-ant-ink/90 text-white h-10 px-5 rounded-full text-[12px] font-semibold gap-2 shrink-0 cursor-pointer"
+                    >
+                        <PlusCircle className="w-4 h-4" />
+                        New purchase
+                    </Button>
+                </header>
 
-            {/* Filters */}
-            <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
-                <div className="relative flex-1 min-w-0 max-w-sm">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
-                    <Input
-                        placeholder="Search supplier or phone..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-7 h-8 rounded-md border-gray-200 bg-white text-[11px]"
-                    />
-                </div>
-                <div className="flex items-center gap-2">
-                    <div className="flex gap-0.5 bg-white p-0.5 rounded-md border border-gray-200 shrink-0">
-                        {(['all', 'paid', 'partial', 'unpaid'] as const).map(s => (
+                {/* KPI strip */}
+                <section className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
+                    <TxKpi label="Transactions" value={tabCounts.all.toString()} suffix="records" accent="ink" icon={BookOpen} />
+                    <TxKpi label="Invoiced" value={Math.round(totals.invoiced).toLocaleString()} suffix="DH" accent="orange" icon={Receipt} />
+                    <TxKpi label="Paid" value={Math.round(totals.paid).toLocaleString()} suffix="DH" accent="green" icon={BadgeDollarSign} />
+                    <TxKpi label="Outstanding" value={Math.round(totals.outstanding).toLocaleString()} suffix="DH" accent="rose" icon={Wallet} />
+                </section>
+
+                {/* Tabs + toolbar */}
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div className="inline-flex items-center gap-1 p-1 rounded-full border border-ant-line bg-ant-paper overflow-x-auto">
+                        {([
+                            { key: 'all', label: 'All' },
+                            { key: 'paid', label: 'Paid' },
+                            { key: 'partial', label: 'Partial' },
+                            { key: 'unpaid', label: 'Unpaid' },
+                        ] as const).map((t) => {
+                            const active = statusFilter === t.key;
+                            const count = tabCounts[t.key];
+                            return (
+                                <button
+                                    key={t.key}
+                                    onClick={() => setStatusFilter(t.key)}
+                                    className={cn(
+                                        'inline-flex items-center gap-2 rounded-full px-3.5 h-8 text-[12px] font-semibold transition cursor-pointer whitespace-nowrap',
+                                        active ? 'bg-ant-ink text-white' : 'text-ant-mid hover:text-ant-ink'
+                                    )}
+                                >
+                                    {t.label}
+                                    <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums', active ? 'bg-white/20 text-white' : 'bg-ant-light text-ant-mid')}>
+                                        {count}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <div className="relative flex-1 min-w-0 md:w-[280px]">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid pointer-events-none" />
+                            <Input
+                                placeholder="Search supplier or phone..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-9 h-9 rounded-full border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid focus-visible:ring-1 focus-visible:ring-ant-orange/40"
+                            />
+                        </div>
+                        <Select value={sortOrder} onValueChange={(v) => setSortOrder(v as typeof sortOrder)}>
+                            <SelectTrigger className="h-9 w-[140px] rounded-full border-ant-line bg-ant-paper text-[12px] text-ant-ink">
+                                <SelectValue placeholder="Sort" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl border-ant-line">
+                                <SelectItem value="newest" className="text-[12px]">Newest first</SelectItem>
+                                <SelectItem value="oldest" className="text-[12px]">Oldest first</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <div className="inline-flex items-center gap-1 p-1 rounded-full border border-ant-line bg-ant-paper shrink-0">
                             <button
-                                key={s}
-                                onClick={() => setStatusFilter(s)}
-                                className={cn(
-                                    "px-2 h-7 rounded-[4px] text-[10px] font-semibold transition capitalize",
-                                    statusFilter === s ? "bg-brand-navy text-white" : "text-gray-500 hover:text-brand-navy hover:bg-gray-50"
-                                )}
+                                onClick={() => setViewMode('list')}
+                                className={cn('inline-flex items-center gap-1.5 rounded-full px-3 h-7 text-[11px] font-semibold transition cursor-pointer', viewMode === 'list' ? 'bg-ant-ink text-white' : 'text-ant-mid hover:text-ant-ink')}
                             >
-                                {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
+                                <LayoutList className="w-3 h-3" /> List
                             </button>
-                        ))}
-                    </div>
-                    <Select value={sortOrder} onValueChange={(v) => setSortOrder(v as typeof sortOrder)}>
-                        <SelectTrigger className="h-8 w-[130px] rounded-md border-gray-200 text-[11px]">
-                            <SelectValue placeholder="Sort" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="newest">Newest first</SelectItem>
-                            <SelectItem value="oldest">Oldest first</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    <div className="flex gap-0.5 bg-white p-0.5 rounded-md border border-gray-200 shrink-0">
-                        <button
-                            onClick={() => setViewMode('list')}
-                            className={cn("px-2.5 h-7 rounded-[4px] text-[10px] font-semibold transition flex items-center gap-1", viewMode === 'list' ? "bg-brand-navy text-white" : "text-gray-500 hover:text-brand-navy hover:bg-gray-50")}
-                        >
-                            <LayoutList className="w-3 h-3" /> List
-                        </button>
-                        <button
-                            onClick={() => setViewMode('grid')}
-                            className={cn("px-2.5 h-7 rounded-[4px] text-[10px] font-semibold transition flex items-center gap-1", viewMode === 'grid' ? "bg-brand-navy text-white" : "text-gray-500 hover:text-brand-navy hover:bg-gray-50")}
-                        >
-                            <LayoutGrid className="w-3 h-3" /> Grid
-                        </button>
+                            <button
+                                onClick={() => setViewMode('grid')}
+                                className={cn('inline-flex items-center gap-1.5 rounded-full px-3 h-7 text-[11px] font-semibold transition cursor-pointer', viewMode === 'grid' ? 'bg-ant-ink text-white' : 'text-ant-mid hover:text-ant-ink')}
+                            >
+                                <LayoutGrid className="w-3 h-3" /> Grid
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            {/* Content */}
-            {isLoading ? (
-                <div className="space-y-2">{[1,2,3,4,5].map(i => <Skeleton key={i} className="h-10 rounded-lg" />)}</div>
-            ) : displayTransactions.length === 0 ? (
-                <div className="border border-dashed border-gray-200 rounded-xl py-8 text-center">
-                    <p className="text-[14px] font-semibold text-brand-navy">No transactions found</p>
-                    <p className="text-[11px] text-gray-400 mt-1">
-                        {transactions?.length ? 'Try adjusting search or filters.' : 'Start logging your supplier purchases.'}
-                    </p>
-                </div>
-            ) : viewMode === 'list' ? (
-                <div className="rounded-xl border border-gray-100 bg-white overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <table className="w-full">
-                            <thead>
-                                <tr className="border-b border-gray-100">
-                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Supplier</th>
-                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Date</th>
-                                    <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Total</th>
-                                    <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Balance</th>
-                                    <th className="px-3 py-2 text-left text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Status</th>
-                                    <th className="px-3 py-2 text-right text-[9px] uppercase tracking-[0.18em] text-gray-400 font-bold">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {displayTransactions.map((tx) => {
-                                    const balance = (tx.total_price || 0) - (tx.paid_price || 0);
-                                    return (
-                                        <tr key={tx.id} className="hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0">
-                                            <td className="px-3 py-2">
-                                                <p className="text-[12px] font-semibold text-brand-navy truncate">{tx.name}</p>
-                                                {tx.phone && <p className="text-[10px] text-gray-500 font-mono">{tx.phone}</p>}
-                                            </td>
-                                            <td className="px-3 py-2 text-[10px] text-gray-500 tabular-nums whitespace-nowrap">
-                                                {format(new Date(tx.date || tx.created_at), 'MMM dd, yyyy')}
-                                            </td>
-                                            <td className="px-3 py-2 text-right text-[11px] font-semibold text-brand-navy tabular-nums">{tx.total_price || 0} DH</td>
-                                            <td className={cn("px-3 py-2 text-right text-[11px] font-semibold tabular-nums", balance > 0 ? "text-red-500" : "text-emerald-600")}>
-                                                {balance} DH
-                                            </td>
-                                            <td className="px-3 py-2">{getStatusBadge(tx)}</td>
-                                            <td className="px-3 py-2">
-                                                <div className="flex items-center justify-end gap-1">
-                                                    <Button type="button" variant="ghost" size="icon" title="View" onClick={() => { setSelectedTransaction(tx); setIsViewModalOpen(true); }} className="h-7 w-7 p-0 rounded-md hover:bg-brand-navy/5">
-                                                        <Eye className="h-3.5 w-3.5 text-brand-navy/60" />
-                                                    </Button>
-                                                    <Button type="button" variant="ghost" size="icon" title="Edit" onClick={() => { setEditingTransactionId(tx.id); transactionForm.reset(mapTransactionToFormValues(tx)); setTransactionModalOpen(true); }} className="h-7 w-7 p-0 rounded-md hover:bg-amber-50">
-                                                        <Pencil className="h-3.5 w-3.5 text-amber-600" />
-                                                    </Button>
-                                                    <Button type="button" variant="ghost" size="icon" title="Record payment" onClick={() => { setSelectedTransaction(tx); paymentForm.setValue('amount', balance); setIsPaymentModalOpen(true); }} className="h-7 w-7 p-0 rounded-md hover:bg-emerald-50">
-                                                        <Wallet className="h-3.5 w-3.5 text-emerald-600" />
-                                                    </Button>
-                                                    <Button type="button" variant="ghost" size="icon" title="Delete" onClick={() => { setSelectedTransaction(tx); setIsDeleteDialogOpen(true); }} className="h-7 w-7 p-0 rounded-md hover:bg-red-50">
-                                                        <Trash2 className="h-3.5 w-3.5 text-red-500" />
-                                                    </Button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
+                {/* Content */}
+                {isLoading ? (
+                    <div className="space-y-2">{[1,2,3,4,5].map(i => <Skeleton key={i} className="h-14 rounded-2xl" />)}</div>
+                ) : displayTransactions.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-ant-line bg-ant-paper px-8 py-16 text-center">
+                        <div className="mx-auto w-12 h-12 rounded-2xl bg-ant-orange/10 border border-ant-orange/25 flex items-center justify-center mb-4">
+                            <BookOpen className="w-5 h-5 text-ant-orange" strokeWidth={1.75} />
+                        </div>
+                        <h3 className="font-display text-[18px] text-ant-ink tracking-tight">No transactions yet</h3>
+                        <p className="font-serif italic text-[13px] text-ant-mid mt-2 max-w-sm mx-auto">
+                            {transactions?.length ? 'No record matches your filters — relax the search or try a different status.' : 'Record the first supplier invoice to begin writing your ledger.'}
+                        </p>
+                        {!transactions?.length && (
+                            <Button
+                                onClick={() => {
+                                    setEditingTransactionId(null);
+                                    transactionForm.reset(defaultTransactionFormValues);
+                                    setTransactionModalOpen(true);
+                                }}
+                                className="mt-5 bg-ant-ink hover:bg-ant-ink/90 text-white h-9 px-5 rounded-full text-[12px] font-semibold gap-2 cursor-pointer"
+                            >
+                                <PlusCircle className="w-4 h-4" />
+                                Record first purchase
+                            </Button>
+                        )}
                     </div>
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                    {displayTransactions.map((tx) => {
-                        const balance = (tx.total_price || 0) - (tx.paid_price || 0);
-                        return (
-                            <div key={tx.id} className="rounded-xl border border-gray-100 bg-white p-3.5 flex flex-col gap-2.5">
-                                <div className="flex items-center justify-between gap-2">
-                                    <div className="min-w-0">
-                                        <p className="text-[12px] font-semibold text-brand-navy truncate">{tx.name}</p>
-                                        <p className="text-[10px] text-gray-500 tabular-nums">{format(new Date(tx.date || tx.created_at), 'MMM dd, yyyy')}</p>
+                ) : viewMode === 'list' ? (
+                    <div className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full">
+                                <thead>
+                                    <tr className="border-b border-ant-line bg-ant-light/50">
+                                        <th className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] text-ant-mid font-semibold">Supplier</th>
+                                        <th className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] text-ant-mid font-semibold">Date</th>
+                                        <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] text-ant-mid font-semibold">Invoiced</th>
+                                        <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] text-ant-mid font-semibold">Paid</th>
+                                        <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] text-ant-mid font-semibold">Outstanding</th>
+                                        <th className="px-4 py-3 text-left text-[10px] uppercase tracking-[0.24em] text-ant-mid font-semibold">Status</th>
+                                        <th className="px-4 py-3 text-right text-[10px] uppercase tracking-[0.24em] text-ant-mid font-semibold">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {displayTransactions.map((tx) => {
+                                        const balance = (tx.total_price || 0) - (tx.paid_price || 0);
+                                        return (
+                                            <tr key={tx.id} className="hover:bg-ant-light/60 transition-colors border-b border-ant-line last:border-0">
+                                                <td className="px-4 py-3">
+                                                    <p className="text-[13px] font-semibold text-ant-ink truncate">{tx.name}</p>
+                                                    {tx.phone && <p className="text-[11px] text-ant-mid tabular-nums">{tx.phone}</p>}
+                                                </td>
+                                                <td className="px-4 py-3 text-[11px] text-ant-mid tabular-nums whitespace-nowrap">
+                                                    {format(new Date(tx.date || tx.created_at), 'MMM dd, yyyy')}
+                                                </td>
+                                                <td className="px-4 py-3 text-right text-[13px] font-semibold text-ant-ink tabular-nums">{tx.total_price || 0} <span className="text-ant-mid font-normal">DH</span></td>
+                                                <td className="px-4 py-3 text-right text-[13px] font-semibold text-ant-green tabular-nums">{tx.paid_price || 0} <span className="text-ant-mid font-normal">DH</span></td>
+                                                <td className={cn('px-4 py-3 text-right text-[13px] font-semibold tabular-nums', balance > 0 ? 'text-ant-rose' : 'text-ant-mid')}>
+                                                    {balance} <span className="text-ant-mid font-normal">DH</span>
+                                                </td>
+                                                <td className="px-4 py-3">{getStatusBadge(tx)}</td>
+                                                <td className="px-4 py-3">
+                                                    <div className="flex items-center justify-end gap-1">
+                                                        <Button type="button" variant="ghost" size="icon" title="View" onClick={() => { setSelectedTransaction(tx); setIsViewModalOpen(true); }} className="h-8 w-8 p-0 rounded-full hover:bg-ant-ink/5 cursor-pointer">
+                                                            <Eye className="h-3.5 w-3.5 text-ant-mid" />
+                                                        </Button>
+                                                        <Button type="button" variant="ghost" size="icon" title="Edit" onClick={() => { setEditingTransactionId(tx.id); transactionForm.reset(mapTransactionToFormValues(tx)); setTransactionModalOpen(true); }} className="h-8 w-8 p-0 rounded-full hover:bg-ant-orange/10 cursor-pointer">
+                                                            <Pencil className="h-3.5 w-3.5 text-ant-orange" />
+                                                        </Button>
+                                                        <Button type="button" variant="ghost" size="icon" title="Record payment" onClick={() => { setSelectedTransaction(tx); paymentForm.setValue('amount', balance); setIsPaymentModalOpen(true); }} className="h-8 w-8 p-0 rounded-full hover:bg-ant-green/10 cursor-pointer">
+                                                            <Wallet className="h-3.5 w-3.5 text-ant-green" />
+                                                        </Button>
+                                                        <Button type="button" variant="ghost" size="icon" title="Delete" onClick={() => { setSelectedTransaction(tx); setIsDeleteDialogOpen(true); }} className="h-8 w-8 p-0 rounded-full hover:bg-ant-rose/10 cursor-pointer">
+                                                            <Trash2 className="h-3.5 w-3.5 text-ant-rose" />
+                                                        </Button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {displayTransactions.map((tx) => {
+                            const balance = (tx.total_price || 0) - (tx.paid_price || 0);
+                            const status = getPaymentStatus(tx);
+                            const stripeColor = status === 'paid' ? 'bg-ant-green' : status === 'partial' ? 'bg-ant-orange' : 'bg-ant-rose';
+                            return (
+                                <div key={tx.id} className="relative overflow-hidden rounded-2xl border border-ant-line bg-ant-paper flex flex-col">
+                                    <div className={cn('h-[3px] w-full', stripeColor)} />
+                                    <div className="p-4 flex flex-col gap-3">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="min-w-0 space-y-0.5">
+                                                <p className="text-[13px] font-semibold text-ant-ink truncate">{tx.name}</p>
+                                                <p className="text-[11px] text-ant-mid tabular-nums inline-flex items-center gap-1.5">
+                                                    <Calendar className="w-3 h-3" />
+                                                    {format(new Date(tx.date || tx.created_at), 'MMM dd, yyyy')}
+                                                </p>
+                                            </div>
+                                            {getStatusBadge(tx)}
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-px bg-ant-line rounded-xl border border-ant-line overflow-hidden">
+                                            <div className="bg-ant-paper p-2.5">
+                                                <p className="text-[9px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Invoiced</p>
+                                                <p className="font-display text-[18px] font-semibold text-ant-ink tabular-nums mt-0.5">
+                                                    {tx.total_price || 0}
+                                                    <span className="text-[11px] text-ant-mid font-normal ml-1">DH</span>
+                                                </p>
+                                            </div>
+                                            <div className="bg-ant-paper p-2.5">
+                                                <p className="text-[9px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Outstanding</p>
+                                                <p className={cn('font-display text-[18px] font-semibold tabular-nums mt-0.5', balance > 0 ? 'text-ant-rose' : 'text-ant-green')}>
+                                                    {balance}
+                                                    <span className="text-[11px] text-ant-mid font-normal ml-1">DH</span>
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center justify-between pt-2 border-t border-ant-line">
+                                            <p className="text-[11px] text-ant-mid">
+                                                <span className="tabular-nums">{tx.items?.length || 0}</span> items · <span className="tabular-nums">{tx.payments?.length || 0}</span> payments
+                                            </p>
+                                            <div className="flex items-center gap-0.5">
+                                                <Button type="button" variant="ghost" size="icon" title="View" onClick={() => { setSelectedTransaction(tx); setIsViewModalOpen(true); }} className="h-8 w-8 p-0 rounded-full hover:bg-ant-ink/5 cursor-pointer">
+                                                    <Eye className="h-3.5 w-3.5 text-ant-mid" />
+                                                </Button>
+                                                <Button type="button" variant="ghost" size="icon" title="Edit" onClick={() => { setEditingTransactionId(tx.id); transactionForm.reset(mapTransactionToFormValues(tx)); setTransactionModalOpen(true); }} className="h-8 w-8 p-0 rounded-full hover:bg-ant-orange/10 cursor-pointer">
+                                                    <Pencil className="h-3.5 w-3.5 text-ant-orange" />
+                                                </Button>
+                                                <Button type="button" variant="ghost" size="icon" title="Pay" onClick={() => { setSelectedTransaction(tx); paymentForm.setValue('amount', balance); setIsPaymentModalOpen(true); }} className="h-8 w-8 p-0 rounded-full hover:bg-ant-green/10 cursor-pointer">
+                                                    <Wallet className="h-3.5 w-3.5 text-ant-green" />
+                                                </Button>
+                                                <Button type="button" variant="ghost" size="icon" title="Delete" onClick={() => { setSelectedTransaction(tx); setIsDeleteDialogOpen(true); }} className="h-8 w-8 p-0 rounded-full hover:bg-ant-rose/10 cursor-pointer">
+                                                    <Trash2 className="h-3.5 w-3.5 text-ant-rose" />
+                                                </Button>
+                                            </div>
+                                        </div>
                                     </div>
-                                    {getStatusBadge(tx)}
                                 </div>
-                                <div className="flex gap-4">
-                                    <div>
-                                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Total</p>
-                                        <p className="text-[15px] font-semibold text-brand-navy tabular-nums">{tx.total_price || 0} DH</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Balance</p>
-                                        <p className={cn("text-[15px] font-semibold tabular-nums", balance > 0 ? "text-red-500" : "text-emerald-600")}>{balance} DH</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center justify-between border-t border-gray-100 pt-2">
-                                    <p className="text-[10px] text-gray-400">{tx.items?.length || 0} items · {tx.payments?.length || 0} payments</p>
-                                    <div className="flex items-center gap-1">
-                                        <Button type="button" variant="ghost" size="icon" title="View" onClick={() => { setSelectedTransaction(tx); setIsViewModalOpen(true); }} className="h-7 w-7 p-0 rounded-md hover:bg-brand-navy/5">
-                                            <Eye className="h-3.5 w-3.5 text-brand-navy/60" />
-                                        </Button>
-                                        <Button type="button" variant="ghost" size="icon" title="Edit" onClick={() => { setEditingTransactionId(tx.id); transactionForm.reset(mapTransactionToFormValues(tx)); setTransactionModalOpen(true); }} className="h-7 w-7 p-0 rounded-md hover:bg-amber-50">
-                                            <Pencil className="h-3.5 w-3.5 text-amber-600" />
-                                        </Button>
-                                        <Button type="button" variant="ghost" size="icon" title="Pay" onClick={() => { setSelectedTransaction(tx); paymentForm.setValue('amount', balance); setIsPaymentModalOpen(true); }} className="h-7 w-7 p-0 rounded-md hover:bg-emerald-50">
-                                            <Wallet className="h-3.5 w-3.5 text-emerald-600" />
-                                        </Button>
-                                        <Button type="button" variant="ghost" size="icon" title="Delete" onClick={() => { setSelectedTransaction(tx); setIsDeleteDialogOpen(true); }} className="h-7 w-7 p-0 rounded-md hover:bg-red-50">
-                                            <Trash2 className="h-3.5 w-3.5 text-red-500" />
-                                        </Button>
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
+                            );
+                        })}
+                    </div>
+                )}
 
             {/* Create / Edit Transaction Modal */}
             <Dialog
@@ -633,7 +767,7 @@ const Transactions = () => {
                     }
                 }}
             >
-                <DialogContent className="max-w-4xl p-0 border border-gray-100 rounded-xl shadow-none overflow-hidden flex flex-col max-h-[90vh]">
+                <DialogContent className="max-w-4xl p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden flex flex-col max-h-[90vh]">
                     <Form {...transactionForm}>
                         <form
                             onSubmit={transactionForm.handleSubmit((v) => {
@@ -645,35 +779,42 @@ const Transactions = () => {
                             })}
                             className="flex flex-col flex-1 min-h-0"
                         >
-                            <DialogHeader className="px-4 pt-4 pb-3 shrink-0 border-b border-gray-100">
-                                <DialogTitle className="text-[13px] font-semibold text-brand-navy">
-                                    {editingTransactionId ? 'Edit purchase transaction' : 'New Purchase Transaction'}
+                            <DialogHeader className="px-6 pt-6 pb-4 shrink-0 border-b border-ant-line space-y-1.5">
+                                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                                    {editingTransactionId ? 'Edit · Ledger' : 'New · Ledger'}
+                                </div>
+                                <DialogTitle className="font-display text-[22px] leading-tight tracking-tight text-ant-ink">
+                                    {editingTransactionId ? 'Edit supplier transaction' : 'Record a new purchase'}
                                 </DialogTitle>
-                                <DialogDescription className="text-[10px] text-gray-400">
+                                <DialogDescription className="font-serif italic text-[13px] text-ant-mid">
                                     {editingTransactionId
-                                        ? 'Update supplier details, dates, and line items. Payments on this transaction are unchanged.'
-                                        : 'Log supplier invoices and update inventory stock instantly.'}
+                                        ? 'Adjust supplier details and line items — past payments stay untouched.'
+                                        : 'Capture the invoice, update stock, and start the payment clock in one pass.'}
                                 </DialogDescription>
                             </DialogHeader>
 
-                            <div className="overflow-y-auto p-4 space-y-4 flex-1 min-h-0">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="ant-scroll overflow-y-auto p-6 space-y-6 flex-1 min-h-0">
+                                <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-3">
-                                        <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Supplier Profile</p>
+                                        <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                            <span className="font-display text-ant-orange font-semibold">01</span>
+                                            Supplier profile
+                                        </div>
                                         <div className="grid grid-cols-1 gap-3">
                                             <FormField
                                                 control={transactionForm.control}
                                                 name="name"
                                                 render={({ field }) => (
                                                     <FormItem className="space-y-1.5">
-                                                        <FormLabel className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">Supplier Name</FormLabel>
+                                                        <FormLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Supplier name</FormLabel>
                                                         <FormControl>
                                                             <div className="relative">
-                                                                <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
-                                                                <Input placeholder="E.g. Global Supplies Ltd" {...field} className="pl-8 h-8 rounded-md border-gray-200 text-[11px]" />
+                                                                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid" />
+                                                                <Input placeholder="E.g. Global Supplies Ltd" {...field} className="pl-9 h-10 rounded-xl border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid focus-visible:ring-1 focus-visible:ring-ant-orange/40" />
                                                             </div>
                                                         </FormControl>
-                                                        <FormMessage />
+                                                        <FormMessage className="text-ant-rose" />
                                                     </FormItem>
                                                 )}
                                             />
@@ -683,9 +824,9 @@ const Transactions = () => {
                                                     name="phone"
                                                     render={({ field }) => (
                                                         <FormItem className="space-y-1.5">
-                                                            <FormLabel className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">Phone</FormLabel>
+                                                            <FormLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Phone</FormLabel>
                                                             <FormControl>
-                                                                <Input placeholder="+212..." {...field} className="h-8 rounded-md border-gray-200 text-[11px]" />
+                                                                <Input placeholder="+212..." {...field} className="h-10 rounded-xl border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid" />
                                                             </FormControl>
                                                         </FormItem>
                                                     )}
@@ -695,9 +836,9 @@ const Transactions = () => {
                                                     name="date"
                                                     render={({ field }) => (
                                                         <FormItem className="space-y-1.5">
-                                                            <FormLabel className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">Transaction Date</FormLabel>
+                                                            <FormLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Invoice date</FormLabel>
                                                             <FormControl>
-                                                                <Input type="date" {...field} className="h-8 rounded-md border-gray-200 text-[11px]" />
+                                                                <Input type="date" {...field} className="h-10 rounded-xl border-ant-line bg-ant-paper text-[12px] text-ant-ink" />
                                                             </FormControl>
                                                         </FormItem>
                                                     )}
@@ -707,16 +848,19 @@ const Transactions = () => {
                                     </div>
 
                                     <div className="space-y-3">
-                                        <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Logistics &amp; Notes</p>
+                                        <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                            <span className="font-display text-ant-orange font-semibold">02</span>
+                                            Context &amp; notes
+                                        </div>
                                         <div className="grid grid-cols-1 gap-3">
                                             <FormField
                                                 control={transactionForm.control}
                                                 name="address"
                                                 render={({ field }) => (
                                                     <FormItem className="space-y-1.5">
-                                                        <FormLabel className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">Supplier Address</FormLabel>
+                                                        <FormLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Supplier address</FormLabel>
                                                         <FormControl>
-                                                            <Input placeholder="Warehouse location..." {...field} className="h-8 rounded-md border-gray-200 text-[11px]" />
+                                                            <Input placeholder="Warehouse location..." {...field} className="h-10 rounded-xl border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid" />
                                                         </FormControl>
                                                     </FormItem>
                                                 )}
@@ -726,36 +870,39 @@ const Transactions = () => {
                                                 name="note"
                                                 render={({ field }) => (
                                                     <FormItem className="space-y-1.5">
-                                                        <FormLabel className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">Internal Notes</FormLabel>
+                                                        <FormLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Internal notes</FormLabel>
                                                         <FormControl>
-                                                            <Input placeholder="Extra details about this order..." {...field} className="h-8 rounded-md border-gray-200 text-[11px]" />
+                                                            <Input placeholder="Extra details about this order..." {...field} className="h-10 rounded-xl border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid" />
                                                         </FormControl>
                                                     </FormItem>
                                                 )}
                                             />
                                         </div>
                                     </div>
-                                </div>
+                                </section>
 
-                                <div className="space-y-3">
-                                    <div className="flex items-center justify-between border-b border-gray-100 pb-2">
-                                        <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Invoice Items</p>
+                                <section className="space-y-3">
+                                    <div className="flex items-center justify-between border-b border-ant-line pb-3">
+                                        <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                            <span className="font-display text-ant-orange font-semibold">03</span>
+                                            Invoice items
+                                        </div>
                                         <div className="flex gap-1.5">
                                             <Button
                                                 type="button"
                                                 variant="ghost"
                                                 onClick={() => append({ type: 'product' as const, product_id: '', accessory_id: '', quantity: 1, unit_price: 0 })}
-                                                className="h-8 px-3 rounded-md text-[11px] font-semibold text-brand-navy hover:bg-brand-navy/[0.05] gap-1.5"
+                                                className="h-8 px-3 rounded-full text-[11px] font-semibold text-ant-ink border border-ant-line hover:bg-ant-light gap-1.5 cursor-pointer"
                                             >
-                                                <Package className="w-3.5 h-3.5" /> Add Product
+                                                <Package className="w-3.5 h-3.5" /> Product
                                             </Button>
                                             <Button
                                                 type="button"
                                                 variant="ghost"
                                                 onClick={() => append({ type: 'accessory' as const, product_id: '', accessory_id: '', quantity: 1, unit_price: 0 })}
-                                                className="h-8 px-3 rounded-md text-[11px] font-semibold text-amber-700 hover:bg-amber-50 gap-1.5"
+                                                className="h-8 px-3 rounded-full text-[11px] font-semibold text-ant-orange border border-ant-orange/30 hover:bg-ant-orange/10 gap-1.5 cursor-pointer"
                                             >
-                                                <Puzzle className="w-3.5 h-3.5" /> Add Accessory
+                                                <Puzzle className="w-3.5 h-3.5" /> Accessory
                                             </Button>
                                         </div>
                                     </div>
@@ -767,167 +914,165 @@ const Transactions = () => {
                                             const isProduct = itemType === 'product';
                                             return (
                                                 <div key={field.id} className={cn(
-                                                    "p-3 rounded-xl border space-y-1",
-                                                    isProduct
-                                                        ? "bg-brand-navy/[0.015] border-gray-100"
-                                                        : "bg-amber-50/50 border-amber-100"
+                                                    'relative overflow-hidden rounded-2xl border bg-ant-paper',
+                                                    isProduct ? 'border-ant-line' : 'border-ant-orange/25'
                                                 )}>
-                                                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
-                                                        <div className="md:col-span-5">
-                                                            {isProduct ? (
+                                                    <div className={cn('h-[3px] w-full', isProduct ? 'bg-ant-ink/20' : 'bg-ant-orange')} />
+                                                    <div className="p-3">
+                                                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                                                            <div className="md:col-span-5">
+                                                                {isProduct ? (
+                                                                    <FormField
+                                                                        control={transactionForm.control}
+                                                                        name={`items.${index}.product_id`}
+                                                                        render={({ field }) => {
+                                                                            const selectedProduct = products?.find(p => p.id === field.value);
+                                                                            return (
+                                                                                <FormItem className="space-y-1.5">
+                                                                                    <FormLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid flex items-center gap-1.5"><Package className="w-3 h-3" /> Product</FormLabel>
+                                                                                    <Popover modal={true}>
+                                                                                        <PopoverTrigger asChild>
+                                                                                            <FormControl>
+                                                                                                <Button
+                                                                                                    variant="outline"
+                                                                                                    role="combobox"
+                                                                                                    className={cn(
+                                                                                                        'h-10 w-full justify-between rounded-xl border-ant-line bg-ant-paper text-[12px] font-semibold text-ant-ink',
+                                                                                                        !field.value && 'text-ant-mid font-normal'
+                                                                                                    )}
+                                                                                                >
+                                                                                                    <span className="truncate">
+                                                                                                        {selectedProduct ? selectedProduct.name : 'Select product'}
+                                                                                                    </span>
+                                                                                                    <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                                                                                                </Button>
+                                                                                            </FormControl>
+                                                                                        </PopoverTrigger>
+                                                                                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0 rounded-xl border border-ant-line bg-ant-paper shadow-[0_16px_48px_-20px_rgba(20,20,19,0.2)]" align="start">
+                                                                                            <Command>
+                                                                                                <CommandInput placeholder="Search products..." className="h-9 text-[12px]" />
+                                                                                                <CommandList className="max-h-[200px] overflow-y-auto">
+                                                                                                    <CommandEmpty className="text-[12px] text-ant-mid py-4 text-center">No product found.</CommandEmpty>
+                                                                                                    <CommandGroup>
+                                                                                                        {products?.map(p => (
+                                                                                                            <CommandItem
+                                                                                                                key={p.id}
+                                                                                                                value={`${p.name} ${p.code}`}
+                                                                                                                onSelect={() => field.onChange(p.id)}
+                                                                                                                className="text-[12px] cursor-pointer rounded-lg"
+                                                                                                            >
+                                                                                                                <Check className={cn('mr-2 h-3 w-3', field.value === p.id ? 'opacity-100 text-ant-orange' : 'opacity-0')} />
+                                                                                                                {p.name}
+                                                                                                                <span className="text-ant-mid ml-2 text-[10px] tabular-nums">({p.code})</span>
+                                                                                                            </CommandItem>
+                                                                                                        ))}
+                                                                                                    </CommandGroup>
+                                                                                                </CommandList>
+                                                                                            </Command>
+                                                                                        </PopoverContent>
+                                                                                    </Popover>
+                                                                                    <FormMessage className="text-ant-rose" />
+                                                                                </FormItem>
+                                                                            );
+                                                                        }}
+                                                                    />
+                                                                ) : (
+                                                                    <FormField
+                                                                        control={transactionForm.control}
+                                                                        name={`items.${index}.accessory_id`}
+                                                                        render={({ field }) => {
+                                                                            const selectedAccessory = accessories?.find(a => a.id === field.value);
+                                                                            return (
+                                                                                <FormItem className="space-y-1.5">
+                                                                                    <FormLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-orange flex items-center gap-1.5"><Puzzle className="w-3 h-3" /> Accessory</FormLabel>
+                                                                                    <Popover modal={true}>
+                                                                                        <PopoverTrigger asChild>
+                                                                                            <FormControl>
+                                                                                                <Button
+                                                                                                    variant="outline"
+                                                                                                    role="combobox"
+                                                                                                    className={cn(
+                                                                                                        'h-10 w-full justify-between rounded-xl border-ant-line bg-ant-paper text-[12px] font-semibold text-ant-ink',
+                                                                                                        !field.value && 'text-ant-mid font-normal'
+                                                                                                    )}
+                                                                                                >
+                                                                                                    <span className="truncate">
+                                                                                                        {selectedAccessory ? selectedAccessory.name : 'Select accessory'}
+                                                                                                    </span>
+                                                                                                    <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                                                                                                </Button>
+                                                                                            </FormControl>
+                                                                                        </PopoverTrigger>
+                                                                                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0 rounded-xl border border-ant-line bg-ant-paper shadow-[0_16px_48px_-20px_rgba(20,20,19,0.2)]" align="start">
+                                                                                            <Command>
+                                                                                                <CommandInput placeholder="Search accessories..." className="h-9 text-[12px]" />
+                                                                                                <CommandList className="max-h-[200px] overflow-y-auto">
+                                                                                                    <CommandEmpty className="text-[12px] text-ant-mid py-4 text-center">No accessory found.</CommandEmpty>
+                                                                                                    <CommandGroup>
+                                                                                                        {accessories?.map(a => (
+                                                                                                            <CommandItem
+                                                                                                                key={a.id}
+                                                                                                                value={`${a.name} ${a.code}`}
+                                                                                                                onSelect={() => field.onChange(a.id)}
+                                                                                                                className="text-[12px] cursor-pointer rounded-lg"
+                                                                                                            >
+                                                                                                                <Check className={cn('mr-2 h-3 w-3', field.value === a.id ? 'opacity-100 text-ant-orange' : 'opacity-0')} />
+                                                                                                                {a.name}
+                                                                                                                <span className="text-ant-mid ml-2 text-[10px] tabular-nums">({a.code})</span>
+                                                                                                            </CommandItem>
+                                                                                                        ))}
+                                                                                                    </CommandGroup>
+                                                                                                </CommandList>
+                                                                                            </Command>
+                                                                                        </PopoverContent>
+                                                                                    </Popover>
+                                                                                    <FormMessage className="text-ant-rose" />
+                                                                                </FormItem>
+                                                                            );
+                                                                        }}
+                                                                    />
+                                                                )}
+                                                            </div>
+                                                            <div className="md:col-span-2">
                                                                 <FormField
                                                                     control={transactionForm.control}
-                                                                    name={`items.${index}.product_id`}
-                                                                    render={({ field }) => {
-                                                                        const selectedProduct = products?.find(p => p.id === field.value);
-                                                                        return (
-                                                                        <FormItem className="space-y-1">
-                                                                            <FormLabel className="text-[9px] uppercase font-bold text-gray-400 flex items-center gap-1"><Package className="w-3 h-3" /> Product</FormLabel>
-                                                                            <Popover modal={true}>
-                                                                                <PopoverTrigger asChild>
-                                                                                    <FormControl>
-                                                                                        <Button
-                                                                                            variant="outline"
-                                                                                            role="combobox"
-                                                                                            className={cn(
-                                                                                                "h-8 w-full justify-between rounded-md border-gray-200 text-[11px] font-semibold text-brand-navy",
-                                                                                                !field.value && "text-gray-400 font-normal"
-                                                                                            )}
-                                                                                        >
-                                                                                            <span className="truncate">
-                                                                                                {selectedProduct ? selectedProduct.name : "Select product"}
-                                                                                            </span>
-                                                                                            <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
-                                                                                        </Button>
-                                                                                    </FormControl>
-                                                                                </PopoverTrigger>
-                                                                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0 rounded-xl border border-gray-100 shadow-md" align="start">
-                                                                                    <Command>
-                                                                                        <CommandInput placeholder="Search products..." className="h-8 text-[11px]" />
-                                                                                        <CommandList className="max-h-[200px] overflow-y-auto">
-                                                                                            <CommandEmpty>No product found.</CommandEmpty>
-                                                                                            <CommandGroup>
-                                                                                                {products?.map(p => (
-                                                                                                    <CommandItem
-                                                                                                        key={p.id}
-                                                                                                        value={`${p.name} ${p.code}`}
-                                                                                                        onSelect={() => {
-                                                                                                            field.onChange(p.id);
-                                                                                                        }}
-                                                                                                        className="text-[11px] cursor-pointer"
-                                                                                                    >
-                                                                                                        <Check className={cn("mr-2 h-3 w-3", field.value === p.id ? "opacity-100" : "opacity-0")} />
-                                                                                                        {p.name}
-                                                                                                        <span className="text-gray-400 ml-2 text-[10px]">({p.code})</span>
-                                                                                                    </CommandItem>
-                                                                                                ))}
-                                                                                            </CommandGroup>
-                                                                                        </CommandList>
-                                                                                    </Command>
-                                                                                </PopoverContent>
-                                                                            </Popover>
-                                                                            <FormMessage />
+                                                                    name={`items.${index}.quantity`}
+                                                                    render={({ field }) => (
+                                                                        <FormItem className="space-y-1.5">
+                                                                            <FormLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Qty</FormLabel>
+                                                                            <Input type="number" placeholder="0" {...field} className="h-10 rounded-xl border-ant-line bg-ant-paper text-[12px] text-ant-ink tabular-nums" />
                                                                         </FormItem>
-                                                                        );
-                                                                    }}
+                                                                    )}
                                                                 />
-                                                            ) : (
+                                                            </div>
+                                                            <div className="md:col-span-3">
                                                                 <FormField
                                                                     control={transactionForm.control}
-                                                                    name={`items.${index}.accessory_id`}
-                                                                    render={({ field }) => {
-                                                                        const selectedAccessory = accessories?.find(a => a.id === field.value);
-                                                                        return (
-                                                                        <FormItem className="space-y-1">
-                                                                            <FormLabel className="text-[9px] uppercase font-bold text-amber-600 flex items-center gap-1"><Puzzle className="w-3 h-3" /> Accessory</FormLabel>
-                                                                            <Popover modal={true}>
-                                                                                <PopoverTrigger asChild>
-                                                                                    <FormControl>
-                                                                                        <Button
-                                                                                            variant="outline"
-                                                                                            role="combobox"
-                                                                                            className={cn(
-                                                                                                "h-8 w-full justify-between rounded-md border-gray-200 text-[11px] font-semibold text-brand-navy",
-                                                                                                !field.value && "text-gray-400 font-normal"
-                                                                                            )}
-                                                                                        >
-                                                                                            <span className="truncate">
-                                                                                                {selectedAccessory ? selectedAccessory.name : "Select accessory"}
-                                                                                            </span>
-                                                                                            <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
-                                                                                        </Button>
-                                                                                    </FormControl>
-                                                                                </PopoverTrigger>
-                                                                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0 rounded-xl border border-gray-100 shadow-md" align="start">
-                                                                                    <Command>
-                                                                                        <CommandInput placeholder="Search accessories..." className="h-8 text-[11px]" />
-                                                                                        <CommandList className="max-h-[200px] overflow-y-auto">
-                                                                                            <CommandEmpty>No accessory found.</CommandEmpty>
-                                                                                            <CommandGroup>
-                                                                                                {accessories?.map(a => (
-                                                                                                    <CommandItem
-                                                                                                        key={a.id}
-                                                                                                        value={`${a.name} ${a.code}`}
-                                                                                                        onSelect={() => {
-                                                                                                            field.onChange(a.id);
-                                                                                                        }}
-                                                                                                        className="text-[11px] cursor-pointer"
-                                                                                                    >
-                                                                                                        <Check className={cn("mr-2 h-3 w-3", field.value === a.id ? "opacity-100" : "opacity-0")} />
-                                                                                                        {a.name}
-                                                                                                        <span className="text-gray-400 ml-2 text-[10px]">({a.code})</span>
-                                                                                                    </CommandItem>
-                                                                                                ))}
-                                                                                            </CommandGroup>
-                                                                                        </CommandList>
-                                                                                    </Command>
-                                                                                </PopoverContent>
-                                                                            </Popover>
-                                                                            <FormMessage />
+                                                                    name={`items.${index}.unit_price`}
+                                                                    render={({ field }) => (
+                                                                        <FormItem className="space-y-1.5">
+                                                                            <FormLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Unit cost · DH</FormLabel>
+                                                                            <div className="relative">
+                                                                                <Input type="number" step="0.01" placeholder="0" {...field} className="h-10 rounded-xl border-ant-line bg-ant-paper text-[12px] text-ant-ink tabular-nums pr-20" />
+                                                                                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-ant-mid tabular-nums">{lineSubtotal.toFixed(2)}</div>
+                                                                            </div>
                                                                         </FormItem>
-                                                                        );
-                                                                    }}
+                                                                    )}
                                                                 />
-                                                            )}
-                                                        </div>
-                                                        <div className="md:col-span-2">
-                                                            <FormField
-                                                                control={transactionForm.control}
-                                                                name={`items.${index}.quantity`}
-                                                                render={({ field }) => (
-                                                                    <FormItem className="space-y-1">
-                                                                        <FormLabel className="text-[9px] uppercase font-bold text-gray-400">Qty</FormLabel>
-                                                                        <Input type="number" placeholder="0" {...field} className="h-8 rounded-md border-gray-200 text-[11px]" />
-                                                                    </FormItem>
-                                                                )}
-                                                            />
-                                                        </div>
-                                                        <div className="md:col-span-3">
-                                                            <FormField
-                                                                control={transactionForm.control}
-                                                                name={`items.${index}.unit_price`}
-                                                                render={({ field }) => (
-                                                                    <FormItem className="space-y-1">
-                                                                        <FormLabel className="text-[9px] uppercase font-bold text-gray-400">Unit Cost (DH)</FormLabel>
-                                                                        <div className="relative">
-                                                                            <Input type="number" step="0.01" placeholder="0" {...field} className="h-8 rounded-md border-gray-200 text-[11px] pr-16" />
-                                                                            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-bold text-gray-400">{lineSubtotal.toFixed(1)} DH</div>
-                                                                        </div>
-                                                                    </FormItem>
-                                                                )}
-                                                            />
-                                                        </div>
-                                                        <div className="md:col-span-2 flex items-end gap-2">
-                                                            <Button
-                                                                type="button"
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                onClick={() => remove(index)}
-                                                                disabled={fields.length === 1}
-                                                                className="h-8 w-8 rounded-md text-red-400 hover:text-red-600 hover:bg-red-50"
-                                                            >
-                                                                <X className="w-4 h-4" />
-                                                            </Button>
+                                                            </div>
+                                                            <div className="md:col-span-2 flex items-end justify-end">
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    onClick={() => remove(index)}
+                                                                    disabled={fields.length === 1}
+                                                                    className="h-10 w-10 rounded-full text-ant-rose hover:text-ant-rose hover:bg-ant-rose/10 cursor-pointer"
+                                                                    title="Remove line"
+                                                                >
+                                                                    <X className="w-4 h-4" />
+                                                                </Button>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -935,21 +1080,22 @@ const Transactions = () => {
                                         })}
                                     </div>
 
-                                    <div className="p-3 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-between">
-                                        <div>
-                                            <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Grand Total</p>
-                                            <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-0.5">
-                                                {transactionForm.watch('items').reduce((acc, item) => acc + (item.quantity * item.unit_price), 0).toFixed(2)} DH
+                                    <div className="rounded-2xl border border-ant-line bg-ant-ink text-white px-5 py-4 flex items-center justify-between">
+                                        <div className="space-y-0.5">
+                                            <p className="text-[10px] font-medium uppercase tracking-[0.28em] text-white/50">Grand total</p>
+                                            <p className="font-display text-[26px] font-semibold tabular-nums text-white">
+                                                {transactionForm.watch('items').reduce((acc, item) => acc + (item.quantity * item.unit_price), 0).toFixed(2)} <span className="text-[13px] font-normal text-white/60">DH</span>
                                             </p>
                                         </div>
-                                        <span className="h-5 px-1.5 rounded text-[9px] font-bold uppercase tracking-[0.08em] inline-flex items-center bg-emerald-50 text-emerald-600">
-                                            {editingTransactionId ? 'Edit invoice' : 'Invoice Draft'}
+                                        <span className="inline-flex items-center gap-1.5 rounded-full border border-ant-orange/40 bg-ant-orange/15 text-ant-orange px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em]">
+                                            <Sparkles className="w-3 h-3" />
+                                            {editingTransactionId ? 'Edit invoice' : 'Invoice draft'}
                                         </span>
                                     </div>
-                                </div>
+                                </section>
                             </div>
 
-                            <DialogFooter className="px-4 py-3 shrink-0 border-t border-gray-100 gap-2">
+                            <DialogFooter className="px-6 py-4 shrink-0 border-t border-ant-line gap-2">
                                 <Button
                                     type="button"
                                     variant="ghost"
@@ -958,19 +1104,19 @@ const Transactions = () => {
                                         setEditingTransactionId(null);
                                         transactionForm.reset(defaultTransactionFormValues);
                                     }}
-                                    className="h-8 px-3 rounded-md text-[11px] font-semibold text-brand-navy hover:bg-gray-100"
+                                    className="h-10 px-5 rounded-full text-[12px] font-semibold text-ant-mid hover:text-ant-ink hover:bg-ant-light cursor-pointer"
                                 >
                                     Discard
                                 </Button>
                                 <Button
                                     type="submit"
                                     disabled={createTransactionMutation.isPending || updateTransactionMutation.isPending}
-                                    className="bg-brand-navy hover:bg-brand-navy/90 text-white h-8 px-4 rounded-md text-[11px] font-semibold gap-1.5"
+                                    className="bg-ant-ink hover:bg-ant-ink/90 text-white h-10 px-5 rounded-full text-[12px] font-semibold gap-2 cursor-pointer"
                                 >
                                     {(createTransactionMutation.isPending || updateTransactionMutation.isPending) && (
                                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
                                     )}
-                                    {editingTransactionId ? 'Save changes' : 'Finalize & Update Stock'}
+                                    {editingTransactionId ? 'Save changes' : 'Finalize & update stock'}
                                 </Button>
                             </DialogFooter>
                         </form>
@@ -980,23 +1126,28 @@ const Transactions = () => {
 
             {/* Add Payment Modal */}
             <Dialog open={isPaymentModalOpen} onOpenChange={setIsPaymentModalOpen}>
-                <DialogContent className="max-w-md p-0 border border-gray-100 rounded-xl shadow-none overflow-hidden flex flex-col">
+                <DialogContent className="max-w-md p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden flex flex-col">
                     <Form {...paymentForm}>
                         <form onSubmit={paymentForm.handleSubmit(v => addPaymentMutation.mutate(v))} className="flex flex-col h-full">
-                            <DialogHeader className="px-4 pt-4 pb-3 border-b border-gray-100">
-                                <DialogTitle className="text-[13px] font-semibold text-brand-navy">Record Payment</DialogTitle>
-                                <DialogDescription className="text-[10px] text-gray-400">Add a payment tranche for {selectedTransaction?.name}.</DialogDescription>
+                            <DialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line space-y-1.5">
+                                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-ant-green" />
+                                    Payment · Tranche
+                                </div>
+                                <DialogTitle className="font-display text-[20px] leading-tight tracking-tight text-ant-ink">Record a payment</DialogTitle>
+                                <DialogDescription className="font-serif italic text-[13px] text-ant-mid">Chip away at what {selectedTransaction?.name || 'this supplier'} is owed.</DialogDescription>
                             </DialogHeader>
 
-                            <div className="p-4 space-y-3">
-                                <div className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
-                                    <span className="w-[3px] self-stretch rounded-full" style={{ background: '#ef4444' }} />
+                            <div className="p-6 space-y-4">
+                                <div className="rounded-2xl border border-ant-rose/25 bg-ant-rose/5 px-4 py-3 flex items-center justify-between">
                                     <div>
-                                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Remaining Balance</p>
-                                        <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">
-                                            {(selectedTransaction?.total_price || 0) - (selectedTransaction?.paid_price || 0)} DH
+                                        <p className="text-[10px] uppercase tracking-[0.24em] font-semibold text-ant-mid">Remaining balance</p>
+                                        <p className="font-display text-[24px] font-semibold tabular-nums text-ant-ink mt-0.5">
+                                            {(selectedTransaction?.total_price || 0) - (selectedTransaction?.paid_price || 0)}
+                                            <span className="text-[13px] text-ant-mid font-normal ml-1">DH</span>
                                         </p>
                                     </div>
+                                    <Wallet className="w-6 h-6 text-ant-rose" strokeWidth={1.75} />
                                 </div>
 
                                 <FormField
@@ -1004,11 +1155,11 @@ const Transactions = () => {
                                     name="amount"
                                     render={({ field }) => (
                                         <FormItem className="space-y-1.5">
-                                            <FormLabel className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">Amount to Pay</FormLabel>
+                                            <FormLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Amount to pay · DH</FormLabel>
                                             <FormControl>
-                                                <Input type="number" step="0.01" {...field} className="h-8 rounded-md border-gray-200 text-[11px]" />
+                                                <Input type="number" step="0.01" {...field} className="h-10 rounded-xl border-ant-line bg-ant-paper text-[12px] text-ant-ink tabular-nums focus-visible:ring-1 focus-visible:ring-ant-orange/40" />
                                             </FormControl>
-                                            <FormMessage />
+                                            <FormMessage className="text-ant-rose" />
                                         </FormItem>
                                     )}
                                 />
@@ -1019,17 +1170,17 @@ const Transactions = () => {
                                         name="method"
                                         render={({ field }) => (
                                             <FormItem className="space-y-1.5">
-                                                <FormLabel className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">Method</FormLabel>
+                                                <FormLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Method</FormLabel>
                                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                                                     <FormControl>
-                                                        <SelectTrigger className="h-8 rounded-md border-gray-200 text-[11px]">
+                                                        <SelectTrigger className="h-10 rounded-xl border-ant-line bg-ant-paper text-[12px] text-ant-ink">
                                                             <SelectValue />
                                                         </SelectTrigger>
                                                     </FormControl>
-                                                    <SelectContent>
-                                                        <SelectItem value="Cash">Cash</SelectItem>
-                                                        <SelectItem value="Bank Transfer">Transfer</SelectItem>
-                                                        <SelectItem value="Check">Check</SelectItem>
+                                                    <SelectContent className="rounded-xl border-ant-line">
+                                                        <SelectItem value="Cash" className="text-[12px]">Cash</SelectItem>
+                                                        <SelectItem value="Bank Transfer" className="text-[12px]">Bank transfer</SelectItem>
+                                                        <SelectItem value="Check" className="text-[12px]">Check</SelectItem>
                                                     </SelectContent>
                                                 </Select>
                                             </FormItem>
@@ -1040,9 +1191,9 @@ const Transactions = () => {
                                         name="date"
                                         render={({ field }) => (
                                             <FormItem className="space-y-1.5">
-                                                <FormLabel className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">Payment Date</FormLabel>
+                                                <FormLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Date</FormLabel>
                                                 <FormControl>
-                                                    <Input type="date" {...field} className="h-8 rounded-md border-gray-200 text-[11px]" />
+                                                    <Input type="date" {...field} className="h-10 rounded-xl border-ant-line bg-ant-paper text-[12px] text-ant-ink" />
                                                 </FormControl>
                                             </FormItem>
                                         )}
@@ -1050,22 +1201,22 @@ const Transactions = () => {
                                 </div>
                             </div>
 
-                            <DialogFooter className="px-4 py-3 border-t border-gray-100 gap-2">
+                            <DialogFooter className="px-6 py-4 border-t border-ant-line gap-2">
                                 <Button
                                     type="button"
                                     variant="ghost"
                                     onClick={() => setIsPaymentModalOpen(false)}
-                                    className="h-8 px-3 rounded-md text-[11px] font-semibold text-brand-navy hover:bg-gray-100"
+                                    className="h-10 px-5 rounded-full text-[12px] font-semibold text-ant-mid hover:text-ant-ink hover:bg-ant-light cursor-pointer"
                                 >
                                     Cancel
                                 </Button>
                                 <Button
                                     type="submit"
                                     disabled={addPaymentMutation.isPending}
-                                    className="bg-brand-navy hover:bg-brand-navy/90 text-white h-8 px-4 rounded-md text-[11px] font-semibold gap-1.5"
+                                    className="bg-ant-ink hover:bg-ant-ink/90 text-white h-10 px-5 rounded-full text-[12px] font-semibold gap-2 cursor-pointer"
                                 >
                                     {addPaymentMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                                    Confirm Payment
+                                    Confirm payment
                                 </Button>
                             </DialogFooter>
                         </form>
@@ -1075,77 +1226,93 @@ const Transactions = () => {
 
             {/* View Modal */}
             <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
-                <DialogContent className="max-w-4xl p-0 border border-gray-100 rounded-xl shadow-none overflow-hidden flex flex-col max-h-[90vh]">
+                <DialogContent className="max-w-4xl p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden flex flex-col max-h-[90vh]">
                     {selectedTransaction && (
                         <>
-                            <DialogHeader className="px-4 pt-4 pb-3 border-b border-gray-100">
-                                <div className="flex items-center justify-between gap-3">
-                                    <div className="min-w-0">
-                                        <DialogTitle className="text-[13px] font-semibold text-brand-navy truncate">{selectedTransaction.name}</DialogTitle>
-                                        <div className="flex items-center gap-3 mt-0.5 text-[10px] text-gray-400">
-                                            <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {format(new Date(selectedTransaction.date), 'MMM dd, yyyy')}</span>
-                                            {selectedTransaction.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {selectedTransaction.phone}</span>}
+                            <DialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0 space-y-1.5">
+                                        <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                            <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                                            Ledger entry
+                                        </div>
+                                        <DialogTitle className="font-display text-[24px] leading-tight tracking-tight text-ant-ink truncate">{selectedTransaction.name}</DialogTitle>
+                                        <div className="flex flex-wrap items-center gap-4 text-[12px] text-ant-mid">
+                                            <span className="inline-flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" /> {format(new Date(selectedTransaction.date), 'MMM dd, yyyy')}</span>
+                                            {selectedTransaction.phone && <span className="inline-flex items-center gap-1.5 tabular-nums"><Phone className="w-3.5 h-3.5" /> {selectedTransaction.phone}</span>}
                                         </div>
                                     </div>
                                     {getStatusBadge(selectedTransaction)}
                                 </div>
                             </DialogHeader>
 
-                            <div className="overflow-y-auto p-4 space-y-4 flex-1 min-h-0">
-                                {/* KPI tiles */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                                    {[
-                                        { label: 'Total Invoiced', value: `${selectedTransaction.total_price || 0} DH`, accent: '#3b5e5e' },
-                                        { label: 'Total Paid', value: `${selectedTransaction.paid_price || 0} DH`, accent: '#059669' },
-                                        { label: 'Outstanding', value: `${(selectedTransaction.total_price || 0) - (selectedTransaction.paid_price || 0)} DH`, accent: '#ef4444' },
-                                    ].map((s) => (
-                                        <div key={s.label} className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
-                                            <span className="w-[3px] self-stretch rounded-full" style={{ background: s.accent }} />
-                                            <div>
-                                                <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{s.label}</p>
-                                                <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{s.value}</p>
+                            <div className="ant-scroll overflow-y-auto p-6 space-y-6 flex-1 min-h-0">
+                                {/* Ink summary panel */}
+                                <section className="rounded-2xl border border-ant-ink bg-ant-ink text-white overflow-hidden">
+                                    <div className="grid grid-cols-3 divide-x divide-white/10">
+                                        {[
+                                            { label: 'Invoiced', value: selectedTransaction.total_price || 0, tone: 'text-white', dot: 'bg-ant-orange' },
+                                            { label: 'Paid', value: selectedTransaction.paid_price || 0, tone: 'text-ant-green', dot: 'bg-ant-green' },
+                                            { label: 'Outstanding', value: (selectedTransaction.total_price || 0) - (selectedTransaction.paid_price || 0), tone: 'text-ant-rose', dot: 'bg-ant-rose' },
+                                        ].map((s) => (
+                                            <div key={s.label} className="px-5 py-4">
+                                                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.24em] text-white/50">
+                                                    <span className={cn('h-1.5 w-1.5 rounded-full', s.dot)} />
+                                                    {s.label}
+                                                </div>
+                                                <p className={cn('font-display text-[24px] font-semibold tabular-nums mt-1', s.tone)}>
+                                                    {s.value}
+                                                    <span className="text-[12px] text-white/50 font-normal ml-1">DH</span>
+                                                </p>
                                             </div>
-                                        </div>
-                                    ))}
-                                </div>
+                                        ))}
+                                    </div>
+                                </section>
 
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                                     {/* Items */}
-                                    <div className="space-y-2">
+                                    <div className="space-y-3">
                                         <div className="flex items-center justify-between">
-                                            <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Order Items</p>
-                                            <span className="h-5 px-1.5 bg-gray-100 rounded text-[9px] font-bold text-gray-500 inline-flex items-center">{selectedTransaction.items?.length || 0}</span>
+                                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                                <Package className="w-3 h-3" />
+                                                Line items
+                                            </div>
+                                            <span className="rounded-full border border-ant-line px-2 py-0.5 text-[10px] font-semibold text-ant-mid tabular-nums">{selectedTransaction.items?.length || 0}</span>
                                         </div>
-                                        <div className="rounded-xl border border-gray-100 overflow-hidden">
+                                        <div className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
                                             {selectedTransaction.items?.map((item: any) => (
-                                                <div key={item.id} className="px-3 py-2 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
+                                                <div key={item.id} className="px-4 py-3 border-b border-ant-line last:border-0 hover:bg-ant-light/60 transition-colors">
                                                     {item.product && (
                                                         <div className="flex justify-between items-center">
-                                                            <div className="flex items-center gap-1.5 min-w-0">
-                                                                <Package className="w-3 h-3 text-gray-400 shrink-0" />
+                                                            <div className="flex items-center gap-2.5 min-w-0">
+                                                                <div className="h-8 w-8 rounded-lg bg-ant-ink/5 border border-ant-line flex items-center justify-center shrink-0">
+                                                                    <Package className="w-3.5 h-3.5 text-ant-ink" />
+                                                                </div>
                                                                 <div className="min-w-0">
-                                                                    <p className="text-[11px] font-semibold text-brand-navy truncate">{item.product.name}</p>
-                                                                    <p className="text-[9px] text-gray-400">{item.product.code}</p>
+                                                                    <p className="text-[12px] font-semibold text-ant-ink truncate">{item.product.name}</p>
+                                                                    <p className="text-[10px] text-ant-mid tabular-nums">{item.product.code}</p>
                                                                 </div>
                                                             </div>
-                                                            <div className="text-right shrink-0 ml-2">
-                                                                <p className="text-[11px] font-semibold text-brand-navy tabular-nums">{item.quantity} units</p>
-                                                                <p className="text-[9px] text-emerald-600 tabular-nums">+{item.sub_total} DH</p>
+                                                            <div className="text-right shrink-0 ml-3">
+                                                                <p className="text-[12px] font-semibold text-ant-ink tabular-nums">× {item.quantity}</p>
+                                                                <p className="text-[11px] text-ant-orange tabular-nums font-semibold">{item.sub_total} DH</p>
                                                             </div>
                                                         </div>
                                                     )}
                                                     {item.accessory && (
-                                                        <div className={cn("flex justify-between items-center", item.product && "border-t border-gray-100 mt-2 pt-2")}>
-                                                            <div className="flex items-center gap-1.5 min-w-0">
-                                                                <Puzzle className="w-3 h-3 text-gray-400 shrink-0" />
+                                                        <div className={cn('flex justify-between items-center', item.product && 'border-t border-ant-line mt-3 pt-3')}>
+                                                            <div className="flex items-center gap-2.5 min-w-0">
+                                                                <div className="h-8 w-8 rounded-lg bg-ant-orange/10 border border-ant-orange/25 flex items-center justify-center shrink-0">
+                                                                    <Puzzle className="w-3.5 h-3.5 text-ant-orange" />
+                                                                </div>
                                                                 <div className="min-w-0">
-                                                                    <p className="text-[11px] font-semibold text-brand-navy truncate">{item.accessory.name}</p>
-                                                                    <p className="text-[9px] text-gray-400">{item.accessory.code}</p>
+                                                                    <p className="text-[12px] font-semibold text-ant-ink truncate">{item.accessory.name}</p>
+                                                                    <p className="text-[10px] text-ant-mid tabular-nums">{item.accessory.code}</p>
                                                                 </div>
                                                             </div>
-                                                            <div className="text-right shrink-0 ml-2">
-                                                                <p className="text-[11px] font-semibold text-brand-navy tabular-nums">{item.accessory_quantity} units</p>
-                                                                <p className="text-[9px] text-emerald-600 tabular-nums">+{item.accessory_sub_total} DH</p>
+                                                            <div className="text-right shrink-0 ml-3">
+                                                                <p className="text-[12px] font-semibold text-ant-ink tabular-nums">× {item.accessory_quantity}</p>
+                                                                <p className="text-[11px] text-ant-orange tabular-nums font-semibold">{item.accessory_sub_total} DH</p>
                                                             </div>
                                                         </div>
                                                     )}
@@ -1154,23 +1321,34 @@ const Transactions = () => {
                                         </div>
                                     </div>
 
-                                    {/* Payment History */}
-                                    <div className="space-y-2">
-                                        <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Payment Log</p>
+                                    {/* Payment log */}
+                                    <div className="space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                                <Wallet className="w-3 h-3" />
+                                                Payment log
+                                            </div>
+                                            <span className="rounded-full border border-ant-line px-2 py-0.5 text-[10px] font-semibold text-ant-mid tabular-nums">{selectedTransaction.payments?.length || 0}</span>
+                                        </div>
                                         {selectedTransaction.payments?.length === 0 ? (
-                                            <div className="border border-dashed border-gray-200 rounded-xl py-6 text-center">
-                                                <Wallet className="w-5 h-5 text-gray-300 mx-auto mb-1" />
-                                                <p className="text-[11px] text-gray-400">No payments recorded yet</p>
+                                            <div className="rounded-2xl border border-dashed border-ant-line bg-ant-paper py-10 text-center">
+                                                <Wallet className="w-6 h-6 text-ant-mid mx-auto mb-2" strokeWidth={1.5} />
+                                                <p className="font-serif italic text-[12px] text-ant-mid">No payments recorded yet.</p>
                                             </div>
                                         ) : (
-                                            <div className="rounded-xl border border-gray-100 overflow-hidden">
+                                            <div className="rounded-2xl border border-ant-line bg-ant-paper overflow-hidden">
                                                 {selectedTransaction.payments?.map((payment: any) => (
-                                                    <div key={payment.id} className="px-3 py-2 border-b border-gray-100 last:border-0 flex justify-between items-center hover:bg-gray-50 transition-colors">
-                                                        <div>
-                                                            <p className="text-[11px] font-semibold text-brand-navy">{payment.method}</p>
-                                                            <p className="text-[9px] text-gray-400 tabular-nums">{format(new Date(payment.date), 'MMM dd, HH:mm')}</p>
+                                                    <div key={payment.id} className="px-4 py-3 border-b border-ant-line last:border-0 flex justify-between items-center hover:bg-ant-light/60 transition-colors">
+                                                        <div className="flex items-center gap-2.5">
+                                                            <div className="h-8 w-8 rounded-lg bg-ant-green/10 border border-ant-green/25 flex items-center justify-center">
+                                                                <Wallet className="w-3.5 h-3.5 text-ant-green" />
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-[12px] font-semibold text-ant-ink">{payment.method}</p>
+                                                                <p className="text-[10px] text-ant-mid tabular-nums">{format(new Date(payment.date), 'MMM dd · HH:mm')}</p>
+                                                            </div>
                                                         </div>
-                                                        <p className="text-[12px] font-semibold text-emerald-600 tabular-nums">-{payment.amount} DH</p>
+                                                        <p className="text-[13px] font-semibold text-ant-green tabular-nums">+{payment.amount} <span className="text-ant-mid font-normal text-[11px]">DH</span></p>
                                                     </div>
                                                 ))}
                                             </div>
@@ -1179,14 +1357,14 @@ const Transactions = () => {
                                 </div>
 
                                 {selectedTransaction.note && (
-                                    <div className="p-3 rounded-xl border-l-4 border-brand-navy bg-brand-navy/[0.02]">
-                                        <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 mb-1">Order Note</p>
-                                        <p className="text-[11px] text-brand-navy/80 italic">"{selectedTransaction.note}"</p>
+                                    <div className="rounded-2xl border border-ant-line bg-ant-light/40 px-5 py-4">
+                                        <p className="text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid mb-2">Note</p>
+                                        <p className="font-serif italic text-[13px] text-ant-ink/80 leading-relaxed">&ldquo;{selectedTransaction.note}&rdquo;</p>
                                     </div>
                                 )}
                             </div>
 
-                            <DialogFooter className="px-4 py-3 border-t border-gray-100 gap-2 flex-row justify-end">
+                            <DialogFooter className="px-6 py-4 border-t border-ant-line gap-2 flex-row justify-end">
                                 <Button
                                     type="button"
                                     variant="outline"
@@ -1197,7 +1375,7 @@ const Transactions = () => {
                                         transactionForm.reset(mapTransactionToFormValues(t));
                                         setTransactionModalOpen(true);
                                     }}
-                                    className="h-8 px-3 rounded-md border-gray-200 text-[11px] font-semibold text-brand-navy gap-1.5"
+                                    className="h-10 px-4 rounded-full border-ant-line bg-ant-paper text-[12px] font-semibold text-ant-ink hover:bg-ant-light gap-2 cursor-pointer"
                                 >
                                     <Pencil className="h-3.5 w-3.5" />
                                     Edit
@@ -1212,29 +1390,35 @@ const Transactions = () => {
                                         );
                                         setIsPaymentModalOpen(true);
                                     }}
-                                    className="bg-brand-navy hover:bg-brand-navy/90 text-white h-8 px-4 rounded-md text-[11px] font-semibold gap-1.5"
+                                    className="bg-ant-ink hover:bg-ant-ink/90 text-white h-10 px-5 rounded-full text-[12px] font-semibold gap-2 cursor-pointer"
                                 >
                                     <Wallet className="h-3.5 w-3.5" />
-                                    Record Payment
+                                    Record payment
                                 </Button>
                             </DialogFooter>
                         </>
                     )}
                 </DialogContent>
             </Dialog>
+
+            {/* Delete confirmation */}
             <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-                <DialogContent className="max-w-md p-0 border border-gray-100 rounded-xl shadow-none overflow-hidden flex flex-col">
-                    <DialogHeader className="px-4 pt-4 pb-3 border-b border-gray-100">
-                        <DialogTitle className="text-[13px] font-semibold text-brand-navy">Delete Transaction</DialogTitle>
-                        <DialogDescription className="text-[10px] text-gray-400">
-                            Are you sure you want to delete this transaction record? This action cannot be undone.
+                <DialogContent className="max-w-md p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden flex flex-col">
+                    <DialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line space-y-1.5">
+                        <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-rose">
+                            <span className="h-1.5 w-1.5 rounded-full bg-ant-rose" />
+                            Destructive action
+                        </div>
+                        <DialogTitle className="font-display text-[20px] leading-tight tracking-tight text-ant-ink">Delete this transaction?</DialogTitle>
+                        <DialogDescription className="font-serif italic text-[13px] text-ant-mid">
+                            This removes the record permanently. Line items and payments tied to it will be deleted in the same motion.
                         </DialogDescription>
                     </DialogHeader>
-                    <DialogFooter className="px-4 py-3 gap-2">
+                    <DialogFooter className="px-6 py-4 gap-2">
                         <Button
                             variant="ghost"
                             onClick={() => setIsDeleteDialogOpen(false)}
-                            className="h-8 px-3 rounded-md text-[11px] font-semibold text-brand-navy hover:bg-gray-100"
+                            className="h-10 px-5 rounded-full text-[12px] font-semibold text-ant-mid hover:text-ant-ink hover:bg-ant-light cursor-pointer"
                         >
                             Cancel
                         </Button>
@@ -1245,14 +1429,15 @@ const Transactions = () => {
                                 }
                             }}
                             disabled={deleteTransactionMutation.isPending}
-                            className="h-8 px-3 rounded-md bg-red-500 hover:bg-red-600 text-white text-[11px] font-semibold gap-1.5"
+                            className="h-10 px-5 rounded-full bg-ant-rose hover:bg-ant-rose/90 text-white text-[12px] font-semibold gap-2 cursor-pointer"
                         >
                             {deleteTransactionMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                            Yes, Delete
+                            Yes, delete
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+            </div>
         </div>
     );
 };

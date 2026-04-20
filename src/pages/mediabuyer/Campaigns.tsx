@@ -26,10 +26,12 @@ import {
     ChevronLeft,
     ChevronRight,
     User as UserIcon,
+    Sparkles,
+    Target,
+    type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
     DropdownMenu,
@@ -77,6 +79,45 @@ type CreatorInfo = {
     role: string | null;
 } | null;
 
+const KPI_ACCENTS = {
+    ink: { dot: 'bg-ant-ink', tile: 'bg-ant-ink/6 border-ant-ink/15 text-ant-ink' },
+    orange: { dot: 'bg-ant-orange', tile: 'bg-ant-orange/10 border-ant-orange/25 text-ant-orange' },
+    green: { dot: 'bg-ant-green', tile: 'bg-ant-green/10 border-ant-green/25 text-ant-green' },
+    rose: { dot: 'bg-ant-rose', tile: 'bg-ant-rose/10 border-ant-rose/25 text-ant-rose' },
+} as const;
+
+const CampaignKpi: React.FC<{
+    label: string;
+    value: number | string;
+    accent: keyof typeof KPI_ACCENTS;
+    icon: LucideIcon;
+    suffix?: string;
+}> = ({ label, value, accent, icon: Icon, suffix }) => {
+    const a = KPI_ACCENTS[accent];
+    return (
+        <div className="bg-ant-paper p-4">
+            <div className="flex items-start justify-between gap-3">
+                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.24em] text-ant-mid">
+                    <span className={cn('h-1.5 w-1.5 rounded-full', a.dot)} />
+                    {label}
+                </div>
+                <div className={cn('h-8 w-8 rounded-lg border flex items-center justify-center', a.tile)}>
+                    <Icon className="w-4 h-4" strokeWidth={1.75} />
+                </div>
+            </div>
+            <p className="font-display text-[22px] font-semibold text-ant-ink tabular-nums mt-2 truncate">
+                {value}
+                {suffix ? <span className="text-[12px] text-ant-mid font-normal ml-1.5">{suffix}</span> : null}
+            </p>
+        </div>
+    );
+};
+
+const statusPill = (status: string) => {
+    if (status === 'active') return { bg: 'bg-ant-green/10', border: 'border-ant-green/25', text: 'text-ant-green', dot: 'bg-ant-green' };
+    return { bg: 'bg-ant-orange/10', border: 'border-ant-orange/25', text: 'text-ant-orange', dot: 'bg-ant-orange' };
+};
+
 // ── Ad-mock card (Facebook/Instagram-style preview) ───────────────────────────
 const AdMockCard: React.FC<{
     campaign: Campaign;
@@ -93,72 +134,72 @@ const AdMockCard: React.FC<{
     const current = media[mediaIdx];
     const hasMultiple = media.length > 1;
     const isActive = campaign.status === 'active';
+    const pill = statusPill(campaign.status);
+    const stripe = isActive ? 'bg-ant-green' : 'bg-ant-orange';
 
     return (
-        <div className="rounded-xl border border-gray-100 bg-white overflow-hidden hover:shadow-sm transition-shadow">
+        <div className="relative overflow-hidden rounded-2xl border border-ant-line bg-ant-paper hover:border-ant-ink/20 hover:shadow-[0_16px_48px_-20px_rgba(20,20,19,0.18)] transition-all">
+            <div className={cn('h-[3px] w-full', stripe)} />
+
             {/* Mock Ad Header */}
-            <div className="flex items-center gap-2.5 px-3 py-2.5">
-                <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center shrink-0">
+            <div className="flex items-center gap-2.5 px-3.5 py-3">
+                <div className="w-9 h-9 rounded-full overflow-hidden bg-ant-light border border-ant-line flex items-center justify-center shrink-0">
                     {businessLogo ? (
                         <img src={businessLogo} alt="" className="w-full h-full object-cover" />
                     ) : (
-                        <span className="text-[10px] font-semibold text-brand-navy">
+                        <span className="text-[10px] font-semibold text-ant-ink">
                             {(businessName || 'DG').substring(0, 2).toUpperCase()}
                         </span>
                     )}
                 </div>
                 <div className="flex-1 min-w-0">
-                    <p className="text-[12px] font-semibold text-brand-navy truncate leading-tight">{businessName || 'Your business'}</p>
-                    <p className="text-[9px] text-gray-400">Sponsored</p>
+                    <p className="text-[12px] font-semibold text-ant-ink truncate leading-tight">{businessName || 'Your business'}</p>
+                    <p className="text-[10px] font-serif italic text-ant-mid">Sponsored</p>
                 </div>
-                <div className="flex items-center gap-1">
-                    <Badge
-                        className={cn(
-                            'h-5 px-1.5 text-[9px] rounded-md border-none font-semibold',
-                            isActive ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
-                        )}
-                    >
+                <div className="flex items-center gap-1.5">
+                    <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize', pill.bg, pill.border, pill.text)}>
+                        <span className={cn('h-1.5 w-1.5 rounded-full', pill.dot)} />
                         {campaign.status}
-                    </Badge>
+                    </span>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 rounded-md text-gray-400 hover:text-brand-navy hover:bg-gray-50"
+                                className="h-8 w-8 rounded-full text-ant-mid hover:text-ant-ink hover:bg-ant-ink/5 cursor-pointer"
                                 onClick={(e) => e.stopPropagation()}
                             >
                                 <MoreVertical className="w-3.5 h-3.5" />
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="rounded-xl border-gray-100 shadow-md p-1">
-                            <DropdownMenuItem onClick={() => onActions('preview')} className="rounded-md text-[11px] font-semibold cursor-pointer">
-                                <Eye className="w-3.5 h-3.5 mr-2" /> Preview
+                        <DropdownMenuContent align="end" className="rounded-xl border border-ant-line bg-ant-paper shadow-[0_16px_48px_-20px_rgba(20,20,19,0.2)] p-1 min-w-[160px]">
+                            <DropdownMenuItem onClick={() => onActions('preview')} className="rounded-lg px-3 py-2 text-[12px] font-medium text-ant-ink cursor-pointer gap-2">
+                                <Eye className="w-3.5 h-3.5" /> Preview
                             </DropdownMenuItem>
                             {canEdit && (
                                 <>
-                                    <DropdownMenuItem onClick={() => onActions('manage')} className="rounded-md text-[11px] font-semibold cursor-pointer">
-                                        <ListChecks className="w-3.5 h-3.5 mr-2" /> Manage data
+                                    <DropdownMenuItem onClick={() => onActions('manage')} className="rounded-lg px-3 py-2 text-[12px] font-medium text-ant-ink cursor-pointer gap-2">
+                                        <ListChecks className="w-3.5 h-3.5" /> Manage data
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => onActions('toggle')} className="rounded-md text-[11px] font-semibold cursor-pointer">
-                                        {isActive ? <PowerOff className="w-3.5 h-3.5 mr-2" /> : <Power className="w-3.5 h-3.5 mr-2" />}
-                                        {isActive ? 'Deactivate' : 'Activate'}
+                                    <DropdownMenuItem onClick={() => onActions('toggle')} className="rounded-lg px-3 py-2 text-[12px] font-medium text-ant-ink cursor-pointer gap-2">
+                                        {isActive ? <PowerOff className="w-3.5 h-3.5" /> : <Power className="w-3.5 h-3.5" />}
+                                        {isActive ? 'Pause campaign' : 'Activate campaign'}
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => onActions('edit')} className="rounded-md text-[11px] font-semibold cursor-pointer">
-                                        <Edit2 className="w-3.5 h-3.5 mr-2" /> Edit
+                                    <DropdownMenuItem onClick={() => onActions('edit')} className="rounded-lg px-3 py-2 text-[12px] font-medium text-ant-ink cursor-pointer gap-2">
+                                        <Edit2 className="w-3.5 h-3.5" /> Edit
                                     </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
+                                    <DropdownMenuSeparator className="bg-ant-line" />
                                     <DropdownMenuItem
                                         onClick={() => onActions('delete')}
-                                        className="rounded-md text-[11px] font-semibold cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700"
+                                        className="rounded-lg px-3 py-2 text-[12px] font-medium text-ant-rose focus:text-ant-rose focus:bg-ant-rose/10 cursor-pointer gap-2"
                                     >
-                                        <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete
+                                        <Trash2 className="w-3.5 h-3.5" /> Delete
                                     </DropdownMenuItem>
                                 </>
                             )}
                             {!canEdit && (
-                                <DropdownMenuItem disabled className="rounded-md text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
-                                    <Lock className="w-3 h-3 mr-2" /> Read only
+                                <DropdownMenuItem disabled className="rounded-lg px-3 py-2 text-[11px] font-semibold text-ant-mid uppercase tracking-[0.18em] gap-2">
+                                    <Lock className="w-3 h-3" /> Read only
                                 </DropdownMenuItem>
                             )}
                         </DropdownMenuContent>
@@ -168,17 +209,17 @@ const AdMockCard: React.FC<{
 
             {/* Created by strip */}
             {showCreator && (
-                <div className="px-3 pb-2 flex items-center gap-1.5">
-                    <span className="text-[9px] uppercase tracking-[0.18em] text-gray-400">By</span>
-                    <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-gray-50">
-                        <div className="w-3.5 h-3.5 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
+                <div className="px-3.5 pb-2 flex items-center gap-1.5">
+                    <span className="text-[9px] uppercase tracking-[0.24em] font-semibold text-ant-mid">By</span>
+                    <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-ant-line bg-ant-light">
+                        <div className="w-3.5 h-3.5 rounded-full bg-ant-paper border border-ant-line flex items-center justify-center overflow-hidden">
                             {creator?.avatar_url ? (
                                 <img src={creator.avatar_url} alt="" className="w-full h-full object-cover" />
                             ) : (
-                                <UserIcon className="w-2 h-2 text-gray-400" />
+                                <UserIcon className="w-2 h-2 text-ant-mid" />
                             )}
                         </div>
-                        <span className="text-[10px] font-medium text-brand-navy/70 truncate max-w-[120px]">
+                        <span className="text-[10px] font-semibold text-ant-ink truncate max-w-[120px]">
                             {creator?.name || (campaign.created_by ? 'Unknown' : 'Admin')}
                         </span>
                     </div>
@@ -187,8 +228,8 @@ const AdMockCard: React.FC<{
 
             {/* Primary text */}
             {campaign.primary_text && (
-                <div className="px-3 pb-2">
-                    <p className="text-[11px] leading-snug text-brand-navy/80 line-clamp-2 whitespace-pre-wrap break-words">
+                <div className="px-3.5 pb-3">
+                    <p className="text-[12px] leading-snug text-ant-ink/85 line-clamp-2 whitespace-pre-wrap break-words">
                         {campaign.primary_text}
                     </p>
                 </div>
@@ -198,7 +239,7 @@ const AdMockCard: React.FC<{
             <button
                 type="button"
                 onClick={onClick}
-                className="relative w-full aspect-square bg-gray-50 overflow-hidden block"
+                className="relative w-full aspect-square bg-ant-light overflow-hidden block cursor-pointer"
             >
                 {current ? (
                     current.type === 'video' ? (
@@ -215,34 +256,34 @@ const AdMockCard: React.FC<{
                         <img src={current.url} alt="" className="w-full h-full object-cover" />
                     )
                 ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-gray-300">
-                        <Megaphone className="w-10 h-10" />
-                        <span className="text-[9px] uppercase tracking-[0.18em]">No media</span>
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-ant-mid/40">
+                        <Megaphone className="w-10 h-10" strokeWidth={1.25} />
+                        <span className="text-[10px] uppercase tracking-[0.24em] font-semibold">No media</span>
                     </div>
                 )}
 
                 {current?.type === 'video' && (
-                    <div className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 backdrop-blur flex items-center justify-center">
+                    <div className="absolute top-2.5 right-2.5 w-8 h-8 rounded-full bg-ant-ink/55 backdrop-blur flex items-center justify-center">
                         <PlayCircle className="w-4 h-4 text-white" />
                     </div>
                 )}
 
-                {/* Platform badge */}
-                <div className="absolute top-2 left-2 flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-sm">
-                    <span className="text-white">{getPlatformIcon(campaign.platform, 'w-2.5 h-2.5')}</span>
-                    <span className="text-[9px] uppercase tracking-[0.12em] text-white font-semibold">{campaign.platform.replace(/ ads$/i, '')}</span>
+                {/* Platform pill */}
+                <div className="absolute top-2.5 left-2.5 inline-flex items-center gap-1.5 rounded-full bg-ant-ink/70 backdrop-blur-sm px-2.5 py-1">
+                    <span className="text-white">{getPlatformIcon(campaign.platform, 'w-3 h-3')}</span>
+                    <span className="text-[10px] uppercase tracking-[0.18em] text-white font-semibold">{campaign.platform.replace(/ ads$/i, '')}</span>
                 </div>
 
                 {/* Carousel dots */}
                 {hasMultiple && (
                     <>
-                        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+                        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1">
                             {media.map((_, i) => (
                                 <div
                                     key={i}
                                     className={cn(
                                         'h-1 rounded-full transition-all',
-                                        i === mediaIdx ? 'bg-white w-3' : 'bg-white/50 w-1'
+                                        i === mediaIdx ? 'bg-white w-4' : 'bg-white/50 w-1'
                                     )}
                                 />
                             ))}
@@ -250,16 +291,16 @@ const AdMockCard: React.FC<{
                         <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); setMediaIdx((i) => (i === 0 ? media.length - 1 : i - 1)); }}
-                            className="absolute left-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/80 backdrop-blur flex items-center justify-center shadow"
+                            className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-ant-paper/90 backdrop-blur border border-ant-line flex items-center justify-center shadow-sm cursor-pointer hover:bg-ant-paper transition-colors"
                         >
-                            <ChevronLeft className="w-3.5 h-3.5 text-brand-navy" />
+                            <ChevronLeft className="w-3.5 h-3.5 text-ant-ink" />
                         </button>
                         <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); setMediaIdx((i) => (i === media.length - 1 ? 0 : i + 1)); }}
-                            className="absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/80 backdrop-blur flex items-center justify-center shadow"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-ant-paper/90 backdrop-blur border border-ant-line flex items-center justify-center shadow-sm cursor-pointer hover:bg-ant-paper transition-colors"
                         >
-                            <ChevronRight className="w-3.5 h-3.5 text-brand-navy" />
+                            <ChevronRight className="w-3.5 h-3.5 text-ant-ink" />
                         </button>
                     </>
                 )}
@@ -267,15 +308,15 @@ const AdMockCard: React.FC<{
 
             {/* Headline + CTA */}
             {(campaign.headline || campaign.cta_label) && (
-                <div className="flex items-center justify-between gap-2 px-3 py-2 bg-gray-50 border-t border-gray-100">
+                <div className="flex items-center justify-between gap-3 px-3.5 py-3 bg-ant-light border-t border-ant-line">
                     <div className="min-w-0 flex-1">
                         {campaign.conversion_content && (
-                            <p className="text-[9px] uppercase tracking-[0.12em] text-gray-400 truncate">
+                            <p className="text-[10px] uppercase tracking-[0.18em] text-ant-mid truncate">
                                 {campaign.conversion_content.replace(/^https?:\/\//, '').split('/')[0]}
                             </p>
                         )}
                         {campaign.headline && (
-                            <p className="text-[11px] font-semibold text-brand-navy leading-tight truncate">
+                            <p className="text-[12px] font-semibold text-ant-ink leading-tight truncate">
                                 {campaign.headline}
                             </p>
                         )}
@@ -285,7 +326,7 @@ const AdMockCard: React.FC<{
                             type="button"
                             size="sm"
                             onClick={onClick}
-                            className="shrink-0 h-7 px-2.5 rounded-md bg-brand-navy text-white text-[10px] font-semibold shadow-none border-none"
+                            className="shrink-0 h-8 px-3 rounded-full bg-ant-ink text-white hover:bg-ant-ink/90 text-[11px] font-semibold cursor-pointer"
                         >
                             {campaign.cta_label}
                         </Button>
@@ -294,22 +335,22 @@ const AdMockCard: React.FC<{
             )}
 
             {/* Engagement row */}
-            <div className="flex items-center gap-3 px-3 py-2 text-gray-400">
-                <div className="flex items-center gap-1"><ThumbsUp className="w-3 h-3" /><span className="text-[9px]">Like</span></div>
-                <div className="flex items-center gap-1"><MessageCircle className="w-3 h-3" /><span className="text-[9px]">Comment</span></div>
-                <div className="flex items-center gap-1"><Share2 className="w-3 h-3" /><span className="text-[9px]">Share</span></div>
+            <div className="flex items-center gap-4 px-3.5 py-2.5 text-ant-mid border-t border-ant-line">
+                <div className="flex items-center gap-1.5"><ThumbsUp className="w-3 h-3" /><span className="text-[10px] font-medium">Like</span></div>
+                <div className="flex items-center gap-1.5"><MessageCircle className="w-3 h-3" /><span className="text-[10px] font-medium">Comment</span></div>
+                <div className="flex items-center gap-1.5"><Share2 className="w-3 h-3" /><span className="text-[10px] font-medium">Share</span></div>
             </div>
 
             {/* Budget footer */}
-            <div className="px-3 py-2 bg-brand-navy text-white flex items-center justify-between text-[10px] font-semibold">
-                <span className="flex items-center gap-1">
+            <div className="px-4 py-3 bg-ant-ink text-white flex items-center justify-between">
+                <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/75">
                     {campaign.spending_type === 'ongoing' ? (
-                        <><InfinityIcon className="w-3 h-3" /> Ongoing</>
+                        <><InfinityIcon className="w-3.5 h-3.5" /> Ongoing</>
                     ) : (
-                        <><CalendarIcon className="w-3 h-3" /> Date-limited</>
+                        <><CalendarIcon className="w-3.5 h-3.5" /> Date-limited</>
                     )}
                 </span>
-                <span className="tabular-nums">
+                <span className="font-display text-[14px] font-semibold tabular-nums text-white">
                     {campaign.spending_type === 'ongoing'
                         ? `${campaign.daily_budget ?? 0} ${campaign.currency}/d`
                         : `${campaign.total_budget ?? 0} ${campaign.currency}`}
@@ -331,20 +372,23 @@ const CampaignRow: React.FC<{
     const media = (campaign.media || []) as CampaignMedia[];
     const thumb = media[0];
     const isActive = campaign.status === 'active';
+    const pill = statusPill(campaign.status);
+    const stripe = isActive ? 'bg-ant-green' : 'bg-ant-orange';
 
     return (
-        <div className="border border-gray-100 rounded-xl bg-white hover:bg-gray-50 transition-colors">
-            <div className="px-3 py-2 flex items-center gap-3">
+        <div className="relative overflow-hidden rounded-2xl border border-ant-line bg-ant-paper hover:border-ant-ink/20 transition-colors">
+            <div className={cn('h-[3px] w-full', stripe)} />
+            <div className="px-4 py-3.5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
                 <button
                     type="button"
                     onClick={onClick}
-                    className="relative h-14 w-14 rounded-md overflow-hidden bg-gray-100 shrink-0"
+                    className="relative h-16 w-16 rounded-xl overflow-hidden bg-ant-light border border-ant-line shrink-0 cursor-pointer"
                 >
                     {thumb ? (
                         thumb.type === 'video' ? (
                             <>
                                 <video src={thumb.url} className="w-full h-full object-cover" muted playsInline />
-                                <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                                <div className="absolute inset-0 flex items-center justify-center bg-ant-ink/35">
                                     <PlayCircle className="w-5 h-5 text-white" />
                                 </div>
                             </>
@@ -352,47 +396,46 @@ const CampaignRow: React.FC<{
                             <img src={thumb.url} alt="" className="w-full h-full object-cover" />
                         )
                     ) : (
-                        <div className="w-full h-full flex items-center justify-center text-gray-300">
-                            <Megaphone className="w-5 h-5" />
+                        <div className="w-full h-full flex items-center justify-center text-ant-mid/40">
+                            <Megaphone className="w-6 h-6" strokeWidth={1.25} />
                         </div>
                     )}
                     <div
-                        className="absolute top-0.5 left-0.5 w-4 h-4 rounded-sm flex items-center justify-center"
+                        className="absolute top-1 left-1 w-5 h-5 rounded-md flex items-center justify-center shadow-sm"
                         style={{ backgroundColor: getPlatformColor(campaign.platform) }}
                     >
-                        <span className="text-white">{getPlatformIcon(campaign.platform, 'w-2 h-2')}</span>
+                        <span className="text-white">{getPlatformIcon(campaign.platform, 'w-2.5 h-2.5')}</span>
                     </div>
                 </button>
 
-                <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                        <h3 className="text-[12px] font-semibold text-brand-navy truncate">{campaign.name}</h3>
-                        <Badge
-                            className={cn(
-                                'h-5 px-1.5 text-[9px] rounded-md border-none font-semibold shrink-0',
-                                isActive ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
-                            )}
-                        >
+                <div className="flex-1 min-w-0 w-full">
+                    <div className="flex items-start gap-2 flex-wrap mb-1">
+                        <h3 className="font-display text-[15px] font-semibold text-ant-ink leading-snug min-w-0 flex-1 truncate">{campaign.name}</h3>
+                        <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize shrink-0', pill.bg, pill.border, pill.text)}>
+                            <span className={cn('h-1.5 w-1.5 rounded-full', pill.dot)} />
                             {campaign.status}
-                        </Badge>
+                        </span>
                     </div>
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-gray-400 tabular-nums">
-                        <span className="capitalize">{campaign.platform}</span>
-                        <span>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
+                        <span className="text-ant-mid capitalize">{campaign.platform}</span>
+                        <span className="text-ant-mid">
                             {campaign.spending_type === 'ongoing' ? 'Ongoing' : 'Date-limited'}
                         </span>
-                        <span className="font-semibold text-brand-navy/80">
+                        <span className="font-display text-[13px] font-semibold text-ant-ink tabular-nums">
                             {campaign.spending_type === 'ongoing'
                                 ? `${campaign.daily_budget ?? 0} ${campaign.currency}/day`
                                 : `${campaign.total_budget ?? 0} ${campaign.currency}`}
                         </span>
                         {campaign.start_date && (
-                            <span>{format(new Date(campaign.start_date), 'dd MMM yyyy')}{campaign.end_date ? ` → ${format(new Date(campaign.end_date), 'dd MMM yyyy')}` : ''}</span>
+                            <span className="text-ant-mid tabular-nums">
+                                {format(new Date(campaign.start_date), 'dd MMM yyyy')}
+                                {campaign.end_date ? ` → ${format(new Date(campaign.end_date), 'dd MMM yyyy')}` : ''}
+                            </span>
                         )}
                         {showCreator && (
-                            <span className="flex items-center gap-1 pl-2 border-l border-gray-200">
-                                <UserIcon className="w-2.5 h-2.5 text-gray-400" />
-                                <span className="text-[9px] text-brand-navy/60">
+                            <span className="flex items-center gap-1.5 pl-3 border-l border-ant-line text-ant-mid">
+                                <UserIcon className="w-3 h-3" />
+                                <span className="font-serif italic">
                                     {creator?.name || (campaign.created_by ? 'Unknown' : 'Admin')}
                                 </span>
                             </span>
@@ -400,29 +443,29 @@ const CampaignRow: React.FC<{
                     </div>
                 </div>
 
-                <div className="flex items-center gap-1 shrink-0">
-                    <Button variant="ghost" size="icon" onClick={() => onActions('preview')} className="h-8 w-8 rounded-md text-gray-400 hover:text-brand-navy hover:bg-gray-100" title="Preview">
+                <div className="flex items-center gap-1 shrink-0 w-full sm:w-auto justify-end">
+                    <Button variant="ghost" size="icon" onClick={() => onActions('preview')} className="h-9 w-9 rounded-full hover:bg-ant-ink/5 text-ant-ink cursor-pointer" title="Preview">
                         <Eye className="w-3.5 h-3.5" />
                     </Button>
                     {canEdit ? (
                         <>
-                            <Button variant="ghost" size="icon" onClick={() => onActions('manage')} className="h-8 w-8 rounded-md text-gray-400 hover:text-brand-navy hover:bg-gray-100" title="Manage data">
+                            <Button variant="ghost" size="icon" onClick={() => onActions('manage')} className="h-9 w-9 rounded-full hover:bg-ant-ink/5 text-ant-ink cursor-pointer" title="Manage data">
                                 <ListChecks className="w-3.5 h-3.5" />
                             </Button>
-                            <Button variant="ghost" size="icon" onClick={() => onActions('toggle')} className="h-8 w-8 rounded-md text-gray-400 hover:text-brand-navy hover:bg-gray-100" title={isActive ? 'Deactivate' : 'Activate'}>
+                            <Button variant="ghost" size="icon" onClick={() => onActions('toggle')} className="h-9 w-9 rounded-full hover:bg-ant-green/10 text-ant-green cursor-pointer" title={isActive ? 'Pause' : 'Activate'}>
                                 {isActive ? <PowerOff className="w-3.5 h-3.5" /> : <Power className="w-3.5 h-3.5" />}
                             </Button>
-                            <Button variant="ghost" size="icon" onClick={() => onActions('edit')} className="h-8 w-8 rounded-md text-gray-400 hover:text-brand-navy hover:bg-gray-100" title="Edit">
+                            <Button variant="ghost" size="icon" onClick={() => onActions('edit')} className="h-9 w-9 rounded-full hover:bg-ant-orange/10 text-ant-orange cursor-pointer" title="Edit">
                                 <Edit2 className="w-3.5 h-3.5" />
                             </Button>
-                            <Button variant="ghost" size="icon" onClick={() => onActions('delete')} className="h-8 w-8 rounded-md text-red-400 hover:text-red-600 hover:bg-red-50" title="Delete">
+                            <Button variant="ghost" size="icon" onClick={() => onActions('delete')} className="h-9 w-9 rounded-full hover:bg-ant-rose/10 text-ant-rose cursor-pointer" title="Delete">
                                 <Trash2 className="w-3.5 h-3.5" />
                             </Button>
                         </>
                     ) : (
-                        <div className="flex items-center gap-1 px-2 h-8 rounded-md bg-gray-50 text-gray-400">
+                        <div className="inline-flex items-center gap-1.5 px-3 h-8 rounded-full border border-ant-line bg-ant-light text-ant-mid">
                             <Lock className="w-3 h-3" />
-                            <span className="text-[9px] uppercase tracking-[0.18em]">Read only</span>
+                            <span className="text-[10px] uppercase tracking-[0.18em] font-semibold">Read only</span>
                         </div>
                     )}
                 </div>
@@ -567,6 +610,12 @@ const Campaigns = () => {
         };
     }, [campaigns]);
 
+    const statusCounts = {
+        all: campaigns?.length ?? 0,
+        active: stats.active,
+        draft: stats.draft,
+    };
+
     const handleAction = (campaign: Campaign, action: CampaignAction) => {
         if (action === 'edit') navigate(`${basePath}/${campaign.id}/edit`);
         else if (action === 'manage') navigate(`${basePath}/${campaign.id}/manage`);
@@ -576,189 +625,204 @@ const Campaigns = () => {
     };
 
     return (
-        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
-            {/* Header */}
-            <header className="space-y-2.5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Campaigns</h1>
-                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Advertising campaigns</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <div className="flex items-center border border-gray-100 rounded-md overflow-hidden">
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => setViewMode('grid')}
-                                className={cn(
-                                    'h-8 w-8 rounded-none',
-                                    viewMode === 'grid' ? 'bg-gray-100 text-brand-navy' : 'text-gray-400'
-                                )}
-                            >
-                                <LayoutGrid className="w-3.5 h-3.5" />
-                            </Button>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => setViewMode('list')}
-                                className={cn(
-                                    'h-8 w-8 rounded-none',
-                                    viewMode === 'list' ? 'bg-gray-100 text-brand-navy' : 'text-gray-400'
-                                )}
-                            >
-                                <ListIcon className="w-3.5 h-3.5" />
-                            </Button>
+        <div className="ant-surface min-h-screen">
+            <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 md:py-8 space-y-6">
+                {/* Editorial header */}
+                <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                    <div className="space-y-2">
+                        <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                            <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                            Marketing · Creatives
                         </div>
-                        <div className="relative">
-                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                        <h1 className="font-display text-[30px] md:text-[34px] leading-[1.05] tracking-[-0.02em] text-ant-ink">
+                            Global Ads
+                        </h1>
+                        <p className="font-serif italic text-[14px] leading-relaxed text-ant-mid max-w-xl">
+                            Every creative, every platform, every pitch — one catalog of the ads you are running, paused, or drafting.
+                        </p>
+                    </div>
+                    <Button
+                        onClick={() => navigate(`${basePath}/new`)}
+                        className="bg-ant-ink hover:bg-ant-ink/90 text-white h-10 px-5 rounded-full text-[12px] font-semibold gap-2 shrink-0 cursor-pointer"
+                    >
+                        <Plus className="w-4 h-4" />
+                        New campaign
+                    </Button>
+                </header>
+
+                {/* KPI strip */}
+                {isLoading ? (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
+                        {Array.from({ length: 4 }).map((_, i) => (
+                            <div key={i} className="bg-ant-paper p-4"><Skeleton className="h-12 rounded-lg" /></div>
+                        ))}
+                    </div>
+                ) : (
+                    <section className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
+                        <CampaignKpi label="Total" value={stats.total} accent="ink" icon={Megaphone} suffix="creatives" />
+                        <CampaignKpi label="Active" value={stats.active} accent="green" icon={Power} suffix="live" />
+                        <CampaignKpi label="Draft" value={stats.draft} accent="orange" icon={PowerOff} suffix="paused" />
+                        <CampaignKpi label="Ongoing" value={stats.ongoing} accent="rose" icon={InfinityIcon} suffix="no end date" />
+                    </section>
+                )}
+
+                {/* Toolbar */}
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div className="inline-flex items-center gap-1 p-1 rounded-full border border-ant-line bg-ant-paper overflow-x-auto">
+                        {([
+                            { key: 'all', label: 'All' },
+                            { key: 'active', label: 'Active' },
+                            { key: 'draft', label: 'Draft' },
+                        ] as const).map((t) => {
+                            const active = statusFilter === t.key;
+                            const count = statusCounts[t.key];
+                            return (
+                                <button
+                                    key={t.key}
+                                    onClick={() => setStatusFilter(t.key)}
+                                    className={cn(
+                                        'inline-flex items-center gap-2 rounded-full px-3.5 h-8 text-[12px] font-semibold transition cursor-pointer whitespace-nowrap',
+                                        active ? 'bg-ant-ink text-white' : 'text-ant-mid hover:text-ant-ink'
+                                    )}
+                                >
+                                    {t.label}
+                                    <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums', active ? 'bg-white/20 text-white' : 'bg-ant-light text-ant-mid')}>
+                                        {count}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <Select value={platformFilter} onValueChange={setPlatformFilter}>
+                            <SelectTrigger className="h-9 w-[180px] rounded-full border-ant-line bg-ant-paper text-[12px] text-ant-ink capitalize">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl border-ant-line">
+                                <SelectItem value="all" className="text-[12px]">All platforms</SelectItem>
+                                {CAMPAIGN_PLATFORMS.map((p) => (
+                                    <SelectItem key={p} value={p} className="text-[12px] capitalize">
+                                        {p}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <div className="relative flex-1 min-w-0 md:w-[260px]">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid pointer-events-none" />
                             <Input
                                 placeholder="Search campaigns..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="pl-8 h-8 rounded-md text-[11px] w-52 border-gray-200"
+                                className="pl-9 h-9 rounded-full border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid focus-visible:ring-1 focus-visible:ring-ant-orange/40"
                             />
                         </div>
-                        <Button
-                            onClick={() => navigate(`${basePath}/new`)}
-                            className="h-8 rounded-md text-[11px] font-semibold gap-1.5 px-3"
-                        >
-                            <Plus className="w-3.5 h-3.5" />
-                            Create
-                        </Button>
-                    </div>
-                </div>
-            </header>
-
-            {/* KPI tiles */}
-            {isLoading ? (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {Array.from({ length: 4 }).map((_, i) => (
-                        <Skeleton key={i} className="h-16 rounded-xl" />
-                    ))}
-                </div>
-            ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {[
-                        { label: 'Total', value: stats.total, accent: '#3b5e5e' },
-                        { label: 'Active', value: stats.active, accent: '#059669' },
-                        { label: 'Draft', value: stats.draft, accent: '#d97706' },
-                        { label: 'Ongoing', value: stats.ongoing, accent: '#9ca3af' },
-                    ].map((s) => (
-                        <div key={s.label} className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
-                            <span className="w-[3px] self-stretch rounded-full" style={{ background: s.accent }} />
-                            <div className="flex-1 min-w-0">
-                                <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">{s.label}</p>
-                                <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{s.value}</p>
-                            </div>
+                        <div className="inline-flex items-center gap-1 p-1 rounded-full border border-ant-line bg-ant-paper shrink-0">
+                            <button
+                                onClick={() => setViewMode('grid')}
+                                className={cn('inline-flex items-center gap-1.5 rounded-full px-3 h-7 text-[11px] font-semibold transition cursor-pointer', viewMode === 'grid' ? 'bg-ant-ink text-white' : 'text-ant-mid hover:text-ant-ink')}
+                            >
+                                <LayoutGrid className="w-3 h-3" /> Grid
+                            </button>
+                            <button
+                                onClick={() => setViewMode('list')}
+                                className={cn('inline-flex items-center gap-1.5 rounded-full px-3 h-7 text-[11px] font-semibold transition cursor-pointer', viewMode === 'list' ? 'bg-ant-ink text-white' : 'text-ant-mid hover:text-ant-ink')}
+                            >
+                                <ListIcon className="w-3 h-3" /> List
+                            </button>
                         </div>
-                    ))}
-                </div>
-            )}
-
-            {/* Filters */}
-            <div className="border border-gray-100 rounded-xl bg-white p-3 flex flex-wrap items-center gap-2">
-                <Select value={statusFilter} onValueChange={(v: any) => setStatusFilter(v)}>
-                    <SelectTrigger className="w-[140px] h-8 rounded-md border-gray-200 text-[11px] font-semibold text-brand-navy">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl">
-                        <SelectItem value="all" className="text-[11px]">All statuses</SelectItem>
-                        <SelectItem value="active" className="text-[11px]">Active</SelectItem>
-                        <SelectItem value="draft" className="text-[11px]">Draft</SelectItem>
-                    </SelectContent>
-                </Select>
-                <Select value={platformFilter} onValueChange={setPlatformFilter}>
-                    <SelectTrigger className="w-[180px] h-8 rounded-md border-gray-200 text-[11px] font-semibold text-brand-navy">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl">
-                        <SelectItem value="all" className="text-[11px]">All platforms</SelectItem>
-                        {CAMPAIGN_PLATFORMS.map((p) => (
-                            <SelectItem key={p} value={p} className="text-[11px] capitalize">
-                                {p}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-                <span className="text-[10px] text-gray-400 ml-auto tabular-nums">
-                    {filtered.length} / {campaigns?.length ?? 0}
-                </span>
-            </div>
-
-            {/* Content */}
-            {isLoading ? (
-                <div className={cn('grid gap-3', viewMode === 'grid' ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'grid-cols-1')}>
-                    {Array.from({ length: 6 }).map((_, i) => (
-                        <Skeleton key={i} className={viewMode === 'grid' ? 'h-[480px] rounded-xl' : 'h-16 rounded-xl'} />
-                    ))}
-                </div>
-            ) : filtered.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 space-y-4 border border-gray-100 rounded-xl bg-white">
-                    <Megaphone className="w-10 h-10 text-gray-200" />
-                    <div className="text-center space-y-1">
-                        <p className="text-[13px] font-semibold text-brand-navy">No campaigns</p>
-                        <p className="text-[11px] text-gray-400 max-w-xs">Launch your first advertising campaign to start tracking performance.</p>
                     </div>
-                    <Button
-                        onClick={() => navigate(`${basePath}/new`)}
-                        className="h-8 rounded-md text-[11px] font-semibold px-4"
-                    >
-                        Create Campaign
-                    </Button>
                 </div>
-            ) : viewMode === 'grid' ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                    {filtered.map((c) => (
-                        <AdMockCard
-                            key={c.id}
-                            campaign={c}
-                            businessName={business?.name || ''}
-                            businessLogo={business?.logo || null}
-                            canEdit={!!currentUserId && c.created_by === currentUserId}
-                            creator={c.created_by ? creatorById.get(c.created_by) || null : null}
-                            showCreator={isAdminView}
-                            onClick={() => handleAction(c, 'preview')}
-                            onActions={(a) => handleAction(c, a)}
-                        />
-                    ))}
-                </div>
-            ) : (
-                <div className="space-y-1.5">
-                    {filtered.map((c) => (
-                        <CampaignRow
-                            key={c.id}
-                            campaign={c}
-                            canEdit={!!currentUserId && c.created_by === currentUserId}
-                            creator={c.created_by ? creatorById.get(c.created_by) || null : null}
-                            showCreator={isAdminView}
-                            onClick={() => handleAction(c, 'preview')}
-                            onActions={(a) => handleAction(c, a)}
-                        />
-                    ))}
-                </div>
-            )}
 
-            <AlertDialog open={!!toDelete} onOpenChange={(open) => !open && setToDelete(null)}>
-                <AlertDialogContent className="rounded-xl border-gray-100 shadow-md">
-                    <AlertDialogHeader>
-                        <AlertDialogTitle className="text-[15px] font-semibold text-brand-navy">Delete campaign?</AlertDialogTitle>
-                        <AlertDialogDescription className="text-[12px] text-gray-500">
-                            This will permanently delete <span className="font-semibold text-brand-navy">{toDelete?.name}</span> and all its uploaded media. This action cannot be undone.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel className="h-8 rounded-md text-[11px] font-semibold">Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={() => toDelete && deleteMutation.mutate(toDelete)}
-                            disabled={deleteMutation.isPending}
-                            className="h-8 rounded-md text-[11px] font-semibold bg-red-600 hover:bg-red-700"
-                        >
-                            {deleteMutation.isPending && <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
-                            Delete
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+                {/* Content */}
+                {isLoading ? (
+                    <div className={cn('grid gap-3', viewMode === 'grid' ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'grid-cols-1')}>
+                        {Array.from({ length: 6 }).map((_, i) => (
+                            <Skeleton key={i} className={viewMode === 'grid' ? 'h-[480px] rounded-2xl' : 'h-24 rounded-2xl'} />
+                        ))}
+                    </div>
+                ) : filtered.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-ant-line bg-ant-paper px-8 py-16 text-center">
+                        <div className="mx-auto w-12 h-12 rounded-2xl bg-ant-orange/10 border border-ant-orange/25 flex items-center justify-center mb-4">
+                            <Target className="w-5 h-5 text-ant-orange" strokeWidth={1.75} />
+                        </div>
+                        <h3 className="font-display text-[18px] text-ant-ink tracking-tight">
+                            {campaigns?.length ? 'No creatives match your filters' : 'No campaigns yet'}
+                        </h3>
+                        <p className="font-serif italic text-[13px] text-ant-mid mt-2 max-w-sm mx-auto">
+                            {campaigns?.length
+                                ? 'Relax the status or platform filters to bring creatives back into view.'
+                                : 'Launch your first creative — headline, image, budget — and start writing the story of your next sale.'}
+                        </p>
+                        {!campaigns?.length && (
+                            <Button
+                                onClick={() => navigate(`${basePath}/new`)}
+                                className="mt-5 bg-ant-ink hover:bg-ant-ink/90 text-white h-9 px-5 rounded-full text-[12px] font-semibold gap-2 cursor-pointer"
+                            >
+                                <Sparkles className="w-4 h-4" />
+                                Build first campaign
+                            </Button>
+                        )}
+                    </div>
+                ) : viewMode === 'grid' ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                        {filtered.map((c) => (
+                            <AdMockCard
+                                key={c.id}
+                                campaign={c}
+                                businessName={business?.name || ''}
+                                businessLogo={business?.logo || null}
+                                canEdit={!!currentUserId && c.created_by === currentUserId}
+                                creator={c.created_by ? creatorById.get(c.created_by) || null : null}
+                                showCreator={isAdminView}
+                                onClick={() => handleAction(c, 'preview')}
+                                onActions={(a) => handleAction(c, a)}
+                            />
+                        ))}
+                    </div>
+                ) : (
+                    <div className="space-y-2">
+                        {filtered.map((c) => (
+                            <CampaignRow
+                                key={c.id}
+                                campaign={c}
+                                canEdit={!!currentUserId && c.created_by === currentUserId}
+                                creator={c.created_by ? creatorById.get(c.created_by) || null : null}
+                                showCreator={isAdminView}
+                                onClick={() => handleAction(c, 'preview')}
+                                onActions={(a) => handleAction(c, a)}
+                            />
+                        ))}
+                    </div>
+                )}
+
+                <AlertDialog open={!!toDelete} onOpenChange={(open) => !open && setToDelete(null)}>
+                    <AlertDialogContent className="max-w-md p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden">
+                        <AlertDialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line space-y-1.5">
+                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-rose">
+                                <span className="h-1.5 w-1.5 rounded-full bg-ant-rose" />
+                                Destructive action
+                            </div>
+                            <AlertDialogTitle className="font-display text-[20px] leading-tight tracking-tight text-ant-ink">Delete this campaign?</AlertDialogTitle>
+                            <AlertDialogDescription className="font-serif italic text-[13px] text-ant-mid">
+                                The record <span className="not-italic font-semibold text-ant-ink">&ldquo;{toDelete?.name}&rdquo;</span> and all its uploaded media will be permanently removed. This cannot be undone.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter className="px-6 py-4 gap-2">
+                            <AlertDialogCancel className="h-10 px-5 rounded-full text-[12px] font-semibold text-ant-mid hover:text-ant-ink hover:bg-ant-light cursor-pointer border-0">Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                                onClick={() => toDelete && deleteMutation.mutate(toDelete)}
+                                disabled={deleteMutation.isPending}
+                                className="h-10 px-5 rounded-full text-[12px] font-semibold bg-ant-rose hover:bg-ant-rose/90 text-white gap-2 cursor-pointer"
+                            >
+                                {deleteMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                                <Trash2 className="w-3.5 h-3.5" />
+                                Confirm delete
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            </div>
         </div>
     );
 };

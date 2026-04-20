@@ -13,25 +13,19 @@ import {
     Calendar,
     Megaphone,
     ArrowUpRight,
-    TrendingUp,
     Target,
     BarChart3,
     Package,
     Layout,
-    CheckCircle2,
-    Truck,
-    XCircle,
     AlertTriangle,
     DollarSign,
     ShieldCheck,
-    Zap,
     Lock,
-    User as UserIcon,
+    X,
+    Sparkles,
+    Coins,
+    type LucideIcon,
 } from 'lucide-react';
-import {
-    Card,
-    CardContent
-} from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -190,14 +184,53 @@ interface CampaignMetrics {
     qualityScore: number;
 }
 
+const ADS_KPI_ACCENTS = {
+    ink: { dot: 'bg-ant-ink', tile: 'bg-ant-ink/6 border-ant-ink/15 text-ant-ink' },
+    orange: { dot: 'bg-ant-orange', tile: 'bg-ant-orange/10 border-ant-orange/25 text-ant-orange' },
+    green: { dot: 'bg-ant-green', tile: 'bg-ant-green/10 border-ant-green/25 text-ant-green' },
+    rose: { dot: 'bg-ant-rose', tile: 'bg-ant-rose/10 border-ant-rose/25 text-ant-rose' },
+} as const;
+
+interface AdsKpiProps {
+    label: string;
+    value: string;
+    suffix: string;
+    accent: keyof typeof ADS_KPI_ACCENTS;
+    icon: LucideIcon | React.ReactNode;
+}
+
+const AdsKpi: React.FC<AdsKpiProps> = ({ label, value, suffix, accent, icon }) => {
+    const a = ADS_KPI_ACCENTS[accent];
+    const renderedIcon = React.isValidElement(icon)
+        ? icon
+        : (() => {
+              const Icon = icon as LucideIcon;
+              return <Icon className="w-4 h-4" strokeWidth={1.75} />;
+          })();
+    return (
+        <div className="bg-ant-paper p-4">
+            <div className="flex items-start justify-between gap-3">
+                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.24em] text-ant-mid truncate">
+                    <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', a.dot)} />
+                    <span className="truncate">{label}</span>
+                </div>
+                <div className={cn('h-8 w-8 rounded-lg border flex items-center justify-center shrink-0', a.tile)}>
+                    {renderedIcon}
+                </div>
+            </div>
+            <p className="font-display text-[22px] font-semibold text-ant-ink tabular-nums mt-2 truncate">
+                {value}
+                <span className="text-[12px] text-ant-mid font-normal ml-1.5">{suffix}</span>
+            </p>
+        </div>
+    );
+};
+
 const AdsHistory = () => {
     const { confirmedIds, cancelledIds, deliveredPkgIds, getOrderCategory } = useStatusCategories();
     const location = useLocation();
     const currentUserId = useCurrentUserId();
 
-    // The same page mounts under two roots:
-    //   - /ads-history           → admin: sees everything, gates edit by ownership
-    //   - /mediabuyer/product-ads → media buyer: sees only his own rows
     const isMediaBuyerView = location.pathname.startsWith('/mediabuyer');
 
     const [isUpsertOpen, setIsUpsertOpen] = useState(false);
@@ -221,7 +254,6 @@ const AdsHistory = () => {
                 .select('*, products(id, name, code, image_url)')
                 .eq('DigiCom Business', activeBusinessId)
                 .order('start_date', { ascending: false });
-            // Media buyer only sees rows they created. Admin sees everything.
             if (isMediaBuyerView && currentUserId) {
                 query = query.eq('created_by', currentUserId);
             }
@@ -232,7 +264,6 @@ const AdsHistory = () => {
         enabled: !!activeBusinessId && (!isMediaBuyerView || !!currentUserId),
     });
 
-    // Creators lookup (for the "Created by" badge in admin view).
     const { data: creators = [] } = useQuery({
         queryKey: ['ads_history-creators', activeBusinessId],
         queryFn: async () => {
@@ -253,12 +284,9 @@ const AdsHistory = () => {
         return map;
     }, [creators]);
 
-    // Ownership rule:
-    //  - Legacy rows (created_by IS NULL) are treated as admin-owned and remain editable by admins.
-    //  - Rows created after the migration are only editable by their author.
     const canEditRow = (row: any): boolean => {
         if (!currentUserId) return false;
-        if (row.created_by == null) return !isMediaBuyerView; // legacy → admin only
+        if (row.created_by == null) return !isMediaBuyerView;
         return row.created_by === currentUserId;
     };
 
@@ -400,7 +428,6 @@ const AdsHistory = () => {
 
     const upsertMutation = useMutation({
         mutationFn: async (values: AdsHistoryValues) => {
-            // Gate edit at the mutation layer too — the UI hides the button, but we double check.
             if (editingHistory && !canEditRow(editingHistory)) {
                 throw new Error('You can only edit campaigns you created');
             }
@@ -416,7 +443,6 @@ const AdsHistory = () => {
             };
 
             if (editingHistory) {
-                // Never overwrite `created_by` on update — it's set at insert time.
                 const { data, error } = await (supabase as any)
                     .from('ads_history')
                     .update(basePayload)
@@ -511,584 +537,651 @@ const AdsHistory = () => {
     const fmtNum = (n: number) => new Intl.NumberFormat('fr-FR').format(Math.round(n));
     const fmtDec = (n: number) => new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 
-    const getHealthColor = (value: number, thresholds: { green: number; amber: number }) => {
-        if (value >= thresholds.green) return 'text-emerald-600';
-        if (value >= thresholds.amber) return 'text-amber-600';
-        return 'text-red-500';
+    const getHealthTone = (value: number, thresholds: { green: number; amber: number }) => {
+        if (value >= thresholds.green) return 'text-ant-green';
+        if (value >= thresholds.amber) return 'text-ant-orange';
+        return 'text-ant-rose';
     };
 
-    const getHealthBg = (value: number, thresholds: { green: number; amber: number }) => {
-        if (value >= thresholds.green) return 'bg-emerald-50 border-emerald-200';
-        if (value >= thresholds.amber) return 'bg-amber-50 border-amber-200';
-        return 'bg-red-50 border-red-200';
+    const getHealthPill = (value: number, thresholds: { green: number; amber: number }) => {
+        if (value >= thresholds.green) return 'bg-ant-green/10 border-ant-green/25 text-ant-green';
+        if (value >= thresholds.amber) return 'bg-ant-orange/10 border-ant-orange/25 text-ant-orange';
+        return 'bg-ant-rose/10 border-ant-rose/25 text-ant-rose';
     };
 
-    // KPI totals
-    const totalSpend = filteredHistory?.reduce((s: number, h: any) => s + Number(h.amount || 0), 0) || 0;
-    const platformTotals = (filteredHistory || []).reduce((acc: Record<string, number>, h: any) => {
-        const key = h.method || 'Other';
-        acc[key] = (acc[key] || 0) + Number(h.amount || 0);
-        return acc;
-    }, {} as Record<string, number>);
-    const topPlatforms = Object.entries(platformTotals).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    const totalSpend: number = (filteredHistory || []).reduce(
+        (s: number, h: any) => s + Number(h.amount || 0),
+        0
+    );
+    const platformTotals: Record<string, number> = (filteredHistory || []).reduce(
+        (acc: Record<string, number>, h: any) => {
+            const key = (h.method as string) || 'Other';
+            acc[key] = (acc[key] || 0) + Number(h.amount || 0);
+            return acc;
+        },
+        {} as Record<string, number>
+    );
+    const topPlatforms: Array<[string, number]> = Object.entries(platformTotals)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3);
 
     return (
-        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
-            {/* Header */}
-            <header className="space-y-2.5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                        <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">Ads Performance</h1>
-                        <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">Auto-calculated metrics from real order data</p>
+        <div className="ant-surface min-h-screen">
+            <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 md:py-8 space-y-6">
+                {/* Editorial header */}
+                <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                    <div className="space-y-2">
+                        <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                            <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                            Marketing · Attribution
+                        </div>
+                        <h1 className="font-display text-[30px] md:text-[34px] leading-[1.05] tracking-[-0.02em] text-ant-ink">
+                            Product Ads
+                        </h1>
+                        <p className="font-serif italic text-[14px] leading-relaxed text-ant-mid max-w-xl">
+                            Every platform, every spend, every product — cross-referenced against orders to show which campaigns actually moved the needle.
+                        </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <div className="relative">
-                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                    <div className="flex items-center gap-2 shrink-0">
+                        <div className="relative w-full md:w-[240px]">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-mid pointer-events-none" />
                             <Input
                                 placeholder="Search campaigns..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="pl-7 h-8 rounded-md border-gray-200 bg-white text-[11px] w-52"
+                                className="pl-9 h-10 rounded-full border-ant-line bg-ant-paper text-[12px] text-ant-ink placeholder:text-ant-mid focus-visible:ring-1 focus-visible:ring-ant-orange/40"
                             />
                         </div>
                         <Button
                             onClick={() => openUpsert()}
-                            className="bg-brand-navy hover:bg-brand-navy/90 text-white h-8 px-3 rounded-md text-[11px] font-semibold gap-1.5 shrink-0"
+                            className="bg-ant-ink hover:bg-ant-ink/90 text-white h-10 px-5 rounded-full text-[12px] font-semibold gap-2 cursor-pointer"
                         >
-                            <Plus className="w-3.5 h-3.5" /> Log Campaign
+                            <Plus className="w-4 h-4" />
+                            Log campaign
                         </Button>
                     </div>
-                </div>
-            </header>
+                </header>
 
-            {/* KPI strip */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                <div className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
-                    <span className="w-[3px] self-stretch rounded-full" style={{ background: '#ef4444' }} />
-                    <div className="flex-1 min-w-0">
-                        <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">Total Spend</p>
-                        <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{fmtNum(totalSpend)} DH</p>
-                    </div>
-                </div>
-                {topPlatforms.map(([platform, spend], i) => {
-                    const accent = i === 0 ? '#d97706' : i === 1 ? '#059669' : '#3b5e5e';
-                    return (
-                        <div key={platform} className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5">
-                            <span className="w-[3px] self-stretch rounded-full" style={{ background: accent }} />
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-1.5">
-                                    <span className="text-[9px] text-gray-400">{getPlatformIcon(platform)}</span>
-                                    <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400 truncate">{platform}</p>
-                                </div>
-                                <p className="text-[18px] font-semibold tabular-nums text-brand-navy mt-1">{fmtNum(spend)} DH</p>
-                            </div>
-                        </div>
-                    );
-                })}
-                {topPlatforms.length < 3 && Array.from({ length: 3 - topPlatforms.length }).map((_, i) => (
-                    <div key={`empty-${i}`} className="rounded-xl border border-gray-100 bg-white p-3 flex items-start gap-2.5 opacity-40">
-                        <span className="w-[3px] self-stretch rounded-full bg-gray-200" />
-                        <div className="flex-1 min-w-0">
-                            <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-gray-400">—</p>
-                            <p className="text-[18px] font-semibold text-gray-200 mt-1">—</p>
-                        </div>
-                    </div>
-                ))}
-            </div>
-
-            {/* Campaign cards */}
-            {isLoading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
-                    {Array.from({ length: 6 }).map((_, i) => (
-                        <Skeleton key={i} className="h-44 w-full rounded-xl" />
-                    ))}
-                </div>
-            ) : filteredHistory?.length === 0 ? (
-                <div className="border border-dashed border-gray-200 rounded-xl py-8 flex flex-col items-center justify-center text-center gap-2">
-                    <Megaphone className="w-5 h-5 text-gray-300" />
-                    <p className="text-[11px] font-semibold text-brand-navy">No campaigns logged</p>
-                    <p className="text-[10px] text-gray-400">Start tracking ads to see auto-calculated performance metrics.</p>
-                    <Button variant="outline" onClick={() => openUpsert()} className="h-7 px-3 rounded-md text-[11px] font-semibold mt-1">
-                        Log First Campaign
-                    </Button>
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
-                    {filteredHistory?.map((h: any) => {
-                        const m = getCampaignMetrics(h);
-                        const canEdit = canEditRow(h);
-                        const creator = h.created_by ? creatorById.get(h.created_by) : null;
+                {/* KPI strip */}
+                <section className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
+                    <AdsKpi
+                        label="Total spend"
+                        value={fmtNum(totalSpend)}
+                        suffix="DH"
+                        accent="rose"
+                        icon={Coins}
+                    />
+                    {topPlatforms.map(([platform, spend], i) => {
+                        const accent: keyof typeof ADS_KPI_ACCENTS = i === 0 ? 'orange' : i === 1 ? 'green' : 'ink';
                         return (
-                            <Card
-                                key={h.id}
-                                className="border border-gray-100 shadow-none rounded-xl cursor-pointer hover:border-gray-200 transition-colors"
-                                onClick={() => openDetails(h)}
-                            >
-                                <CardContent className="p-3.5 space-y-3">
-                                    <div className="flex justify-between items-start">
-                                        <div className="flex gap-2.5 items-start">
-                                            {h.products?.image_url ? (
-                                                <img src={h.products.image_url} alt={h.products.name || 'product'} className="w-10 h-10 rounded-lg object-cover border border-gray-100 shrink-0" />
-                                            ) : (
-                                                <div className="w-10 h-10 bg-gray-50 border border-gray-100 rounded-lg flex items-center justify-center shrink-0">
-                                                    <Package className="w-4 h-4 text-gray-300" />
-                                                </div>
-                                            )}
-                                            <div>
-                                                <div className="flex items-center gap-1 text-brand-navy/60 mb-0.5">
-                                                    {getPlatformIcon(h.method)}
-                                                    <Badge className="h-5 px-1.5 text-[9px] bg-gray-100 text-gray-500 border-none font-semibold">{h.method}</Badge>
-                                                </div>
-                                                <h3 className="text-[12px] font-semibold text-brand-navy line-clamp-1 max-w-[160px]">{h.products?.name}</h3>
-                                                {!isMediaBuyerView && (
-                                                    <span className="text-[10px] text-gray-400 truncate block max-w-[160px]">
-                                                        {creator?.name || (h.created_by ? 'Unknown user' : 'Admin (legacy)')}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                        {canEdit ? (
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                                                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md hover:bg-gray-100 text-gray-400">
-                                                        <MoreVertical className="w-3.5 h-3.5" />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end" className="rounded-lg border border-gray-100 shadow-sm p-1 min-w-[130px]">
-                                                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openUpsert(h); }} className="rounded-md px-2 py-1.5 cursor-pointer text-[11px] font-medium gap-2">
-                                                        <Edit2 className="w-3.5 h-3.5 text-gray-400" /> Edit
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuSeparator className="my-1" />
-                                                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setHistoryToDelete(h); }} className="rounded-md px-2 py-1.5 cursor-pointer text-[11px] font-medium gap-2 text-red-500">
-                                                        <Trash2 className="w-3.5 h-3.5" /> Delete
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                        ) : (
-                                            <div
-                                                className="flex items-center gap-1 px-1.5 h-5 rounded bg-gray-100 text-gray-400 shrink-0"
-                                                title="Read only"
-                                                onClick={(e) => e.stopPropagation()}
-                                            >
-                                                <Lock className="w-2.5 h-2.5" />
-                                                <span className="text-[9px] font-semibold uppercase">Read only</span>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <div className="grid grid-cols-4 gap-2 pt-1">
-                                        {[
-                                            { label: 'Spend', value: fmtNum(Number(h.amount)), color: 'text-brand-navy' },
-                                            { label: 'Orders', value: m?.totalOrders ?? '—', color: 'text-brand-navy' },
-                                            { label: 'Delivered', value: m?.deliveredOrders ?? '—', color: 'text-emerald-600' },
-                                            { label: 'CPD', value: m && m.cpd > 0 ? fmtDec(m.cpd) : '—', color: m && m.cpd > 0 ? getHealthColor(m.roas, { green: 1, amber: 0.5 }) : 'text-gray-300' },
-                                        ].map((item) => (
-                                            <div key={item.label} className="space-y-0.5">
-                                                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">{item.label}</p>
-                                                <p className={cn("text-[13px] font-semibold tabular-nums", item.color)}>{item.value}</p>
-                                            </div>
-                                        ))}
-                                    </div>
-
-                                    {m && m.totalOrders > 0 && (
-                                        <div className="space-y-1">
-                                            <div className="flex items-center justify-between text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">
-                                                <span>Funnel</span>
-                                                <span>{m.fulfillmentRate.toFixed(0)}% fulfilled</span>
-                                            </div>
-                                            <div className="h-1 bg-gray-100 rounded-full overflow-hidden flex">
-                                                <div className="bg-emerald-500 rounded-full" style={{ width: `${m.fulfillmentRate}%` }} />
-                                                <div className="bg-blue-300 rounded-full" style={{ width: `${Math.max(0, m.confirmRate - m.fulfillmentRate)}%` }} />
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-                                        <div className="flex items-center gap-1.5 text-gray-400">
-                                            <Calendar className="w-3 h-3" />
-                                            <span className="text-[10px] font-medium">{format(new Date(h.start_date), 'MMM d')} – {format(new Date(h.end_date), 'MMM d')}</span>
-                                        </div>
-                                        {m && m.profit !== 0 && (
-                                            <div className={cn("flex items-center gap-0.5 px-1.5 h-5 rounded text-[9px] font-semibold", m.profit > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500')}>
-                                                {m.profit > 0 ? <ArrowUpRight className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
-                                                {m.profit > 0 ? '+' : ''}{fmtNum(m.profit)} DH
-                                            </div>
-                                        )}
-                                    </div>
-                                </CardContent>
-                            </Card>
+                            <AdsKpi
+                                key={platform}
+                                label={platform}
+                                value={fmtNum(spend)}
+                                suffix="DH"
+                                accent={accent}
+                                icon={<span className="text-ant-ink">{getPlatformIcon(platform)}</span>}
+                            />
                         );
                     })}
-                </div>
-            )}
-
-            {/* Upsert Modal */}
-            <Dialog open={isUpsertOpen} onOpenChange={setIsUpsertOpen}>
-                <DialogContent className="max-w-md border border-gray-100 rounded-xl shadow-none p-0 overflow-hidden">
-                    <Form {...form}>
-                        <form onSubmit={form.handleSubmit(handleUpsert)}>
-                            <DialogHeader className="px-4 pt-4 pb-3 border-b border-gray-100">
-                                <DialogTitle className="text-[13px] font-semibold text-brand-navy">
-                                    {editingHistory ? 'Update Campaign' : 'Log New Campaign'}
-                                </DialogTitle>
-                                <DialogDescription className="text-[10px] text-gray-400">
-                                    Platform, product, date range and spend. Metrics auto-calculate from orders.
-                                </DialogDescription>
-                            </DialogHeader>
-
-                            <div className="px-4 py-3 space-y-3 max-h-[70vh] overflow-y-auto">
-                                <div className="grid grid-cols-2 gap-3">
-                                    <FormField
-                                        control={form.control}
-                                        name="product_id"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Product</FormLabel>
-                                                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                    <FormControl>
-                                                        <SelectTrigger className="h-8 rounded-md border-gray-200 text-[11px] font-medium text-brand-navy">
-                                                            <SelectValue placeholder="Select Product" />
-                                                        </SelectTrigger>
-                                                    </FormControl>
-                                                    <SelectContent className="rounded-lg border border-gray-100 shadow-sm">
-                                                        {products?.map((p) => (
-                                                            <SelectItem key={p.id} value={p.id} className="text-[11px]">
-                                                                {p.name}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="method"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Platform</FormLabel>
-                                                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                    <FormControl>
-                                                        <SelectTrigger className="h-8 rounded-md border-gray-200 text-[11px] font-medium text-brand-navy">
-                                                            <SelectValue placeholder="Select Platform" />
-                                                        </SelectTrigger>
-                                                    </FormControl>
-                                                    <SelectContent className="rounded-lg border border-gray-100 shadow-sm">
-                                                        {PLATFORMS.map((p) => (
-                                                            <SelectItem key={p} value={p} className="text-[11px]">
-                                                                {p}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
+                    {topPlatforms.length < 3 && Array.from({ length: 3 - topPlatforms.length }).map((_, i) => (
+                        <div key={`empty-${i}`} className="bg-ant-paper p-4 opacity-40">
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.24em] text-ant-mid">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-ant-line" />
+                                    No data
                                 </div>
-
-                                <FormField
-                                    control={form.control}
-                                    name="amount"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Total Ad Spend (DH)</FormLabel>
-                                            <FormControl>
-                                                <Input type="number" step="0.01" placeholder="0" {...field} className="h-8 rounded-md border-gray-200 text-[11px] font-medium text-brand-navy" />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-
-                                <div className="grid grid-cols-2 gap-3">
-                                    <FormField
-                                        control={form.control}
-                                        name="start_date"
-                                        render={({ field }) => (
-                                            <FormItem className="flex flex-col">
-                                                <FormLabel className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 mb-1">Start Date</FormLabel>
-                                                <Popover>
-                                                    <PopoverTrigger asChild>
-                                                        <FormControl>
-                                                            <Button
-                                                                variant={"outline"}
-                                                                className={cn(
-                                                                    "h-8 rounded-md border-gray-200 text-[11px] font-medium text-brand-navy text-left justify-start",
-                                                                    !field.value && "text-gray-400"
-                                                                )}
-                                                            >
-                                                                {field.value ? format(field.value, "PP") : <span>Pick a date</span>}
-                                                                <Calendar className="ml-auto h-3 w-3 opacity-50" />
-                                                            </Button>
-                                                        </FormControl>
-                                                    </PopoverTrigger>
-                                                    <PopoverContent className="w-auto p-0 rounded-lg overflow-hidden shadow-sm border border-gray-100" align="start">
-                                                        <CalendarComponent mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
-                                                    </PopoverContent>
-                                                </Popover>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="end_date"
-                                        render={({ field }) => (
-                                            <FormItem className="flex flex-col">
-                                                <FormLabel className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 mb-1">End Date</FormLabel>
-                                                <Popover>
-                                                    <PopoverTrigger asChild>
-                                                        <FormControl>
-                                                            <Button
-                                                                variant={"outline"}
-                                                                className={cn(
-                                                                    "h-8 rounded-md border-gray-200 text-[11px] font-medium text-brand-navy text-left justify-start",
-                                                                    !field.value && "text-gray-400"
-                                                                )}
-                                                            >
-                                                                {field.value ? format(field.value, "PP") : <span>Pick a date</span>}
-                                                                <Calendar className="ml-auto h-3 w-3 opacity-50" />
-                                                            </Button>
-                                                        </FormControl>
-                                                    </PopoverTrigger>
-                                                    <PopoverContent className="w-auto p-0 rounded-lg overflow-hidden shadow-sm border border-gray-100" align="start">
-                                                        <CalendarComponent mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
-                                                    </PopoverContent>
-                                                </Popover>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
+                                <div className="h-8 w-8 rounded-lg border border-ant-line flex items-center justify-center">
+                                    <Megaphone className="w-4 h-4 text-ant-mid" strokeWidth={1.5} />
                                 </div>
                             </div>
+                            <p className="font-display text-[22px] font-semibold text-ant-mid/40 tabular-nums mt-2">—</p>
+                        </div>
+                    ))}
+                </section>
 
-                            <DialogFooter className="px-4 pb-4 pt-3 border-t border-gray-100">
-                                <Button type="submit" disabled={upsertMutation.isPending} className="bg-brand-navy text-brand-white rounded-md h-8 px-4 text-[11px] font-semibold w-full">
-                                    {upsertMutation.isPending && <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />}
-                                    {editingHistory ? 'Update Record' : 'Save Campaign'}
-                                </Button>
-                            </DialogFooter>
-                        </form>
-                    </Form>
-                </DialogContent>
-            </Dialog>
-
-            {/* Details Modal */}
-            <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-                <DialogContent className="max-w-3xl border border-gray-100 rounded-xl shadow-none p-0 overflow-hidden max-h-[90vh] flex flex-col">
-                    {selectedHistory && (() => {
-                        const m = getCampaignMetrics(selectedHistory);
-                        return (
-                            <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-                                {/* Header */}
-                                <DialogHeader className="px-4 pt-4 pb-3 border-b border-gray-100 shrink-0">
-                                    <div className="flex items-center gap-3">
-                                        {selectedHistory.products?.image_url ? (
-                                            <img src={selectedHistory.products.image_url} alt={selectedHistory.products.name} className="w-10 h-10 rounded-lg object-cover border border-gray-100 shrink-0" />
-                                        ) : (
-                                            <div className="w-10 h-10 bg-gray-50 border border-gray-100 rounded-lg flex items-center justify-center shrink-0">
-                                                <Package className="w-4 h-4 text-gray-300" />
-                                            </div>
-                                        )}
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-1.5 mb-0.5">
-                                                <Badge className="h-5 px-1.5 text-[9px] bg-gray-100 text-gray-500 border-none font-semibold">{selectedHistory.method}</Badge>
-                                                {selectedHistory.products?.code && (
-                                                    <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">{selectedHistory.products.code}</span>
+                {/* Campaign cards */}
+                {isLoading ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                        {Array.from({ length: 6 }).map((_, i) => (
+                            <Skeleton key={i} className="h-48 w-full rounded-2xl" />
+                        ))}
+                    </div>
+                ) : filteredHistory?.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-ant-line bg-ant-paper px-8 py-16 text-center">
+                        <div className="mx-auto w-12 h-12 rounded-2xl bg-ant-orange/10 border border-ant-orange/25 flex items-center justify-center mb-4">
+                            <Megaphone className="w-5 h-5 text-ant-orange" strokeWidth={1.75} />
+                        </div>
+                        <h3 className="font-display text-[18px] text-ant-ink tracking-tight">No campaigns logged yet</h3>
+                        <p className="font-serif italic text-[13px] text-ant-mid mt-2 max-w-sm mx-auto">
+                            Log the first campaign — spend, product and dates. Metrics auto-calculate from your order data.
+                        </p>
+                        <Button
+                            onClick={() => openUpsert()}
+                            className="mt-5 bg-ant-ink hover:bg-ant-ink/90 text-white h-9 px-5 rounded-full text-[12px] font-semibold gap-2 cursor-pointer"
+                        >
+                            <Plus className="w-4 h-4" />
+                            Log first campaign
+                        </Button>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                        {filteredHistory?.map((h: any) => {
+                            const m = getCampaignMetrics(h);
+                            const canEdit = canEditRow(h);
+                            const creator = h.created_by ? creatorById.get(h.created_by) : null;
+                            const profitPositive = m && m.profit > 0;
+                            const profitNegative = m && m.profit < 0;
+                            const stripe = profitPositive ? 'bg-ant-green' : profitNegative ? 'bg-ant-rose' : 'bg-ant-line';
+                            return (
+                                <div
+                                    key={h.id}
+                                    onClick={() => openDetails(h)}
+                                    className="relative overflow-hidden rounded-2xl border border-ant-line bg-ant-paper cursor-pointer hover:border-ant-ink/20 hover:shadow-[0_16px_48px_-20px_rgba(20,20,19,0.15)] transition-all"
+                                >
+                                    <div className={cn('h-[3px] w-full', stripe)} />
+                                    <div className="p-4 space-y-3">
+                                        <div className="flex justify-between items-start gap-2">
+                                            <div className="flex gap-3 items-start min-w-0">
+                                                {h.products?.image_url ? (
+                                                    <img src={h.products.image_url} alt={h.products.name || 'product'} className="w-11 h-11 rounded-xl object-cover border border-ant-line shrink-0" />
+                                                ) : (
+                                                    <div className="w-11 h-11 bg-ant-light border border-ant-line rounded-xl flex items-center justify-center shrink-0">
+                                                        <Package className="w-4 h-4 text-ant-mid" />
+                                                    </div>
                                                 )}
-                                            </div>
-                                            <DialogTitle className="text-[13px] font-semibold text-brand-navy truncate">{selectedHistory.products?.name}</DialogTitle>
-                                            <p className="text-[10px] text-gray-400">{format(new Date(selectedHistory.start_date), 'MMM d')} – {format(new Date(selectedHistory.end_date), 'MMM d, yyyy')} · {m?.days} days</p>
-                                        </div>
-                                        <Button onClick={() => setIsDetailsOpen(false)} variant="ghost" size="icon" className="h-7 w-7 rounded-md hover:bg-gray-100 text-gray-400 shrink-0">
-                                            <span className="text-[11px] font-semibold">✕</span>
-                                        </Button>
-                                    </div>
-                                </DialogHeader>
-
-                                <div className="p-4 space-y-4">
-                                    {/* Top Row: 4 KPI tiles */}
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                        {[
-                                            { label: 'Ad Spend', value: `${fmtNum(Number(selectedHistory.amount))} DH`, accent: 'bg-red-500' },
-                                            { label: 'Orders', value: String(m?.totalOrders ?? 0), accent: 'bg-brand-navy' },
-                                            { label: 'Confirmed', value: String(m?.confirmedOrders ?? 0), accent: 'bg-blue-500' },
-                                            { label: 'Delivered', value: String(m?.deliveredOrders ?? 0), accent: 'bg-emerald-500' },
-                                        ].map((tile) => (
-                                            <Card key={tile.label} className="border border-gray-100 shadow-none rounded-xl relative overflow-hidden">
-                                                <span className={`absolute left-0 top-0 bottom-0 w-[3px] ${tile.accent} rounded-l-xl`} />
-                                                <CardContent className="p-2.5 pl-4">
-                                                    <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 mb-0.5">{tile.label}</p>
-                                                    <p className="text-[15px] font-semibold tabular-nums text-brand-navy">{tile.value}</p>
-                                                </CardContent>
-                                            </Card>
-                                        ))}
-                                    </div>
-
-                                    {/* Funnel Progress */}
-                                    {m && m.totalOrders > 0 && (
-                                        <div className="bg-gray-50 rounded-xl p-3 space-y-2">
-                                            <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 flex items-center gap-1.5">
-                                                <BarChart3 className="w-3 h-3" /> Conversion Funnel
-                                            </p>
-                                            <div className="flex items-center gap-3">
-                                                <div className="flex-1 space-y-1">
-                                                    <div className="flex justify-between text-[10px] font-semibold">
-                                                        <span className="text-gray-500">Orders → Confirmed</span>
-                                                        <span className={getHealthColor(m.confirmRate, { green: 60, amber: 30 })}>{m.confirmRate.toFixed(1)}%</span>
+                                                <div className="min-w-0">
+                                                    <div className="flex items-center gap-1.5 text-ant-ink mb-1">
+                                                        <span className="text-ant-mid">{getPlatformIcon(h.method)}</span>
+                                                        <span className="inline-flex items-center rounded-full border border-ant-line bg-ant-light px-2 py-0.5 text-[10px] font-semibold text-ant-ink">
+                                                            {h.method}
+                                                        </span>
                                                     </div>
-                                                    <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                                                        <div className="h-full bg-blue-500 rounded-full" style={{ width: `${m.confirmRate}%` }} />
-                                                    </div>
-                                                </div>
-                                                <div className="text-gray-300 text-[11px] font-bold">→</div>
-                                                <div className="flex-1 space-y-1">
-                                                    <div className="flex justify-between text-[10px] font-semibold">
-                                                        <span className="text-gray-500">Confirmed → Delivered</span>
-                                                        <span className={getHealthColor(m.deliveryRate, { green: 70, amber: 40 })}>{m.deliveryRate.toFixed(1)}%</span>
-                                                    </div>
-                                                    <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                                                        <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${m.deliveryRate}%` }} />
-                                                    </div>
+                                                    <h3 className="font-display text-[14px] font-semibold text-ant-ink line-clamp-1">{h.products?.name}</h3>
+                                                    {!isMediaBuyerView && (
+                                                        <span className="text-[10px] text-ant-mid truncate block mt-0.5 font-serif italic">
+                                                            by {creator?.name || (h.created_by ? 'Unknown' : 'Admin · legacy')}
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </div>
-                                            <div className="flex justify-end">
-                                                <span className={cn("px-2 h-5 rounded text-[9px] font-semibold flex items-center", getHealthBg(m.fulfillmentRate, { green: 40, amber: 20 }))}>
-                                                    {m.fulfillmentRate.toFixed(1)}% fulfilled overall
-                                                </span>
-                                            </div>
+                                            {canEdit ? (
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-ant-ink/5 text-ant-mid shrink-0 cursor-pointer">
+                                                            <MoreVertical className="w-3.5 h-3.5" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end" className="rounded-xl border border-ant-line bg-ant-paper shadow-[0_16px_48px_-20px_rgba(20,20,19,0.2)] p-1 min-w-[150px]">
+                                                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openUpsert(h); }} className="rounded-lg px-3 py-2 cursor-pointer text-[12px] font-medium gap-2 text-ant-ink">
+                                                            <Edit2 className="w-3.5 h-3.5 text-ant-orange" /> Edit
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuSeparator className="my-1 bg-ant-line" />
+                                                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setHistoryToDelete(h); }} className="rounded-lg px-3 py-2 cursor-pointer text-[12px] font-medium gap-2 text-ant-rose focus:text-ant-rose focus:bg-ant-rose/10">
+                                                            <Trash2 className="w-3.5 h-3.5" /> Delete
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            ) : (
+                                                <div
+                                                    className="inline-flex items-center gap-1 px-2 h-6 rounded-full border border-ant-line bg-ant-light text-ant-mid shrink-0"
+                                                    title="Read only"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    <Lock className="w-2.5 h-2.5" />
+                                                    <span className="text-[9px] font-semibold uppercase tracking-[0.14em]">Read only</span>
+                                                </div>
+                                            )}
                                         </div>
-                                    )}
 
-                                    {/* Cost Efficiency */}
-                                    <div className="space-y-2">
-                                        <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 flex items-center gap-1.5">
-                                            <Target className="w-3 h-3" /> Cost Efficiency
-                                        </p>
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                        <div className="grid grid-cols-4 gap-2 pt-2 border-t border-ant-line">
                                             {[
-                                                { label: 'CPA', sub: 'Cost per order', value: m && m.cpa > 0 ? `${fmtDec(m.cpa)} DH` : '—', color: 'text-brand-navy' },
-                                                { label: 'CPC', sub: 'Cost per confirm', value: m && m.cpc > 0 ? `${fmtDec(m.cpc)} DH` : '—', color: 'text-blue-600' },
-                                                { label: 'CPD', sub: 'Cost per delivery', value: m && m.cpd > 0 ? `${fmtDec(m.cpd)} DH` : '—', color: 'text-emerald-600' },
-                                                { label: 'Daily Spend', sub: 'Average per day', value: m ? `${fmtDec(m.dailySpend)} DH` : '—', color: 'text-brand-navy' },
-                                            ].map((s) => (
-                                                <div key={s.label} className="border border-gray-100 rounded-xl p-2.5 space-y-0.5">
-                                                    <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">{s.label}</p>
-                                                    <p className={cn("text-[13px] font-semibold tabular-nums", s.color)}>{s.value}</p>
-                                                    <p className="text-[9px] text-gray-400">{s.sub}</p>
+                                                { label: 'Spend', value: fmtNum(Number(h.amount)), color: 'text-ant-ink' },
+                                                { label: 'Orders', value: m?.totalOrders ?? '—', color: 'text-ant-ink' },
+                                                { label: 'Delivered', value: m?.deliveredOrders ?? '—', color: 'text-ant-green' },
+                                                { label: 'CPD', value: m && m.cpd > 0 ? fmtDec(m.cpd) : '—', color: m && m.cpd > 0 ? getHealthTone(m.roas, { green: 1, amber: 0.5 }) : 'text-ant-mid' },
+                                            ].map((item) => (
+                                                <div key={item.label} className="space-y-0.5">
+                                                    <p className="text-[9px] font-semibold uppercase tracking-[0.24em] text-ant-mid">{item.label}</p>
+                                                    <p className={cn('font-display text-[15px] font-semibold tabular-nums', item.color)}>{item.value}</p>
                                                 </div>
                                             ))}
                                         </div>
-                                    </div>
 
-                                    {/* Revenue & Profit */}
-                                    <div className="space-y-2">
-                                        <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 flex items-center gap-1.5">
-                                            <DollarSign className="w-3 h-3" /> Revenue & Profit
-                                        </p>
-                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                                            <div className="border border-gray-100 rounded-xl p-2.5 space-y-0.5">
-                                                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Gross Revenue</p>
-                                                <p className="text-[13px] font-semibold tabular-nums text-brand-navy">{m ? fmtNum(m.grossRevenue) : '0'} DH</p>
+                                        {m && m.totalOrders > 0 && (
+                                            <div className="space-y-1.5">
+                                                <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.24em] text-ant-mid">
+                                                    <span>Funnel</span>
+                                                    <span className="tabular-nums">{m.fulfillmentRate.toFixed(0)}% fulfilled</span>
+                                                </div>
+                                                <div className="h-1.5 bg-ant-line rounded-full overflow-hidden flex">
+                                                    <div className="bg-ant-green rounded-full transition-all" style={{ width: `${m.fulfillmentRate}%` }} />
+                                                    <div className="bg-ant-orange/50 rounded-full transition-all" style={{ width: `${Math.max(0, m.confirmRate - m.fulfillmentRate)}%` }} />
+                                                </div>
                                             </div>
-                                            <div className="border border-gray-100 rounded-xl p-2.5 space-y-0.5">
-                                                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">COGS</p>
-                                                <p className="text-[13px] font-semibold tabular-nums text-gray-500">{m ? fmtNum(m.cogs) : '0'} DH</p>
-                                            </div>
-                                            <div className="border border-gray-100 rounded-xl p-2.5 space-y-0.5">
-                                                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Shipping</p>
-                                                <p className="text-[13px] font-semibold tabular-nums text-gray-500">{m ? fmtNum(m.shippingCosts) : '0'} DH</p>
-                                            </div>
-                                            <div className={cn("border rounded-xl p-2.5 space-y-0.5", m && m.profit >= 0 ? 'border-emerald-100 bg-emerald-50' : 'border-red-100 bg-red-50')}>
-                                                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Net Profit</p>
-                                                <p className={cn("text-[13px] font-semibold tabular-nums", m && m.profit >= 0 ? 'text-emerald-600' : 'text-red-500')}>{m ? (m.profit >= 0 ? '+' : '') + fmtNum(m.profit) : '0'} DH</p>
-                                            </div>
-                                            <div className={cn("border rounded-xl p-2.5 space-y-0.5", m && m.roas >= 1 ? 'border-emerald-100 bg-emerald-50' : m && m.roas >= 0.5 ? 'border-amber-100 bg-amber-50' : 'border-red-100 bg-red-50')}>
-                                                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">ROAS</p>
-                                                <p className={cn("text-[13px] font-semibold tabular-nums", m ? getHealthColor(m.roas, { green: 1, amber: 0.5 }) : 'text-brand-navy')}>{m ? fmtDec(m.roas) : '0'}x</p>
-                                                <p className="text-[9px] text-gray-400">Gross return</p>
-                                            </div>
-                                            <div className="border border-gray-100 rounded-xl p-2.5 space-y-0.5">
-                                                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Margin</p>
-                                                <p className={cn("text-[13px] font-semibold tabular-nums", m && m.profitMargin > 0 ? 'text-emerald-600' : 'text-red-500')}>{m ? fmtDec(m.profitMargin) : '0'}%</p>
-                                            </div>
-                                        </div>
-                                    </div>
+                                        )}
 
-                                    {/* Waste & Quality */}
-                                    <div className="space-y-2">
-                                        <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400 flex items-center gap-1.5">
-                                            <ShieldCheck className="w-3 h-3" /> Quality & Waste
-                                        </p>
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                            <div className="border border-gray-100 rounded-xl p-2.5 space-y-0.5">
-                                                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-red-400">Cancelled</p>
-                                                <p className="text-[13px] font-semibold tabular-nums text-red-500">{m?.cancelledOrders ?? 0}</p>
-                                                <p className="text-[9px] text-gray-400">{m ? m.cancelRate.toFixed(1) : 0}% of orders</p>
+                                        <div className="flex items-center justify-between pt-2 border-t border-ant-line">
+                                            <div className="flex items-center gap-1.5 text-ant-mid">
+                                                <Calendar className="w-3 h-3" />
+                                                <span className="text-[11px] font-medium tabular-nums">{format(new Date(h.start_date), 'MMM d')} – {format(new Date(h.end_date), 'MMM d')}</span>
                                             </div>
-                                            <div className="border border-gray-100 rounded-xl p-2.5 space-y-0.5">
-                                                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Fake</p>
-                                                <p className="text-[13px] font-semibold tabular-nums text-gray-500">{m?.fakeOrders ?? 0}</p>
-                                                <p className="text-[9px] text-gray-400">{m ? m.fakeRate.toFixed(1) : 0}% of orders</p>
-                                            </div>
-                                            <div className="border border-gray-100 rounded-xl p-2.5 space-y-0.5">
-                                                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-amber-500">Wasted Spend</p>
-                                                <p className="text-[13px] font-semibold tabular-nums text-amber-600">{m ? fmtNum(m.wastedSpend) : '0'} DH</p>
-                                                <p className="text-[9px] text-gray-400">Ads didn't convert</p>
-                                            </div>
-                                            <div className={cn("border rounded-xl p-2.5 space-y-0.5", m ? getHealthBg(m.qualityScore, { green: 40, amber: 20 }) : 'border-gray-100')}>
-                                                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-gray-400">Quality Score</p>
-                                                <p className={cn("text-[13px] font-semibold tabular-nums", m ? getHealthColor(m.qualityScore, { green: 40, amber: 20 }) : 'text-brand-navy')}>{m ? m.qualityScore.toFixed(0) : 0}%</p>
-                                                <p className="text-[9px] text-gray-400">Orders → Delivered</p>
-                                            </div>
+                                            {m && m.profit !== 0 && (
+                                                <div className={cn(
+                                                    'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold tabular-nums',
+                                                    m.profit > 0 ? 'bg-ant-green/10 border-ant-green/25 text-ant-green' : 'bg-ant-rose/10 border-ant-rose/25 text-ant-rose'
+                                                )}>
+                                                    {m.profit > 0 ? <ArrowUpRight className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+                                                    {m.profit > 0 ? '+' : ''}{fmtNum(m.profit)} DH
+                                                </div>
+                                            )}
                                         </div>
-                                    </div>
-
-                                    {/* Footer */}
-                                    <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
-                                        <div className="flex items-center gap-1.5 text-gray-400">
-                                            <Layout className="w-3 h-3" />
-                                            <span className="text-[10px] font-medium">SKU: {selectedHistory.products?.code}</span>
-                                        </div>
-                                        <Button onClick={() => setIsDetailsOpen(false)} variant="outline" className="h-8 px-4 rounded-md text-[11px] font-semibold border-gray-200">
-                                            Close
-                                        </Button>
                                     </div>
                                 </div>
-                            </div>
-                        );
-                    })()}
-                </DialogContent>
-            </Dialog>
+                            );
+                        })}
+                    </div>
+                )}
 
-            {/* Delete Confirmation */}
-            <AlertDialog open={!!historyToDelete} onOpenChange={() => setHistoryToDelete(null)}>
-                <AlertDialogContent className="max-w-sm rounded-xl border border-gray-100 shadow-none p-4">
-                    <AlertDialogHeader className="space-y-1">
-                        <div className="flex items-center gap-2 mb-1">
-                            <Trash2 className="w-4 h-4 text-red-500" />
-                            <AlertDialogTitle className="text-[13px] font-semibold text-brand-navy">Permanently Delete?</AlertDialogTitle>
-                        </div>
-                        <AlertDialogDescription className="text-[11px] text-gray-400">
-                            This campaign record will be permanently removed.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter className="flex flex-row gap-2 mt-3">
-                        <AlertDialogCancel className="flex-1 rounded-md h-8 text-[11px] font-semibold border-gray-200 m-0">
-                            Cancel
-                        </AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={() => deleteMutation.mutate(historyToDelete)}
-                            className="flex-1 rounded-md h-8 text-[11px] font-semibold bg-red-500 hover:bg-red-600 text-white m-0"
-                        >
-                            {deleteMutation.isPending && <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />}
-                            Delete
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+                {/* Upsert Modal */}
+                <Dialog open={isUpsertOpen} onOpenChange={setIsUpsertOpen}>
+                    <DialogContent className="max-w-lg p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden">
+                        <Form {...form}>
+                            <form onSubmit={form.handleSubmit(handleUpsert)}>
+                                <DialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line space-y-1.5">
+                                    <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                        <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                                        {editingHistory ? 'Edit · Campaign' : 'New · Campaign'}
+                                    </div>
+                                    <DialogTitle className="font-display text-[20px] leading-tight tracking-tight text-ant-ink">
+                                        {editingHistory ? 'Update campaign' : 'Log a new campaign'}
+                                    </DialogTitle>
+                                    <DialogDescription className="font-serif italic text-[13px] text-ant-mid">
+                                        Platform, product, dates and spend — metrics auto-calculate from your order data.
+                                    </DialogDescription>
+                                </DialogHeader>
+
+                                <div className="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto ant-scroll">
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <FormField
+                                            control={form.control}
+                                            name="product_id"
+                                            render={({ field }) => (
+                                                <FormItem className="space-y-1.5">
+                                                    <FormLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Product</FormLabel>
+                                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                        <FormControl>
+                                                            <SelectTrigger className="h-10 rounded-xl border-ant-line bg-ant-paper text-[12px] font-medium text-ant-ink">
+                                                                <SelectValue placeholder="Select product" />
+                                                            </SelectTrigger>
+                                                        </FormControl>
+                                                        <SelectContent className="rounded-xl border-ant-line">
+                                                            {products?.map((p) => (
+                                                                <SelectItem key={p.id} value={p.id} className="text-[12px]">
+                                                                    {p.name}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <FormMessage className="text-ant-rose" />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control}
+                                            name="method"
+                                            render={({ field }) => (
+                                                <FormItem className="space-y-1.5">
+                                                    <FormLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Platform</FormLabel>
+                                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                        <FormControl>
+                                                            <SelectTrigger className="h-10 rounded-xl border-ant-line bg-ant-paper text-[12px] font-medium text-ant-ink">
+                                                                <SelectValue placeholder="Select platform" />
+                                                            </SelectTrigger>
+                                                        </FormControl>
+                                                        <SelectContent className="rounded-xl border-ant-line">
+                                                            {PLATFORMS.map((p) => (
+                                                                <SelectItem key={p} value={p} className="text-[12px]">
+                                                                    <span className="inline-flex items-center gap-2">
+                                                                        <span className="text-ant-mid">{getPlatformIcon(p)}</span>
+                                                                        {p}
+                                                                    </span>
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <FormMessage className="text-ant-rose" />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
+
+                                    <FormField
+                                        control={form.control}
+                                        name="amount"
+                                        render={({ field }) => (
+                                            <FormItem className="space-y-1.5">
+                                                <FormLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Total ad spend · DH</FormLabel>
+                                                <FormControl>
+                                                    <Input type="number" step="0.01" placeholder="0" {...field} className="h-10 rounded-xl border-ant-line bg-ant-paper text-[13px] font-semibold text-ant-ink tabular-nums" />
+                                                </FormControl>
+                                                <FormMessage className="text-ant-rose" />
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <FormField
+                                            control={form.control}
+                                            name="start_date"
+                                            render={({ field }) => (
+                                                <FormItem className="flex flex-col space-y-1.5">
+                                                    <FormLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Start date</FormLabel>
+                                                    <Popover>
+                                                        <PopoverTrigger asChild>
+                                                            <FormControl>
+                                                                <Button
+                                                                    variant="outline"
+                                                                    className={cn(
+                                                                        'h-10 rounded-xl border-ant-line bg-ant-paper text-[12px] font-medium text-ant-ink text-left justify-start hover:bg-ant-light',
+                                                                        !field.value && 'text-ant-mid'
+                                                                    )}
+                                                                >
+                                                                    {field.value ? format(field.value, 'PP') : <span>Pick a date</span>}
+                                                                    <Calendar className="ml-auto h-3.5 w-3.5 text-ant-mid" />
+                                                                </Button>
+                                                            </FormControl>
+                                                        </PopoverTrigger>
+                                                        <PopoverContent className="ant-calendar w-auto p-0 rounded-xl overflow-hidden border border-ant-line bg-ant-paper shadow-[0_16px_48px_-20px_rgba(20,20,19,0.2)]" align="start">
+                                                            <CalendarComponent mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+                                                        </PopoverContent>
+                                                    </Popover>
+                                                    <FormMessage className="text-ant-rose" />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control}
+                                            name="end_date"
+                                            render={({ field }) => (
+                                                <FormItem className="flex flex-col space-y-1.5">
+                                                    <FormLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">End date</FormLabel>
+                                                    <Popover>
+                                                        <PopoverTrigger asChild>
+                                                            <FormControl>
+                                                                <Button
+                                                                    variant="outline"
+                                                                    className={cn(
+                                                                        'h-10 rounded-xl border-ant-line bg-ant-paper text-[12px] font-medium text-ant-ink text-left justify-start hover:bg-ant-light',
+                                                                        !field.value && 'text-ant-mid'
+                                                                    )}
+                                                                >
+                                                                    {field.value ? format(field.value, 'PP') : <span>Pick a date</span>}
+                                                                    <Calendar className="ml-auto h-3.5 w-3.5 text-ant-mid" />
+                                                                </Button>
+                                                            </FormControl>
+                                                        </PopoverTrigger>
+                                                        <PopoverContent className="ant-calendar w-auto p-0 rounded-xl overflow-hidden border border-ant-line bg-ant-paper shadow-[0_16px_48px_-20px_rgba(20,20,19,0.2)]" align="start">
+                                                            <CalendarComponent mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+                                                        </PopoverContent>
+                                                    </Popover>
+                                                    <FormMessage className="text-ant-rose" />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
+                                </div>
+
+                                <DialogFooter className="px-6 py-4 border-t border-ant-line gap-2">
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        onClick={() => setIsUpsertOpen(false)}
+                                        className="h-10 px-5 rounded-full text-[12px] font-semibold text-ant-mid hover:text-ant-ink hover:bg-ant-light cursor-pointer"
+                                    >
+                                        Cancel
+                                    </Button>
+                                    <Button
+                                        type="submit"
+                                        disabled={upsertMutation.isPending}
+                                        className="bg-ant-ink hover:bg-ant-ink/90 text-white h-10 px-5 rounded-full text-[12px] font-semibold gap-2 cursor-pointer"
+                                    >
+                                        {upsertMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                                        <Sparkles className="w-3.5 h-3.5" />
+                                        {editingHistory ? 'Save changes' : 'Log campaign'}
+                                    </Button>
+                                </DialogFooter>
+                            </form>
+                        </Form>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Details Modal */}
+                <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+                    <DialogContent className="max-w-4xl p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden max-h-[92vh] flex flex-col">
+                        {selectedHistory && (() => {
+                            const m = getCampaignMetrics(selectedHistory);
+                            return (
+                                <div className="flex flex-col flex-1 overflow-hidden">
+                                    <DialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line shrink-0">
+                                        <div className="flex items-start gap-4">
+                                            {selectedHistory.products?.image_url ? (
+                                                <img src={selectedHistory.products.image_url} alt={selectedHistory.products.name} className="w-14 h-14 rounded-xl object-cover border border-ant-line shrink-0" />
+                                            ) : (
+                                                <div className="w-14 h-14 bg-ant-light border border-ant-line rounded-xl flex items-center justify-center shrink-0">
+                                                    <Package className="w-5 h-5 text-ant-mid" />
+                                                </div>
+                                            )}
+                                            <div className="flex-1 min-w-0 space-y-1">
+                                                <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                                    <span className="h-1.5 w-1.5 rounded-full bg-ant-orange" />
+                                                    Campaign report
+                                                </div>
+                                                <DialogTitle className="font-display text-[22px] leading-tight tracking-tight text-ant-ink truncate">
+                                                    {selectedHistory.products?.name}
+                                                </DialogTitle>
+                                                <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                                                    <span className="inline-flex items-center gap-1.5 rounded-full border border-ant-line bg-ant-light px-2 py-0.5 text-ant-ink">
+                                                        <span className="text-ant-mid">{getPlatformIcon(selectedHistory.method)}</span>
+                                                        <span className="font-semibold">{selectedHistory.method}</span>
+                                                    </span>
+                                                    {selectedHistory.products?.code && (
+                                                        <span className="text-ant-mid font-semibold uppercase tracking-[0.18em] text-[10px]">{selectedHistory.products.code}</span>
+                                                    )}
+                                                    <span className="text-ant-mid font-serif italic tabular-nums">{format(new Date(selectedHistory.start_date), 'MMM d')} – {format(new Date(selectedHistory.end_date), 'MMM d, yyyy')} · {m?.days} days</span>
+                                                </div>
+                                            </div>
+                                            <Button onClick={() => setIsDetailsOpen(false)} variant="ghost" size="icon" className="h-9 w-9 rounded-full hover:bg-ant-ink/5 text-ant-mid shrink-0 cursor-pointer">
+                                                <X className="w-4 h-4" />
+                                            </Button>
+                                        </div>
+                                    </DialogHeader>
+
+                                    <div className="ant-scroll p-6 space-y-6 overflow-y-auto flex-1 min-h-0">
+                                        {/* Top 4 KPI tiles */}
+                                        <section className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ant-line rounded-2xl border border-ant-line overflow-hidden">
+                                            {[
+                                                { label: 'Ad spend', value: fmtNum(Number(selectedHistory.amount)), suffix: 'DH', accent: 'rose' as const, icon: Coins },
+                                                { label: 'Orders', value: String(m?.totalOrders ?? 0), suffix: '', accent: 'ink' as const, icon: Megaphone },
+                                                { label: 'Confirmed', value: String(m?.confirmedOrders ?? 0), suffix: '', accent: 'orange' as const, icon: Target },
+                                                { label: 'Delivered', value: String(m?.deliveredOrders ?? 0), suffix: '', accent: 'green' as const, icon: ShieldCheck },
+                                            ].map((tile) => (
+                                                <AdsKpi
+                                                    key={tile.label}
+                                                    label={tile.label}
+                                                    value={tile.value}
+                                                    suffix={tile.suffix}
+                                                    accent={tile.accent}
+                                                    icon={tile.icon}
+                                                />
+                                            ))}
+                                        </section>
+
+                                        {/* Funnel */}
+                                        {m && m.totalOrders > 0 && (
+                                            <section className="rounded-2xl border border-ant-line bg-ant-paper p-5 space-y-3">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                                        <BarChart3 className="w-3 h-3" />
+                                                        Conversion funnel
+                                                    </div>
+                                                    <span className={cn('inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-semibold tabular-nums', getHealthPill(m.fulfillmentRate, { green: 40, amber: 20 }))}>
+                                                        {m.fulfillmentRate.toFixed(1)}% fulfilled
+                                                    </span>
+                                                </div>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                                    <div className="space-y-1.5">
+                                                        <div className="flex justify-between items-baseline">
+                                                            <span className="text-[11px] font-semibold text-ant-mid uppercase tracking-[0.18em]">Orders → Confirmed</span>
+                                                            <span className={cn('font-display text-[16px] font-semibold tabular-nums', getHealthTone(m.confirmRate, { green: 60, amber: 30 }))}>{m.confirmRate.toFixed(1)}%</span>
+                                                        </div>
+                                                        <div className="h-1.5 bg-ant-line rounded-full overflow-hidden">
+                                                            <div className="h-full bg-ant-orange rounded-full transition-all" style={{ width: `${m.confirmRate}%` }} />
+                                                        </div>
+                                                    </div>
+                                                    <div className="space-y-1.5">
+                                                        <div className="flex justify-between items-baseline">
+                                                            <span className="text-[11px] font-semibold text-ant-mid uppercase tracking-[0.18em]">Confirmed → Delivered</span>
+                                                            <span className={cn('font-display text-[16px] font-semibold tabular-nums', getHealthTone(m.deliveryRate, { green: 70, amber: 40 }))}>{m.deliveryRate.toFixed(1)}%</span>
+                                                        </div>
+                                                        <div className="h-1.5 bg-ant-line rounded-full overflow-hidden">
+                                                            <div className="h-full bg-ant-green rounded-full transition-all" style={{ width: `${m.deliveryRate}%` }} />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </section>
+                                        )}
+
+                                        {/* Cost efficiency */}
+                                        <section className="space-y-3">
+                                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                                <Target className="w-3 h-3" />
+                                                Cost efficiency
+                                            </div>
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                                {[
+                                                    { label: 'CPA', sub: 'Cost per order', value: m && m.cpa > 0 ? `${fmtDec(m.cpa)} DH` : '—', color: 'text-ant-ink' },
+                                                    { label: 'CPC', sub: 'Cost per confirm', value: m && m.cpc > 0 ? `${fmtDec(m.cpc)} DH` : '—', color: 'text-ant-orange' },
+                                                    { label: 'CPD', sub: 'Cost per delivery', value: m && m.cpd > 0 ? `${fmtDec(m.cpd)} DH` : '—', color: 'text-ant-green' },
+                                                    { label: 'Daily spend', sub: 'Average per day', value: m ? `${fmtDec(m.dailySpend)} DH` : '—', color: 'text-ant-ink' },
+                                                ].map((s) => (
+                                                    <div key={s.label} className="rounded-xl border border-ant-line bg-ant-paper p-3 space-y-0.5">
+                                                        <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-ant-mid">{s.label}</p>
+                                                        <p className={cn('font-display text-[15px] font-semibold tabular-nums', s.color)}>{s.value}</p>
+                                                        <p className="text-[10px] text-ant-mid font-serif italic">{s.sub}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </section>
+
+                                        {/* Revenue & profit */}
+                                        <section className="space-y-3">
+                                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                                <DollarSign className="w-3 h-3" />
+                                                Revenue &amp; profit
+                                            </div>
+                                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                                <div className="rounded-xl border border-ant-line bg-ant-paper p-3 space-y-0.5">
+                                                    <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-ant-mid">Gross revenue</p>
+                                                    <p className="font-display text-[15px] font-semibold tabular-nums text-ant-ink">{m ? fmtNum(m.grossRevenue) : '0'} <span className="text-[10px] text-ant-mid font-normal">DH</span></p>
+                                                </div>
+                                                <div className="rounded-xl border border-ant-line bg-ant-paper p-3 space-y-0.5">
+                                                    <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-ant-mid">COGS</p>
+                                                    <p className="font-display text-[15px] font-semibold tabular-nums text-ant-mid">{m ? fmtNum(m.cogs) : '0'} <span className="text-[10px] text-ant-mid font-normal">DH</span></p>
+                                                </div>
+                                                <div className="rounded-xl border border-ant-line bg-ant-paper p-3 space-y-0.5">
+                                                    <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-ant-mid">Shipping</p>
+                                                    <p className="font-display text-[15px] font-semibold tabular-nums text-ant-mid">{m ? fmtNum(m.shippingCosts) : '0'} <span className="text-[10px] text-ant-mid font-normal">DH</span></p>
+                                                </div>
+                                                <div className={cn('rounded-xl border p-3 space-y-0.5', m && m.profit >= 0 ? 'border-ant-green/25 bg-ant-green/8' : 'border-ant-rose/25 bg-ant-rose/8')}>
+                                                    <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-ant-mid">Net profit</p>
+                                                    <p className={cn('font-display text-[15px] font-semibold tabular-nums', m && m.profit >= 0 ? 'text-ant-green' : 'text-ant-rose')}>{m ? (m.profit >= 0 ? '+' : '') + fmtNum(m.profit) : '0'} <span className="text-[10px] font-normal">DH</span></p>
+                                                </div>
+                                                <div className={cn('rounded-xl border p-3 space-y-0.5', m && m.roas >= 1 ? 'border-ant-green/25 bg-ant-green/8' : m && m.roas >= 0.5 ? 'border-ant-orange/25 bg-ant-orange/8' : 'border-ant-rose/25 bg-ant-rose/8')}>
+                                                    <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-ant-mid">ROAS</p>
+                                                    <p className={cn('font-display text-[15px] font-semibold tabular-nums', m ? getHealthTone(m.roas, { green: 1, amber: 0.5 }) : 'text-ant-ink')}>{m ? fmtDec(m.roas) : '0'}x</p>
+                                                    <p className="text-[10px] text-ant-mid font-serif italic">Gross return</p>
+                                                </div>
+                                                <div className="rounded-xl border border-ant-line bg-ant-paper p-3 space-y-0.5">
+                                                    <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-ant-mid">Margin</p>
+                                                    <p className={cn('font-display text-[15px] font-semibold tabular-nums', m && m.profitMargin > 0 ? 'text-ant-green' : 'text-ant-rose')}>{m ? fmtDec(m.profitMargin) : '0'}%</p>
+                                                </div>
+                                            </div>
+                                        </section>
+
+                                        {/* Quality & waste */}
+                                        <section className="space-y-3">
+                                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-mid">
+                                                <ShieldCheck className="w-3 h-3" />
+                                                Quality &amp; waste
+                                            </div>
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                                <div className="rounded-xl border border-ant-line bg-ant-paper p-3 space-y-0.5">
+                                                    <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-ant-rose">Cancelled</p>
+                                                    <p className="font-display text-[15px] font-semibold tabular-nums text-ant-rose">{m?.cancelledOrders ?? 0}</p>
+                                                    <p className="text-[10px] text-ant-mid tabular-nums font-serif italic">{m ? m.cancelRate.toFixed(1) : 0}% of orders</p>
+                                                </div>
+                                                <div className="rounded-xl border border-ant-line bg-ant-paper p-3 space-y-0.5">
+                                                    <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-ant-mid">Fake</p>
+                                                    <p className="font-display text-[15px] font-semibold tabular-nums text-ant-mid">{m?.fakeOrders ?? 0}</p>
+                                                    <p className="text-[10px] text-ant-mid tabular-nums font-serif italic">{m ? m.fakeRate.toFixed(1) : 0}% of orders</p>
+                                                </div>
+                                                <div className="rounded-xl border border-ant-line bg-ant-paper p-3 space-y-0.5">
+                                                    <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-ant-orange">Wasted spend</p>
+                                                    <p className="font-display text-[15px] font-semibold tabular-nums text-ant-orange">{m ? fmtNum(m.wastedSpend) : '0'} <span className="text-[10px] text-ant-mid font-normal">DH</span></p>
+                                                    <p className="text-[10px] text-ant-mid font-serif italic">Ads that didn't convert</p>
+                                                </div>
+                                                <div className={cn('rounded-xl border p-3 space-y-0.5', m && m.qualityScore >= 40 ? 'border-ant-green/25 bg-ant-green/8' : m && m.qualityScore >= 20 ? 'border-ant-orange/25 bg-ant-orange/8' : 'border-ant-rose/25 bg-ant-rose/8')}>
+                                                    <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-ant-mid">Quality score</p>
+                                                    <p className={cn('font-display text-[15px] font-semibold tabular-nums', m ? getHealthTone(m.qualityScore, { green: 40, amber: 20 }) : 'text-ant-ink')}>{m ? m.qualityScore.toFixed(0) : 0}%</p>
+                                                    <p className="text-[10px] text-ant-mid font-serif italic">Orders → Delivered</p>
+                                                </div>
+                                            </div>
+                                        </section>
+                                    </div>
+
+                                    <DialogFooter className="px-6 py-4 border-t border-ant-line flex-row items-center justify-between">
+                                        <div className="inline-flex items-center gap-1.5 text-ant-mid">
+                                            <Layout className="w-3.5 h-3.5" />
+                                            <span className="text-[11px] font-medium tabular-nums">SKU · {selectedHistory.products?.code}</span>
+                                        </div>
+                                        <Button onClick={() => setIsDetailsOpen(false)} variant="outline" className="h-10 px-5 rounded-full text-[12px] font-semibold border-ant-line bg-ant-paper text-ant-ink hover:bg-ant-light cursor-pointer">
+                                            Close
+                                        </Button>
+                                    </DialogFooter>
+                                </div>
+                            );
+                        })()}
+                    </DialogContent>
+                </Dialog>
+
+                {/* Delete confirmation */}
+                <AlertDialog open={!!historyToDelete} onOpenChange={() => setHistoryToDelete(null)}>
+                    <AlertDialogContent className="max-w-md p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden">
+                        <AlertDialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line space-y-1.5">
+                            <div className="inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-ant-rose">
+                                <span className="h-1.5 w-1.5 rounded-full bg-ant-rose" />
+                                Destructive action
+                            </div>
+                            <AlertDialogTitle className="font-display text-[20px] leading-tight tracking-tight text-ant-ink">Delete this campaign?</AlertDialogTitle>
+                            <AlertDialogDescription className="font-serif italic text-[13px] text-ant-mid">
+                                The record and its attribution will be permanently removed. Orders stay untouched.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter className="px-6 py-4 gap-2">
+                            <AlertDialogCancel className="h-10 px-5 rounded-full text-[12px] font-semibold text-ant-mid hover:text-ant-ink hover:bg-ant-light cursor-pointer border-0">Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                                onClick={() => deleteMutation.mutate(historyToDelete)}
+                                className="h-10 px-5 rounded-full text-[12px] font-semibold bg-ant-rose hover:bg-ant-rose/90 text-white gap-2 cursor-pointer"
+                            >
+                                {deleteMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                                <Trash2 className="w-3.5 h-3.5" />
+                                Confirm delete
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            </div>
         </div>
     );
 };
