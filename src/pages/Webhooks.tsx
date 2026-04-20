@@ -206,46 +206,87 @@ const Webhooks = () => {
         return result;
     };
 
+    // Derived stats for the editorial KPI strip
+    const activeHooks = (webhooks || []).filter((h: any) => h.is_active).length;
+    const totalHooks = webhooks?.length || 0;
+    const processedLogs = (logs || []).filter((l: any) => l.processed).length;
+    const failedLogs = (logs || []).filter((l: any) => !l.processed).length;
+
     return (
-        <div className="mx-auto max-w-[1440px] px-3 md:px-5 py-3.5 space-y-3">
-            {/* Header — compact Analytics style */}
-            <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div>
-                    <h1 className="text-[15px] font-semibold text-brand-navy tracking-tight leading-none">
-                        Webhook Gateway
+        <div className="ant-surface mx-auto max-w-[1440px] px-2 md:px-3 py-2 space-y-4">
+            {/* Editorial header */}
+            <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 pt-1">
+                <div className="space-y-1.5">
+                    <span className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                        <span className="w-1 h-1 rounded-full bg-ant-orange" />
+                        Integrations · Gateways
+                    </span>
+                    <h1 className="font-display text-[30px] md:text-[34px] font-semibold text-ant-ink leading-[1.05] tracking-[-0.02em]">
+                        Webhooks
                     </h1>
-                    <p className="text-[9px] text-gray-400 uppercase tracking-[0.18em] mt-1">
-                        Real-time ingestion from delivery partners
+                    <p className="font-serif-display text-[13px] text-ant-muted italic">
+                        Real-time ingestion from delivery partners — each endpoint signs with a shared secret and lands in the event log.
                     </p>
                 </div>
                 <Button
-                    size="sm"
                     onClick={() => {
                         setEditingItem(null);
                         setIsHookModalOpen(true);
                     }}
-                    className="bg-brand-navy hover:bg-brand-navy/90 text-white h-8 px-3 rounded-md text-[11px] font-semibold gap-1.5 shrink-0"
+                    className="h-10 px-5 rounded-full bg-ant-ink hover:bg-ant-ink/90 text-ant-light text-[12px] font-medium shadow-none gap-2 shrink-0"
                 >
-                    <Plus className="w-3.5 h-3.5" /> New gateway
+                    <Plus className="w-3.5 h-3.5" />
+                    New gateway
                 </Button>
             </header>
 
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-3">
-                <TabsList className="h-8">
-                    <TabsTrigger value="endpoints" className="text-[11px] h-6 px-3 gap-1.5">
-                        <Zap className="w-3 h-3" /> Provider gateways
-                    </TabsTrigger>
-                    <TabsTrigger value="logs" className="text-[11px] h-6 px-3 gap-1.5">
-                        <History className="w-3 h-3" /> Live event log
-                    </TabsTrigger>
-                </TabsList>
+            {/* KPI strip */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-ant-line rounded-xl overflow-hidden border border-ant-line">
+                <WebhookKpi label="Total gateways" value={totalHooks} accent="#141413" icon={Zap} />
+                <WebhookKpi label="Active" value={activeHooks} accent="#788c5d" icon={Activity} />
+                <WebhookKpi label="Processed · last 50" value={processedLogs} accent="#6a9bcc" icon={CheckCircle2} />
+                <WebhookKpi label="Failed · last 50" value={failedLogs} accent="#c96356" icon={AlertCircle} />
+            </div>
+
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <TabsList className="h-9 p-0.5 rounded-full bg-ant-paper border border-ant-line gap-0">
+                        <TabsTrigger
+                            value="endpoints"
+                            className="rounded-full px-4 h-8 text-[11.5px] font-medium data-[state=active]:bg-ant-ink data-[state=active]:text-ant-light data-[state=inactive]:text-ant-muted gap-1.5"
+                        >
+                            <Zap className="w-3 h-3" /> Gateways
+                            <span className="text-[10px] tabular-nums opacity-70">{totalHooks}</span>
+                        </TabsTrigger>
+                        <TabsTrigger
+                            value="logs"
+                            className="rounded-full px-4 h-8 text-[11.5px] font-medium data-[state=active]:bg-ant-ink data-[state=active]:text-ant-light data-[state=inactive]:text-ant-muted gap-1.5"
+                        >
+                            <History className="w-3 h-3" /> Event log
+                            <span className="text-[10px] tabular-nums opacity-70">{logs?.length || 0}</span>
+                        </TabsTrigger>
+                    </TabsList>
+
+                    <div className="inline-flex items-center gap-2 h-9 px-3.5 rounded-full bg-ant-paper border border-ant-line">
+                        <span className="relative inline-flex">
+                            <span className="w-1.5 h-1.5 rounded-full bg-ant-green" />
+                            <span className="absolute inset-0 w-1.5 h-1.5 rounded-full bg-ant-green animate-ping" />
+                        </span>
+                        <span className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">Live</span>
+                        <span className="text-[11px] font-medium text-ant-ink">Polling every 5s</span>
+                    </div>
+                </div>
 
                 <TabsContent value="endpoints" className="m-0">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
-                        {hooksLoading ? (
-                            [1, 2, 3].map(i => <div key={i} className="h-36 rounded-xl bg-white border border-gray-100 animate-pulse" />)
-                        ) : webhooks?.length ? (
-                            webhooks.map(hook => (
+                    {hooksLoading ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                            {[1, 2, 3].map((i) => (
+                                <div key={i} className="h-40 rounded-2xl bg-ant-line-soft animate-pulse" />
+                            ))}
+                        </div>
+                    ) : webhooks?.length ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                            {webhooks.map((hook) => (
                                 <WebhookCard
                                     key={hook.id}
                                     hook={hook}
@@ -253,60 +294,88 @@ const Webhooks = () => {
                                     onEdit={() => { setEditingItem(hook); setIsHookModalOpen(true); }}
                                     onDelete={() => { if (confirm('Terminate this gateway and stop receiving updates?')) deleteMutation.mutate({ table: WEBHOOKS_TABLE, id: hook.id }); }}
                                 />
-                            ))
-                        ) : (
-                            <EmptyState icon={<Webhook className="w-5 h-5" />} title="No gateways found" description="Connect your first delivery partner to start receiving automated updates." />
-                        )}
-                    </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <EmptyState
+                            onCreate={() => { setEditingItem(null); setIsHookModalOpen(true); }}
+                        />
+                    )}
                 </TabsContent>
 
                 <TabsContent value="logs" className="m-0">
-                    <div className="bg-white rounded-xl overflow-hidden border border-gray-100">
+                    <div className="bg-ant-paper rounded-xl overflow-hidden border border-ant-line">
                         <table className="w-full text-left border-collapse">
                             <thead>
-                                <tr className="bg-gray-50/60">
-                                    <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400">Timestamp</th>
-                                    <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400">Provider</th>
-                                    <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400">Object / tracking</th>
-                                    <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400">Result</th>
-                                    <th className="px-3 py-2 text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400 text-right">Raw data</th>
+                                <tr className="bg-ant-line-soft">
+                                    <th className="px-4 py-3 text-[9.5px] font-medium uppercase tracking-[0.22em] text-ant-mid">Timestamp</th>
+                                    <th className="px-4 py-3 text-[9.5px] font-medium uppercase tracking-[0.22em] text-ant-mid">Provider</th>
+                                    <th className="px-4 py-3 text-[9.5px] font-medium uppercase tracking-[0.22em] text-ant-mid">Tracking</th>
+                                    <th className="px-4 py-3 text-[9.5px] font-medium uppercase tracking-[0.22em] text-ant-mid">Result</th>
+                                    <th className="px-4 py-3 text-[9.5px] font-medium uppercase tracking-[0.22em] text-ant-mid text-right">Payload</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {logsLoading ? (
-                                    <tr><td colSpan={5} className="p-6 text-center text-[11px] text-gray-400">Accessing logs…</td></tr>
+                                    <tr>
+                                        <td colSpan={5} className="px-4 py-6 text-center font-serif-display text-[12px] text-ant-muted italic">
+                                            Loading live events…
+                                        </td>
+                                    </tr>
                                 ) : logs?.length ? (
-                                    logs.map(log => (
-                                        <tr key={log.id} className="border-t border-gray-50 hover:bg-gray-50/40 transition-colors">
-                                            <td className="px-3 py-2 text-[10px] text-gray-500 tabular-nums">{format(new Date(log.created_at), 'MMM dd, HH:mm:ss')}</td>
-                                            <td className="px-3 py-2 text-[11px] font-semibold text-brand-navy">{log.providers?.name || 'Unknown'}</td>
-                                            <td className="px-3 py-2 font-mono text-[10px] text-brand-navy/70">{log.tracking_code || '—'}</td>
-                                            <td className="px-3 py-2">
-                                                <Badge
-                                                    variant="outline"
+                                    logs.map((log) => (
+                                        <tr key={log.id} className="border-t border-ant-line hover:bg-ant-line-soft transition-colors">
+                                            <td className="px-4 py-3 text-[11px] text-ant-muted tabular-nums whitespace-nowrap">
+                                                {format(new Date(log.created_at), 'MMM dd · HH:mm:ss')}
+                                            </td>
+                                            <td className="px-4 py-3 text-[12px] font-medium text-ant-ink">
+                                                {log.providers?.name || 'Unknown'}
+                                            </td>
+                                            <td className="px-4 py-3 font-mono text-[11px] text-ant-ink/80 truncate max-w-[200px]">
+                                                {log.tracking_code || '—'}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <span
                                                     className={cn(
-                                                        "text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0 h-5 border",
-                                                        log.processed ? "bg-emerald-50 text-emerald-700 border-emerald-100" : "bg-red-50 text-red-700 border-red-100"
+                                                        'inline-flex items-center gap-1 text-[9.5px] font-medium uppercase tracking-[0.22em] px-2 py-0.5 rounded-full border',
+                                                        log.processed
+                                                            ? 'bg-ant-green/10 text-ant-green border-ant-green/25'
+                                                            : 'bg-ant-rose/10 text-ant-rose border-ant-rose/25',
                                                     )}
                                                 >
+                                                    <span className={cn('w-1 h-1 rounded-full', log.processed ? 'bg-ant-green' : 'bg-ant-rose')} />
                                                     {log.processed ? 'Processed' : 'Failed'}
-                                                </Badge>
-                                                {log.error_message && <p className="text-[9px] text-red-500 mt-0.5">{log.error_message}</p>}
+                                                </span>
+                                                {log.error_message && (
+                                                    <p className="font-serif-display text-[11px] text-ant-rose italic mt-1">
+                                                        {log.error_message}
+                                                    </p>
+                                                )}
                                             </td>
-                                            <td className="px-3 py-2 text-right">
+                                            <td className="px-4 py-3 text-right">
                                                 <Button
                                                     size="sm"
-                                                    onClick={() => { console.log(log.payload); toast({ title: "Payload logged", description: "Full JSON is in the browser console." }); }}
-                                                    variant="ghost"
-                                                    className="h-6 px-2 rounded-md text-[10px] font-semibold text-brand-navy/70 hover:text-brand-navy hover:bg-gray-100"
+                                                    onClick={() => { console.log(log.payload); toast({ title: 'Payload logged', description: 'Full JSON is in the browser console.' }); }}
+                                                    variant="outline"
+                                                    className="h-8 px-3 rounded-full text-[10.5px] font-medium border-ant-line bg-ant-paper text-ant-ink hover:bg-ant-line-soft"
                                                 >
-                                                    Debug JSON
+                                                    View JSON
                                                 </Button>
                                             </td>
                                         </tr>
                                     ))
                                 ) : (
-                                    <tr><td colSpan={5} className="p-10 text-center text-[11px] text-gray-400">Waiting for incoming triggers…</td></tr>
+                                    <tr>
+                                        <td colSpan={5} className="px-4 py-12 text-center">
+                                            <div className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-ant-line-soft border border-ant-line mb-2">
+                                                <Activity className="w-4 h-4 text-ant-mid" strokeWidth={1.75} />
+                                            </div>
+                                            <p className="font-display text-[14px] font-semibold text-ant-ink tracking-tight">Waiting for incoming events</p>
+                                            <p className="font-serif-display text-[11.5px] text-ant-muted italic mt-1">
+                                                Once a partner pings a gateway, it will appear here in real time.
+                                            </p>
+                                        </td>
+                                    </tr>
                                 )}
                             </tbody>
                         </table>
@@ -328,6 +397,39 @@ const Webhooks = () => {
     );
 };
 
+// Editorial KPI tile — matches the summary strip used elsewhere.
+const WebhookKpi = ({
+    label,
+    value,
+    accent,
+    icon: Icon,
+}: {
+    label: string;
+    value: number;
+    accent: string;
+    icon: typeof Zap;
+}) => (
+    <div className="bg-ant-paper px-4 py-3">
+        <div className="flex items-center justify-between gap-1.5">
+            <div className="flex items-center gap-1.5 min-w-0">
+                <span className="w-1 h-1 rounded-full shrink-0" style={{ backgroundColor: accent }} aria-hidden />
+                <span className="text-[9.5px] font-medium uppercase tracking-[0.22em] text-ant-mid truncate">
+                    {label}
+                </span>
+            </div>
+            <span
+                className="flex items-center justify-center w-5 h-5 rounded-md shrink-0"
+                style={{ backgroundColor: `${accent}14`, color: accent }}
+            >
+                <Icon className="w-3 h-3" strokeWidth={1.75} />
+            </span>
+        </div>
+        <div className="font-display text-[22px] font-semibold text-ant-ink tabular-nums tracking-[-0.02em] leading-none mt-2">
+            {value.toLocaleString('fr-FR')}
+        </div>
+    </div>
+);
+
 // --- Specialized Components ---
 
 const WebhookCard = ({ hook, projectUrl, onEdit, onDelete }: any) => {
@@ -341,81 +443,102 @@ const WebhookCard = ({ hook, projectUrl, onEdit, onDelete }: any) => {
     };
 
     return (
-        <Card className="relative overflow-hidden border border-gray-100 shadow-none bg-white rounded-xl flex flex-col h-full">
-            <div className={cn(
-                "absolute top-0 left-0 w-full h-[3px]",
-                hook.is_active ? "bg-emerald-500" : "bg-gray-200"
-            )} />
+        <Card className="relative overflow-hidden rounded-2xl border border-ant-line bg-ant-paper shadow-none hover:border-ant-ink/20 transition-all duration-300 flex flex-col h-full">
+            <div className={cn('h-[3px]', hook.is_active ? 'bg-ant-green' : 'bg-ant-line')} />
 
-            <CardHeader className="flex flex-row items-start justify-between p-3 pb-2 space-y-0">
-                <div className="flex items-center gap-2 min-w-0">
-                    <div className="h-8 w-8 rounded-md bg-gray-50 border border-gray-100 p-1 flex items-center justify-center overflow-hidden shrink-0">
+            <CardHeader className="flex flex-row items-start justify-between p-4 pb-3 space-y-0">
+                <div className="flex items-center gap-3 min-w-0">
+                    <div className="h-10 w-10 rounded-lg bg-ant-light border border-ant-line p-1.5 flex items-center justify-center overflow-hidden shrink-0">
                         {hook.providers?.logo_url ? (
                             <img src={hook.providers.logo_url} alt="" className="max-w-full max-h-full object-contain" />
                         ) : (
-                            <Building2 className="w-4 h-4 text-brand-navy/20" />
+                            <Building2 className="w-4 h-4 text-ant-mid" strokeWidth={1.75} />
                         )}
                     </div>
                     <div className="min-w-0">
-                        <CardTitle className="text-[12px] font-semibold text-brand-navy tracking-tight leading-tight truncate">{hook.providers?.name}</CardTitle>
-                        <div className="flex items-center gap-1 mt-0.5">
-                            <div className={cn("w-1.5 h-1.5 rounded-full", hook.is_active ? "bg-emerald-500 animate-pulse" : "bg-gray-300")} />
-                            <span className={cn("text-[9px] font-bold uppercase tracking-[0.14em]", hook.is_active ? "text-emerald-600" : "text-gray-400")}>
-                                {hook.is_active ? 'Live' : 'Ignored'}
-                            </span>
-                        </div>
+                        <CardTitle className="font-display text-[14px] font-semibold text-ant-ink tracking-[-0.01em] leading-tight truncate">
+                            {hook.providers?.name || 'Unknown provider'}
+                        </CardTitle>
+                        <span
+                            className={cn(
+                                'inline-flex items-center gap-1 text-[9.5px] font-medium uppercase tracking-[0.22em] px-1.5 py-0.5 rounded-full border mt-1',
+                                hook.is_active
+                                    ? 'bg-ant-green/10 text-ant-green border-ant-green/25'
+                                    : 'bg-ant-line-soft text-ant-muted border-ant-line',
+                            )}
+                        >
+                            <span className={cn('w-1 h-1 rounded-full', hook.is_active ? 'bg-ant-green' : 'bg-ant-mid')} />
+                            {hook.is_active ? 'Live' : 'Paused'}
+                        </span>
                     </div>
                 </div>
 
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="rounded-md h-6 w-6 hover:bg-gray-50 shadow-none -mr-1 -mt-1">
-                            <MoreVertical className="w-3.5 h-3.5 text-gray-400" />
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="rounded-full h-8 w-8 text-ant-mid hover:text-ant-ink hover:bg-ant-line-soft shrink-0"
+                        >
+                            <MoreVertical className="w-4 h-4" />
                         </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="rounded-md min-w-[160px]">
-                        <DropdownMenuItem onClick={onEdit} className="text-[11px] font-medium text-brand-navy">
-                            <Edit2 className="w-3 h-3 mr-2 text-gray-400" /> Configure
+                    <DropdownMenuContent
+                        align="end"
+                        className="rounded-xl border border-ant-line bg-ant-paper shadow-[0_16px_48px_-20px_rgba(20,20,19,0.2)] p-1 min-w-[180px]"
+                    >
+                        <DropdownMenuItem
+                            onClick={onEdit}
+                            className="rounded-lg px-3 py-2 cursor-pointer text-[12px] font-medium text-ant-ink data-[highlighted]:bg-ant-line-soft"
+                        >
+                            <Edit2 className="w-3.5 h-3.5 mr-2 text-ant-mid" /> Configure
                         </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={onDelete} className="text-[11px] font-medium text-red-600 hover:bg-red-50 focus:bg-red-50">
-                            <Trash2 className="w-3 h-3 mr-2" /> Delete
+                        <DropdownMenuSeparator className="bg-ant-line my-1" />
+                        <DropdownMenuItem
+                            onClick={onDelete}
+                            className="rounded-lg px-3 py-2 cursor-pointer text-[12px] font-medium text-ant-rose data-[highlighted]:bg-ant-rose/10 focus:bg-ant-rose/10"
+                        >
+                            <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
             </CardHeader>
 
-            <CardContent className="px-3 pb-3 space-y-2">
-                <div className="flex flex-col gap-1">
-                    <label className="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400">Callback URL</label>
-                    <div className="px-2 py-1.5 rounded-md bg-gray-50 border border-gray-100 flex items-center justify-between gap-1.5">
-                        <span className="text-[10px] font-mono text-brand-navy/70 truncate select-all">
-                            {fullUrl}
-                        </span>
+            <CardContent className="px-4 pb-4 space-y-2.5 flex-grow">
+                <div>
+                    <div className="flex items-center gap-1 mb-1">
+                        <LinkIcon className="w-2.5 h-2.5 text-ant-mid" strokeWidth={2} />
+                        <span className="text-[9.5px] font-medium uppercase tracking-[0.22em] text-ant-mid">Callback URL</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-ant-light border border-ant-line">
+                        <span className="font-mono text-[10.5px] text-ant-ink/80 truncate select-all flex-1">{fullUrl}</span>
                         <Button
                             onClick={handleCopy}
                             variant="ghost"
                             size="icon"
-                            className="shrink-0 h-6 w-6 rounded-md hover:bg-white"
+                            className="shrink-0 h-6 w-6 rounded-md text-ant-mid hover:text-ant-ink hover:bg-ant-paper"
+                            title={copied ? 'Copied' : 'Copy URL'}
                         >
-                            {copied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3 text-gray-400" />}
+                            {copied ? <Check className="w-3 h-3 text-ant-green" /> : <Copy className="w-3 h-3" />}
                         </Button>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-1.5">
-                    <div className="px-2 py-1.5 rounded-md bg-gray-50 border border-gray-100">
-                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.14em] mb-0.5 flex items-center gap-1">
-                            <Key className="w-2.5 h-2.5" /> Secret
-                        </p>
-                        <p className="text-[11px] font-semibold text-brand-navy/50 tracking-widest">••••••••</p>
+                <div className="grid grid-cols-2 gap-px bg-ant-line rounded-xl overflow-hidden border border-ant-line">
+                    <div className="bg-ant-paper px-3 py-2">
+                        <div className="flex items-center gap-1">
+                            <Key className="w-2.5 h-2.5 text-ant-mid" strokeWidth={2} />
+                            <span className="text-[9.5px] font-medium text-ant-mid uppercase tracking-[0.22em]">Secret</span>
+                        </div>
+                        <p className="font-mono text-[12px] font-medium text-ant-muted tracking-[0.3em] mt-0.5">••••••••</p>
                     </div>
-                    <div className="px-2 py-1.5 rounded-md bg-gray-50 border border-gray-100">
-                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.14em] mb-0.5 flex items-center gap-1">
-                            <Clock className="w-2.5 h-2.5" /> Last beat
-                        </p>
-                        <p className="text-[11px] font-semibold text-brand-navy tabular-nums truncate">
-                            {hook.last_received_at ? format(new Date(hook.last_received_at), 'MMM dd, HH:mm:ss') : '—'}
+                    <div className="bg-ant-paper px-3 py-2">
+                        <div className="flex items-center gap-1">
+                            <Clock className="w-2.5 h-2.5 text-ant-mid" strokeWidth={2} />
+                            <span className="text-[9.5px] font-medium text-ant-mid uppercase tracking-[0.22em]">Last beat</span>
+                        </div>
+                        <p className="font-display text-[12px] font-semibold text-ant-ink tabular-nums truncate mt-0.5 tracking-[-0.01em]">
+                            {hook.last_received_at ? format(new Date(hook.last_received_at), 'MMM dd · HH:mm:ss') : '—'}
                         </p>
                     </div>
                 </div>
@@ -450,27 +573,41 @@ const WebhookModal = ({ isOpen, onClose, onSubmit, initialData, providers, loadi
 
     return (
         <Dialog open={isOpen} onOpenChange={(v) => !v && onClose()}>
-            <DialogContent className="max-w-xl p-0 border-none bg-brand-white rounded-[40px] shadow-2xl overflow-hidden">
+            <DialogContent className="ant-surface max-w-xl p-0 border border-ant-line bg-ant-paper rounded-2xl shadow-[0_24px_80px_-24px_rgba(20,20,19,0.28)] overflow-hidden">
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)}>
-                        <DialogHeader className="p-10 pb-6 bg-brand-navy/[0.02]">
-                            <DialogTitle className="text-3xl font-black text-brand-navy tracking-tight">Endpoint Connectivity</DialogTitle>
-                            <DialogDescription className="text-base font-semibold text-slate-500">Enable real-time data sync with your delivery partners.</DialogDescription>
+                        <DialogHeader className="px-6 pt-6 pb-4 border-b border-ant-line">
+                            <div className="flex items-center gap-2 mb-1">
+                                <span className="w-1 h-1 rounded-full bg-ant-orange" />
+                                <span className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                                    {initialData ? 'Edit gateway' : 'New gateway'}
+                                </span>
+                            </div>
+                            <DialogTitle className="font-display text-[22px] font-semibold text-ant-ink tracking-[-0.02em]">
+                                Connect a partner
+                            </DialogTitle>
+                            <DialogDescription className="font-serif-display text-[13px] text-ant-muted italic mt-0.5">
+                                The URL below is what your provider hits on every status change. Each gateway carries its own shared secret.
+                            </DialogDescription>
                         </DialogHeader>
 
-                        <div className="p-10 pt-6 space-y-6">
+                        <div className="px-6 py-5 space-y-5">
                             <FormField control={form.control} name="provider_id" render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel className="text-[10px] font-black uppercase tracking-widest text-brand-navy/30">Target Partner</FormLabel>
+                                    <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                                        Target partner
+                                    </FormLabel>
                                     <Select onValueChange={field.onChange} value={field.value}>
                                         <FormControl>
-                                            <SelectTrigger className="h-14 rounded-2xl border-none bg-brand-navy/5 font-black shadow-inner px-6 text-brand-navy text-base">
-                                                <SelectValue placeholder="Identify provider..." />
+                                            <SelectTrigger className="h-11 rounded-lg border border-ant-line bg-ant-paper text-[13px] font-medium text-ant-ink focus:ring-ant-orange focus:ring-offset-0 px-3.5">
+                                                <SelectValue placeholder="Select a provider…" />
                                             </SelectTrigger>
                                         </FormControl>
-                                        <SelectContent className="rounded-2xl border-none shadow-2xl p-2">
+                                        <SelectContent className="rounded-xl border border-ant-line bg-ant-paper shadow-[0_16px_48px_-20px_rgba(20,20,19,0.2)] p-1">
                                             {providers.map((p: any) => (
-                                                <SelectItem key={p.id} value={p.id} className="font-bold p-3 rounded-xl">{p.name}</SelectItem>
+                                                <SelectItem key={p.id} value={p.id} className="text-[12.5px] font-medium px-3 py-2 rounded-lg">
+                                                    {p.name}
+                                                </SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
@@ -480,56 +617,103 @@ const WebhookModal = ({ isOpen, onClose, onSubmit, initialData, providers, loadi
 
                             <FormField control={form.control} name="webhook_secret" render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel className="text-[10px] font-black uppercase tracking-widest text-brand-navy/30">Verification HMAC Secret</FormLabel>
+                                    <FormLabel className="text-[10px] font-medium uppercase tracking-[0.22em] text-ant-mid">
+                                        HMAC verification secret
+                                    </FormLabel>
                                     <FormControl>
-                                        <div className="relative group">
-                                            <Shield className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-navy/20" />
-                                            <Input placeholder="Generated uniquely..." {...field} className="h-14 pl-14 rounded-2xl border-none bg-brand-navy/5 text-brand-navy font-black shadow-inner" />
-                                            <Button type="button" onClick={() => field.onChange(onGenerateSecret())} variant="ghost" className="absolute right-3 top-1/2 -translate-y-1/2 rounded-xl text-[10px] font-black text-brand-navy hover:bg-white shadow-none uppercase">Regenerate</Button>
+                                        <div className="relative">
+                                            <Shield className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ant-orange" strokeWidth={1.75} />
+                                            <Input
+                                                placeholder="Auto-generated…"
+                                                {...field}
+                                                className="h-11 pl-10 pr-28 rounded-lg border border-ant-line bg-ant-paper text-[13px] font-mono text-ant-ink placeholder:text-ant-mid focus-visible:ring-ant-orange focus-visible:ring-offset-0 focus-visible:border-ant-ink/25"
+                                            />
+                                            <Button
+                                                type="button"
+                                                onClick={() => field.onChange(onGenerateSecret())}
+                                                variant="outline"
+                                                className="absolute right-1.5 top-1/2 -translate-y-1/2 h-8 px-3 rounded-full text-[10.5px] font-medium border-ant-line bg-ant-paper text-ant-ink hover:bg-ant-line-soft"
+                                            >
+                                                Regenerate
+                                            </Button>
                                         </div>
                                     </FormControl>
+                                    <FormDescription className="font-serif-display text-[11.5px] text-ant-muted italic">
+                                        Store this secret on your partner's side. They sign every payload with it.
+                                    </FormDescription>
                                     <FormMessage />
                                 </FormItem>
                             )} />
 
                             <FormField control={form.control} name="is_active" render={({ field }) => (
-                                <FormItem className="flex items-center justify-between p-5 bg-brand-navy/5 rounded-3xl border border-brand-navy/[0.03] shadow-inner">
-                                    <div className="space-y-0.5">
-                                        <FormLabel className="text-sm font-black text-brand-navy leading-none">Global Connectivity</FormLabel>
-                                        <p className="text-[10px] font-bold text-slate-400">Disable to block all incoming events from this provider</p>
+                                <FormItem className="flex items-center justify-between gap-4 p-4 bg-ant-light border border-ant-line rounded-xl">
+                                    <div className="space-y-0.5 min-w-0">
+                                        <FormLabel className="font-display text-[13px] font-semibold text-ant-ink tracking-tight leading-none">
+                                            Gateway status
+                                        </FormLabel>
+                                        <p className="font-serif-display text-[11.5px] text-ant-muted italic leading-snug">
+                                            Paused gateways reject incoming events. Flip back to Live to resume.
+                                        </p>
                                     </div>
                                     <Button
                                         type="button"
-                                        className={cn(
-                                            "rounded-xl h-10 px-5 font-black transition-all shadow-lg",
-                                            field.value ? "bg-emerald-500 text-white shadow-emerald-500/20" : "bg-slate-300 text-white shadow-slate-300/20"
-                                        )}
+                                        variant="outline"
                                         onClick={() => field.onChange(!field.value)}
+                                        className={cn(
+                                            'h-9 px-3.5 rounded-full text-[11.5px] font-medium gap-1.5 border transition-colors shrink-0',
+                                            field.value
+                                                ? 'bg-ant-green/10 text-ant-green border-ant-green/25 hover:bg-ant-green/15 hover:text-ant-green'
+                                                : 'bg-ant-line-soft text-ant-muted border-ant-line hover:bg-ant-line',
+                                        )}
                                     >
-                                        {field.value ? 'ONLINE' : 'OFFLINE'}
+                                        <span className={cn('w-1.5 h-1.5 rounded-full', field.value ? 'bg-ant-green' : 'bg-ant-mid')} />
+                                        {field.value ? 'Live' : 'Paused'}
                                     </Button>
                                 </FormItem>
                             )} />
                         </div>
 
-                        <DialogFooter className="p-10 pt-0">
-                            <Button type="submit" disabled={loading} className="w-full bg-brand-navy hover:bg-brand-navy/90 text-white rounded-[24px] h-16 text-lg font-black shadow-2xl transition-all active:scale-[0.98]">
-                                {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Zap className="w-5 h-5 mr-3" />}
-                                {initialData ? 'Update Gateway' : 'Create Gateway'}
+                        <DialogFooter className="px-6 py-4 border-t border-ant-line bg-ant-paper gap-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={onClose}
+                                className="h-10 px-4 rounded-full border-ant-line bg-ant-paper text-ant-ink hover:bg-ant-line-soft font-medium text-[12px]"
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                type="submit"
+                                disabled={loading}
+                                className="h-10 px-5 rounded-full bg-ant-ink hover:bg-ant-ink/90 text-ant-light font-medium text-[12px] gap-1.5 disabled:opacity-50"
+                            >
+                                {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 text-ant-orange" />}
+                                {initialData ? 'Update gateway' : 'Create gateway'}
                             </Button>
                         </DialogFooter>
                     </form>
                 </Form>
             </DialogContent>
-        </Dialog >
+        </Dialog>
     );
 };
 
-const EmptyState = ({ icon, title, description }: any) => (
-    <div className="col-span-full py-8 bg-white rounded-xl border border-dashed border-gray-200 flex flex-col items-center justify-center text-center">
-        <div className="w-9 h-9 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 mb-2.5">{icon}</div>
-        <h3 className="text-[14px] font-semibold text-brand-navy">{title}</h3>
-        <p className="text-[11px] text-gray-500 mt-0.5 max-w-xs">{description}</p>
+const EmptyState = ({ onCreate }: { onCreate: () => void }) => (
+    <div className="col-span-full rounded-2xl border border-ant-line bg-ant-paper px-6 py-14 text-center">
+        <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-ant-orange/10 ring-1 ring-ant-orange/20 mb-4">
+            <Webhook className="w-5 h-5 text-ant-orange" strokeWidth={1.5} />
+        </div>
+        <h3 className="font-display text-[18px] font-semibold text-ant-ink tracking-tight">No gateways yet</h3>
+        <p className="font-serif-display text-[12.5px] text-ant-muted italic mt-1 mb-5 max-w-md mx-auto">
+            Give your delivery partners a signed endpoint they can push to — status changes will land in the event log in real time.
+        </p>
+        <Button
+            onClick={onCreate}
+            className="h-10 px-5 rounded-full bg-ant-ink hover:bg-ant-ink/90 text-ant-light text-[12px] font-medium gap-2"
+        >
+            <Plus className="w-3.5 h-3.5" />
+            Connect the first partner
+        </Button>
     </div>
 );
 
