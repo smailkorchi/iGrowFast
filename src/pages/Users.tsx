@@ -163,6 +163,7 @@ const pages = [
     { label: 'Import Orders', path: '/import-orders', icon: Upload },
     { label: 'Import Products', path: '/import-products', icon: Upload },
     { label: 'Import Accessories', path: '/import-accessories', icon: Upload },
+    { label: 'Import Customers', path: '/import-customers', icon: Upload },
     { label: 'Profit Calculator', path: '/calculator', icon: Calculator },
     { label: 'Devis', path: '/devis', icon: FileSpreadsheet },
     { label: 'Facture', path: '/facture', icon: Receipt },

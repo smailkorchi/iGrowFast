@@ -177,6 +177,7 @@ const navigation: NavSection[] = [
             { icon: Upload, label: 'Import Orders', path: '/import-orders' },
             { icon: Upload, label: 'Import Products', path: '/import-products' },
             { icon: Upload, label: 'Import Accessories', path: '/import-accessories' },
+            { icon: Upload, label: 'Import Customers', path: '/import-customers' },
         ],
     },
 ];

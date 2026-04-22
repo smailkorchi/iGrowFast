@@ -10,6 +10,7 @@ import Orders from "./pages/Orders";
 import ImportOrders from "./pages/ImportOrders";
 import ImportProducts from "./pages/ImportProducts";
 import ImportAccessories from "./pages/ImportAccessories";
+import ImportCustomers from "./pages/ImportCustomers";
 import DeliveryNote from "./pages/DeliveryNote";
 import ReturnNote from "./pages/ReturnNote";
 import DeliveryServices from "./pages/DeliveryServices";
@@ -275,6 +276,7 @@ const App = () => (
                     <Route path="/import-orders" element={<ImportOrders />} />
                     <Route path="/import-products" element={<ImportProducts />} />
                     <Route path="/import-accessories" element={<ImportAccessories />} />
+                    <Route path="/import-customers" element={<ImportCustomers />} />
                     <Route path="/delivery-note" element={<DeliveryNote />} />
                     <Route path="/return-note" element={<ReturnNote />} />
                     <Route path="/delivery-services" element={<DeliveryServices />} />

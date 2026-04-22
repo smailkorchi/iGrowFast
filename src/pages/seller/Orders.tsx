@@ -1607,6 +1607,7 @@ const Orders = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['business-duplicate-phones', activeBusinessId] });
             setIsAddModalOpen(false);
             // Defer form.reset so Radix completes its close cycle first.
             setTimeout(() => {
@@ -1780,6 +1781,7 @@ const Orders = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['business-duplicate-phones', activeBusinessId] });
             setIsEditModalOpen(false);
             setSelectedOrder(null);
             toast({ title: "Order Updated", description: "Changes saved successfully." });
@@ -1833,6 +1835,7 @@ const Orders = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['business-duplicate-phones', activeBusinessId] });
             toast({ title: "Status Updated" });
         },
         onError: (error: any) => {
@@ -1851,6 +1854,7 @@ const Orders = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['orders', activeBusinessId] });
+            queryClient.invalidateQueries({ queryKey: ['business-duplicate-phones', activeBusinessId] });
             toast({ title: "Order Moved to Trash", description: "Order moved to trash. You can restore it within 14 days." });
         },
         onError: (error: any) => {
@@ -1859,26 +1863,59 @@ const Orders = () => {
     });
 
     // --- Helpers ---
-    const duplicatePhones = useMemo(() => {
-        if (!orders) return new Set<string>();
-        const phoneCounts: Record<string, number> = {};
-        orders.forEach((o: any) => {
-            if (o.phone) {
-                const normalized = (o.phone || '').replace(/[\s-]/g, '');
-                phoneCounts[normalized] = (phoneCounts[normalized] || 0) + 1;
+    // Mirrors public.normalize_phone_for_customer in the DB: digits-only, and
+    // if the result is a 10-digit Moroccan local number it's rewritten with 212.
+    const normalizeClientPhone = (raw: string | null | undefined): string => {
+        if (!raw) return '';
+        const digits = raw.toString().replace(/\D/g, '');
+        if (!digits) return '';
+        if (digits.length === 10 && digits.startsWith('0')) return '212' + digits.slice(1);
+        return digits;
+    };
+
+    // Business-wide set of phones with more than one order, sourced from the
+    // `customers` cache table. This makes the "double client" badge honest
+    // across the full business, not just orders attributed to this seller.
+    const { data: businessDuplicatePhones } = useQuery({
+        queryKey: ['business-duplicate-phones', activeBusinessId],
+        enabled: !!activeBusinessId,
+        queryFn: async () => {
+            const PAGE = 1000;
+            let from = 0;
+            const set = new Set<string>();
+            while (true) {
+                const { data, error } = await (supabase as any)
+                    .from('customers')
+                    .select('phone_normalized')
+                    .eq('DigiCom Business', activeBusinessId)
+                    .gt('total_orders', 1)
+                    .range(from, from + PAGE - 1);
+                if (error) throw error;
+                if (!data || data.length === 0) break;
+                (data as Array<{ phone_normalized: string | null }>).forEach((r) => {
+                    if (r.phone_normalized) set.add(r.phone_normalized);
+                });
+                if (data.length < PAGE) break;
+                from += PAGE;
             }
-        });
+            return set;
+        },
+    });
+
+    const duplicatePhones = useMemo(() => {
         const duplicates = new Set<string>();
+        if (!orders || !businessDuplicatePhones || businessDuplicatePhones.size === 0) {
+            return duplicates;
+        }
         orders.forEach((o: any) => {
-            if (o.phone) {
-                const normalized = (o.phone || '').replace(/[\s-]/g, '');
-                if (phoneCounts[normalized] > 1) {
-                    duplicates.add(o.phone);
-                }
+            if (!o.phone) return;
+            const norm = normalizeClientPhone(o.phone);
+            if (norm && businessDuplicatePhones.has(norm)) {
+                duplicates.add(o.phone);
             }
         });
         return duplicates;
-    }, [orders]);
+    }, [orders, businessDuplicatePhones]);
 
     const isOrderInTab = (o: any, tab: string) => {
         const newStatusId = statusCats.getOrderByCategory('new')?.id;

@@ -24,6 +24,9 @@ import {
     X,
     Sparkles,
     Coins,
+    Check,
+    ChevronsUpDown,
+    ImageOff,
     type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -58,6 +61,14 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from "@/components/ui/command";
 import { useToast } from '@/hooks/use-toast';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -225,6 +236,148 @@ const AdsKpi: React.FC<AdsKpiProps> = ({ label, value, suffix, accent, icon }) =
                 <span className="text-[12px] text-ant-mid font-normal ml-1.5">{suffix}</span>
             </p>
         </div>
+    );
+};
+
+type ProductOption = {
+    id: string;
+    name: string;
+    code?: string | null;
+    image_url?: string | null;
+};
+
+const ProductThumb: React.FC<{ src?: string | null; alt: string; size?: number }> = ({ src, alt, size = 24 }) => {
+    const [failed, setFailed] = React.useState(false);
+    return (
+        <div
+            className="shrink-0 overflow-hidden rounded-md bg-ant-ink/[0.06] ring-1 ring-inset ring-ant-ink/10 flex items-center justify-center text-ant-mid"
+            style={{ width: size, height: size }}
+        >
+            {src && !failed ? (
+                <img
+                    src={src}
+                    alt={alt}
+                    loading="lazy"
+                    className="h-full w-full object-cover"
+                    onError={() => setFailed(true)}
+                />
+            ) : (
+                <ImageOff className="h-3 w-3" />
+            )}
+        </div>
+    );
+};
+
+interface ProductComboboxProps {
+    products: ProductOption[] | undefined;
+    value: string | undefined;
+    onChange: (id: string) => void;
+}
+
+const ProductCombobox: React.FC<ProductComboboxProps> = ({ products, value, onChange }) => {
+    const [open, setOpen] = React.useState(false);
+    const [search, setSearch] = React.useState('');
+    const list = products ?? [];
+    const selected = value ? list.find((p) => p.id === value) : undefined;
+
+    const filtered = React.useMemo(() => {
+        const q = search.trim().toLowerCase();
+        if (!q) return list;
+        return list.filter((p) => {
+            const name = (p.name || '').toLowerCase();
+            const code = (p.code || '').toLowerCase();
+            return name.includes(q) || code.includes(q);
+        });
+    }, [list, search]);
+
+    return (
+        <Popover
+            open={open}
+            onOpenChange={(o) => {
+                setOpen(o);
+                if (!o) setSearch('');
+            }}
+        >
+            <PopoverTrigger asChild>
+                <Button
+                    type="button"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={open}
+                    className={cn(
+                        'h-10 w-full justify-between rounded-xl border-ant-line bg-ant-paper px-2.5 text-left text-[12px] font-medium text-ant-ink hover:bg-ant-light hover:text-ant-ink',
+                        !selected && 'text-ant-mid hover:text-ant-mid'
+                    )}
+                >
+                    <span className="flex min-w-0 flex-1 items-center gap-2">
+                        {selected ? (
+                            <>
+                                <ProductThumb src={selected.image_url} alt={selected.name} size={24} />
+                                <span className="truncate">{selected.name}</span>
+                            </>
+                        ) : (
+                            <span>Select product</span>
+                        )}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 text-ant-mid" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent
+                className="w-[var(--radix-popover-trigger-width)] min-w-[260px] p-0 rounded-xl border border-ant-line bg-ant-paper shadow-[0_16px_48px_-20px_rgba(20,20,19,0.2)] overflow-hidden"
+                align="start"
+                onWheel={(e) => e.stopPropagation()}
+            >
+                <Command shouldFilter={false}>
+                    <CommandInput
+                        placeholder="Search by name or SKU…"
+                        className="h-10 text-[12px]"
+                        value={search}
+                        onValueChange={setSearch}
+                    />
+                    <CommandList className="max-h-[280px]">
+                        <CommandEmpty className="py-6 text-center text-[11px] font-medium text-ant-mid">
+                            No product found.
+                        </CommandEmpty>
+                        <CommandGroup className="p-1">
+                            {filtered.map((p) => {
+                                const isSelected = selected?.id === p.id;
+                                return (
+                                    <CommandItem
+                                        key={p.id}
+                                        value={`${p.name} ${p.code ?? ''} ${p.id}`}
+                                        onSelect={() => {
+                                            onChange(p.id);
+                                            setOpen(false);
+                                        }}
+                                        className={cn(
+                                            'cursor-pointer rounded-lg px-2 py-1.5 my-0.5 data-[selected=true]:bg-ant-ink/[0.05]',
+                                            isSelected && 'bg-ant-ink/[0.05]'
+                                        )}
+                                    >
+                                        <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                                            <ProductThumb src={p.image_url} alt={p.name} size={32} />
+                                            <div className="flex min-w-0 flex-1 flex-col">
+                                                <span className="truncate text-[12px] font-medium text-ant-ink">
+                                                    {p.name}
+                                                </span>
+                                                {p.code && (
+                                                    <span className="truncate text-[10px] font-medium uppercase tracking-wider text-ant-mid">
+                                                        SKU {p.code}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {isSelected && (
+                                                <Check className="h-3.5 w-3.5 shrink-0 text-ant-ink/60" />
+                                            )}
+                                        </div>
+                                    </CommandItem>
+                                );
+                            })}
+                        </CommandGroup>
+                    </CommandList>
+                </Command>
+            </PopoverContent>
+        </Popover>
     );
 };
 
@@ -840,20 +993,13 @@ const AdsHistory = () => {
                                             render={({ field }) => (
                                                 <FormItem className="space-y-1.5">
                                                     <FormLabel className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ant-mid">Product</FormLabel>
-                                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                        <FormControl>
-                                                            <SelectTrigger className="h-10 rounded-xl border-ant-line bg-ant-paper text-[12px] font-medium text-ant-ink">
-                                                                <SelectValue placeholder="Select product" />
-                                                            </SelectTrigger>
-                                                        </FormControl>
-                                                        <SelectContent className="rounded-xl border-ant-line">
-                                                            {products?.map((p) => (
-                                                                <SelectItem key={p.id} value={p.id} className="text-[12px]">
-                                                                    {p.name}
-                                                                </SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
+                                                    <FormControl>
+                                                        <ProductCombobox
+                                                            products={products as ProductOption[] | undefined}
+                                                            value={field.value}
+                                                            onChange={field.onChange}
+                                                        />
+                                                    </FormControl>
                                                     <FormMessage className="text-ant-rose" />
                                                 </FormItem>
                                             )}

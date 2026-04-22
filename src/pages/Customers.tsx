@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useStatusCategories } from '@/hooks/useStatusCategories';
 import { isDeliveredForCommission } from '@/lib/commercialCommission';
+import { useToast } from '@/hooks/use-toast';
 import {
     Search,
     ShoppingBag,
@@ -142,8 +143,32 @@ const valueTierPill = (status: Customer['status']) => {
     return { bg: 'bg-ant-light', border: 'border-ant-line', text: 'text-ant-mid', dot: 'bg-ant-mid' };
 };
 
+const CSV_HEADER = [
+    'Name',
+    'Phone',
+    'Phone Normalized',
+    'City',
+    'Address',
+    'Total Orders',
+    'Total Spent',
+    'First Order',
+    'Last Order',
+    'Tags',
+    'Notes',
+    'Source',
+];
+
+function toCsvCell(v: unknown): string {
+    if (v == null) return '';
+    const s = Array.isArray(v) ? v.join('|') : String(v);
+    if (/[",\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+    return s;
+}
+
 const Customers = () => {
     const statusCats = useStatusCategories();
+    const { toast } = useToast();
+    const [isExporting, setIsExporting] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -348,6 +373,75 @@ const Customers = () => {
         };
     }, [customers]);
 
+    const handleExport = async () => {
+        if (!activeBusinessId) {
+            toast({ title: 'No business selected', variant: 'destructive' });
+            return;
+        }
+        setIsExporting(true);
+        try {
+            const PAGE = 1000;
+            let from = 0;
+            const rows: any[] = [];
+            while (true) {
+                const { data: batch, error } = await (supabase as any)
+                    .from('customers')
+                    .select('name, phone, phone_normalized, city_name, address, total_orders, total_spent, first_order_at, last_order_at, tags, notes, source')
+                    .eq('DigiCom Business', activeBusinessId)
+                    .order('last_order_at', { ascending: false, nullsFirst: false })
+                    .range(from, from + PAGE - 1);
+                if (error) throw error;
+                if (!batch || batch.length === 0) break;
+                rows.push(...batch);
+                if (batch.length < PAGE) break;
+                from += PAGE;
+            }
+
+            if (rows.length === 0) {
+                toast({ title: 'No customers to export', description: 'The customer table is empty for this business.' });
+                return;
+            }
+
+            const csvRows = [CSV_HEADER.join(',')];
+            for (const r of rows) {
+                csvRows.push(
+                    [
+                        r.name,
+                        r.phone,
+                        r.phone_normalized,
+                        r.city_name,
+                        r.address,
+                        r.total_orders ?? 0,
+                        r.total_spent ?? 0,
+                        r.first_order_at ? new Date(r.first_order_at).toISOString() : '',
+                        r.last_order_at ? new Date(r.last_order_at).toISOString() : '',
+                        Array.isArray(r.tags) ? r.tags.join('|') : '',
+                        r.notes,
+                        r.source,
+                    ]
+                        .map(toCsvCell)
+                        .join(','),
+                );
+            }
+            const csv = '﻿' + csvRows.join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `customers-${new Date().toISOString().slice(0, 10)}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+
+            toast({ title: 'Exported', description: `${rows.length} customer row(s) downloaded.` });
+        } catch (e: any) {
+            toast({ title: 'Export failed', description: e?.message || 'Unknown error', variant: 'destructive' });
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
     const chartData = useMemo(() => {
         if (!selectedCustomer) return [];
         return [...selectedCustomer.orders].reverse().map((o) => ({
@@ -376,10 +470,12 @@ const Customers = () => {
                     </div>
                     <Button
                         variant="outline"
-                        className="h-10 px-5 rounded-full border-ant-line bg-ant-paper text-ant-ink hover:bg-ant-light text-[12px] font-semibold gap-2 shrink-0 cursor-pointer"
+                        onClick={handleExport}
+                        disabled={isExporting}
+                        className="h-10 px-5 rounded-full border-ant-line bg-ant-paper text-ant-ink hover:bg-ant-light text-[12px] font-semibold gap-2 shrink-0 cursor-pointer disabled:opacity-60"
                     >
                         <Download className="w-3.5 h-3.5" />
-                        Export
+                        {isExporting ? 'Exporting…' : 'Export'}
                     </Button>
                 </header>
 
